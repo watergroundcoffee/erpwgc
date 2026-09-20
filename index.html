@@ -4315,6 +4315,9 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
               <div id="katalog-detail-foto-wrap" style="width:100%; aspect-ratio:1; border-radius:12px; overflow:hidden; border:1px solid var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); cursor:pointer;" title="Klik buat ganti foto">
               </div>
               <input type="file" accept="image/*" id="katalog-detail-foto-file-input" style="display:none;" />
+
+              <div id="katalog-detail-galeri-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-top:6px;"></div>
+              <input type="file" accept="image/*" id="katalog-detail-galeri-file-input" style="display:none;" />
             </div>
             <div>
               <div id="katalog-detail-kategori-badge" style="margin-bottom:6px;"></div>
@@ -10719,6 +10722,7 @@ async function katalogBukaDetailProduk(sku) {
     const p = data.produk;
 
     el('katalog-detail-foto-wrap').innerHTML = katalogFotoAtauPlaceholder(p.urlFoto, 40);
+    katalogRenderDetailGaleriGrid(p.galeriFotoTambahan || []);
     el('katalog-detail-kategori-badge').innerHTML = p.kategori ? `<span class="web-status-pill aktif">${escapeHtml(p.kategori)}</span>` : '';
     el('katalog-detail-nama').textContent = p.nama;
     el('katalog-detail-sku').textContent = p.sku;
@@ -11052,6 +11056,53 @@ el('katalog-detail-foto-file-input').addEventListener('change', async (e) => {
       if (data.success) { playBeep(); el('katalog-detail-foto-wrap').innerHTML = katalogFotoAtauPlaceholder(data.urlFoto, 40); }
       else { alert('Gagal upload: ' + (data.error || '')); }
     } catch (err) { alert('Gagal terhubung: ' + err.message); }
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ===== Galeri Foto 2-5 di halaman Detail Produk - klik kotak buat upload/ganti spesifik ===== */
+let katalogDetailGaleriSlotAktif = null; // slot yang lagi diklik (0-3), dipakai file-input change handler
+
+function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
+  const gridEl = el('katalog-detail-galeri-grid');
+  gridEl.innerHTML = [0, 1, 2, 3].map(i => {
+    const url = galeriFotoTambahan[i] || '';
+    return `
+      <div class="katalog-detail-galeri-box" data-slot="${i}" title="Klik buat ${url ? 'ganti' : 'tambah'} Foto ${i + 2}"
+           style="position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; border:1px solid var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); cursor:pointer;">
+        ${url
+          ? `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" />`
+          : `<span style="font-size:9px; color:var(--web-text-dim); text-align:center;">Foto ${i + 2}</span>`}
+        <div class="katalog-detail-galeri-status" data-slot="${i}" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.55); color:#fff; font-size:8px; align-items:center; justify-content:center; text-align:center;">Upload...</div>
+      </div>`;
+  }).join('');
+
+  gridEl.querySelectorAll('.katalog-detail-galeri-box').forEach(box => {
+    box.addEventListener('click', () => {
+      katalogDetailGaleriSlotAktif = parseInt(box.dataset.slot, 10);
+      el('katalog-detail-galeri-file-input').click();
+    });
+  });
+}
+
+el('katalog-detail-galeri-file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // biar bisa pilih file yang sama lagi kalau perlu
+  if (!file || katalogDetailGaleriSlotAktif === null || !katalogSkuDetailAktif) return;
+  const slot = katalogDetailGaleriSlotAktif;
+  const statusEl = document.querySelector(`.katalog-detail-galeri-status[data-slot="${slot}"]`);
+  if (statusEl) statusEl.style.display = 'flex';
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = reader.result.split(',')[1];
+    try {
+      const data = await postJson({ aksi: 'update_foto_galeri_slot', sku: katalogSkuDetailAktif, slotIndex: slot, base64, mimeType: file.type, toko: currentToko, email: currentUserEmail() }, 30000);
+      if (data.success) {
+        playBeep();
+        katalogBukaDetailProduk(katalogSkuDetailAktif); // render ulang seluruh galeri biar konsisten sama data sheet
+      } else { if (statusEl) statusEl.style.display = 'none'; alert('Gagal upload: ' + (data.error || '')); }
+    } catch (err) { if (statusEl) statusEl.style.display = 'none'; alert('Gagal terhubung: ' + err.message); }
   };
   reader.readAsDataURL(file);
 });
