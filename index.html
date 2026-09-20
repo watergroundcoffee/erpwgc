@@ -10220,6 +10220,7 @@ async function katalogBukaModalEditProduk(sku) {
   el('tp-btn-simpan').disabled = true;
   el('tp-btn-simpan').textContent = '💾 Simpan Perubahan';
   katalogKosongkanSpesifikasiDinamis();
+  katalogKosongkanFotoGrid(); // bersihkan dulu - cegah foto dari sesi Tambah/Edit sebelumnya kelihatan sekilas sebelum data produk ini kemuat
   el('katalog-modal-tambah-produk').style.display = 'flex';
   katalogAmbilMarginDefault();
 
@@ -10536,7 +10537,13 @@ async function katalogUploadFotoKeKotak(idx, files) {
       reader.onerror = reject;
       reader.readAsDataURL(files[0]);
     });
-    const data = await postJson({ aksi: 'upload_foto_standalone', base64, mimeType: files[0].type, email: currentUserEmail() }, 30000);
+    // Kirim SKU & Nama Produk yang lagi diketik di form - dipakai backend buat nentuin
+    // folder Google Drive "[SKU] - [Nama Produk]" tempat foto ini disimpan.
+    const data = await postJson({
+      aksi: 'upload_foto_standalone', base64, mimeType: files[0].type,
+      sku: el('tp-sku').value.trim(), namaProduk: el('tp-nama').value.trim(),
+      email: currentUserEmail()
+    }, 30000);
     if (data.success) { playBeep(); katalogSetFotoDiKotak(idx, data.urlFoto); }
     else { if (statusEl) statusEl.style.display = 'none'; alert('Gagal upload foto: ' + (data.error || '')); }
   } catch (err) {
@@ -10563,12 +10570,22 @@ async function katalogUploadFotoMultiDariInput(fileList) {
 
 // Multi-upload: isi kotak yang MASIH KOSONG secara berurutan kiri ke kanan, sampai 5 kotak
 // penuh atau file habis (yang mana lebih dulu).
+// Multi-upload PARALEL SUNGGUHAN - kotak kosong dialokasikan DULU sebelum upload mulai
+// (biar nggak race condition kalau di-cek "kotak kosong mana" pas beberapa upload lagi
+// jalan bersamaan), baru semua file dikirim BARENGAN lewat Promise.all.
 async function katalogUploadFotoMultiKeKotakKosong(files) {
-  for (const file of files) {
-    const idxKosong = katalogFotoGaleri.findIndex(u => !u);
-    if (idxKosong === -1) { alert('Semua 5 kotak foto udah penuh - hapus salah satu dulu kalau mau ganti.'); break; }
-    await katalogUploadFotoKeKotak(idxKosong, [file]);
+  const idxKosong = [];
+  katalogFotoGaleri.forEach((u, i) => { if (!u) idxKosong.push(i); });
+
+  if (files.length > idxKosong.length) {
+    alert(`Cuma ${idxKosong.length} kotak kosong tersisa - ${files.length - idxKosong.length} foto terakhir nggak keupload. Hapus beberapa foto dulu kalau mau upload lebih banyak.`);
   }
+  const jumlahDiproses = Math.min(files.length, idxKosong.length);
+  if (jumlahDiproses === 0) return;
+
+  await Promise.all(
+    files.slice(0, jumlahDiproses).map((file, i) => katalogUploadFotoKeKotak(idxKosong[i], [file]))
+  );
 }
 
 // Drop file BANYAK SEKALIGUS ke area grid secara umum (bukan ke 1 kotak spesifik) - isi
