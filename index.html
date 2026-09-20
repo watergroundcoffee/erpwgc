@@ -4451,7 +4451,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
               </div>
             </div>
 
-            <!-- 4. Kategori (dipasangkan sama Tipe biar rapi 2 kolom) -->
+            <!-- 4. Kategori & Tipe/Model -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
               <div>
                 <label style="font-size:12px; font-weight:600;">Kategori</label>
@@ -4460,65 +4460,78 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
                 </select>
               </div>
               <div>
-                <label style="font-size:12px; font-weight:600;">Tipe</label>
-                <input id="tp-tipe" type="text" class="web-form-input" placeholder="Opsional" />
+                <label style="font-size:12px; font-weight:600;">Tipe / Model</label>
+                <input id="tp-tipe" type="text" class="web-form-input" placeholder="Opsional, misal M180" />
               </div>
             </div>
 
-            <!-- 5-6. Harga Beli (HPP) & Harga Jual -->
+            <!-- 5-6. Harga Beli (HPP) & Harga Jual (otomatis dari margin default) -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
               <div>
                 <label style="font-size:12px; font-weight:600;">Harga Beli / HPP</label>
-                <input id="tp-harga-supplier" type="number" class="web-form-input" placeholder="0" />
+                <input id="tp-harga-supplier" type="number" class="web-form-input" placeholder="0" oninput="katalogHitungHargaJualOtomatis()" />
               </div>
               <div>
                 <label style="font-size:12px; font-weight:600;">Harga Jual</label>
                 <input id="tp-harga" type="number" class="web-form-input" placeholder="0" />
               </div>
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 12px;">
-              <div>
-                <label style="font-size:11px; font-weight:600; color:var(--web-text-dim);">Harga Shopee</label>
-                <input id="tp-harga-shopee" type="number" class="web-form-input" placeholder="0" style="font-size:12px;" />
-              </div>
-              <div>
-                <label style="font-size:11px; font-weight:600; color:var(--web-text-dim);">Batas Stok Menipis</label>
-                <input id="tp-batas-stok" type="number" class="web-form-input" placeholder="Opsional" style="font-size:12px;" />
-              </div>
-              <div>
-                <label style="font-size:11px; font-weight:600; color:var(--web-text-dim);">Margin Custom (%)</label>
-                <input id="tp-margin" type="number" class="web-form-input" placeholder="Default toko" style="font-size:12px;" />
-              </div>
-            </div>
+            <div style="font-size:10.5px; color:var(--web-text-dim); margin-top:-8px; margin-bottom:12px;" id="tp-harga-helper">Dihitung otomatis dari margin default yang kamu set sebelumnya - boleh diubah manual kalau perlu.</div>
 
             <!-- 7. URL Supplier -->
             <label style="font-size:12px; font-weight:600;">URL Supplier</label>
-            <input id="tp-url-supplier" type="text" class="web-form-input" placeholder="Opsional, link produk di supplier - buat lacak sumber barang" />
+            <input id="tp-url-supplier" type="text" class="web-form-input" placeholder="Opsional" />
 
             <!-- 8. Spesifikasi -->
             <div style="font-size:12.5px; font-weight:700; margin-top:6px; margin-bottom:6px; padding-top:8px; border-top:1px solid var(--web-border);">📐 Spesifikasi</div>
+
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
               <div>
                 <label style="font-size:12px; font-weight:600;">Berat</label>
-                <input id="tp-berat" type="text" class="web-form-input" placeholder="Opsional, misal 0.9 kg" />
+                <div style="display:flex; gap:6px;">
+                  <input id="tp-berat-angka" type="number" class="web-form-input" placeholder="0" style="margin:0;" />
+                  <select id="tp-berat-satuan" class="web-form-input" style="margin:0; max-width:90px;">
+                    <option value="Gram">Gram</option>
+                    <option value="Kg">Kg</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label style="font-size:12px; font-weight:600;">Dimensi</label>
-                <input id="tp-dimensi" type="text" class="web-form-input" placeholder="Opsional, misal 22x12x19 cm" />
-              </div>
-            </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
               <div>
                 <label style="font-size:12px; font-weight:600;">Material</label>
                 <input id="tp-material" type="text" class="web-form-input" placeholder="Opsional" />
               </div>
+            </div>
+
+            <label style="font-size:12px; font-weight:600;">Dimensi (cm)</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 12px; margin-bottom:12px;">
+              <div>
+                <label style="font-size:10.5px; color:var(--web-text-dim);">Panjang</label>
+                <input id="tp-dimensi-p" type="number" class="web-form-input" placeholder="0" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:10.5px; color:var(--web-text-dim);">Lebar</label>
+                <input id="tp-dimensi-l" type="number" class="web-form-input" placeholder="0" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:10.5px; color:var(--web-text-dim);">Tinggi</label>
+                <input id="tp-dimensi-t" type="number" class="web-form-input" placeholder="0" style="margin-bottom:0;" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
               <div>
                 <label style="font-size:12px; font-weight:600;">Volume</label>
                 <input id="tp-volume" type="text" class="web-form-input" placeholder="Opsional, misal 900ml" />
               </div>
+              <div>
+                <label style="font-size:12px; font-weight:600;">Warna</label>
+                <input id="tp-warna" type="text" class="web-form-input" placeholder="Opsional" />
+              </div>
             </div>
-            <label style="font-size:12px; font-weight:600;">Warna</label>
-            <input id="tp-warna" type="text" class="web-form-input" placeholder="Opsional" />
+
+            <!-- Spesifikasi Dinamis - "+ Tambah Spesifikasi" -->
+            <div id="tp-spesifikasi-dinamis-list" style="margin-bottom:8px;"></div>
+            <button type="button" class="web-btn-secondary" style="width:100%; margin-bottom:14px;" onclick="katalogTambahBarisSpesifikasi()">+ Tambah Spesifikasi</button>
 
             <!-- 9. Deskripsi Produk -->
             <label style="font-size:12.5px; font-weight:700; margin-top:6px; padding-top:8px; border-top:1px solid var(--web-border); display:block;">📝 Deskripsi Produk</label>
@@ -10103,20 +10116,81 @@ async function katalogMuatDaftarKategori() {
 
 let katalogModalMode = 'tambah'; // 'tambah' | 'edit'
 let katalogModalSkuLama = null;
+let katalogMarginDefaultCache = null;
+
+async function katalogAmbilMarginDefault() {
+  if (katalogMarginDefaultCache !== null) return katalogMarginDefaultCache;
+  try {
+    const data = await postJson({ aksi: 'lihat_setting_margin', email: currentUserEmail() });
+    katalogMarginDefaultCache = data.success ? data.marginDefault : 30;
+  } catch (err) { katalogMarginDefaultCache = 30; }
+  return katalogMarginDefaultCache;
+}
+
+// Rumus MARGIN (bukan markup!): Harga Jual = HPP / (1 - Margin% / 100), dibulatkan ke ratusan
+// terdekat - sama persis kayak rumus backend hitungHargaDariMargin().
+function katalogHitungHargaJualOtomatis() {
+  const hpp = parseFloat(el('tp-harga-supplier').value) || 0;
+  if (hpp <= 0 || katalogMarginDefaultCache === null) return;
+  const margin = katalogMarginDefaultCache;
+  if (margin <= 0 || margin >= 100) { el('tp-harga').value = hpp; return; }
+  const hargaJual = Math.round((hpp / (1 - margin / 100)) / 100) * 100;
+  el('tp-harga').value = hargaJual;
+  el('tp-harga-helper').textContent = `Dihitung otomatis dari margin default ${margin}% yang kamu set sebelumnya - boleh diubah manual kalau perlu.`;
+}
+
+/* ===== Spesifikasi Dinamis (+ Tambah Spesifikasi) ===== */
+let katalogSpesifikasiDinamisIdx = 0;
+
+function katalogTambahBarisSpesifikasi(nama, nilai) {
+  const idx = katalogSpesifikasiDinamisIdx++;
+  const wrap = document.createElement('div');
+  wrap.id = 'tp-spesdin-row-' + idx;
+  wrap.style.cssText = 'display:grid; grid-template-columns:1fr 1fr 32px; gap:0 8px; align-items:end; margin-bottom:8px;';
+  wrap.innerHTML = `
+    <div>
+      <label style="font-size:10.5px; color:var(--web-text-dim);">Nama Spesifikasi</label>
+      <input type="text" class="web-form-input tp-spesdin-nama" placeholder="misal Daya" style="margin-bottom:0;" value="${escapeHtml(nama || '')}" />
+    </div>
+    <div>
+      <label style="font-size:10.5px; color:var(--web-text-dim);">Nilai</label>
+      <input type="text" class="web-form-input tp-spesdin-nilai" placeholder="misal 1780W" style="margin-bottom:0;" value="${escapeHtml(nilai || '')}" />
+    </div>
+    <button type="button" class="mg-hapus-btn" style="font-size:18px; padding-bottom:8px;" onclick="document.getElementById('tp-spesdin-row-${idx}').remove()">✕</button>
+  `;
+  el('tp-spesifikasi-dinamis-list').appendChild(wrap);
+}
+
+function katalogKosongkanSpesifikasiDinamis() {
+  el('tp-spesifikasi-dinamis-list').innerHTML = '';
+}
+
+function katalogAmbilSpesifikasiDinamis() {
+  const hasil = [];
+  document.querySelectorAll('#tp-spesifikasi-dinamis-list > div').forEach(row => {
+    const nama = row.querySelector('.tp-spesdin-nama')?.value.trim();
+    const nilai = row.querySelector('.tp-spesdin-nilai')?.value.trim();
+    if (nama) hasil.push({ nama, nilai: nilai || '' });
+  });
+  return hasil;
+}
 
 async function katalogBukaModalTambahProduk() {
   katalogModalMode = 'tambah';
   katalogModalSkuLama = null;
   el('tp-judul-modal').textContent = '+ Tambah Produk Baru';
-  ['tp-sku','tp-nama','tp-merk','tp-url-supplier','tp-url-foto','tp-tipe','tp-material','tp-volume','tp-warna','tp-deskripsi','tp-berat','tp-dimensi'].forEach(id => el(id).value = '');
-  ['tp-harga','tp-harga-supplier','tp-harga-shopee','tp-batas-stok','tp-margin'].forEach(id => el(id).value = '');
+  ['tp-sku','tp-nama','tp-merk','tp-url-supplier','tp-url-foto','tp-tipe','tp-material','tp-volume','tp-warna','tp-deskripsi','tp-berat-angka','tp-dimensi-p','tp-dimensi-l','tp-dimensi-t'].forEach(id => el(id).value = '');
+  el('tp-harga').value = ''; el('tp-harga-supplier').value = '';
+  el('tp-berat-satuan').value = 'Gram';
   el('tp-sku').disabled = false;
   el('tp-tampil-website').checked = false;
   el('tp-channel-badges').textContent = 'Belum Tampil di marketplace manapun.';
   el('tp-foto-preview-wrap').style.display = 'none';
+  katalogKosongkanSpesifikasiDinamis();
   el('tp-status').textContent = '';
   el('tp-btn-simpan').disabled = false;
   el('tp-btn-simpan').textContent = '💾 Simpan';
+  katalogAmbilMarginDefault();
   if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
   el('tp-kategori').innerHTML = '<option value="">- Pilih Kategori (opsional) -</option>' + katalogDaftarKategoriCache.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
   el('tp-kategori').value = '';
@@ -10130,7 +10204,9 @@ async function katalogBukaModalEditProduk(sku) {
   el('tp-status').textContent = 'Memuat data produk...';
   el('tp-btn-simpan').disabled = true;
   el('tp-btn-simpan').textContent = '💾 Simpan Perubahan';
+  katalogKosongkanSpesifikasiDinamis();
   el('katalog-modal-tambah-produk').style.display = 'flex';
+  katalogAmbilMarginDefault();
 
   if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
   el('tp-kategori').innerHTML = '<option value="">- Pilih Kategori (opsional) -</option>' + katalogDaftarKategoriCache.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
@@ -10149,14 +10225,25 @@ async function katalogBukaModalEditProduk(sku) {
     el('tp-tipe').value = p.tipe || '';
     el('tp-harga').value = p.hargaDefault || '';
     el('tp-harga-supplier').value = p.hargaSupplier || '';
-    el('tp-harga-shopee').value = p.hargaShopee || '';
-    el('tp-batas-stok').value = (p.batasStokMenipis === '' || p.batasStokMenipis === undefined) ? '' : p.batasStokMenipis;
-    el('tp-margin').value = (p.marginCustom === null || p.marginCustom === undefined) ? '' : p.marginCustom;
     el('tp-material').value = p.material || '';
     el('tp-volume').value = p.volume || '';
     el('tp-warna').value = p.warna || '';
-    el('tp-berat').value = p.berat || '';
-    el('tp-dimensi').value = p.dimensi || '';
+
+    // Parse "29 kg" / "500 gram" jadi angka + satuan terpisah
+    const matchBerat = String(p.berat || '').match(/([\d.,]+)\s*(kg|gram|g)?/i);
+    if (matchBerat && matchBerat[1]) {
+      el('tp-berat-angka').value = matchBerat[1].replace(',', '.');
+      el('tp-berat-satuan').value = /kg/i.test(matchBerat[2] || '') ? 'Kg' : 'Gram';
+    } else { el('tp-berat-angka').value = ''; el('tp-berat-satuan').value = 'Gram'; }
+
+    // Parse "68 x 49 x 52 cm" jadi Panjang/Lebar/Tinggi terpisah
+    const matchDimensi = String(p.dimensi || '').match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+    if (matchDimensi) {
+      el('tp-dimensi-p').value = matchDimensi[1]; el('tp-dimensi-l').value = matchDimensi[2]; el('tp-dimensi-t').value = matchDimensi[3];
+    } else { el('tp-dimensi-p').value = ''; el('tp-dimensi-l').value = ''; el('tp-dimensi-t').value = ''; }
+
+    (p.spesifikasiTambahan || []).forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
+
     el('tp-deskripsi').value = p.deskripsi || '';
     el('tp-tampil-website').checked = !!p.tampilWebsite;
     el('tp-channel-badges').innerHTML = (p.channel && p.channel.length > 0) ? katalogBadgeChannel(p.channel) : 'Belum Tampil di marketplace manapun.';
@@ -10183,6 +10270,13 @@ function katalogSmartParseTeksSupplier(teks) {
   const mNama = teks.match(/([^\n]{10,150})\n\s*Informasi Produk/);
   if (mNama) hasil.namaProduk = mNama[1].trim();
 
+  // 2b. Tipe/Model - biasanya segmen kedua-dari-belakang di judul, dipisah " - "
+  // (segmen terakhir biasanya warna). Contoh: "...1780W - M180 - Silver" -> "M180"
+  if (hasil.namaProduk) {
+    const segmen = hasil.namaProduk.split(' - ').map(s => s.trim()).filter(s => s);
+    if (segmen.length >= 2) hasil.tipe = segmen[segmen.length - 2];
+  }
+
   // 3. Merk - baris persis di bawah "Brand". Kalau nggak ketemu, default "NO BRAND".
   const mBrand = teks.match(/\bBrand\s*\n\s*([^\n]+)/);
   hasil.merk = (mBrand && mBrand[1].trim().length > 0 && mBrand[1].trim().length < 40) ? mBrand[1].trim() : 'NO BRAND';
@@ -10194,15 +10288,32 @@ function katalogSmartParseTeksSupplier(teks) {
     if (!isNaN(angka)) hasil.hargaSupplier = angka;
   }
 
-  // 5. Spesifikasi ringkas - Berat Produk, Dimensi Kemasan (bukan "Dimensi" tabel spek yang
-  // lebih detail/multi-baris di bawahnya - sengaja ditarget yang "Kemasan" biar konsisten
-  // ukurannya), dan Material.
-  const mBerat = teks.match(/Berat Produk\s*\n\s*([^\n]+)/i);
-  if (mBerat) hasil.berat = mBerat[1].trim();
-  const mDimensi = teks.match(/Dimensi Kemasan\s*\n\s*([^\n]+)/i);
-  if (mDimensi) hasil.dimensi = mDimensi[1].trim();
+  // 5. Berat Produk - pecah jadi angka + satuan (Kg/Gram) buat isi 2 field terpisah
+  const mBerat = teks.match(/Berat Produk\s*\n\s*([\d.,]+)\s*(kg|gram|g)?/i);
+  if (mBerat) {
+    hasil.beratAngka = mBerat[1].replace(',', '.');
+    hasil.beratSatuan = /kg/i.test(mBerat[2] || '') ? 'Kg' : 'Gram';
+  }
+
+  // 5b. Dimensi Kemasan - pecah jadi Panjang/Lebar/Tinggi (bukan "Dimensi" tabel spek yang
+  // lebih detail/multi-baris di bawahnya - sengaja ditarget yang "Kemasan" biar konsisten)
+  const mDimensi = teks.match(/Dimensi Kemasan\s*\n\s*([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+  if (mDimensi) { hasil.dimensiP = mDimensi[1]; hasil.dimensiL = mDimensi[2]; hasil.dimensiT = mDimensi[3]; }
+
   const mMaterial = teks.match(/\bMaterial\s*\n\s*([^\n]+)/i);
   if (mMaterial) hasil.material = mMaterial[1].trim();
+
+  // 5c. Spesifikasi tambahan lain (Daya, Kapasitas, Voltase, dst) - dipetakan otomatis ke
+  // baris Spesifikasi Dinamis. Cuma ambil label yang UMUM ditemukan di halaman supplier,
+  // 1 baris nilai aja (kalau value-nya multi-baris, cuma baris pertama yang ke-ambil).
+  const labelSpesifikasiUmum = ['Voltase', 'Daya', 'Kapasitas Isi', 'Tekanan', 'Kontrol Suhu', 'Manometer', 'Steam Wand', 'Cup Warmer', 'Ekstraksi', 'Pompa', 'Garansi'];
+  hasil.spesifikasiTambahan = [];
+  labelSpesifikasiUmum.forEach(label => {
+    const re = new RegExp('\\b' + label.replace(/\s+/g, '\\s+') + '\\s*/?\\s*Power\\s*\\n\\s*([^\\n]+)|\\b' + label + '\\s*\\n\\s*([^\\n]+)', 'i');
+    const m = teks.match(re);
+    const nilai = m ? (m[1] || m[2]) : null;
+    if (nilai && nilai.trim().length < 60) hasil.spesifikasiTambahan.push({ nama: label, nilai: nilai.trim() });
+  });
 
   // 6. Deskripsi - gabung bagian naratif (Keunggulan Produk/Overview/Fitur s.d. Kelengkapan
   // Produk), BERHENTI sebelum tabel "Spesifikasi" teknis (bukan tab nav "Spesifikasi" yang
@@ -10242,11 +10353,17 @@ document.addEventListener('paste', function (e) {
   const kolomTerisi = [];
   if (hasil.sku) { el('tp-sku').value = hasil.sku; kolomTerisi.push('SKU'); }
   if (hasil.namaProduk) { el('tp-nama').value = hasil.namaProduk; kolomTerisi.push('Nama Produk'); }
+  if (hasil.tipe) { el('tp-tipe').value = hasil.tipe; kolomTerisi.push('Tipe/Model'); }
   el('tp-merk').value = hasil.merk; kolomTerisi.push('Merk');
-  if (hasil.hargaSupplier !== undefined) { el('tp-harga-supplier').value = hasil.hargaSupplier; kolomTerisi.push('Harga Beli'); }
-  if (hasil.berat) { el('tp-berat').value = hasil.berat; kolomTerisi.push('Berat'); }
-  if (hasil.dimensi) { el('tp-dimensi').value = hasil.dimensi; kolomTerisi.push('Dimensi'); }
+  if (hasil.hargaSupplier !== undefined) { el('tp-harga-supplier').value = hasil.hargaSupplier; kolomTerisi.push('Harga Beli'); katalogHitungHargaJualOtomatis(); }
+  if (hasil.beratAngka) { el('tp-berat-angka').value = hasil.beratAngka; el('tp-berat-satuan').value = hasil.beratSatuan; kolomTerisi.push('Berat'); }
+  if (hasil.dimensiP) { el('tp-dimensi-p').value = hasil.dimensiP; el('tp-dimensi-l').value = hasil.dimensiL; el('tp-dimensi-t').value = hasil.dimensiT; kolomTerisi.push('Dimensi'); }
   if (hasil.material) { el('tp-material').value = hasil.material; kolomTerisi.push('Material'); }
+  if (hasil.spesifikasiTambahan && hasil.spesifikasiTambahan.length > 0) {
+    katalogKosongkanSpesifikasiDinamis();
+    hasil.spesifikasiTambahan.forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
+    kolomTerisi.push(`Spesifikasi Tambahan (${hasil.spesifikasiTambahan.length})`);
+  }
   if (hasil.deskripsi) { el('tp-deskripsi').value = hasil.deskripsi; kolomTerisi.push('Deskripsi'); }
 
   const statusEl = el('tp-status');
@@ -10266,6 +10383,12 @@ function katalogTutupModalTambahProduk() {
 async function katalogSimpanProdukBaru() {
   const btn = el('tp-btn-simpan');
   if (btn.disabled) return; // lagi diproses, abaikan klik tambahan
+
+  const beratAngka = el('tp-berat-angka').value.trim();
+  const beratGabungan = beratAngka ? `${beratAngka} ${el('tp-berat-satuan').value}` : '';
+  const dp = el('tp-dimensi-p').value.trim(), dl = el('tp-dimensi-l').value.trim(), dt = el('tp-dimensi-t').value.trim();
+  const dimensiGabungan = (dp && dl && dt) ? `${dp} x ${dl} x ${dt} cm` : '';
+
   const payload = {
     sku: el('tp-sku').value.trim(),
     namaProduk: el('tp-nama').value.trim(),
@@ -10274,11 +10397,10 @@ async function katalogSimpanProdukBaru() {
     urlSupplier: el('tp-url-supplier').value.trim(),
     urlFoto: el('tp-url-foto').value.trim(),
     tipe: el('tp-tipe').value.trim(),
-    harga: el('tp-harga').value, hargaSupplier: el('tp-harga-supplier').value, hargaShopee: el('tp-harga-shopee').value,
-    batasStokMenipis: el('tp-batas-stok').value,
-    marginCustom: el('tp-margin').value,
+    harga: el('tp-harga').value, hargaSupplier: el('tp-harga-supplier').value,
     material: el('tp-material').value.trim(), volume: el('tp-volume').value.trim(), warna: el('tp-warna').value.trim(),
-    berat: el('tp-berat').value.trim(), dimensi: el('tp-dimensi').value.trim(),
+    berat: beratGabungan, dimensi: dimensiGabungan,
+    spesifikasiTambahan: katalogAmbilSpesifikasiDinamis(),
     deskripsi: el('tp-deskripsi').value.trim(),
     tampilWebsite: el('tp-tampil-website').checked,
     toko: currentToko, email: currentUserEmail()
