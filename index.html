@@ -16390,15 +16390,15 @@ function setInputMode(mode) {
 }
 
 /* ================= KAMERA RESI (disamakan persis dengan kamera Minta Stock yang terbukti jalan) ================= */
-let cameraBukaWaktu = 0;
-let cameraCooldownSampai = 0;
+let lastScanTime = 0;
+let lastScanText = '';
 
 async function startCamera() {
   el('camera-error').textContent = '';
   el('torch-btn').style.display = 'none';
   torchOn = false;
-  cameraBukaWaktu = Date.now(); // jeda awal 0.5s - abaikan scan sebelum staf sempat posisikan kamera
-  cameraCooldownSampai = 0;
+  lastScanTime = 0;
+  lastScanText = '';
 
   if (!window.ZXing) {
     el('camera-error').textContent = '⚠️ Library kamera gagal dimuat. Cek internet, buka ulang halaman.';
@@ -16412,13 +16412,24 @@ async function startCamera() {
       videoEl,
       (result) => {
         if (!result) return;
-        const now = Date.now();
-        if (now - cameraBukaWaktu < 500) return; // jeda awal 500ms pas kamera baru kebuka
-        if (now < cameraCooldownSampai) return; // masih cooldown dari scan sebelumnya (resi sama ATAU beda, tetap diabaikan)
 
-        cameraCooldownSampai = now + 1000; // cooldown 1 detik buat scan berikutnya, apapun hasilnya
+        // 1. BLOCKING PALING AWAL - throttle ketat. Kamera baca puluhan frame/detik, jadi ini
+        // HARUS baris pertama, sebelum kode apapun lain (termasuk sebelum ambil teks barcode-nya).
+        if (Date.now() - lastScanTime < 1000) return;
+
         const text = result.getText();
-        playBeep(); // feedback instan pas scan-nya sendiri sukses kebaca - terpisah dari beep pas batch berhasil ke server
+
+        // Barcode yang SAMA masih persis di jangkauan kamera (staf belum sempat jauhin HP) -
+        // diamkan TOTAL, jangan proses/bunyi ulang. Beda dari throttle waktu di atas - ini
+        // khusus nyegah siklus "cooldown abis -> toot lagi -> cooldown abis -> toot lagi"
+        // yang keulang terus selama barcode yang SAMA belum digeser dari frame.
+        if (text === lastScanText) return;
+
+        // 2. Lolos throttle & bukan barcode yang sama kayak sebelumnya - catat waktu & teksnya,
+        // baru lempar ke scanMasukAntrean yang nentuin sendiri bunyi tiit/toot + cek duplikat
+        // sesi (biar konsisten sama jalur input manual/keyboard, satu sumber logika aja).
+        lastScanTime = Date.now();
+        lastScanText = text;
         if (navigator.vibrate) navigator.vibrate(60);
         scanMasukAntrean(text);
       }
@@ -16574,6 +16585,7 @@ function scanMasukAntrean(noResi) {
 
   scanAntrean.unshift({ noResi });
   scanRenderAntrean();
+  playBeep(); // bunyi "tiit" - HANYA di sini, pas resi beneran baru & berhasil masuk Section 1
 
   if (scanDebounceTimer) clearTimeout(scanDebounceTimer);
   if (scanAntrean.length >= SCAN_BATAS_LANGSUNG_KIRIM) {
