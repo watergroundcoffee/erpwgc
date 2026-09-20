@@ -4440,9 +4440,21 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
             <input id="tp-url-foto" type="hidden" />
             <input id="tp-galeri-foto-tambahan" type="hidden" />
 
-            <div style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:8px; padding:8px 12px; font-size:11px; color:var(--web-text-dim); margin-bottom:12px;">
-              ✨ Tips: paste (Ctrl+V) hasil Ctrl+A dari halaman produk supplier di kolom manapun di form ini - sistem otomatis pecah & isi semua kolom yang cocok.
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+              <div style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:8px; padding:10px;">
+                <div style="font-size:11.5px; font-weight:700; margin-bottom:4px;">📋 Paste 1: Judul & SKU</div>
+                <div style="font-size:10px; color:var(--web-text-dim); margin-bottom:6px;">Paste bagian atas halaman supplier (judul produk sampai baris SKU/harga).</div>
+                <textarea id="tp-paste-judul-sku" class="web-form-input" rows="3" placeholder="Contoh: Nama Produk...&#10;SKUXXXXXXX&#10;Rp99.000" style="font-size:10.5px; margin-bottom:6px;"></textarea>
+                <button type="button" class="web-btn-secondary" style="width:100%; margin:0;" onclick="katalogParseBoxJudulSku()">🪄 Ekstrak</button>
+              </div>
+              <div style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:8px; padding:10px;">
+                <div style="font-size:11.5px; font-weight:700; margin-bottom:4px;">📋 Paste 2: Rincian & Spesifikasi</div>
+                <div style="font-size:10px; color:var(--web-text-dim); margin-bottom:6px;">Paste bagian "Rincian Produk" s.d. tabel "Spesifikasi" di halaman supplier.</div>
+                <textarea id="tp-paste-rincian" class="web-form-input" rows="3" placeholder="Contoh: Brand...&#10;Material...&#10;Dimensi..." style="font-size:10.5px; margin-bottom:6px;"></textarea>
+                <button type="button" class="web-btn-secondary" style="width:100%; margin:0;" onclick="katalogParseBoxRincianSpesifikasi()">🪄 Ekstrak</button>
+              </div>
             </div>
+            <div class="status-text" id="tp-paste-status" style="text-align:left; margin:6px 0 12px;"></div>
 
             <!-- 1. Nama Produk - fokus utama, lebar penuh -->
             <label style="font-size:12.5px; font-weight:700;">Nama Produk <span style="color:var(--web-danger);">*</span></label>
@@ -10314,70 +10326,79 @@ async function katalogBukaModalEditProduk(sku) {
 /* ===== Smart Parse - deteksi paste teks mentah supplier di KOLOM MANAPUN dalam form,
    otomatis pecah & distribusi ke field yang cocok. Ditarget khusus pola JakartaNotebook
    dan situs sejenis; field yang nggak ketemu polanya dibiarkan kosong (nggak ditebak). ===== */
-function katalogSmartParseTeksSupplier(teks) {
-  const hasil = {};
+/* ===== Dual Paste Section - 2 kotak dedicated, lebih akurat daripada deteksi "paste di
+   manapun" karena masing-masing kotak cuma perlu ngenalin 1 pola spesifik (nggak ada resiko
+   ketuker sama teks sampah bagian lain halaman). ===== */
 
-  // 1. SKU Utama - "SKU7CHWDXSV" -> ambil "7CHWDXSV" (bagian setelah kata SKU)
+// Box 1: Judul & SKU. Isinya sengaja ditempel TERPISAH & CUMA bagian atas halaman, jadi baris
+// PERTAMA yang nggak kosong hampir pasti Nama Produk-nya - jauh lebih simpel & akurat
+// dibanding nyari pola "di atas Informasi Produk" yang nggak selalu ada di semua supplier.
+function katalogParseBoxJudulSku() {
+  const teks = el('tp-paste-judul-sku').value;
+  const statusEl = el('tp-paste-status');
+  if (!teks.trim()) { statusEl.textContent = '✗ Kotak Paste 1 masih kosong.'; statusEl.className = 'status-text err'; return; }
+
+  const kolomTerisi = [];
+  const barisIsi = teks.split('\n').map(b => b.trim()).filter(b => b);
+
+  if (barisIsi.length > 0) {
+    const namaProduk = barisIsi[0];
+    el('tp-nama').value = namaProduk;
+    kolomTerisi.push('Nama Produk');
+    const segmen = namaProduk.split(' - ').map(s => s.trim()).filter(s => s);
+    if (segmen.length >= 2) { el('tp-tipe').value = segmen[segmen.length - 2]; kolomTerisi.push('Tipe/Model'); }
+  }
+
   const mSku = teks.match(/\bSKU([A-Z0-9]{4,})/);
-  if (mSku) hasil.sku = mSku[1];
+  if (mSku) { el('tp-sku').value = mSku[1]; kolomTerisi.push('SKU'); }
 
-  // 2. Nama Produk - coba dulu pola "baris persis di atas Informasi Produk" (JakartaNotebook-
-  // style). Kalau gagal (beberapa supplier kayak iCafilas nggak punya pola ini), fallback:
-  // mundur 1-3 baris dari baris SKU, ambil baris pertama yang "kelihatan kayak judul" (cukup
-  // panjang, bukan cuma angka/simbol, bukan "Belum ada ulasan").
-  const mNama = teks.match(/([^\n]{10,150})\n\s*Informasi Produk/);
-  if (mNama) {
-    hasil.namaProduk = mNama[1].trim();
-  } else if (mSku) {
-    const posSku = teks.indexOf(mSku[0]);
-    const barisSebelum = teks.substring(0, posSku).split('\n').map(b => b.trim()).filter(b => b);
-    for (let i = barisSebelum.length - 1; i >= Math.max(0, barisSebelum.length - 3); i--) {
-      const baris = barisSebelum[i];
-      if (baris.length > 10 && !/belum ada ulasan/i.test(baris) && !/^[\d\s.,•\-]+$/.test(baris)) {
-        hasil.namaProduk = baris;
-        break;
-      }
-    }
-  }
-
-  // 2b. Tipe/Model - biasanya segmen kedua-dari-belakang di judul, dipisah " - "
-  // (segmen terakhir biasanya warna). Contoh: "...1780W - M180 - Silver" -> "M180"
-  if (hasil.namaProduk) {
-    const segmen = hasil.namaProduk.split(' - ').map(s => s.trim()).filter(s => s);
-    if (segmen.length >= 2) hasil.tipe = segmen[segmen.length - 2];
-  }
-
-  // 3. Merk - baris persis di bawah "Brand". Kalau nggak ketemu, default "NO BRAND".
-  const mBrand = teks.match(/\bBrand\s*\n\s*([^\n]+)/);
-  hasil.merk = (mBrand && mBrand[1].trim().length > 0 && mBrand[1].trim().length < 40) ? mBrand[1].trim() : 'NO BRAND';
-
-  // 4. Harga Beli/HPP - angka "Rp" PERTAMA yang muncul di teks, titik dibuang jadi angka murni
   const mHarga = teks.match(/Rp\s*([\d.,]+)/);
   if (mHarga) {
     const angka = parseInt(mHarga[1].replace(/[.,]/g, ''), 10);
-    if (!isNaN(angka)) hasil.hargaSupplier = angka;
+    if (!isNaN(angka)) { el('tp-harga-supplier').value = angka; kolomTerisi.push('Harga Beli'); katalogHitungHargaJualOtomatis(); }
   }
 
-  // 5. Berat Produk - pecah jadi angka + satuan (Kg/Gram) buat isi 2 field terpisah
+  statusEl.textContent = kolomTerisi.length > 0
+    ? `✓ Paste 1 - auto-isi: ${kolomTerisi.join(', ')}. Cek ulang sebelum simpan!`
+    : '⚠ Nggak ada pola yang kekenali dari Paste 1 - isi manual aja.';
+  statusEl.className = kolomTerisi.length > 0 ? 'status-text ok' : 'status-text err';
+}
+
+// Box 2: Rincian & Spesifikasi. Parser tabel spesifikasi versi PERBAIKAN - deteksi Label
+// lewat karakter TAB di akhir baris (pola konsisten hasil copy-paste tabel HTML), biar
+// nilai MULTI-BARIS (misal "Dimensi" isinya 5 baris rincian) tetap tergabung benar ke
+// Label yang sama, nggak kayak versi lama yang asumsi 1 baris = 1 nilai (rusak kalau
+// ada value panjang). Ada fallback ke pola gantian sederhana kalau nggak ada tab sama sekali.
+function katalogParseBoxRincianSpesifikasi() {
+  const teks = el('tp-paste-rincian').value;
+  const statusEl = el('tp-paste-status');
+  if (!teks.trim()) { statusEl.textContent = '✗ Kotak Paste 2 masih kosong.'; statusEl.className = 'status-text err'; return; }
+
+  const kolomTerisi = [];
+
+  const mBrand = teks.match(/\bBrand\s*\n\s*([^\n]+)/);
+  const merk = (mBrand && mBrand[1].trim().length > 0 && mBrand[1].trim().length < 40) ? mBrand[1].trim() : 'NO BRAND';
+  el('tp-merk').value = merk; kolomTerisi.push('Merk');
+
   const mBerat = teks.match(/Berat Produk\s*\n\s*([\d.,]+)\s*(kg|gram|g)?/i);
   if (mBerat) {
-    hasil.beratAngka = mBerat[1].replace(',', '.');
-    hasil.beratSatuan = /kg/i.test(mBerat[2] || '') ? 'Kg' : 'Gram';
+    el('tp-berat-angka').value = mBerat[1].replace(',', '.');
+    katalogSetBeratSatuan(/kg/i.test(mBerat[2] || '') ? 'Kg' : 'Gram');
+    kolomTerisi.push('Berat');
   }
 
-  // 5b. Dimensi Kemasan - pecah jadi Panjang/Lebar/Tinggi (bukan "Dimensi" tabel spek yang
-  // lebih detail/multi-baris di bawahnya - sengaja ditarget yang "Kemasan" biar konsisten)
-  const mDimensi = teks.match(/Dimensi Kemasan\s*\n\s*([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
-  if (mDimensi) { hasil.dimensiP = mDimensi[1]; hasil.dimensiL = mDimensi[2]; hasil.dimensiT = mDimensi[3]; }
+  let dimensiSudahDiisi = false;
+  const mDimensiKemasan = teks.match(/Dimensi Kemasan\s*\n\s*([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+  if (mDimensiKemasan) {
+    el('tp-dimensi-p').value = mDimensiKemasan[1]; el('tp-dimensi-l').value = mDimensiKemasan[2]; el('tp-dimensi-t').value = mDimensiKemasan[3];
+    dimensiSudahDiisi = true;
+    kolomTerisi.push('Dimensi');
+  }
 
   const mMaterial = teks.match(/\bMaterial\s*\n\s*([^\n]+)/i);
-  if (mMaterial) hasil.material = mMaterial[1].trim();
+  if (mMaterial) { el('tp-material').value = mMaterial[1].trim(); kolomTerisi.push('Material'); }
 
-  // 5c. Tabel Spesifikasi - dibaca sebagai PASANGAN Label/Nilai berurutan (baris ganjil =
-  // label, baris genap = nilai), mulai dari section "Spesifikasi" (dicari dari BELAKANG -
-  // lastIndexOf - karena "Spesifikasi" juga muncul sekali lagi di awal sebagai tab nav,
-  // bukan section aslinya), berhenti begitu ketemu "Galeri" atau "Ulasan".
-  hasil.spesifikasiTambahan = [];
+  const spesifikasiTambahan = [];
   const idxSpesTabel = teks.lastIndexOf('\nSpesifikasi');
   if (idxSpesTabel !== -1) {
     const teksSetelah = teks.substring(idxSpesTabel + '\nSpesifikasi'.length);
@@ -10386,30 +10407,54 @@ function katalogSmartParseTeksSupplier(teks) {
     let idxAkhir = teksSetelah.length;
     if (idxGaleri !== -1) idxAkhir = Math.min(idxAkhir, idxGaleri);
     if (idxUlasan !== -1) idxAkhir = Math.min(idxAkhir, idxUlasan);
-    const barisTabel = teksSetelah.substring(0, idxAkhir).split('\n').map(b => b.trim())
-      .filter(b => b && !/^Lebih (Sedikit|Banyak)$/i.test(b));
+    const blokTabel = teksSetelah.substring(0, idxAkhir);
 
-    for (let i = 0; i + 1 < barisTabel.length; i += 2) {
-      const namaSpes = barisTabel[i], nilaiSpes = barisTabel[i + 1];
-      if (/^dimensi$/i.test(namaSpes)) {
-        // Syarat khusus Dimensi: kalau isinya format PxLxT, pecah ke 3 kotak (kalau P/L/T
-        // belum keisi dari "Dimensi Kemasan" sebelumnya) - kalau bukan format PxLxT (teks
-        // rincian biasa), biarkan P/L/T kosong dan masukkan sebagai baris Spesifikasi Dinamis.
-        const mDimensiTabel = nilaiSpes.match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
-        if (mDimensiTabel) {
-          if (!hasil.dimensiP) { hasil.dimensiP = mDimensiTabel[1]; hasil.dimensiL = mDimensiTabel[2]; hasil.dimensiT = mDimensiTabel[3]; }
+    const barisMentah = blokTabel.split('\n').filter(b => !/^Lebih (Sedikit|Banyak)\s*$/i.test(b.trim()));
+    const pasangan = [];
+    let labelSaatIni = null, nilaiSaatIni = [];
+    let adaTabTerdeteksi = false;
+    barisMentah.forEach(b => {
+      const berakhirTab = /\t\s*$/.test(b);
+      const trimmed = b.replace(/\t+\s*$/, '').trim();
+      if (!trimmed) return;
+      if (berakhirTab) {
+        adaTabTerdeteksi = true;
+        if (labelSaatIni) pasangan.push({ nama: labelSaatIni, nilai: nilaiSaatIni.join(', ') });
+        labelSaatIni = trimmed;
+        nilaiSaatIni = [];
+      } else {
+        nilaiSaatIni.push(trimmed);
+      }
+    });
+    if (labelSaatIni) pasangan.push({ nama: labelSaatIni, nilai: nilaiSaatIni.join(', ') });
+
+    let pasanganFinal = pasangan;
+    if (!adaTabTerdeteksi) {
+      const barisRapi = barisMentah.map(b => b.trim()).filter(b => b);
+      pasanganFinal = [];
+      for (let i = 0; i + 1 < barisRapi.length; i += 2) pasanganFinal.push({ nama: barisRapi[i], nilai: barisRapi[i + 1] });
+    }
+
+    pasanganFinal.forEach(p => {
+      if (/^dimensi$/i.test(p.nama)) {
+        const mDimensiTabel = p.nilai.match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+        if (mDimensiTabel && !dimensiSudahDiisi) {
+          el('tp-dimensi-p').value = mDimensiTabel[1]; el('tp-dimensi-l').value = mDimensiTabel[2]; el('tp-dimensi-t').value = mDimensiTabel[3];
+          dimensiSudahDiisi = true;
         } else {
-          hasil.spesifikasiTambahan.push({ nama: namaSpes, nilai: nilaiSpes });
+          spesifikasiTambahan.push(p);
         }
       } else {
-        hasil.spesifikasiTambahan.push({ nama: namaSpes, nilai: nilaiSpes });
+        spesifikasiTambahan.push(p);
       }
-    }
+    });
+  }
+  if (spesifikasiTambahan.length > 0) {
+    katalogKosongkanSpesifikasiDinamis();
+    spesifikasiTambahan.forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
+    kolomTerisi.push(`Spesifikasi Tambahan (${spesifikasiTambahan.length})`);
   }
 
-  // 6. Deskripsi - gabung bagian naratif (Keunggulan Produk/Overview/Fitur s.d. Kelengkapan
-  // Produk), BERHENTI sebelum tabel "Spesifikasi" teknis (bukan tab nav "Spesifikasi" yang
-  // muncul jauh lebih awal - makanya dicari MULAI dari startIdx, bukan dari awal teks).
   const penanda = ['Keunggulan Produk', 'Overview', 'Fitur'];
   let startIdx = -1;
   penanda.forEach(p => {
@@ -10418,78 +10463,17 @@ function katalogSmartParseTeksSupplier(teks) {
   });
   if (startIdx !== -1) {
     let endIdx = teks.indexOf('\nSpesifikasi', startIdx);
-    if (endIdx === -1) endIdx = teks.indexOf('Produk Rekomendasi', startIdx);
     if (endIdx === -1) endIdx = teks.length;
     let narasi = teks.substring(startIdx, endIdx).trim();
-    // Buang baris tombol toggle "Lebih Sedikit"/"Lebih Banyak" - itu UI, bukan konten
     narasi = narasi.split('\n').filter(b => !/^Lebih (Sedikit|Banyak)\s*$/i.test(b.trim())).join('\n').trim();
-    if (narasi) hasil.deskripsi = narasi;
+    if (narasi) { el('tp-deskripsi').value = narasi; kolomTerisi.push('Deskripsi'); }
   }
 
-  return hasil;
+  statusEl.textContent = kolomTerisi.length > 0
+    ? `✓ Paste 2 - auto-isi: ${kolomTerisi.join(', ')}. Cek ulang sebelum simpan!`
+    : '⚠ Nggak ada pola yang kekenali dari Paste 2 - isi manual aja.';
+  statusEl.className = kolomTerisi.length > 0 ? 'status-text ok' : 'status-text err';
 }
-
-// Deteksi paste di KOLOM MANAPUN dalam modal Tambah/Edit Produk. Teks pendek (nilai wajar
-// buat 1 field) dibiarkan lewat normal; teks panjang (dump halaman supplier) di-intercept
-// dan didistribusikan otomatis ke semua field yang cocok.
-// Kolom single-line (SKU, Merk, Tipe, Material, Volume, Warna, Berat, Dimensi P/L/T, Nama/Nilai
-// Spesifikasi Dinamis, dst) TIDAK BOLEH kemasukan baris baru mentah - kalau staf paste teks
-// yang ada enter-nya (misal nyalin 1 blok "Dimensi" dari tabel spesifikasi supplier), gabungkan
-// jadi 1 baris rapi pakai koma, JANGAN biarkan newline-nya nyelip ke database.
-// Dipasang di CAPTURE phase (bukan bubble) - biar jalan LEBIH DULU daripada listener Smart
-// Paste global di bawah, sekaligus stopPropagation biar teks ini nggak ikut "disebar" ke
-// kolom lain oleh Smart Paste (itu akar masalah "kepecah ke kolom lain" yang dilaporkan).
-document.getElementById('katalog-modal-tambah-produk').addEventListener('paste', function (e) {
-  const target = e.target;
-  if (target.tagName !== 'INPUT' || target.type !== 'text') return; // textarea (Deskripsi) sengaja dibiarkan - multi-baris di situ memang wajar
-
-  const teks = (e.clipboardData || window.clipboardData).getData('text');
-  if (!teks || !/[\r\n]/.test(teks)) return; // nggak ada baris baru - biarkan paste normal jalan apa adanya
-
-  e.preventDefault();
-  e.stopPropagation();
-  const bersih = teks.split(/\r\n|\r|\n/).map(b => b.trim()).filter(b => b).join(', ');
-  const start = target.selectionStart, end = target.selectionEnd;
-  const nilaiLama = target.value;
-  target.value = nilaiLama.substring(0, start) + bersih + nilaiLama.substring(end);
-  target.selectionStart = target.selectionEnd = start + bersih.length;
-}, true);
-
-document.addEventListener('paste', function (e) {
-  const modal = el('katalog-modal-tambah-produk');
-  if (!modal || modal.style.display === 'none') return;
-  if (!modal.contains(e.target)) return;
-
-  const teks = (e.clipboardData || window.clipboardData).getData('text');
-  if (!teks || teks.length < 300) return; // pendek = paste nilai biasa ke 1 field, biarkan jalan normal
-
-  e.preventDefault();
-  const hasil = katalogSmartParseTeksSupplier(teks);
-  const kolomTerisi = [];
-  if (hasil.sku) { el('tp-sku').value = hasil.sku; kolomTerisi.push('SKU'); }
-  if (hasil.namaProduk) { el('tp-nama').value = hasil.namaProduk; kolomTerisi.push('Nama Produk'); }
-  if (hasil.tipe) { el('tp-tipe').value = hasil.tipe; kolomTerisi.push('Tipe/Model'); }
-  el('tp-merk').value = hasil.merk; kolomTerisi.push('Merk');
-  if (hasil.hargaSupplier !== undefined) { el('tp-harga-supplier').value = hasil.hargaSupplier; kolomTerisi.push('Harga Beli'); katalogHitungHargaJualOtomatis(); }
-  if (hasil.beratAngka) { el('tp-berat-angka').value = hasil.beratAngka; katalogSetBeratSatuan(hasil.beratSatuan); kolomTerisi.push('Berat'); }
-  if (hasil.dimensiP) { el('tp-dimensi-p').value = hasil.dimensiP; el('tp-dimensi-l').value = hasil.dimensiL; el('tp-dimensi-t').value = hasil.dimensiT; kolomTerisi.push('Dimensi'); }
-  if (hasil.material) { el('tp-material').value = hasil.material; kolomTerisi.push('Material'); }
-  if (hasil.spesifikasiTambahan && hasil.spesifikasiTambahan.length > 0) {
-    katalogKosongkanSpesifikasiDinamis();
-    hasil.spesifikasiTambahan.forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
-    kolomTerisi.push(`Spesifikasi Tambahan (${hasil.spesifikasiTambahan.length})`);
-  }
-  if (hasil.deskripsi) { el('tp-deskripsi').value = hasil.deskripsi; kolomTerisi.push('Deskripsi'); }
-
-  const statusEl = el('tp-status');
-  if (kolomTerisi.length > 0) {
-    statusEl.textContent = `✓ Auto-isi: ${kolomTerisi.join(', ')}. Cek ulang sebelum simpan!`;
-    statusEl.className = 'status-text ok';
-  } else {
-    statusEl.textContent = '⚠ Nggak ada pola yang kekenali dari teks ini - isi manual aja.';
-    statusEl.className = 'status-text err';
-  }
-});
 
 /* ===== Galeri Foto Produk - 5 kotak, upload/drag/paste per kotak, multi-upload sekaligus ===== */
 let katalogFotoGaleri = [null, null, null, null, null]; // isi tiap kotak: null (kosong) atau URL foto
