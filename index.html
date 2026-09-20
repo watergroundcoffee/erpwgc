@@ -4490,7 +4490,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
                 <label style="font-size:12px; font-weight:600;">Berat</label>
                 <div style="display:flex; gap:6px;">
                   <input id="tp-berat-angka" type="number" class="web-form-input" placeholder="0" style="margin:0;" />
-                  <select id="tp-berat-satuan" class="web-form-input" style="margin:0; max-width:90px;">
+                  <select id="tp-berat-satuan" class="web-form-input" style="margin:0; max-width:90px;" onchange="katalogKonversiSatuanBerat(this)">
                     <option value="Gram">Gram</option>
                     <option value="Kg">Kg</option>
                   </select>
@@ -10139,6 +10139,27 @@ function katalogHitungHargaJualOtomatis() {
   el('tp-harga-helper').textContent = `Dihitung otomatis dari margin default ${margin}% yang kamu set sebelumnya - boleh diubah manual kalau perlu.`;
 }
 
+// Set satuan berat + catat sebagai "satuan sebelumnya" - dipanggil tiap kali satuan diisi dari
+// kode (reset modal, hasil edit, hasil smart paste) biar konversi manual berikutnya akurat.
+function katalogSetBeratSatuan(nilai) {
+  const selectEl = el('tp-berat-satuan');
+  selectEl.value = nilai;
+  selectEl.dataset.satuanSebelumnya = nilai;
+}
+
+// Auto-convert Gram<->Kg pas dropdown satuan diganti MANUAL sama user (bukan dari kode).
+function katalogKonversiSatuanBerat(selectEl) {
+  const angkaEl = el('tp-berat-angka');
+  const satuanBaru = selectEl.value;
+  const satuanLama = selectEl.dataset.satuanSebelumnya || satuanBaru;
+  const angka = parseFloat(angkaEl.value);
+  if (!isNaN(angka) && satuanLama !== satuanBaru) {
+    if (satuanLama === 'Kg' && satuanBaru === 'Gram') angkaEl.value = angka * 1000;
+    else if (satuanLama === 'Gram' && satuanBaru === 'Kg') angkaEl.value = angka / 1000;
+  }
+  selectEl.dataset.satuanSebelumnya = satuanBaru;
+}
+
 /* ===== Spesifikasi Dinamis (+ Tambah Spesifikasi) ===== */
 let katalogSpesifikasiDinamisIdx = 0;
 
@@ -10181,7 +10202,7 @@ async function katalogBukaModalTambahProduk() {
   el('tp-judul-modal').textContent = '+ Tambah Produk Baru';
   ['tp-sku','tp-nama','tp-merk','tp-url-supplier','tp-url-foto','tp-tipe','tp-material','tp-volume','tp-warna','tp-deskripsi','tp-berat-angka','tp-dimensi-p','tp-dimensi-l','tp-dimensi-t'].forEach(id => el(id).value = '');
   el('tp-harga').value = ''; el('tp-harga-supplier').value = '';
-  el('tp-berat-satuan').value = 'Gram';
+  katalogSetBeratSatuan('Gram');
   el('tp-sku').disabled = false;
   el('tp-tampil-website').checked = false;
   el('tp-channel-badges').textContent = 'Belum Tampil di marketplace manapun.';
@@ -10233,8 +10254,8 @@ async function katalogBukaModalEditProduk(sku) {
     const matchBerat = String(p.berat || '').match(/([\d.,]+)\s*(kg|gram|g)?/i);
     if (matchBerat && matchBerat[1]) {
       el('tp-berat-angka').value = matchBerat[1].replace(',', '.');
-      el('tp-berat-satuan').value = /kg/i.test(matchBerat[2] || '') ? 'Kg' : 'Gram';
-    } else { el('tp-berat-angka').value = ''; el('tp-berat-satuan').value = 'Gram'; }
+      katalogSetBeratSatuan(/kg/i.test(matchBerat[2] || '') ? 'Kg' : 'Gram');
+    } else { el('tp-berat-angka').value = ''; katalogSetBeratSatuan('Gram'); }
 
     // Parse "68 x 49 x 52 cm" jadi Panjang/Lebar/Tinggi terpisah
     const matchDimensi = String(p.dimensi || '').match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
@@ -10266,9 +10287,24 @@ function katalogSmartParseTeksSupplier(teks) {
   const mSku = teks.match(/\bSKU([A-Z0-9]{4,})/);
   if (mSku) hasil.sku = mSku[1];
 
-  // 2. Nama Produk - baris persis di atas "Informasi Produk"
+  // 2. Nama Produk - coba dulu pola "baris persis di atas Informasi Produk" (JakartaNotebook-
+  // style). Kalau gagal (beberapa supplier kayak iCafilas nggak punya pola ini), fallback:
+  // mundur 1-3 baris dari baris SKU, ambil baris pertama yang "kelihatan kayak judul" (cukup
+  // panjang, bukan cuma angka/simbol, bukan "Belum ada ulasan").
   const mNama = teks.match(/([^\n]{10,150})\n\s*Informasi Produk/);
-  if (mNama) hasil.namaProduk = mNama[1].trim();
+  if (mNama) {
+    hasil.namaProduk = mNama[1].trim();
+  } else if (mSku) {
+    const posSku = teks.indexOf(mSku[0]);
+    const barisSebelum = teks.substring(0, posSku).split('\n').map(b => b.trim()).filter(b => b);
+    for (let i = barisSebelum.length - 1; i >= Math.max(0, barisSebelum.length - 3); i--) {
+      const baris = barisSebelum[i];
+      if (baris.length > 10 && !/belum ada ulasan/i.test(baris) && !/^[\d\s.,•\-]+$/.test(baris)) {
+        hasil.namaProduk = baris;
+        break;
+      }
+    }
+  }
 
   // 2b. Tipe/Model - biasanya segmen kedua-dari-belakang di judul, dipisah " - "
   // (segmen terakhir biasanya warna). Contoh: "...1780W - M180 - Silver" -> "M180"
@@ -10303,17 +10339,39 @@ function katalogSmartParseTeksSupplier(teks) {
   const mMaterial = teks.match(/\bMaterial\s*\n\s*([^\n]+)/i);
   if (mMaterial) hasil.material = mMaterial[1].trim();
 
-  // 5c. Spesifikasi tambahan lain (Daya, Kapasitas, Voltase, dst) - dipetakan otomatis ke
-  // baris Spesifikasi Dinamis. Cuma ambil label yang UMUM ditemukan di halaman supplier,
-  // 1 baris nilai aja (kalau value-nya multi-baris, cuma baris pertama yang ke-ambil).
-  const labelSpesifikasiUmum = ['Voltase', 'Daya', 'Kapasitas Isi', 'Tekanan', 'Kontrol Suhu', 'Manometer', 'Steam Wand', 'Cup Warmer', 'Ekstraksi', 'Pompa', 'Garansi'];
+  // 5c. Tabel Spesifikasi - dibaca sebagai PASANGAN Label/Nilai berurutan (baris ganjil =
+  // label, baris genap = nilai), mulai dari section "Spesifikasi" (dicari dari BELAKANG -
+  // lastIndexOf - karena "Spesifikasi" juga muncul sekali lagi di awal sebagai tab nav,
+  // bukan section aslinya), berhenti begitu ketemu "Galeri" atau "Ulasan".
   hasil.spesifikasiTambahan = [];
-  labelSpesifikasiUmum.forEach(label => {
-    const re = new RegExp('\\b' + label.replace(/\s+/g, '\\s+') + '\\s*/?\\s*Power\\s*\\n\\s*([^\\n]+)|\\b' + label + '\\s*\\n\\s*([^\\n]+)', 'i');
-    const m = teks.match(re);
-    const nilai = m ? (m[1] || m[2]) : null;
-    if (nilai && nilai.trim().length < 60) hasil.spesifikasiTambahan.push({ nama: label, nilai: nilai.trim() });
-  });
+  const idxSpesTabel = teks.lastIndexOf('\nSpesifikasi');
+  if (idxSpesTabel !== -1) {
+    const teksSetelah = teks.substring(idxSpesTabel + '\nSpesifikasi'.length);
+    const idxGaleri = teksSetelah.search(/\nGaleri\b/i);
+    const idxUlasan = teksSetelah.search(/\nUlasan\b/i);
+    let idxAkhir = teksSetelah.length;
+    if (idxGaleri !== -1) idxAkhir = Math.min(idxAkhir, idxGaleri);
+    if (idxUlasan !== -1) idxAkhir = Math.min(idxAkhir, idxUlasan);
+    const barisTabel = teksSetelah.substring(0, idxAkhir).split('\n').map(b => b.trim())
+      .filter(b => b && !/^Lebih (Sedikit|Banyak)$/i.test(b));
+
+    for (let i = 0; i + 1 < barisTabel.length; i += 2) {
+      const namaSpes = barisTabel[i], nilaiSpes = barisTabel[i + 1];
+      if (/^dimensi$/i.test(namaSpes)) {
+        // Syarat khusus Dimensi: kalau isinya format PxLxT, pecah ke 3 kotak (kalau P/L/T
+        // belum keisi dari "Dimensi Kemasan" sebelumnya) - kalau bukan format PxLxT (teks
+        // rincian biasa), biarkan P/L/T kosong dan masukkan sebagai baris Spesifikasi Dinamis.
+        const mDimensiTabel = nilaiSpes.match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+        if (mDimensiTabel) {
+          if (!hasil.dimensiP) { hasil.dimensiP = mDimensiTabel[1]; hasil.dimensiL = mDimensiTabel[2]; hasil.dimensiT = mDimensiTabel[3]; }
+        } else {
+          hasil.spesifikasiTambahan.push({ nama: namaSpes, nilai: nilaiSpes });
+        }
+      } else {
+        hasil.spesifikasiTambahan.push({ nama: namaSpes, nilai: nilaiSpes });
+      }
+    }
+  }
 
   // 6. Deskripsi - gabung bagian naratif (Keunggulan Produk/Overview/Fitur s.d. Kelengkapan
   // Produk), BERHENTI sebelum tabel "Spesifikasi" teknis (bukan tab nav "Spesifikasi" yang
@@ -10356,7 +10414,7 @@ document.addEventListener('paste', function (e) {
   if (hasil.tipe) { el('tp-tipe').value = hasil.tipe; kolomTerisi.push('Tipe/Model'); }
   el('tp-merk').value = hasil.merk; kolomTerisi.push('Merk');
   if (hasil.hargaSupplier !== undefined) { el('tp-harga-supplier').value = hasil.hargaSupplier; kolomTerisi.push('Harga Beli'); katalogHitungHargaJualOtomatis(); }
-  if (hasil.beratAngka) { el('tp-berat-angka').value = hasil.beratAngka; el('tp-berat-satuan').value = hasil.beratSatuan; kolomTerisi.push('Berat'); }
+  if (hasil.beratAngka) { el('tp-berat-angka').value = hasil.beratAngka; katalogSetBeratSatuan(hasil.beratSatuan); kolomTerisi.push('Berat'); }
   if (hasil.dimensiP) { el('tp-dimensi-p').value = hasil.dimensiP; el('tp-dimensi-l').value = hasil.dimensiL; el('tp-dimensi-t').value = hasil.dimensiT; kolomTerisi.push('Dimensi'); }
   if (hasil.material) { el('tp-material').value = hasil.material; kolomTerisi.push('Material'); }
   if (hasil.spesifikasiTambahan && hasil.spesifikasiTambahan.length > 0) {
