@@ -211,6 +211,11 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   }
   .scan-action-btn:active { transform: scale(0.98); filter: brightness(0.92); }
 
+  /* Kamera Scan Resi (khusus screen-scan) - tinggi proporsional ~42% viewport, BUKAN aspect-ratio
+     kayak .cam-frame default, biar sisa layar lega buat list Section 1/2/3 di bawahnya.
+     Discope ke #camera-wrap doang - kamera Memo Gudang/lainnya TETAP pakai .cam-frame default. */
+  #camera-wrap .cam-frame { height: 42vh; max-height: 380px; aspect-ratio: unset; }
+
   .pending-toggle-btn {
     width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e0b03f;
     background: rgba(224,176,63,0.12); color: #e0b03f; font-size: 12.5px; font-weight: 700;
@@ -1358,7 +1363,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
         </div>
         <div class="cam-error" id="camera-error"></div>
       </div>
-      <button class="scan-action-btn" onclick="handleScanBtn()">🔍 SCAN</button>
+      <button class="scan-action-btn" id="scan-action-btn" onclick="handleScanBtn()">🔍 SCAN</button>
       <button class="pending-toggle-btn" id="btn-tandai-pending" style="display:none;" onclick="startScanPending()">🟡 Input Resi Pending</button>
       <button class="pending-toggle-btn" id="btn-kembali-resi-keluar" style="display:none; border-color:#3fa66b; background:rgba(63,166,107,0.12); color:#3fa66b;" onclick="startScan('keluar')">📤 Kembali ke Scan Resi Keluar</button>
       <div class="status-text" id="last-status"></div>
@@ -16374,19 +16379,26 @@ function setInputMode(mode) {
     stopCamera();
     el('scan-input-wrap').style.display = 'flex';
     el('camera-wrap').style.display = 'none';
+    el('scan-action-btn').style.display = 'flex';
     el('scan-input').focus();
   } else {
     el('scan-input-wrap').style.display = 'none';
     el('camera-wrap').style.display = 'flex';
+    el('scan-action-btn').style.display = 'none'; // kamera scan otomatis, area bawah dibiarkan bersih
     startCamera();
   }
 }
 
 /* ================= KAMERA RESI (disamakan persis dengan kamera Minta Stock yang terbukti jalan) ================= */
+let cameraBukaWaktu = 0;
+let cameraCooldownSampai = 0;
+
 async function startCamera() {
   el('camera-error').textContent = '';
   el('torch-btn').style.display = 'none';
   torchOn = false;
+  cameraBukaWaktu = Date.now(); // jeda awal 0.5s - abaikan scan sebelum staf sempat posisikan kamera
+  cameraCooldownSampai = 0;
 
   if (!window.ZXing) {
     el('camera-error').textContent = '⚠️ Library kamera gagal dimuat. Cek internet, buka ulang halaman.';
@@ -16399,22 +16411,39 @@ async function startCamera() {
       { video: { facingMode: 'environment' } },
       videoEl,
       (result) => {
-        if (result) {
-          const text = result.getText();
-          const now = Date.now();
-          if (text === lastCameraResult && (now - lastCameraTime) < 2500) return;
-          lastCameraResult = text;
-          lastCameraTime = now;
-          scanMasukAntrean(text);
-        }
+        if (!result) return;
+        const now = Date.now();
+        if (now - cameraBukaWaktu < 500) return; // jeda awal 500ms pas kamera baru kebuka
+        if (now < cameraCooldownSampai) return; // masih cooldown dari scan sebelumnya (resi sama ATAU beda, tetap diabaikan)
+
+        cameraCooldownSampai = now + 1000; // cooldown 1 detik buat scan berikutnya, apapun hasilnya
+        const text = result.getText();
+        playBeep(); // feedback instan pas scan-nya sendiri sukses kebaca - terpisah dari beep pas batch berhasil ke server
+        if (navigator.vibrate) navigator.vibrate(60);
+        scanMasukAntrean(text);
       }
     );
+
+    // Auto-zoom 2x + continuous autofocus - biar staf nggak perlu nempel HP ke resi. SEMUA
+    // dibungkus try/catch terpisah: kalau device/browser nggak dukung, kamera tetap jalan
+    // normal tanpa zoom/autofocus, nggak sampai error/nge-block proses scan.
     try {
       const stream = videoEl.srcObject;
       currentTrack = stream.getVideoTracks()[0];
       const caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
+
+      const advanced = [];
+      if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+      if (caps.zoom && caps.zoom.max) {
+        const zoomTarget = Math.max(caps.zoom.min || 1, Math.min(2, caps.zoom.max));
+        advanced.push({ zoom: zoomTarget });
+      }
+      if (advanced.length > 0) {
+        try { await currentTrack.applyConstraints({ advanced }); } catch (zoomErr) { /* device nggak dukung - biarin, kamera tetap jalan normal */ }
+      }
+
       if (caps.torch) el('torch-btn').style.display = 'flex';
-    } catch (capErr) {}
+    } catch (capErr) { /* getCapabilities nggak didukung sama sekali - aman, lanjut tanpa fitur tambahan */ }
   } catch (err) {
     el('camera-error').textContent = '⚠️ Tidak bisa akses kamera: ' + err.message;
   }
@@ -16524,7 +16553,7 @@ const SCAN_BATAS_LANGSUNG_KIRIM = 10;
 function scanMasukAntrean(noResi) {
   if (scanPendingModeAktif) { kirimScan(noResi); return; }
 
-  scanAntrean.push({ noResi });
+  scanAntrean.unshift({ noResi });
   scanRenderAntrean();
 
   if (scanDebounceTimer) clearTimeout(scanDebounceTimer);
@@ -16576,7 +16605,7 @@ function scanRetryGagal() {
   if (scanGagal.length === 0) return;
   const daftarRetry = scanGagal.map(it => it.noResi);
   scanGagal = [];
-  scanAntrean.push(...daftarRetry.map(noResi => ({ noResi })));
+  scanAntrean.unshift(...daftarRetry.map(noResi => ({ noResi })));
   scanRenderAntrean();
   scanKirimBatch(); // retry manual - kirim seketika, nggak nunggu debounce
 }
@@ -16584,17 +16613,17 @@ function scanRetryGagal() {
 function scanRenderAntrean() {
   el('scan-section-antrean').style.display = scanAntrean.length > 0 ? 'block' : 'none';
   el('scan-list-antrean').innerHTML = scanAntrean.map(it =>
-    `<div style="color:#e0a030; font-size:13px; padding:3px 0;">${escapeHtml(it.noResi)}</div>`
+    `<div style="color:#e0a030; font-size:19px; font-weight:700; padding:4px 0;">${escapeHtml(it.noResi)}</div>`
   ).join('');
 
   el('scan-section-gagal').style.display = scanGagal.length > 0 ? 'block' : 'none';
   el('scan-list-gagal').innerHTML = scanGagal.map(it =>
-    `<div style="color:#d9534f; font-size:13px; padding:3px 0;">${escapeHtml(it.noResi)} <span style="font-size:10.5px; opacity:0.75;">- ${escapeHtml(it.error)}</span></div>`
+    `<div style="color:#d9534f; font-size:19px; font-weight:700; padding:4px 0;">${escapeHtml(it.noResi)} <span style="font-size:11px; font-weight:400; opacity:0.75;">- ${escapeHtml(it.error)}</span></div>`
   ).join('');
 
   el('scan-section-berhasil').style.display = scanBerhasil.length > 0 ? 'block' : 'none';
   el('scan-list-berhasil').innerHTML = scanBerhasil.map(it =>
-    `<div style="color:#3fa66b; font-size:13px; padding:3px 0;">${escapeHtml(it.noResi)}${it.ket ? `<span style="font-size:10.5px; opacity:0.8;">${escapeHtml(it.ket)}</span>` : ''}</div>`
+    `<div style="color:#3fa66b; font-size:19px; font-weight:700; padding:4px 0;">${escapeHtml(it.noResi)}${it.ket ? `<span style="font-size:11px; font-weight:400; opacity:0.8;">${escapeHtml(it.ket)}</span>` : ''}</div>`
   ).join('');
 }
 
