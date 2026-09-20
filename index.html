@@ -4312,7 +4312,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
           <button class="web-chart-toggle-btn" style="margin-bottom:14px;" onclick="katalogBukaSub('produk')">← Kembali ke Produk Master</button>
           <div style="display:grid; grid-template-columns: 260px 1fr; gap:24px; align-items:start;">
             <div>
-              <div id="katalog-detail-foto-wrap" style="width:100%; aspect-ratio:1; border-radius:12px; overflow:hidden; border:1px solid var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); cursor:pointer;" title="Klik buat ganti foto">
+              <div id="katalog-detail-foto-wrap" style="position:relative; width:100%; aspect-ratio:1; border-radius:12px; overflow:hidden; border:1px solid var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); cursor:pointer;" title="Klik buat ganti foto">
               </div>
               <input type="file" accept="image/*" id="katalog-detail-foto-file-input" style="display:none;" />
 
@@ -10716,12 +10716,19 @@ async function katalogBukaDetailProduk(sku) {
   el('web-page-title').textContent = 'Katalog';
 
   el('katalog-detail-nama').textContent = 'Memuat...';
+  // Bersihkan SEMUA sisa tampilan produk sebelumnya - biar nggak ada foto/nama lama yang
+  // "menumpang" kelihatan sekilas sebelum data produk baru ini selesai dimuat.
+  el('katalog-detail-sku').textContent = '';
+  el('katalog-detail-kategori-badge').innerHTML = '';
+  el('katalog-detail-foto-wrap').innerHTML = '<span style="font-size:11px; color:var(--web-text-dim);">Memuat...</span>';
+  el('katalog-detail-galeri-grid').innerHTML = '';
+  katalogDetailGaleriSlotAktif = null;
   try {
     const data = await postJson({ aksi: 'lihat_detail_produk', sku, email: currentUserEmail() });
     if (!data.success) { el('katalog-detail-nama').textContent = 'Gagal: ' + (data.error || ''); return; }
     const p = data.produk;
 
-    el('katalog-detail-foto-wrap').innerHTML = katalogFotoAtauPlaceholder(p.urlFoto, 40);
+    katalogRenderDetailFotoUtama(p.urlFoto);
     katalogRenderDetailGaleriGrid(p.galeriFotoTambahan || []);
     el('katalog-detail-kategori-badge').innerHTML = p.kategori ? `<span class="web-status-pill aktif">${escapeHtml(p.kategori)}</span>` : '';
     el('katalog-detail-nama').textContent = p.nama;
@@ -11053,7 +11060,7 @@ el('katalog-detail-foto-file-input').addEventListener('change', async (e) => {
     el('katalog-detail-foto-wrap').innerHTML = '<span style="font-size:11px; color:var(--web-text-dim);">Mengupload...</span>';
     try {
       const data = await postJson({ aksi: 'upload_foto_produk', sku: katalogSkuDetailAktif, base64, mimeType: file.type, email: currentUserEmail() }, 30000);
-      if (data.success) { playBeep(); el('katalog-detail-foto-wrap').innerHTML = katalogFotoAtauPlaceholder(data.urlFoto, 40); }
+      if (data.success) { playBeep(); katalogRenderDetailFotoUtama(data.urlFoto); }
       else { alert('Gagal upload: ' + (data.error || '')); }
     } catch (err) { alert('Gagal terhubung: ' + err.message); }
   };
@@ -11063,6 +11070,27 @@ el('katalog-detail-foto-file-input').addEventListener('change', async (e) => {
 /* ===== Galeri Foto 2-5 di halaman Detail Produk - klik kotak buat upload/ganti spesifik ===== */
 let katalogDetailGaleriSlotAktif = null; // slot yang lagi diklik (0-3), dipakai file-input change handler
 
+function katalogRenderDetailFotoUtama(urlFoto) {
+  el('katalog-detail-foto-wrap').innerHTML = urlFoto
+    ? `<img src="${urlFoto}" style="width:100%; height:100%; object-fit:cover;" />
+       <button type="button" class="katalog-detail-foto-hapus" title="Hapus Foto Utama"
+               style="position:absolute; top:6px; right:6px; width:26px; height:26px; border-radius:50%; border:none; background:rgba(0,0,0,0.6); color:#fff; font-size:14px; cursor:pointer; z-index:2;">✕</button>`
+    : `<span style="font-size:40px; color:var(--web-text-dim);">🖼️</span>`;
+  const btnHapus = el('katalog-detail-foto-wrap').querySelector('.katalog-detail-foto-hapus');
+  if (btnHapus) btnHapus.addEventListener('click', (e) => { e.stopPropagation(); katalogHapusFotoUtamaDetail(); });
+}
+
+async function katalogHapusFotoUtamaDetail() {
+  if (!katalogSkuDetailAktif) return;
+  if (!confirm('Hapus foto utama produk ini?')) return;
+  el('katalog-detail-foto-wrap').innerHTML = '<span style="font-size:11px; color:var(--web-text-dim);">Menghapus...</span>';
+  try {
+    const data = await postJson({ aksi: 'hapus_foto_slot', sku: katalogSkuDetailAktif, slotType: 'utama', toko: currentToko, email: currentUserEmail() }, 30000);
+    if (data.success) { playBeep(); katalogRenderDetailFotoUtama(''); }
+    else { alert('Gagal hapus: ' + (data.error || '')); katalogRenderDetailFotoUtama(''); }
+  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+}
+
 function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
   const gridEl = el('katalog-detail-galeri-grid');
   gridEl.innerHTML = [0, 1, 2, 3].map(i => {
@@ -11071,11 +11099,20 @@ function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
       <div class="katalog-detail-galeri-box" data-slot="${i}" tabindex="0" title="Klik / tarik / paste buat ${url ? 'ganti' : 'tambah'} Foto ${i + 2}"
            style="position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; border:2px dashed var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); cursor:pointer; transition:border-color .15s, background .15s;">
         ${url
-          ? `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" />`
+          ? `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" />
+             <button type="button" class="katalog-detail-galeri-hapus" data-slot="${i}" title="Hapus Foto ${i + 2}"
+                     style="position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; cursor:pointer; z-index:2;">✕</button>`
           : `<span style="font-size:9px; color:var(--web-text-dim); text-align:center;">Foto ${i + 2}</span>`}
         <div class="katalog-detail-galeri-status" data-slot="${i}" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.55); color:#fff; font-size:8px; align-items:center; justify-content:center; text-align:center;">Upload...</div>
       </div>`;
   }).join('');
+
+  gridEl.querySelectorAll('.katalog-detail-galeri-hapus').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      katalogHapusFotoGaleriDetail(parseInt(btn.dataset.slot, 10));
+    });
+  });
 
   gridEl.querySelectorAll('.katalog-detail-galeri-box').forEach(box => {
     const slot = parseInt(box.dataset.slot, 10);
@@ -11127,6 +11164,18 @@ function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
       }
     });
   });
+}
+
+async function katalogHapusFotoGaleriDetail(slot) {
+  if (!katalogSkuDetailAktif) return;
+  if (!confirm(`Hapus Foto ${slot + 2}?`)) return;
+  const statusEl = document.querySelector(`.katalog-detail-galeri-status[data-slot="${slot}"]`);
+  if (statusEl) statusEl.style.display = 'flex';
+  try {
+    const data = await postJson({ aksi: 'hapus_foto_slot', sku: katalogSkuDetailAktif, slotType: 'galeri', slotIndex: slot, toko: currentToko, email: currentUserEmail() }, 30000);
+    if (data.success) { playBeep(); katalogBukaDetailProduk(katalogSkuDetailAktif); }
+    else { if (statusEl) statusEl.style.display = 'none'; alert('Gagal hapus: ' + (data.error || '')); }
+  } catch (err) { if (statusEl) statusEl.style.display = 'none'; alert('Gagal terhubung: ' + err.message); }
 }
 
 function katalogUploadKeSlotGaleriDetail(slot, file) {
