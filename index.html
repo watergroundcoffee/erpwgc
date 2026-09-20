@@ -214,7 +214,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   /* Kamera Scan Resi (khusus screen-scan) - tinggi proporsional ~42% viewport, BUKAN aspect-ratio
      kayak .cam-frame default, biar sisa layar lega buat list Section 1/2/3 di bawahnya.
      Discope ke #camera-wrap doang - kamera Memo Gudang/lainnya TETAP pakai .cam-frame default. */
-  #camera-wrap .cam-frame { height: 20vh; max-height: 180px; min-height: 110px; aspect-ratio: unset; }
+  #camera-wrap .cam-frame { height: 30vh; max-height: 280px; min-height: 140px; aspect-ratio: unset; }
 
   .pending-toggle-btn {
     width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e0b03f;
@@ -16435,7 +16435,7 @@ async function startCamera() {
       const advanced = [];
       if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
       if (caps.zoom && caps.zoom.max) {
-        const zoomTarget = Math.max(caps.zoom.min || 1, Math.min(2, caps.zoom.max));
+        const zoomTarget = Math.max(caps.zoom.min || 1, Math.min(1.5, caps.zoom.max));
         advanced.push({ zoom: zoomTarget });
       }
       if (advanced.length > 0) {
@@ -16615,17 +16615,14 @@ async function scanKirimBatch() {
         el('last-status').textContent = `⚠ ${duplikatDitemukan.length} resi udah pernah diupload sebelumnya: ${duplikatDitemukan.join(', ')}`;
         el('last-status').className = 'status-text dup';
       }
-      playBeep();
       el('conn-dot').classList.remove('bad');
     } else {
       // Batch gagal total (misal error server) - semua item di batch ini masuk Gagal
       batchDikirim.forEach(noResi => scanGagal.push({ noResi, error: data.error || 'Gagal upload' }));
-      playToot();
     }
   } catch (err) {
     batchDikirim.forEach(noResi => scanGagal.push({ noResi, error: err.name === 'AbortError' ? 'Waktu tunggu habis' : err.message }));
     el('conn-dot').classList.add('bad');
-    playToot();
   }
   scanRenderAntrean();
 }
