@@ -1843,6 +1843,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
         <div class="cam-frame">
           <video id="mgm-camera-video" playsinline autoplay muted></video>
           <div class="cam-guideline"></div>
+          <button class="torch-btn" id="mgm-torch-btn" onclick="mgmToggleTorch()" style="display:none;">🔦</button>
           <div class="cam-caption">Posisikan barcode di tengah</div>
         </div>
         <div class="cam-error" id="mgm-camera-error"></div>
@@ -17318,8 +17319,12 @@ function mgmSetInputMode(mode) {
 }
 
 let mgmLastScanResult = null, mgmLastScanTime = 0;
+let mgmCurrentTrack = null, mgmTorchOn = false;
+
 async function mgmStartCamera() {
   el('mgm-camera-error').textContent = '';
+  el('mgm-torch-btn').style.display = 'none';
+  mgmTorchOn = false;
   if (!window.ZXing) { el('mgm-camera-error').textContent = '⚠️ Library kamera gagal dimuat.'; return; }
   try {
     mgmZxingReader = new ZXing.BrowserMultiFormatReader();
@@ -17334,10 +17339,44 @@ async function mgmStartCamera() {
         mgmTambahItemKeCart(text);
       }
     });
+
+    // Auto-zoom 2x + continuous autofocus - biar staf nggak perlu nempel HP kepasar produk.
+    // SEMUA di-bungkus try/catch terpisah: kalau device/browser nggak dukung salah satu atau
+    // semuanya, kamera TETAP jalan normal tanpa zoom/autofocus, nggak sampai error/nge-block.
+    try {
+      const stream = videoEl.srcObject;
+      mgmCurrentTrack = stream.getVideoTracks()[0];
+      const caps = mgmCurrentTrack.getCapabilities ? mgmCurrentTrack.getCapabilities() : {};
+
+      const advanced = [];
+      if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+      if (caps.zoom && caps.zoom.max) {
+        const zoomTarget = Math.max(caps.zoom.min || 1, Math.min(2, caps.zoom.max));
+        advanced.push({ zoom: zoomTarget });
+      }
+      if (advanced.length > 0) {
+        try { await mgmCurrentTrack.applyConstraints({ advanced }); } catch (zoomErr) { /* device nggak dukung - biarin, kamera tetap jalan normal */ }
+      }
+
+      if (caps.torch) el('mgm-torch-btn').style.display = 'flex';
+    } catch (capErr) { /* getCapabilities nggak didukung sama sekali - aman, lanjut tanpa fitur tambahan */ }
   } catch (err) { el('mgm-camera-error').textContent = 'Tidak bisa akses kamera: ' + err.message; }
 }
 function mgmStopCamera() {
   if (mgmZxingReader) { try { mgmZxingReader.reset(); } catch (e) {} mgmZxingReader = null; }
+  mgmCurrentTrack = null;
+  mgmTorchOn = false;
+  el('mgm-torch-btn').classList.remove('active');
+  el('mgm-torch-btn').style.display = 'none';
+}
+
+async function mgmToggleTorch() {
+  if (!mgmCurrentTrack) return;
+  try {
+    mgmTorchOn = !mgmTorchOn;
+    await mgmCurrentTrack.applyConstraints({ advanced: [{ torch: mgmTorchOn }] });
+    el('mgm-torch-btn').classList.toggle('active', mgmTorchOn);
+  } catch (e) {}
 }
 
 /* ===== Cari produk live + tambah item ===== */
