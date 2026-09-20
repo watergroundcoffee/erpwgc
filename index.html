@@ -214,7 +214,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   /* Kamera Scan Resi (khusus screen-scan) - tinggi proporsional ~42% viewport, BUKAN aspect-ratio
      kayak .cam-frame default, biar sisa layar lega buat list Section 1/2/3 di bawahnya.
      Discope ke #camera-wrap doang - kamera Memo Gudang/lainnya TETAP pakai .cam-frame default. */
-  #camera-wrap .cam-frame { height: 42vh; max-height: 380px; aspect-ratio: unset; }
+  #camera-wrap .cam-frame { height: 20vh; max-height: 180px; min-height: 110px; aspect-ratio: unset; }
 
   .pending-toggle-btn {
     width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e0b03f;
@@ -1372,18 +1372,18 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
       <div id="scan-queue-wrap" style="width:100%; display:flex; flex-direction:column; gap:10px; margin-top:4px;">
         <div id="scan-section-antrean" style="display:none; width:100%; box-sizing:border-box;">
           <div style="font-size:12px; font-weight:700; color:#e0a030; margin-bottom:4px;">⏳ Sedang mengupload ...</div>
-          <div id="scan-list-antrean" style="max-height:160px; overflow-y:auto; background:var(--panel); border-radius:8px; padding:6px 10px;"></div>
+          <div id="scan-list-antrean" style="max-height:220px; overflow-y:auto;"></div>
         </div>
         <div id="scan-section-gagal" style="display:none; width:100%; box-sizing:border-box;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <span style="font-size:12px; font-weight:700; color:#d9534f;">❌ Gagal Upload !</span>
             <button onclick="scanRetryGagal()" style="font-size:11px; padding:4px 10px; border-radius:8px; border:1px solid #d9534f; background:rgba(217,83,79,0.1); color:#d9534f; cursor:pointer;">🔄 Coba Lagi</button>
           </div>
-          <div id="scan-list-gagal" style="max-height:160px; overflow-y:auto; background:var(--panel); border-radius:8px; padding:6px 10px;"></div>
+          <div id="scan-list-gagal" style="max-height:220px; overflow-y:auto;"></div>
         </div>
         <div id="scan-section-berhasil" style="display:none; width:100%; box-sizing:border-box;">
           <div style="font-size:12px; font-weight:700; color:#3fa66b; margin-bottom:4px;">✅ Berhasil diupload !</div>
-          <div id="scan-list-berhasil" style="max-height:220px; overflow-y:auto; background:var(--panel); border-radius:8px; padding:6px 10px;"></div>
+          <div id="scan-list-berhasil" style="max-height:340px; overflow-y:auto;"></div>
         </div>
       </div>
       <button class="back-btn" onclick="showMenu()">← Kembali ke Menu</button>
@@ -16550,8 +16550,27 @@ const SCAN_BATAS_LANGSUNG_KIRIM = 10;
 // Titik masuk utama tiap kali ada input scan (manual/kamera). Kalau lagi mode "Input Resi
 // Pending", tetap pakai alur lama yang sinkron (fitur beda, sengaja nggak diubah). Selain
 // itu, masuk ke antrean INSTAN (0ms, nggak nunggu apapun) sesuai spesifikasi.
+// Cek apakah resi ini udah pernah kesentuh sesi scan saat ini (lagi antre, udah sukses,
+// atau lagi di daftar gagal) - dipakai buat auto-reject double scan di sisi frontend.
+function scanSudahAdaDiSesi(noResi) {
+  const key = noResi.trim().toUpperCase();
+  return scanAntrean.some(it => it.noResi.trim().toUpperCase() === key)
+    || scanBerhasil.some(it => it.noResi.trim().toUpperCase() === key)
+    || scanGagal.some(it => it.noResi.trim().toUpperCase() === key);
+}
+
 function scanMasukAntrean(noResi) {
   if (scanPendingModeAktif) { kirimScan(noResi); return; }
+
+  // Auto-reject: resi ini udah kesentuh sesi ini - diabaikan TOTAL, nggak masuk log manapun,
+  // nggak ikut kekirim. Kasih tau staf lewat suara "toot" + teks, biar mereka tau itu bukan
+  // scan gagal, cuma double scan yang sengaja diabaikan.
+  if (scanSudahAdaDiSesi(noResi)) {
+    playToot();
+    el('last-status').textContent = '⚠ Resi sudah discan: ' + noResi;
+    el('last-status').className = 'status-text dup';
+    return;
+  }
 
   scanAntrean.unshift({ noResi });
   scanRenderAntrean();
@@ -16575,17 +16594,27 @@ async function scanKirimBatch() {
   try {
     const data = await postJson({ aksi: 'scan_batch', tipe: currentMode, daftarNoResi: batchDikirim, email: currentUserEmail() }, 30000);
     if (data.success) {
+      const duplikatDitemukan = [];
       data.hasil.forEach(h => {
         if (h.success) {
           let ket = '';
           if (h.pendingDiselesaikan) ket = ' (pending selesai)';
           else if (h.returTikTokCocok) ket = ' (cocok retur TikTok)';
           scanBerhasil.unshift({ noResi: h.noResi, ket });
+        } else if (h.duplicate) {
+          // Duplikat dari BACKEND (udah pernah tersimpan sebelumnya, bukan cuma dobel di sesi
+          // ini) - SENGAJA JANGAN masuk Section Gagal, biar tombol "Coba Lagi" nggak ikut
+          // ngirim ulang resi yang emang udah beres. Cukup dikasih tau lewat notifikasi.
+          duplikatDitemukan.push(h.noResi);
         } else {
-          scanGagal.push({ noResi: h.noResi, error: h.duplicate ? 'Sudah pernah discan' : (h.error || 'Gagal') });
+          scanGagal.push({ noResi: h.noResi, error: h.error || 'Gagal upload' });
         }
       });
       if (scanBerhasil.length > 20) scanBerhasil = scanBerhasil.slice(0, 20);
+      if (duplikatDitemukan.length > 0) {
+        el('last-status').textContent = `⚠ ${duplikatDitemukan.length} resi udah pernah diupload sebelumnya: ${duplikatDitemukan.join(', ')}`;
+        el('last-status').className = 'status-text dup';
+      }
       playBeep();
       el('conn-dot').classList.remove('bad');
     } else {
