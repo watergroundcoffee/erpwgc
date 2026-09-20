@@ -1363,6 +1363,24 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
       <button class="pending-toggle-btn" id="btn-kembali-resi-keluar" style="display:none; border-color:#3fa66b; background:rgba(63,166,107,0.12); color:#3fa66b;" onclick="startScan('keluar')">📤 Kembali ke Scan Resi Keluar</button>
       <div class="status-text" id="last-status"></div>
       <div class="sub-info" id="last-scan-info"></div>
+
+      <div id="scan-queue-wrap" style="width:100%; display:flex; flex-direction:column; gap:10px; margin-top:4px;">
+        <div id="scan-section-antrean" style="display:none; width:100%; box-sizing:border-box;">
+          <div style="font-size:12px; font-weight:700; color:#e0a030; margin-bottom:4px;">⏳ Sedang mengupload ...</div>
+          <div id="scan-list-antrean" style="max-height:160px; overflow-y:auto; background:var(--panel); border-radius:8px; padding:6px 10px;"></div>
+        </div>
+        <div id="scan-section-gagal" style="display:none; width:100%; box-sizing:border-box;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:12px; font-weight:700; color:#d9534f;">❌ Gagal Upload !</span>
+            <button onclick="scanRetryGagal()" style="font-size:11px; padding:4px 10px; border-radius:8px; border:1px solid #d9534f; background:rgba(217,83,79,0.1); color:#d9534f; cursor:pointer;">🔄 Coba Lagi</button>
+          </div>
+          <div id="scan-list-gagal" style="max-height:160px; overflow-y:auto; background:var(--panel); border-radius:8px; padding:6px 10px;"></div>
+        </div>
+        <div id="scan-section-berhasil" style="display:none; width:100%; box-sizing:border-box;">
+          <div style="font-size:12px; font-weight:700; color:#3fa66b; margin-bottom:4px;">✅ Berhasil diupload !</div>
+          <div id="scan-list-berhasil" style="max-height:220px; overflow-y:auto; background:var(--panel); border-radius:8px; padding:6px 10px;"></div>
+        </div>
+      </div>
       <button class="back-btn" onclick="showMenu()">← Kembali ke Menu</button>
     </div>
 
@@ -16269,6 +16287,7 @@ function showSubmenu() {
 function startScan(mode) {
   currentMode = mode;
   scanPendingModeAktif = false;
+  scanResetAntrean(); // ganti mode = konteks beda, jangan sampai antrean resi tipe lama nyangkut
   const cfg = modeConfig[mode];
   hideAllScreens();
   el('screen-scan').style.display = 'flex';
@@ -16386,7 +16405,7 @@ async function startCamera() {
           if (text === lastCameraResult && (now - lastCameraTime) < 2500) return;
           lastCameraResult = text;
           lastCameraTime = now;
-          kirimScan(text);
+          scanMasukAntrean(text);
         }
       }
     );
@@ -16421,7 +16440,7 @@ function stopCamera() {
 function handleScanBtn() {
   if (inputMode === 'manual') {
     const val = el('scan-input').value.trim();
-    if (val) { kirimScan(val); el('scan-input').value = ''; }
+    if (val) { scanMasukAntrean(val); el('scan-input').value = ''; }
     el('scan-input').focus();
   } else {
     stopCamera();
@@ -16432,7 +16451,7 @@ function handleScanBtn() {
 el('scan-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const val = el('scan-input').value.trim();
-    if (val) { kirimScan(val); el('scan-input').value = ''; }
+    if (val) { scanMasukAntrean(val); el('scan-input').value = ''; }
     e.preventDefault();
   }
 });
@@ -16489,6 +16508,102 @@ async function kirimScanPending(noResi, statusEl, infoEl) {
     statusEl.className = 'status-text err';
     playToot();
   }
+}
+
+/* ================= ANTREAN SCAN 3-SECTION (Batch Debounce) ================= */
+let scanAntrean = [];   // Section 1 - baru discan, nunggu dikirim (⏳ ORANGE)
+let scanGagal = [];     // Section 2 - gagal upload (❌ MERAH)
+let scanBerhasil = [];  // Section 3 - sukses tersimpan, maks 20 terakhir (✅ HIJAU)
+let scanDebounceTimer = null;
+const SCAN_DEBOUNCE_MS = 2500;
+const SCAN_BATAS_LANGSUNG_KIRIM = 10;
+
+// Titik masuk utama tiap kali ada input scan (manual/kamera). Kalau lagi mode "Input Resi
+// Pending", tetap pakai alur lama yang sinkron (fitur beda, sengaja nggak diubah). Selain
+// itu, masuk ke antrean INSTAN (0ms, nggak nunggu apapun) sesuai spesifikasi.
+function scanMasukAntrean(noResi) {
+  if (scanPendingModeAktif) { kirimScan(noResi); return; }
+
+  scanAntrean.push({ noResi });
+  scanRenderAntrean();
+
+  if (scanDebounceTimer) clearTimeout(scanDebounceTimer);
+  if (scanAntrean.length >= SCAN_BATAS_LANGSUNG_KIRIM) {
+    scanKirimBatch(); // udah 10 item - langsung kirim, nggak nunggu timer
+  } else {
+    scanDebounceTimer = setTimeout(scanKirimBatch, SCAN_DEBOUNCE_MS);
+  }
+}
+
+async function scanKirimBatch() {
+  if (scanDebounceTimer) { clearTimeout(scanDebounceTimer); scanDebounceTimer = null; }
+  if (scanAntrean.length === 0) return;
+
+  const batchDikirim = scanAntrean.map(it => it.noResi);
+  scanAntrean = []; // kosongkan SEKARANG - resi yang discan SELAMA proses kirim ini masuk antrean baru, nggak ketuker
+  scanRenderAntrean();
+
+  try {
+    const data = await postJson({ aksi: 'scan_batch', tipe: currentMode, daftarNoResi: batchDikirim, email: currentUserEmail() }, 30000);
+    if (data.success) {
+      data.hasil.forEach(h => {
+        if (h.success) {
+          let ket = '';
+          if (h.pendingDiselesaikan) ket = ' (pending selesai)';
+          else if (h.returTikTokCocok) ket = ' (cocok retur TikTok)';
+          scanBerhasil.unshift({ noResi: h.noResi, ket });
+        } else {
+          scanGagal.push({ noResi: h.noResi, error: h.duplicate ? 'Sudah pernah discan' : (h.error || 'Gagal') });
+        }
+      });
+      if (scanBerhasil.length > 20) scanBerhasil = scanBerhasil.slice(0, 20);
+      playBeep();
+      el('conn-dot').classList.remove('bad');
+    } else {
+      // Batch gagal total (misal error server) - semua item di batch ini masuk Gagal
+      batchDikirim.forEach(noResi => scanGagal.push({ noResi, error: data.error || 'Gagal upload' }));
+      playToot();
+    }
+  } catch (err) {
+    batchDikirim.forEach(noResi => scanGagal.push({ noResi, error: err.name === 'AbortError' ? 'Waktu tunggu habis' : err.message }));
+    el('conn-dot').classList.add('bad');
+    playToot();
+  }
+  scanRenderAntrean();
+}
+
+function scanRetryGagal() {
+  if (scanGagal.length === 0) return;
+  const daftarRetry = scanGagal.map(it => it.noResi);
+  scanGagal = [];
+  scanAntrean.push(...daftarRetry.map(noResi => ({ noResi })));
+  scanRenderAntrean();
+  scanKirimBatch(); // retry manual - kirim seketika, nggak nunggu debounce
+}
+
+function scanRenderAntrean() {
+  el('scan-section-antrean').style.display = scanAntrean.length > 0 ? 'block' : 'none';
+  el('scan-list-antrean').innerHTML = scanAntrean.map(it =>
+    `<div style="color:#e0a030; font-size:13px; padding:3px 0;">${escapeHtml(it.noResi)}</div>`
+  ).join('');
+
+  el('scan-section-gagal').style.display = scanGagal.length > 0 ? 'block' : 'none';
+  el('scan-list-gagal').innerHTML = scanGagal.map(it =>
+    `<div style="color:#d9534f; font-size:13px; padding:3px 0;">${escapeHtml(it.noResi)} <span style="font-size:10.5px; opacity:0.75;">- ${escapeHtml(it.error)}</span></div>`
+  ).join('');
+
+  el('scan-section-berhasil').style.display = scanBerhasil.length > 0 ? 'block' : 'none';
+  el('scan-list-berhasil').innerHTML = scanBerhasil.map(it =>
+    `<div style="color:#3fa66b; font-size:13px; padding:3px 0;">${escapeHtml(it.noResi)}${it.ket ? `<span style="font-size:10.5px; opacity:0.8;">${escapeHtml(it.ket)}</span>` : ''}</div>`
+  ).join('');
+}
+
+// Reset total antrean - dipanggil pas keluar/ganti mode scan, biar nggak ada resi dari
+// tipe sebelumnya (misal Retur) yang nyangkut terus muncul di tipe baru (misal Keluar).
+function scanResetAntrean() {
+  if (scanDebounceTimer) { clearTimeout(scanDebounceTimer); scanDebounceTimer = null; }
+  scanAntrean = []; scanGagal = []; scanBerhasil = [];
+  scanRenderAntrean();
 }
 
 async function kirimScan(noResi) {
