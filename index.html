@@ -11068,8 +11068,8 @@ function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
   gridEl.innerHTML = [0, 1, 2, 3].map(i => {
     const url = galeriFotoTambahan[i] || '';
     return `
-      <div class="katalog-detail-galeri-box" data-slot="${i}" title="Klik buat ${url ? 'ganti' : 'tambah'} Foto ${i + 2}"
-           style="position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; border:1px solid var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); cursor:pointer;">
+      <div class="katalog-detail-galeri-box" data-slot="${i}" tabindex="0" title="Klik / tarik / paste buat ${url ? 'ganti' : 'tambah'} Foto ${i + 2}"
+           style="position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; border:2px dashed var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); cursor:pointer; transition:border-color .15s, background .15s;">
         ${url
           ? `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" />`
           : `<span style="font-size:9px; color:var(--web-text-dim); text-align:center;">Foto ${i + 2}</span>`}
@@ -11078,33 +11078,94 @@ function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
   }).join('');
 
   gridEl.querySelectorAll('.katalog-detail-galeri-box').forEach(box => {
+    const slot = parseInt(box.dataset.slot, 10);
+
     box.addEventListener('click', () => {
-      katalogDetailGaleriSlotAktif = parseInt(box.dataset.slot, 10);
+      katalogDetailGaleriSlotAktif = slot;
       el('katalog-detail-galeri-file-input').click();
+    });
+
+    box.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      box.style.borderColor = 'var(--web-info)';
+      box.style.background = 'rgba(59,130,246,0.08)';
+    });
+    box.addEventListener('dragleave', () => {
+      box.style.borderColor = 'var(--web-border)';
+      box.style.background = 'var(--web-bg)';
+    });
+    box.addEventListener('drop', (e) => {
+      e.preventDefault();
+      box.style.borderColor = 'var(--web-border)';
+      box.style.background = 'var(--web-bg)';
+      const fileGambar = Array.from(e.dataTransfer.files || []).find(f => f.type.startsWith('image/'));
+      if (fileGambar) { katalogUploadKeSlotGaleriDetail(slot, fileGambar); return; }
+      // Drag gambar dari tab lain biasanya ngasih URL, bukan file - upload_foto_galeri_slot
+      // butuh base64, jadi buat kasus URL kita ambil gambarnya dulu lewat fetch+blob.
+      const urlDrop = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').trim();
+      const htmlDrop = e.dataTransfer.getData('text/html');
+      const mImg = htmlDrop && htmlDrop.match(/<img[^>]+src="([^"]+)"/i);
+      const urlFinal = /^https?:\/\//i.test(urlDrop) ? urlDrop : (mImg ? mImg[1] : null);
+      if (urlFinal) katalogUploadUrlKeSlotGaleriDetail(slot, urlFinal);
+    });
+
+    // Paste (Ctrl+V) - butuh kotak dalam keadaan fokus (klik dulu, atau langsung paste kalau
+    // baru aja diklik file-input-nya lalu dibatalkan - browser tetap simpen fokus di kotak).
+    box.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || window.clipboardData).items;
+      for (let j = 0; j < items.length; j++) {
+        if (items[j].type && items[j].type.startsWith('image/')) {
+          e.preventDefault(); e.stopPropagation();
+          katalogUploadKeSlotGaleriDetail(slot, items[j].getAsFile());
+          return;
+        }
+      }
+      const teksPaste = ((e.clipboardData || window.clipboardData).getData('text') || '').trim();
+      if (/^https?:\/\//i.test(teksPaste) && teksPaste.length < 500) {
+        e.preventDefault(); e.stopPropagation();
+        katalogUploadUrlKeSlotGaleriDetail(slot, teksPaste);
+      }
     });
   });
 }
 
-el('katalog-detail-galeri-file-input').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  e.target.value = ''; // biar bisa pilih file yang sama lagi kalau perlu
-  if (!file || katalogDetailGaleriSlotAktif === null || !katalogSkuDetailAktif) return;
-  const slot = katalogDetailGaleriSlotAktif;
+function katalogUploadKeSlotGaleriDetail(slot, file) {
+  if (!file || !katalogSkuDetailAktif) return;
   const statusEl = document.querySelector(`.katalog-detail-galeri-status[data-slot="${slot}"]`);
   if (statusEl) statusEl.style.display = 'flex';
-
   const reader = new FileReader();
   reader.onload = async () => {
     const base64 = reader.result.split(',')[1];
     try {
       const data = await postJson({ aksi: 'update_foto_galeri_slot', sku: katalogSkuDetailAktif, slotIndex: slot, base64, mimeType: file.type, toko: currentToko, email: currentUserEmail() }, 30000);
-      if (data.success) {
-        playBeep();
-        katalogBukaDetailProduk(katalogSkuDetailAktif); // render ulang seluruh galeri biar konsisten sama data sheet
-      } else { if (statusEl) statusEl.style.display = 'none'; alert('Gagal upload: ' + (data.error || '')); }
+      if (data.success) { playBeep(); katalogBukaDetailProduk(katalogSkuDetailAktif); }
+      else { if (statusEl) statusEl.style.display = 'none'; alert('Gagal upload: ' + (data.error || '')); }
     } catch (err) { if (statusEl) statusEl.style.display = 'none'; alert('Gagal terhubung: ' + err.message); }
   };
   reader.readAsDataURL(file);
+}
+
+// Buat kasus drag/paste URL gambar (bukan file) - ambil dulu gambarnya lewat fetch, ubah
+// jadi blob, baru lanjut ke jalur upload yang sama kayak file biasa.
+async function katalogUploadUrlKeSlotGaleriDetail(slot, url) {
+  const statusEl = document.querySelector(`.katalog-detail-galeri-status[data-slot="${slot}"]`);
+  if (statusEl) statusEl.style.display = 'flex';
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const file = new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' });
+    katalogUploadKeSlotGaleriDetail(slot, file);
+  } catch (err) {
+    if (statusEl) statusEl.style.display = 'none';
+    alert('Gagal ambil gambar dari URL itu (kemungkinan situs sumbernya memblokir akses langsung). Coba download gambarnya dulu, baru drag/paste filenya.');
+  }
+}
+
+el('katalog-detail-galeri-file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // biar bisa pilih file yang sama lagi kalau perlu
+  if (!file || katalogDetailGaleriSlotAktif === null) return;
+  katalogUploadKeSlotGaleriDetail(katalogDetailGaleriSlotAktif, file);
 });
 
 let katalogHargaCache = [];
