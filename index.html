@@ -4431,6 +4431,10 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="katalogTutupModalTambahProduk()">✕</button>
             </div>
 
+            <div style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:8px; padding:8px 12px; font-size:11px; color:var(--web-text-dim); margin-bottom:12px;">
+              ✨ Tips: paste (Ctrl+V) hasil Ctrl+A dari halaman produk supplier di kolom manapun di form ini - sistem otomatis pecah & isi semua kolom yang cocok.
+            </div>
+
             <!-- 1. Nama Produk - fokus utama, lebar penuh -->
             <label style="font-size:12.5px; font-weight:700;">Nama Produk <span style="color:var(--web-danger);">*</span></label>
             <input id="tp-nama" type="text" class="web-form-input" placeholder="Nama produk lengkap" style="font-size:14px; padding:10px;" />
@@ -4518,7 +4522,8 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
 
             <!-- 9. Deskripsi Produk -->
             <label style="font-size:12.5px; font-weight:700; margin-top:6px; padding-top:8px; border-top:1px solid var(--web-border); display:block;">📝 Deskripsi Produk</label>
-            <textarea id="tp-deskripsi" class="web-form-input" rows="5" placeholder="Paragraf penjelasan, fitur, dan kelebihan produk (opsional)"></textarea>
+            <textarea id="tp-deskripsi" class="web-form-input" rows="8" placeholder="Paragraf penjelasan, fitur, dan kelebihan produk (opsional)" style="white-space:pre-wrap; line-height:1.5;"></textarea>
+            <div style="font-size:10.5px; color:var(--web-text-dim); margin-top:-8px; margin-bottom:12px;">Baris baru & bullet (•) otomatis tersimpan persis seperti yang diketik/di-paste.</div>
 
             <!-- 10. Status Channel -->
             <div style="font-size:12.5px; font-weight:700; margin-top:6px; margin-bottom:6px; padding-top:8px; border-top:1px solid var(--web-border);">🌐 Status Channel</div>
@@ -10163,6 +10168,96 @@ async function katalogBukaModalEditProduk(sku) {
     el('tp-status').textContent = '✗ Gagal terhubung: ' + err.message; el('tp-status').className = 'status-text err';
   }
 }
+
+/* ===== Smart Parse - deteksi paste teks mentah supplier di KOLOM MANAPUN dalam form,
+   otomatis pecah & distribusi ke field yang cocok. Ditarget khusus pola JakartaNotebook
+   dan situs sejenis; field yang nggak ketemu polanya dibiarkan kosong (nggak ditebak). ===== */
+function katalogSmartParseTeksSupplier(teks) {
+  const hasil = {};
+
+  // 1. SKU Utama - "SKU7CHWDXSV" -> ambil "7CHWDXSV" (bagian setelah kata SKU)
+  const mSku = teks.match(/\bSKU([A-Z0-9]{4,})/);
+  if (mSku) hasil.sku = mSku[1];
+
+  // 2. Nama Produk - baris persis di atas "Informasi Produk"
+  const mNama = teks.match(/([^\n]{10,150})\n\s*Informasi Produk/);
+  if (mNama) hasil.namaProduk = mNama[1].trim();
+
+  // 3. Merk - baris persis di bawah "Brand". Kalau nggak ketemu, default "NO BRAND".
+  const mBrand = teks.match(/\bBrand\s*\n\s*([^\n]+)/);
+  hasil.merk = (mBrand && mBrand[1].trim().length > 0 && mBrand[1].trim().length < 40) ? mBrand[1].trim() : 'NO BRAND';
+
+  // 4. Harga Beli/HPP - angka "Rp" PERTAMA yang muncul di teks, titik dibuang jadi angka murni
+  const mHarga = teks.match(/Rp\s*([\d.,]+)/);
+  if (mHarga) {
+    const angka = parseInt(mHarga[1].replace(/[.,]/g, ''), 10);
+    if (!isNaN(angka)) hasil.hargaSupplier = angka;
+  }
+
+  // 5. Spesifikasi ringkas - Berat Produk, Dimensi Kemasan (bukan "Dimensi" tabel spek yang
+  // lebih detail/multi-baris di bawahnya - sengaja ditarget yang "Kemasan" biar konsisten
+  // ukurannya), dan Material.
+  const mBerat = teks.match(/Berat Produk\s*\n\s*([^\n]+)/i);
+  if (mBerat) hasil.berat = mBerat[1].trim();
+  const mDimensi = teks.match(/Dimensi Kemasan\s*\n\s*([^\n]+)/i);
+  if (mDimensi) hasil.dimensi = mDimensi[1].trim();
+  const mMaterial = teks.match(/\bMaterial\s*\n\s*([^\n]+)/i);
+  if (mMaterial) hasil.material = mMaterial[1].trim();
+
+  // 6. Deskripsi - gabung bagian naratif (Keunggulan Produk/Overview/Fitur s.d. Kelengkapan
+  // Produk), BERHENTI sebelum tabel "Spesifikasi" teknis (bukan tab nav "Spesifikasi" yang
+  // muncul jauh lebih awal - makanya dicari MULAI dari startIdx, bukan dari awal teks).
+  const penanda = ['Keunggulan Produk', 'Overview', 'Fitur'];
+  let startIdx = -1;
+  penanda.forEach(p => {
+    const idx = teks.indexOf(p);
+    if (idx !== -1 && (startIdx === -1 || idx < startIdx)) startIdx = idx;
+  });
+  if (startIdx !== -1) {
+    let endIdx = teks.indexOf('\nSpesifikasi', startIdx);
+    if (endIdx === -1) endIdx = teks.indexOf('Produk Rekomendasi', startIdx);
+    if (endIdx === -1) endIdx = teks.length;
+    let narasi = teks.substring(startIdx, endIdx).trim();
+    // Buang baris tombol toggle "Lebih Sedikit"/"Lebih Banyak" - itu UI, bukan konten
+    narasi = narasi.split('\n').filter(b => !/^Lebih (Sedikit|Banyak)\s*$/i.test(b.trim())).join('\n').trim();
+    if (narasi) hasil.deskripsi = narasi;
+  }
+
+  return hasil;
+}
+
+// Deteksi paste di KOLOM MANAPUN dalam modal Tambah/Edit Produk. Teks pendek (nilai wajar
+// buat 1 field) dibiarkan lewat normal; teks panjang (dump halaman supplier) di-intercept
+// dan didistribusikan otomatis ke semua field yang cocok.
+document.addEventListener('paste', function (e) {
+  const modal = el('katalog-modal-tambah-produk');
+  if (!modal || modal.style.display === 'none') return;
+  if (!modal.contains(e.target)) return;
+
+  const teks = (e.clipboardData || window.clipboardData).getData('text');
+  if (!teks || teks.length < 300) return; // pendek = paste nilai biasa ke 1 field, biarkan jalan normal
+
+  e.preventDefault();
+  const hasil = katalogSmartParseTeksSupplier(teks);
+  const kolomTerisi = [];
+  if (hasil.sku) { el('tp-sku').value = hasil.sku; kolomTerisi.push('SKU'); }
+  if (hasil.namaProduk) { el('tp-nama').value = hasil.namaProduk; kolomTerisi.push('Nama Produk'); }
+  el('tp-merk').value = hasil.merk; kolomTerisi.push('Merk');
+  if (hasil.hargaSupplier !== undefined) { el('tp-harga-supplier').value = hasil.hargaSupplier; kolomTerisi.push('Harga Beli'); }
+  if (hasil.berat) { el('tp-berat').value = hasil.berat; kolomTerisi.push('Berat'); }
+  if (hasil.dimensi) { el('tp-dimensi').value = hasil.dimensi; kolomTerisi.push('Dimensi'); }
+  if (hasil.material) { el('tp-material').value = hasil.material; kolomTerisi.push('Material'); }
+  if (hasil.deskripsi) { el('tp-deskripsi').value = hasil.deskripsi; kolomTerisi.push('Deskripsi'); }
+
+  const statusEl = el('tp-status');
+  if (kolomTerisi.length > 0) {
+    statusEl.textContent = `✓ Auto-isi: ${kolomTerisi.join(', ')}. Cek ulang sebelum simpan!`;
+    statusEl.className = 'status-text ok';
+  } else {
+    statusEl.textContent = '⚠ Nggak ada pola yang kekenali dari teks ini - isi manual aja.';
+    statusEl.className = 'status-text err';
+  }
+});
 
 function katalogTutupModalTambahProduk() {
   el('katalog-modal-tambah-produk').style.display = 'none';
