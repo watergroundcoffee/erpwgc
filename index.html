@@ -4292,7 +4292,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
           <div id="katalog-produk-tampilan-table">
             <div class="web-table-wrap">
               <table class="web-table">
-                <thead><tr><th style="width:28px;"><input type="checkbox" id="katalog-produk-checkall" onchange="katalogToggleSelectSemua(this.checked)" /></th><th>Foto</th><th>SKU</th><th>Nama Produk</th><th>Merk</th><th>Kategori</th><th>URL Supplier</th><th>Channel</th></tr></thead>
+                <thead><tr><th style="width:28px;"><input type="checkbox" id="katalog-produk-checkall" onchange="katalogToggleSelectSemua(this.checked)" /></th><th>Foto</th><th>Produk</th><th>Kategori</th><th>Channel</th><th>Aksi</th></tr></thead>
                 <tbody id="katalog-produk-body"></tbody>
               </table>
             </div>
@@ -9573,7 +9573,7 @@ async function katalogFetchProduk() {
   if (katalogProdukCache.length === 0) {
     const dataLokal = ambilCacheLokal('katalog_produk');
     if (dataLokal) { katalogProdukCache = dataLokal.daftar || []; katalogSkuTerhubungMap = dataLokal.skuTerhubungMap || {}; katalogProdukRenderHalaman(); }
-    else tampilkanMemuatTabel('katalog-produk-body', 8);
+    else tampilkanMemuatTabel('katalog-produk-body', 6);
   }
   try {
     const [dataProduk, dataLink] = await Promise.all([
@@ -9672,35 +9672,21 @@ function katalogRenderTabel(halamanIni) {
         <div class="status-text katalog-foto-ai-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px; max-width:110px;"></div>
       </td>
       <td>
-        <span class="katalog-hover-edit-wrap" data-field="sku" data-sku="${escapeHtml(p.sku)}">
-          <span class="katalog-teks-tampil">${escapeHtml(p.sku)}</span>
-          <button class="katalog-btn-pensil" title="Edit SKU">✏️</button>
-          <button class="katalog-btn-pensil katalog-btn-link-sku-supplier" data-sku="${escapeHtml(p.sku)}" title="Hubungkan SKU Supplier">🔗</button>
-          <button class="katalog-btn-pensil katalog-btn-edit-lengkap" data-sku="${escapeHtml(p.sku)}" title="Edit Lengkap (semua field)" onclick="katalogBukaModalEditProduk('${p.sku.replace(/'/g, "\\'")}')">📝</button>
-        </span>
+        <div style="font-size:10px; color:var(--web-text-dim); line-height:1.3;">${p.brand ? escapeHtml(p.brand) : '-'}</div>
+        <div class="katalog-klik-detail" data-sku="${escapeHtml(p.sku)}" style="cursor:pointer; color:var(--web-info); font-weight:700; font-size:13px; line-height:1.35;">${escapeHtml(p.nama)}</div>
+        <div style="font-size:10px; color:var(--web-text-dim); line-height:1.3;">${escapeHtml(p.sku)}</div>
         ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div style="font-size:9.5px; color:var(--web-text-dim);">SKU Terhubung: ${escapeHtml(katalogSkuTerhubungMap[p.sku].join(' '))}</div>` : ''}
-      </td>
-      <td>
-        <span class="katalog-hover-edit-wrap" data-field="nama" data-sku="${escapeHtml(p.sku)}">
-          <span class="katalog-teks-tampil katalog-klik-detail" data-sku="${escapeHtml(p.sku)}" style="cursor:pointer; color:var(--web-info);">${escapeHtml(p.nama)}</span>
-          <button class="katalog-btn-pensil" title="Edit Nama">✏️</button>
-        </span>
         <div class="status-text katalog-nama-aksi-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px;"></div>
       </td>
-      <td>
-        <span class="katalog-hover-edit-wrap" data-field="brand" data-sku="${escapeHtml(p.sku)}">
-          <span class="katalog-teks-tampil">${p.brand ? escapeHtml(p.brand) : '<i style="color:var(--web-text-dim);">-</i>'}</span>
-          <button class="katalog-btn-pensil" title="Edit Merk">✏️</button>
-        </span>
-      </td>
-      <td>
-        <span class="katalog-hover-edit-wrap" data-field="kategori" data-sku="${escapeHtml(p.sku)}">
-          <span class="katalog-teks-tampil">${p.kategori ? escapeHtml(p.kategori) : '<i style="color:var(--web-text-dim);">- pilih -</i>'}</span>
-          <button class="katalog-btn-pensil" title="Edit Kategori">✏️</button>
-        </span>
-      </td>
-      <td style="font-size:11px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(p.urlSupplier || '')}">${p.urlSupplier ? escapeHtml(p.urlSupplier) : '<span style="color:var(--web-text-dim);">-</span>'}</td>
+      <td>${p.kategori ? escapeHtml(p.kategori) : '<i style="color:var(--web-text-dim);">- pilih -</i>'}</td>
       <td>${katalogBadgeChannel(p.channel)}</td>
+      <td>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button class="katalog-btn-pensil katalog-btn-link-sku-supplier" data-sku="${escapeHtml(p.sku)}" title="Hubungkan SKU Supplier">🔗</button>
+          <button class="katalog-btn-pensil katalog-btn-edit-lengkap" data-sku="${escapeHtml(p.sku)}" title="Edit Produk" onclick="katalogBukaModalEditProduk('${p.sku.replace(/'/g, "\\'")}')">✏️</button>
+          <button class="katalog-btn-pensil" title="Hapus Produk" onclick="katalogHapusSatuProduk('${p.sku.replace(/'/g, "\\'")}')">🗑️</button>
+        </div>
+      </td>
     </tr>
   `).join('');
 
@@ -9764,23 +9750,39 @@ async function katalogBatchSimpanKategori() {
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
 
+let katalogHapusSatuTarget = null; // diisi kalau hapus dari tombol per-baris, bukan aksi massal
+
+function katalogHapusSatuProduk(sku) {
+  katalogHapusSatuTarget = sku;
+  el('katalog-batch-hapus-jumlah').textContent = '1';
+  el('katalog-batch-hapus-status').textContent = '';
+  el('katalog-modal-batch-hapus').style.display = 'flex';
+}
+
 function katalogBatchHapusProduk() {
+  katalogHapusSatuTarget = null;
   el('katalog-batch-hapus-jumlah').textContent = katalogProdukTerpilih.size;
   el('katalog-batch-hapus-status').textContent = '';
   el('katalog-modal-batch-hapus').style.display = 'flex';
 }
 
 async function katalogBatchKonfirmasiHapus() {
+  const skuList = katalogHapusSatuTarget ? [katalogHapusSatuTarget] : Array.from(katalogProdukTerpilih);
   const statusEl = el('katalog-batch-hapus-status');
   setLoadingDots(statusEl, 'Menghapus');
   try {
-    const data = await postJson({ aksi: 'hapus_produk_massal', skuList: Array.from(katalogProdukTerpilih), toko: currentToko, email: currentUserEmail() });
+    const data = await postJson({ aksi: 'hapus_produk_massal', skuList, toko: currentToko, email: currentUserEmail() });
     stopLoadingDots(statusEl);
     if (data.success) {
       playBeep();
       statusEl.textContent = `✓ ${data.jumlahBerhasil} produk dihapus`;
       statusEl.className = 'status-text ok';
-      setTimeout(() => { el('katalog-modal-batch-hapus').style.display = 'none'; katalogBatchBatalkanSemua(); katalogFetchProduk(); }, 700);
+      setTimeout(() => {
+        el('katalog-modal-batch-hapus').style.display = 'none';
+        katalogHapusSatuTarget = null;
+        katalogBatchBatalkanSemua();
+        katalogFetchProduk();
+      }, 700);
     } else { statusEl.textContent = '✗ Gagal: ' + (data.error || ''); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
@@ -9842,13 +9844,6 @@ function katalogPasangHandlerBaris() {
       if (btn.disabled) return;
       el('katalog-produk-body').querySelector(`.katalog-menu-foto[data-sku="${btn.dataset.sku}"]`).style.display = 'none';
       katalogAmbilFotoDariSupplier(btn.dataset.sku, btn);
-    });
-  });
-  el('katalog-produk-body').querySelectorAll('.katalog-btn-pensil:not(.katalog-btn-link-sku-supplier)').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const wrap = btn.closest('.katalog-hover-edit-wrap');
-      katalogMasukModeEdit(wrap);
     });
   });
   el('katalog-produk-body').querySelectorAll('.katalog-btn-link-sku-supplier').forEach(btn => {
