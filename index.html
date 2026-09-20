@@ -4431,6 +4431,22 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="katalogTutupModalTambahProduk()">✕</button>
             </div>
 
+            <!-- Area Foto Produk - drag&drop, paste URL/gambar, atau klik upload -->
+            <div id="tp-foto-dropzone" tabindex="0" onclick="if(event.target.id==='tp-foto-dropzone'||event.target.id==='tp-foto-dropzone-inner')el('tp-foto-file-input').click();"
+                 style="position:relative; width:100%; height:130px; border:2px dashed var(--web-border); border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; margin-bottom:14px; overflow:hidden; background:var(--web-bg); transition:border-color .15s, background .15s;">
+              <div id="tp-foto-dropzone-inner" style="text-align:center; color:var(--web-text-dim); pointer-events:none;">
+                <div style="font-size:26px; margin-bottom:4px;">📷</div>
+                <div style="font-size:12px; font-weight:600;">Tarik Foto ke Sini / Paste (Ctrl+V)</div>
+                <div style="font-size:10.5px; margin-top:2px;">atau klik buat upload file</div>
+              </div>
+              <img id="tp-foto-preview" style="display:none; width:100%; height:100%; object-fit:contain;" />
+              <button type="button" id="tp-foto-btn-hapus" onclick="event.stopPropagation(); katalogHapusFotoDropzone();" title="Hapus / Ganti Foto"
+                      style="display:none; position:absolute; top:6px; right:6px; width:26px; height:26px; border-radius:50%; border:none; background:rgba(0,0,0,0.6); color:#fff; font-size:14px; cursor:pointer; align-items:center; justify-content:center;">✕</button>
+              <div id="tp-foto-status" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.5); color:#fff; font-size:12px; align-items:center; justify-content:center;">Mengupload...</div>
+            </div>
+            <input id="tp-foto-file-input" type="file" accept="image/*" style="display:none;" onchange="katalogUploadFotoDariFile(this.files[0])" />
+            <input id="tp-url-foto" type="hidden" />
+
             <div style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:8px; padding:8px 12px; font-size:11px; color:var(--web-text-dim); margin-bottom:12px;">
               ✨ Tips: paste (Ctrl+V) hasil Ctrl+A dari halaman produk supplier di kolom manapun di form ini - sistem otomatis pecah & isi semua kolom yang cocok.
             </div>
@@ -4546,13 +4562,6 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
             <div id="tp-channel-info" style="font-size:11px; color:var(--web-text-dim); margin-bottom:14px;">
               <span id="tp-channel-badges">Belum Tampil di marketplace manapun.</span><br/>
               <i>Status TikTok Shop/Shopee/Tokopedia otomatis mengikuti SKU Marketplace Terhubung - bukan diatur manual di sini.</i>
-            </div>
-
-            <!-- 11. Foto Produk -->
-            <label style="font-size:12.5px; font-weight:700; margin-top:6px; padding-top:8px; border-top:1px solid var(--web-border); display:block;">🖼️ Foto Produk</label>
-            <input id="tp-url-foto" type="text" class="web-form-input" placeholder="URL foto (opsional) - upload file bisa dilengkapi belakangan lewat ikon ✏️ di tabel" />
-            <div id="tp-foto-preview-wrap" style="display:none; margin-bottom:14px;">
-              <img id="tp-foto-preview" style="width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid var(--web-border);" />
             </div>
 
             <button class="web-btn-primary" style="width:100%;" id="tp-btn-simpan" onclick="katalogSimpanProdukBaru()">💾 Simpan</button>
@@ -10201,7 +10210,7 @@ async function katalogBukaModalTambahProduk() {
   el('tp-sku').disabled = false;
   el('tp-tampil-website').checked = false;
   el('tp-channel-badges').textContent = 'Belum Tampil di marketplace manapun.';
-  el('tp-foto-preview-wrap').style.display = 'none';
+  katalogHapusFotoDropzone();
   katalogKosongkanSpesifikasiDinamis();
   el('tp-status').textContent = '';
   el('tp-btn-simpan').disabled = false;
@@ -10237,7 +10246,6 @@ async function katalogBukaModalEditProduk(sku) {
     el('tp-merk').value = p.brand || '';
     el('tp-kategori').value = p.kategori || '';
     el('tp-url-supplier').value = p.urlSupplier || '';
-    el('tp-url-foto').value = p.urlFoto || '';
     el('tp-tipe').value = p.tipe || '';
     el('tp-harga').value = p.hargaDefault || '';
     el('tp-harga-supplier').value = p.hargaSupplier || '';
@@ -10263,8 +10271,8 @@ async function katalogBukaModalEditProduk(sku) {
     el('tp-deskripsi').value = p.deskripsi || '';
     el('tp-tampil-website').checked = !!p.tampilWebsite;
     el('tp-channel-badges').innerHTML = (p.channel && p.channel.length > 0) ? katalogBadgeChannel(p.channel) : 'Belum Tampil di marketplace manapun.';
-    if (p.urlFoto) { el('tp-foto-preview').src = p.urlFoto; el('tp-foto-preview-wrap').style.display = 'block'; }
-    else { el('tp-foto-preview-wrap').style.display = 'none'; }
+    if (p.urlFoto) katalogSetFotoPreview(p.urlFoto);
+    else katalogHapusFotoDropzone();
     el('tp-status').textContent = '';
   } catch (err) {
     el('tp-btn-simpan').disabled = false;
@@ -10428,6 +10436,90 @@ document.addEventListener('paste', function (e) {
     statusEl.className = 'status-text err';
   }
 });
+
+/* ===== Dropzone Foto Produk - drag&drop, paste (URL/gambar), klik upload ===== */
+function katalogSetFotoPreview(url) {
+  el('tp-url-foto').value = url;
+  el('tp-foto-preview').src = url;
+  el('tp-foto-preview').style.display = 'block';
+  el('tp-foto-dropzone-inner').style.display = 'none';
+  el('tp-foto-btn-hapus').style.display = 'flex';
+}
+
+function katalogHapusFotoDropzone() {
+  el('tp-url-foto').value = '';
+  el('tp-foto-preview').src = '';
+  el('tp-foto-preview').style.display = 'none';
+  el('tp-foto-dropzone-inner').style.display = 'block';
+  el('tp-foto-btn-hapus').style.display = 'none';
+}
+
+async function katalogUploadFotoDariFile(file) {
+  if (!file || !file.type.startsWith('image/')) { alert('File yang dipilih bukan gambar.'); return; }
+  el('tp-foto-status').style.display = 'flex';
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = reader.result.split(',')[1];
+    try {
+      const data = await postJson({ aksi: 'upload_foto_standalone', base64, mimeType: file.type, email: currentUserEmail() }, 30000);
+      el('tp-foto-status').style.display = 'none';
+      if (data.success) { playBeep(); katalogSetFotoPreview(data.urlFoto); }
+      else { alert('Gagal upload foto: ' + (data.error || '')); }
+    } catch (err) { el('tp-foto-status').style.display = 'none'; alert('Gagal terhubung: ' + err.message); }
+  };
+  reader.readAsDataURL(file);
+}
+
+(function () {
+  const dz = document.getElementById('tp-foto-dropzone');
+  if (!dz) return;
+
+  dz.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dz.style.borderColor = 'var(--web-info)';
+    dz.style.background = 'rgba(59,130,246,0.06)';
+  });
+  dz.addEventListener('dragleave', () => {
+    dz.style.borderColor = 'var(--web-border)';
+    dz.style.background = 'var(--web-bg)';
+  });
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dz.style.borderColor = 'var(--web-border)';
+    dz.style.background = 'var(--web-bg)';
+
+    // Kasus 1: file gambar beneran di-drag (misal dari File Explorer)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].type.startsWith('image/')) {
+      katalogUploadFotoDariFile(e.dataTransfer.files[0]);
+      return;
+    }
+    // Kasus 2: gambar di-drag dari tab/halaman lain - browser ngasih URL-nya, bukan file
+    const urlDrop = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').trim();
+    if (/^https?:\/\//i.test(urlDrop)) { katalogSetFotoPreview(urlDrop); return; }
+    const htmlDrop = e.dataTransfer.getData('text/html');
+    const mImg = htmlDrop && htmlDrop.match(/<img[^>]+src="([^"]+)"/i);
+    if (mImg) katalogSetFotoPreview(mImg[1]);
+  });
+
+  // Paste KHUSUS di dropzone - beda dari listener paste global (Smart Paste teks panjang).
+  // Kalau yang di-paste gambar atau URL gambar pendek, tangani di sini & JANGAN lanjut ke
+  // listener global. Kalau bukan (misal ternyata teks dump supplier), biarkan lolos.
+  dz.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || window.clipboardData).items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.startsWith('image/')) {
+        e.preventDefault(); e.stopPropagation();
+        katalogUploadFotoDariFile(items[i].getAsFile());
+        return;
+      }
+    }
+    const teksPaste = ((e.clipboardData || window.clipboardData).getData('text') || '').trim();
+    if (/^https?:\/\//i.test(teksPaste) && teksPaste.length < 500) {
+      e.preventDefault(); e.stopPropagation();
+      katalogSetFotoPreview(teksPaste);
+    }
+  });
+})();
 
 function katalogTutupModalTambahProduk() {
   el('katalog-modal-tambah-produk').style.display = 'none';
