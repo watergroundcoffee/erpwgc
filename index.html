@@ -4260,7 +4260,6 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
             <span id="katalog-batch-count" style="font-weight:700; font-size:12.5px;">0 dipilih</span>
             <div style="flex:1;"></div>
             <button class="web-btn-secondary" style="margin:0; background:#fff;" onclick="katalogBatchBukaModalKategori()">📁 Ubah Kategori</button>
-            <button class="web-btn-secondary" style="margin:0; background:#fff;" onclick="katalogBatchBukaModalChannel()">🌐 Ubah Status Website</button>
             <button class="web-btn-danger" style="margin:0;" onclick="katalogBatchHapusProduk()">🗑️ Hapus Terpilih</button>
             <button class="web-btn-secondary" style="margin:0; background:#fff;" onclick="katalogBatchBatalkanSemua()">Batalkan</button>
           </div>
@@ -4277,18 +4276,15 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
             </div>
           </div>
 
-          <!-- Modal Ubah Status Website Massal -->
-          <div id="katalog-modal-batch-channel" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:250; align-items:center; justify-content:center;">
-            <div class="web-panel" style="max-width:380px; width:100%;">
-              <div class="web-panel-header"><span>Ubah Status Tampil di Website</span></div>
-              <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:10px;"><span id="katalog-batch-channel-jumlah"></span> produk terpilih.</div>
-              <select id="katalog-batch-channel-pilihan" class="web-form-input">
-                <option value="true">Tampilkan di Website</option>
-                <option value="false">Sembunyikan dari Website</option>
-              </select>
-              <button class="web-btn-primary" style="width:100%;" onclick="katalogBatchSimpanChannel()">Simpan</button>
-              <button class="web-btn-secondary" style="width:100%; margin-top:6px;" onclick="el('katalog-modal-batch-channel').style.display='none'">Batal</button>
-              <div class="status-text" id="katalog-batch-channel-status" style="text-align:left; margin-top:6px;"></div>
+          <!-- Modal Konfirmasi Hapus Massal -->
+          <div id="katalog-modal-batch-hapus" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:250; align-items:center; justify-content:center;">
+            <div class="web-panel" style="max-width:400px; width:100%;">
+              <div class="web-panel-header"><span>⚠️ Konfirmasi Hapus Produk</span></div>
+              <div style="font-size:13px; margin-bottom:10px;">Hapus <b id="katalog-batch-hapus-jumlah"></b> produk terpilih secara <b>PERMANEN</b> dari Master Produk?</div>
+              <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:14px;">Riwayat transaksi/stock lama TETAP tersimpan (SKU-nya cuma teks, bukan link), tapi produk ini nggak akan muncul lagi di Katalog. Tindakan ini TIDAK BISA dibatalkan.</div>
+              <button class="web-btn-danger" style="width:100%;" onclick="katalogBatchKonfirmasiHapus()">🗑️ Ya, Hapus Permanen</button>
+              <button class="web-btn-secondary" style="width:100%; margin-top:6px;" onclick="el('katalog-modal-batch-hapus').style.display='none'">Batal</button>
+              <div class="status-text" id="katalog-batch-hapus-status" style="text-align:left; margin-top:6px;"></div>
             </div>
           </div>
 
@@ -4429,24 +4425,101 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
 
         <!-- ===== Modal Tambah Produk Baru ===== -->
         <div id="katalog-modal-tambah-produk" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:250; align-items:center; justify-content:center; padding:16px;">
-          <div class="web-panel" style="max-width:440px; width:100%; max-height:88vh; overflow-y:auto;">
+          <div class="web-panel" style="max-width:560px; width:100%; max-height:90vh; overflow-y:auto;">
             <div class="web-panel-header" style="display:flex; justify-content:space-between; align-items:center;">
-              <span>+ Tambah Produk Baru</span>
+              <span id="tp-judul-modal">+ Tambah Produk Baru</span>
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="katalogTutupModalTambahProduk()">✕</button>
             </div>
-            <label style="font-size:12px; font-weight:600;">SKU <span style="color:var(--web-danger);">*</span></label>
-            <input id="tp-sku" type="text" class="web-form-input" placeholder="Kode unik, misal SKU12345" />
+
+            <!-- Smart Paste - cuma berguna pas nambah produk baru dari nol -->
+            <div id="tp-smartpaste-wrap" style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:10px; padding:12px; margin-bottom:14px;">
+              <div style="font-size:12px; font-weight:700; margin-bottom:4px;">✨ Smart Paste</div>
+              <div style="font-size:11px; color:var(--web-text-dim); margin-bottom:8px;">Ctrl+A di halaman produk supplier (misal JakartaNotebook), copy semuanya, paste di sini - kolom di bawah otomatis keisi.</div>
+              <textarea id="tp-smartpaste" class="web-form-input" rows="3" placeholder="Paste teks mentah hasil Ctrl+A dari halaman supplier di sini..." style="margin-bottom:8px; font-size:11px;"></textarea>
+              <button class="web-btn-secondary" style="width:100%; margin:0;" onclick="katalogSmartPasteParse()">🪄 Ekstrak Otomatis ke Form</button>
+              <div class="status-text" id="tp-smartpaste-status" style="text-align:left; margin-top:6px;"></div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+              <div>
+                <label style="font-size:12px; font-weight:600;">SKU <span style="color:var(--web-danger);">*</span></label>
+                <input id="tp-sku" type="text" class="web-form-input" placeholder="Kode unik, misal SKU12345" />
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:600;">Merk</label>
+                <input id="tp-merk" type="text" class="web-form-input" placeholder="Opsional" />
+              </div>
+            </div>
+
             <label style="font-size:12px; font-weight:600;">Nama Produk <span style="color:var(--web-danger);">*</span></label>
             <input id="tp-nama" type="text" class="web-form-input" placeholder="Nama produk lengkap" />
-            <label style="font-size:12px; font-weight:600;">Merk</label>
-            <input id="tp-merk" type="text" class="web-form-input" placeholder="Opsional" />
-            <label style="font-size:12px; font-weight:600;">Kategori</label>
-            <select id="tp-kategori" class="web-form-input">
-              <option value="">- Pilih Kategori (opsional) -</option>
-            </select>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+              <div>
+                <label style="font-size:12px; font-weight:600;">Kategori</label>
+                <select id="tp-kategori" class="web-form-input">
+                  <option value="">- Pilih Kategori (opsional) -</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:600;">Tipe</label>
+                <input id="tp-tipe" type="text" class="web-form-input" placeholder="Opsional" />
+              </div>
+            </div>
+
             <label style="font-size:12px; font-weight:600;">URL Supplier</label>
             <input id="tp-url-supplier" type="text" class="web-form-input" placeholder="Opsional, link produk di supplier" />
-            <div style="font-size:11px; color:var(--web-text-dim); margin-bottom:14px;">Harga, HPP, foto, dan detail lain bisa dilengkapi belakangan lewat halaman Detail Produk setelah tersimpan.</div>
+
+            <label style="font-size:12px; font-weight:600;">URL Foto</label>
+            <input id="tp-url-foto" type="text" class="web-form-input" placeholder="Opsional - bisa dilengkapi belakangan lewat ikon ✏️ di tabel" />
+
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 12px;">
+              <div>
+                <label style="font-size:12px; font-weight:600;">Harga Jual</label>
+                <input id="tp-harga" type="number" class="web-form-input" placeholder="0" />
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:600;">Harga Supplier (HPP)</label>
+                <input id="tp-harga-supplier" type="number" class="web-form-input" placeholder="0" />
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:600;">Harga Shopee</label>
+                <input id="tp-harga-shopee" type="number" class="web-form-input" placeholder="0" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+              <div>
+                <label style="font-size:12px; font-weight:600;">Batas Stok Menipis</label>
+                <input id="tp-batas-stok" type="number" class="web-form-input" placeholder="Opsional" />
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:600;">Margin Custom (%)</label>
+                <input id="tp-margin" type="number" class="web-form-input" placeholder="Kosongkan = pakai margin default toko" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+              <div>
+                <label style="font-size:12px; font-weight:600;">Material</label>
+                <input id="tp-material" type="text" class="web-form-input" placeholder="Opsional" />
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:600;">Volume</label>
+                <input id="tp-volume" type="text" class="web-form-input" placeholder="Opsional, misal 900ml" />
+              </div>
+            </div>
+
+            <label style="font-size:12px; font-weight:600;">Warna</label>
+            <input id="tp-warna" type="text" class="web-form-input" placeholder="Opsional" />
+
+            <label style="font-size:12px; font-weight:600;">Deskripsi</label>
+            <textarea id="tp-deskripsi" class="web-form-input" rows="3" placeholder="Opsional"></textarea>
+
+            <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; cursor:pointer; margin-bottom:14px;">
+              <input id="tp-tampil-website" type="checkbox" style="width:16px; height:16px;" /> Tampilkan di Website
+            </label>
+
             <button class="web-btn-primary" style="width:100%;" id="tp-btn-simpan" onclick="katalogSimpanProdukBaru()">💾 Simpan</button>
             <div class="status-text" id="tp-status" style="text-align:left; margin-top:6px;"></div>
           </div>
@@ -9568,6 +9641,7 @@ function katalogRenderTabel(halamanIni) {
           <span class="katalog-teks-tampil">${escapeHtml(p.sku)}</span>
           <button class="katalog-btn-pensil" title="Edit SKU">✏️</button>
           <button class="katalog-btn-pensil katalog-btn-link-sku-supplier" data-sku="${escapeHtml(p.sku)}" title="Hubungkan SKU Supplier">🔗</button>
+          <button class="katalog-btn-pensil katalog-btn-edit-lengkap" data-sku="${escapeHtml(p.sku)}" title="Edit Lengkap (semua field)" onclick="katalogBukaModalEditProduk('${p.sku.replace(/'/g, "\\'")}')">📝</button>
         </span>
         ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div style="font-size:9.5px; color:var(--web-text-dim);">SKU Terhubung: ${escapeHtml(katalogSkuTerhubungMap[p.sku].join(' '))}</div>` : ''}
       </td>
@@ -9655,40 +9729,25 @@ async function katalogBatchSimpanKategori() {
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
 
-function katalogBatchBukaModalChannel() {
-  el('katalog-batch-channel-jumlah').textContent = katalogProdukTerpilih.size;
-  el('katalog-batch-channel-status').textContent = '';
-  el('katalog-modal-batch-channel').style.display = 'flex';
+function katalogBatchHapusProduk() {
+  el('katalog-batch-hapus-jumlah').textContent = katalogProdukTerpilih.size;
+  el('katalog-batch-hapus-status').textContent = '';
+  el('katalog-modal-batch-hapus').style.display = 'flex';
 }
 
-async function katalogBatchSimpanChannel() {
-  const tampilWebsite = el('katalog-batch-channel-pilihan').value === 'true';
-  const statusEl = el('katalog-batch-channel-status');
-  setLoadingDots(statusEl, 'Menyimpan');
+async function katalogBatchKonfirmasiHapus() {
+  const statusEl = el('katalog-batch-hapus-status');
+  setLoadingDots(statusEl, 'Menghapus');
   try {
-    const data = await postJson({ aksi: 'ubah_tampil_website_massal', skuList: Array.from(katalogProdukTerpilih), tampilWebsite, toko: currentToko, email: currentUserEmail() });
+    const data = await postJson({ aksi: 'hapus_produk_massal', skuList: Array.from(katalogProdukTerpilih), toko: currentToko, email: currentUserEmail() });
     stopLoadingDots(statusEl);
     if (data.success) {
       playBeep();
-      statusEl.textContent = `✓ ${data.jumlahBerhasil} produk diperbarui`;
+      statusEl.textContent = `✓ ${data.jumlahBerhasil} produk dihapus`;
       statusEl.className = 'status-text ok';
-      setTimeout(() => { el('katalog-modal-batch-channel').style.display = 'none'; katalogBatchBatalkanSemua(); katalogFetchProduk(); }, 700);
+      setTimeout(() => { el('katalog-modal-batch-hapus').style.display = 'none'; katalogBatchBatalkanSemua(); katalogFetchProduk(); }, 700);
     } else { statusEl.textContent = '✗ Gagal: ' + (data.error || ''); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
-}
-
-async function katalogBatchHapusProduk() {
-  const jumlah = katalogProdukTerpilih.size;
-  if (!confirm(`Hapus ${jumlah} produk terpilih secara PERMANEN dari Master Produk?\n\nRiwayat transaksi/stock lama TETAP tersimpan (SKU-nya cuma teks, bukan link), tapi produk ini nggak akan muncul lagi di Katalog. Tindakan ini TIDAK BISA dibatalkan.`)) return;
-  try {
-    const data = await postJson({ aksi: 'hapus_produk_massal', skuList: Array.from(katalogProdukTerpilih), toko: currentToko, email: currentUserEmail() });
-    if (data.success) {
-      playBeep();
-      alert(`${data.jumlahBerhasil} produk berhasil dihapus.`);
-      katalogBatchBatalkanSemua();
-      katalogFetchProduk();
-    } else { alert('Gagal: ' + (data.error || '')); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
 }
 
 function katalogRenderCard(halamanIni) {
@@ -10020,16 +10079,69 @@ async function katalogMuatDaftarKategori() {
   } catch (err) {}
 }
 
+let katalogModalMode = 'tambah'; // 'tambah' | 'edit'
+let katalogModalSkuLama = null;
+
 async function katalogBukaModalTambahProduk() {
-  el('tp-sku').value = '';
-  el('tp-nama').value = '';
-  el('tp-merk').value = '';
-  el('tp-url-supplier').value = '';
+  katalogModalMode = 'tambah';
+  katalogModalSkuLama = null;
+  el('tp-judul-modal').textContent = '+ Tambah Produk Baru';
+  el('tp-smartpaste-wrap').style.display = 'block';
+  el('tp-smartpaste').value = '';
+  el('tp-smartpaste-status').textContent = '';
+  ['tp-sku','tp-nama','tp-merk','tp-url-supplier','tp-url-foto','tp-tipe','tp-material','tp-volume','tp-warna','tp-deskripsi'].forEach(id => el(id).value = '');
+  ['tp-harga','tp-harga-supplier','tp-harga-shopee','tp-batas-stok','tp-margin'].forEach(id => el(id).value = '');
+  el('tp-sku').disabled = false;
+  el('tp-tampil-website').checked = false;
   el('tp-status').textContent = '';
   el('tp-btn-simpan').disabled = false;
+  el('tp-btn-simpan').textContent = '💾 Simpan';
   if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
   el('tp-kategori').innerHTML = '<option value="">- Pilih Kategori (opsional) -</option>' + katalogDaftarKategoriCache.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  el('tp-kategori').value = '';
   el('katalog-modal-tambah-produk').style.display = 'flex';
+}
+
+async function katalogBukaModalEditProduk(sku) {
+  katalogModalMode = 'edit';
+  katalogModalSkuLama = sku;
+  el('tp-judul-modal').textContent = '✏️ Edit Produk';
+  el('tp-smartpaste-wrap').style.display = 'none'; // nggak relevan buat edit - biar nggak bingung
+  el('tp-status').textContent = 'Memuat data produk...';
+  el('tp-btn-simpan').disabled = true;
+  el('tp-btn-simpan').textContent = '💾 Simpan Perubahan';
+  el('katalog-modal-tambah-produk').style.display = 'flex';
+
+  if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
+  el('tp-kategori').innerHTML = '<option value="">- Pilih Kategori (opsional) -</option>' + katalogDaftarKategoriCache.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+
+  try {
+    const data = await postJson({ aksi: 'lihat_detail_produk', sku, toko: currentToko, email: currentUserEmail() });
+    el('tp-btn-simpan').disabled = false;
+    if (!data.success) { el('tp-status').textContent = '✗ Gagal muat: ' + (data.error || ''); el('tp-status').className = 'status-text err'; return; }
+    const p = data.produk;
+    el('tp-sku').value = p.sku; el('tp-sku').disabled = false;
+    el('tp-nama').value = p.nama || '';
+    el('tp-merk').value = p.brand || '';
+    el('tp-kategori').value = p.kategori || '';
+    el('tp-url-supplier').value = p.urlSupplier || '';
+    el('tp-url-foto').value = p.urlFoto || '';
+    el('tp-tipe').value = p.tipe || '';
+    el('tp-harga').value = p.hargaDefault || '';
+    el('tp-harga-supplier').value = p.hargaSupplier || '';
+    el('tp-harga-shopee').value = p.hargaShopee || '';
+    el('tp-batas-stok').value = (p.batasStokMenipis === '' || p.batasStokMenipis === undefined) ? '' : p.batasStokMenipis;
+    el('tp-margin').value = (p.marginCustom === null || p.marginCustom === undefined) ? '' : p.marginCustom;
+    el('tp-material').value = p.material || '';
+    el('tp-volume').value = p.volume || '';
+    el('tp-warna').value = p.warna || '';
+    el('tp-deskripsi').value = p.deskripsi || '';
+    el('tp-tampil-website').checked = !!p.tampilWebsite;
+    el('tp-status').textContent = '';
+  } catch (err) {
+    el('tp-btn-simpan').disabled = false;
+    el('tp-status').textContent = '✗ Gagal terhubung: ' + err.message; el('tp-status').className = 'status-text err';
+  }
 }
 
 function katalogTutupModalTambahProduk() {
@@ -10039,25 +10151,42 @@ function katalogTutupModalTambahProduk() {
 async function katalogSimpanProdukBaru() {
   const btn = el('tp-btn-simpan');
   if (btn.disabled) return; // lagi diproses, abaikan klik tambahan
-  const sku = el('tp-sku').value.trim();
-  const namaProduk = el('tp-nama').value.trim();
-  const merk = el('tp-merk').value.trim();
-  const kategori = el('tp-kategori').value;
-  const urlSupplier = el('tp-url-supplier').value.trim();
+  const payload = {
+    sku: el('tp-sku').value.trim(),
+    namaProduk: el('tp-nama').value.trim(),
+    merk: el('tp-merk').value.trim(),
+    kategori: el('tp-kategori').value,
+    urlSupplier: el('tp-url-supplier').value.trim(),
+    urlFoto: el('tp-url-foto').value.trim(),
+    tipe: el('tp-tipe').value.trim(),
+    harga: el('tp-harga').value, hargaSupplier: el('tp-harga-supplier').value, hargaShopee: el('tp-harga-shopee').value,
+    batasStokMenipis: el('tp-batas-stok').value,
+    marginCustom: el('tp-margin').value,
+    material: el('tp-material').value.trim(), volume: el('tp-volume').value.trim(), warna: el('tp-warna').value.trim(),
+    deskripsi: el('tp-deskripsi').value.trim(),
+    tampilWebsite: el('tp-tampil-website').checked,
+    toko: currentToko, email: currentUserEmail()
+  };
   const statusEl = el('tp-status');
 
-  if (!sku) { statusEl.textContent = '✗ SKU wajib diisi.'; statusEl.className = 'status-text err'; return; }
-  if (!namaProduk) { statusEl.textContent = '✗ Nama Produk wajib diisi.'; statusEl.className = 'status-text err'; return; }
+  if (!payload.sku) { statusEl.textContent = '✗ SKU wajib diisi.'; statusEl.className = 'status-text err'; return; }
+  if (!payload.namaProduk) { statusEl.textContent = '✗ Nama Produk wajib diisi.'; statusEl.className = 'status-text err'; return; }
 
   btn.disabled = true;
   setLoadingDots(statusEl, 'Menyimpan');
   try {
-    const data = await postJson({ aksi: 'tambah_produk_baru', sku, namaProduk, merk, kategori, urlSupplier, toko: currentToko, email: currentUserEmail() });
+    let data;
+    if (katalogModalMode === 'edit') {
+      payload.skuLama = katalogModalSkuLama;
+      data = await postJson({ aksi: 'edit_produk_master_lengkap', ...payload });
+    } else {
+      data = await postJson({ aksi: 'tambah_produk_baru', ...payload });
+    }
     stopLoadingDots(statusEl);
     if (data.success) {
       playBeep();
-      hapusCacheTTL('daftar_kategori'); // jaga-jaga kalau ke depannya alur ini juga bisa bikin kategori baru
-      statusEl.textContent = '✓ Produk tersimpan!';
+      hapusCacheTTL('daftar_kategori');
+      statusEl.textContent = '✓ Tersimpan!';
       statusEl.className = 'status-text ok';
       setTimeout(() => { katalogTutupModalTambahProduk(); katalogFetchProduk(); }, 900);
     } else {
@@ -10070,6 +10199,70 @@ async function katalogSimpanProdukBaru() {
     statusEl.textContent = '✗ Gagal terhubung: ' + err.message;
     statusEl.className = 'status-text err';
     btn.disabled = false;
+  }
+}
+
+/* ===== Smart Paste - ekstrak field dari teks mentah hasil Ctrl+A halaman supplier =====
+   Dituning buat pola JakartaNotebook (dan supplier sejenis yang formatnya mirip), TAPI
+   didesain "gagal dengan aman" - field yang nggak ketemu polanya dibiarkan kosong, nggak
+   diisi asal-asalan. Selalu cek ulang hasilnya sebelum simpan. */
+function katalogSmartPasteParse() {
+  const teks = el('tp-smartpaste').value;
+  const statusEl = el('tp-smartpaste-status');
+  if (!teks.trim()) { statusEl.textContent = '✗ Belum ada teks yang di-paste.'; statusEl.className = 'status-text err'; return; }
+
+  const hasilKetemu = [];
+
+  // SKU - pola "SKU7RHX9YSV" atau "SKU: 7RHX9YSV"
+  const matchSku = teks.match(/SKU[:\s]*([A-Z0-9]{4,})/i);
+  if (matchSku) { el('tp-sku').value = matchSku[1].trim(); hasilKetemu.push('SKU'); }
+
+  // Nama produk - baris tepat SEBELUM pola "Belum ada ulasan" atau "•SKU" (posisi paling
+  // konsisten ditemukan di halaman produk marketplace/supplier kayak JakartaNotebook)
+  const baris = teks.split('\n').map(b => b.trim()).filter(b => b);
+  let namaProduk = '';
+  for (let i = 1; i < baris.length; i++) {
+    if (/belum ada ulasan/i.test(baris[i]) || /^•?SKU/i.test(baris[i])) {
+      // Ambil baris sebelumnya yang cukup panjang (bukan cuma angka/simbol pendek)
+      if (baris[i - 1] && baris[i - 1].length > 8) { namaProduk = baris[i - 1]; break; }
+    }
+  }
+  if (namaProduk) { el('tp-nama').value = namaProduk; hasilKetemu.push('Nama Produk'); }
+
+  // Harga - ambil angka "Rp" PERTAMA yang muncul (biasanya harga jual/harga setelah diskon di
+  // halaman produk) - dipakai sebagai referensi Harga Supplier (harga yang KITA bayar ke sana)
+  const matchHarga = teks.match(/Rp\s*([\d.,]+)/);
+  if (matchHarga) {
+    const angka = parseInt(matchHarga[1].replace(/[.,]/g, ''), 10);
+    if (!isNaN(angka)) { el('tp-harga-supplier').value = angka; hasilKetemu.push('Harga Supplier'); }
+  }
+
+  // Brand - pola "Brand\nNamaBrand"
+  const matchBrand = teks.match(/Brand\s*\n\s*([^\n]+)/i);
+  if (matchBrand && matchBrand[1].trim().length < 40) { el('tp-merk').value = matchBrand[1].trim(); hasilKetemu.push('Merk'); }
+
+  // Warna - pola "Warna\nNamaWarna" (dari tabel spesifikasi)
+  const matchWarna = teks.match(/Warna\s*\n\s*([^\n]+)/i);
+  if (matchWarna && matchWarna[1].trim().length < 30) { el('tp-warna').value = matchWarna[1].trim(); hasilKetemu.push('Warna'); }
+
+  // Material - pola "Material\n...." (ambil baris pertama aja, biar nggak kepanjangan)
+  const matchMaterial = teks.match(/Material\s*\n\s*([^\n]+)/i);
+  if (matchMaterial) { el('tp-material').value = matchMaterial[1].trim(); hasilKetemu.push('Material'); }
+
+  // Volume/Dimensi - coba tangkep pola kapasitas kayak "900 ml" atau "Dimensi Kemasan\n..."
+  const matchVolume = teks.match(/(\d+\s*ml\b)/i) || teks.match(/Dimensi Kemasan\s*\n\s*([^\n]+)/i);
+  if (matchVolume) { el('tp-volume').value = (matchVolume[1] || matchVolume[0]).trim(); hasilKetemu.push('Volume'); }
+
+  // URL - kalau ada link http/https ke-paste ikutan di teks
+  const matchUrl = teks.match(/(https?:\/\/[^\s]+)/);
+  if (matchUrl) { el('tp-url-supplier').value = matchUrl[1].trim(); hasilKetemu.push('URL Supplier'); }
+
+  if (hasilKetemu.length === 0) {
+    statusEl.textContent = '⚠ Nggak ada pola yang kekenali. Isi manual aja ya.';
+    statusEl.className = 'status-text err';
+  } else {
+    statusEl.textContent = `✓ Berhasil isi: ${hasilKetemu.join(', ')}. Cek ulang sebelum simpan!`;
+    statusEl.className = 'status-text ok';
   }
 }
 
