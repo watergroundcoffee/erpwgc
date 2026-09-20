@@ -1089,8 +1089,38 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
 
   /* ===== Card compact mobile - Memo Gudang (4 tab) ===== */
   .mgm-card { border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 12px; background: var(--panel); width: 100%; box-sizing: border-box; }
+
+  /* ===== Animasi item baru di-prepend ke keranjang - max-height+opacity+margin nol -> penuh,
+     biar item lama di bawahnya "kedorong" turun halus (bukan snap), plus highlight sesaat ===== */
+  .mgm-card-masuk {
+    max-height: 0; opacity: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0;
+    border-width: 0; overflow: hidden;
+    animation: mgmMasukKeranjang 0.38s ease-out forwards, mgmHighlightKeranjang 1.1s ease-out 0.38s forwards;
+  }
+  @keyframes mgmMasukKeranjang {
+    0%   { max-height: 0; opacity: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0; transform: translateY(-6px); }
+    100% { max-height: 240px; opacity: 1; margin-bottom: 8px; padding-top: 10px; padding-bottom: 10px; border-width: 1px; transform: translateY(0); }
+  }
+  @keyframes mgmHighlightKeranjang {
+    0%   { background: rgba(63,166,107,0.28); border-color: #3fa66b; }
+    100% { background: var(--panel); border-color: var(--panel-border); }
+  }
   .mgm-card.mgm-ghost { opacity: 0.45; }
   .mgm-card.mgm-ghost b { font-style: italic; }
+  /* Struktur baru: [Hapus] | [Detail Produk] | [Qty] - sejajar horizontal, ergonomis mobile */
+  .mgm-card-main-row { display: flex; align-items: center; gap: 10px; }
+  .mgm-card-hapus-kiri {
+    flex: none; width: 38px; height: 38px; border-radius: 10px;
+    border: 1px solid rgba(217,83,79,0.35); background: rgba(217,83,79,0.1);
+    color: #d9534f; font-size: 17px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mgm-card-hapus-kiri:active { background: rgba(217,83,79,0.22); }
+  .mgm-card-detail { flex: 1; min-width: 0; } /* min-width:0 penting biar teks panjang bisa kepotong (ellipsis), bukan dorong layout */
+  .mgm-card-meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
+  .mgm-card-title b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mgm-card-title .mgm-card-nama { display: block; font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
   .mgm-card-row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
   .mgm-card-title { flex: 1; min-width: 0; }
   .mgm-card-title b { font-size: 14px; display: block; }
@@ -17346,13 +17376,15 @@ function mgmTambahItemKeCart(sku) {
   const sudahAda = cart.find(it => it.sku === sku);
   if (sudahAda) {
     sudahAda.qty = (sudahAda.qty || 0) + 1;
+    mgmSimpanDraftLokal();
+    mgmRenderCart(); // item lama cuma qty berubah - render biasa, nggak perlu animasi masuk
   } else {
     const produk = katalogProdukCache.find(pr => pr.sku === sku);
-    cart.push({ sku, nama: produk ? produk.nama : sku, qty: 1, catatan: '', fotoUrl: '' });
+    cart.unshift({ sku, nama: produk ? produk.nama : sku, qty: 1, catatan: '', fotoUrl: '' }); // PREPEND - item baru selalu di urutan paling atas
     if (mgmTabAktif === 'mintastock' || mgmTabAktif === 'stockopname') mgmMintaStokRealtime();
+    mgmSimpanDraftLokal();
+    mgmRenderCart(true); // true = ada item baru di posisi paling atas, kasih animasi masuk
   }
-  mgmSimpanDraftLokal();
-  mgmRenderCart();
 }
 
 async function mgmMintaStokRealtime() {
@@ -17385,7 +17417,7 @@ function mgmHapusItem(idx) {
 }
 
 /* ===== Render cart - kartu compact, dipakai bareng 4 tab ===== */
-function mgmRenderCart() {
+function mgmRenderCart(animasikanItemBaru) {
   const cart = mgmCarts[mgmTabAktif];
   el('mgm-cart-empty').style.display = cart.length === 0 ? 'block' : 'none';
   el('mgm-list-header').style.display = cart.length === 0 ? 'none' : 'block';
@@ -17418,21 +17450,21 @@ function mgmRenderCart() {
     }
 
     return `
-      <div class="mgm-card ${ghost ? 'mgm-ghost' : ''}">
-        <div class="mgm-card-row1">
-          <div class="mgm-card-title">
-            <b>${escapeHtml(it.sku)}</b>
-            <span class="mgm-card-nama">${escapeHtml(it.nama)}</span>
+      <div class="mgm-card ${ghost ? 'mgm-ghost' : ''} ${idx === 0 && animasikanItemBaru ? 'mgm-card-masuk' : ''}">
+        <div class="mgm-card-main-row">
+          <button class="mgm-card-hapus-kiri" onclick="mgmHapusItem(${idx})" title="Hapus item">🗑️</button>
+          <div class="mgm-card-detail">
+            <div class="mgm-card-title">
+              <b>${escapeHtml(it.sku)}</b>
+              <span class="mgm-card-nama">${escapeHtml(it.nama)}</span>
+            </div>
+            <div class="mgm-card-meta-row">${meta}</div>
           </div>
-          <button class="mgm-card-x" onclick="mgmHapusItem(${idx})">✕</button>
-        </div>
-        <div class="mgm-card-row2">
           <div class="mgm-qty-inline">
             <button class="mgm-qty-btn" onclick="mgmUbahQty(${idx},-1)">−</button>
             <input class="mgm-qty-input-sm" type="number" value="${it.qty}" onchange="mgmSetQtyLangsung(${idx},this.value)" />
             <button class="mgm-qty-btn" onclick="mgmUbahQty(${idx},1)">+</button>
           </div>
-          ${meta}
         </div>
         <input class="mgm-card-catatan" type="text" value="${escapeHtml(it.catatan)}" placeholder="${mgmTabAktif === 'hilangrusak' ? 'Kenapa hilang/rusak?' : 'Catatan (opsional)'}" onchange="mgmUbahCatatan(${idx},this.value)" />
         ${mgmTabAktif === 'hilangrusak' ? (
