@@ -4292,7 +4292,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
           <div id="katalog-produk-tampilan-table">
             <div class="web-table-wrap">
               <table class="web-table">
-                <thead><tr><th style="width:28px;"><input type="checkbox" id="katalog-produk-checkall" onchange="katalogToggleSelectSemua(this.checked)" /></th><th>Foto</th><th>Produk</th><th>Kategori</th><th>Channel</th><th>Aksi</th></tr></thead>
+                <thead><tr><th style="width:28px;"><input type="checkbox" id="katalog-produk-checkall" onchange="katalogToggleSelectSemua(this.checked)" /></th><th>Foto</th><th>Produk</th><th>Kategori</th><th>SKU Terhubung & Channel</th></tr></thead>
                 <tbody id="katalog-produk-body"></tbody>
               </table>
             </div>
@@ -9549,7 +9549,8 @@ let katalogProdukTampilanAktif = 'table';
 let katalogProdukPaginasiState = buatStatePaginasi();
 let katalogProdukTerpilih = new Set();
 
-let katalogSkuTerhubungMap = {}; // skuJual -> [daftar SKU yang terhubung ke situ]
+let katalogSkuTerhubungMap = {}; // skuJual -> [daftar SKU Supplier yang terhubung ke situ]
+let katalogSkuMarketplaceMap = {}; // skuJual -> [{skuMarketplace, platform}] - dari SKU Marketplace Terhubung
 
 function katalogFilterSortProduk() {
   const cari = (el('katalog-produk-cari')?.value || '').toLowerCase().trim();
@@ -9574,15 +9575,16 @@ function katalogFilterSortProduk() {
 async function katalogFetchProduk() {
   if (katalogProdukCache.length === 0) {
     const dataLokal = ambilCacheLokal('katalog_produk');
-    if (dataLokal) { katalogProdukCache = dataLokal.daftar || []; katalogSkuTerhubungMap = dataLokal.skuTerhubungMap || {}; katalogProdukRenderHalaman(); }
-    else tampilkanMemuatTabel('katalog-produk-body', 6);
+    if (dataLokal) { katalogProdukCache = dataLokal.daftar || []; katalogSkuTerhubungMap = dataLokal.skuTerhubungMap || {}; katalogSkuMarketplaceMap = dataLokal.skuMarketplaceMap || {}; katalogProdukRenderHalaman(); }
+    else tampilkanMemuatTabel('katalog-produk-body', 5);
   }
   try {
-    const [dataProduk, dataLink] = await Promise.all([
+    const [dataProduk, dataLink, dataMarket] = await Promise.all([
       postJson({ aksi: 'lihat_katalog_produk', email: currentUserEmail() }),
-      postJson({ aksi: 'lihat_sku_supplier_terhubung', email: currentUserEmail() })
+      postJson({ aksi: 'lihat_sku_supplier_terhubung', email: currentUserEmail() }),
+      postJson({ aksi: 'lihat_sku_marketplace_terhubung', email: currentUserEmail() })
     ]);
-    if (!dataProduk.success) { if (katalogProdukCache.length === 0) el('katalog-produk-body').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(dataProduk.error||'')}</td></tr>`; return; }
+    if (!dataProduk.success) { if (katalogProdukCache.length === 0) el('katalog-produk-body').innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(dataProduk.error||'')}</td></tr>`; return; }
     katalogProdukCache = dataProduk.daftar || [];
 
     katalogSkuTerhubungMap = {};
@@ -9594,12 +9596,23 @@ async function katalogFetchProduk() {
       });
     }
 
+    // SKU Marketplace Terhubung - beda dari SKU Supplier di atas. 1 SKU Jual bisa punya
+    // BANYAK SKU marketplace terhubung (beda platform atau beda varian nama di platform yang
+    // sama) - semuanya bermuara ke stock produk master yang SAMA lewat resolveSkuMarketplaceKeSkuJual().
+    katalogSkuMarketplaceMap = {};
+    if (dataMarket.success) {
+      (dataMarket.daftar || []).forEach(d => {
+        if (!katalogSkuMarketplaceMap[d.skuJual]) katalogSkuMarketplaceMap[d.skuJual] = [];
+        katalogSkuMarketplaceMap[d.skuJual].push({ skuMarketplace: d.skuMarketplace, platform: d.platform });
+      });
+    }
+
     katalogProdukRenderHalaman();
     await katalogMuatDaftarKategori();
     katalogIsiDropdownFilterKategori();
-    simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap });
+    simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
   } catch (err) {
-    if (katalogProdukCache.length === 0) el('katalog-produk-body').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
+    if (katalogProdukCache.length === 0) el('katalog-produk-body').innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -9692,12 +9705,26 @@ function katalogRenderTabel(halamanIni) {
         <div class="status-text katalog-nama-aksi-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px;"></div>
       </td>
       <td>${p.kategori ? escapeHtml(p.kategori) : '<i style="color:var(--web-text-dim);">- pilih -</i>'}</td>
-      <td>${katalogBadgeChannel(p.channel, p.nama)}</td>
       <td>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <button class="katalog-btn-pensil katalog-btn-link-sku-supplier" data-sku="${escapeHtml(p.sku)}" title="Hubungkan SKU Supplier">🔗</button>
-          <button class="katalog-btn-pensil katalog-btn-edit-lengkap" data-sku="${escapeHtml(p.sku)}" title="Edit Produk" onclick="katalogBukaModalEditProduk('${p.sku.replace(/'/g, "\\'")}')">✏️</button>
-          <button class="katalog-btn-pensil" title="Hapus Produk" onclick="katalogHapusSatuProduk('${p.sku.replace(/'/g, "\\'")}')">🗑️</button>
+        <div style="display:flex; align-items:flex-start; gap:8px;">
+          <div style="flex:1; min-width:0;">
+            ${(() => {
+              const daftarMarket = katalogSkuMarketplaceMap[p.sku] || [];
+              if (daftarMarket.length === 0) return '<span style="font-size:11px; color:var(--web-text-dim);">Belum ada SKU terhubung</span>';
+              return daftarMarket.map(m => {
+                const iconB64 = ICON_CHANNEL_MAP[m.platform];
+                const urlCari = URL_CARI_MARKETPLACE[m.platform] ? URL_CARI_MARKETPLACE[m.platform](p.nama) : null;
+                const ikon = iconB64 ? `<img src="data:image/png;base64,${iconB64}" style="width:14px; height:14px; border-radius:3px; margin-right:4px; vertical-align:middle;" />` : '';
+                const isi = `${ikon}<span style="font-size:11px; vertical-align:middle;">${escapeHtml(m.skuMarketplace)}</span>`;
+                return `<div style="margin-bottom:2px;">${urlCari ? `<a href="${urlCari}" target="_blank" rel="noopener" title="Cari di ${escapeHtml(m.platform)}" style="text-decoration:none; color:inherit;">${isi}</a>` : isi}</div>`;
+              }).join('');
+            })()}
+          </div>
+          <div style="display:flex; gap:5px; align-items:center; flex:none;">
+            <button class="katalog-btn-pensil katalog-btn-link-sku-supplier" data-sku="${escapeHtml(p.sku)}" title="Hubungkan SKU Supplier">🔗</button>
+            <button class="katalog-btn-pensil katalog-btn-edit-lengkap" data-sku="${escapeHtml(p.sku)}" title="Edit Produk" onclick="katalogBukaModalEditProduk('${p.sku.replace(/'/g, "\\'")}')">✏️</button>
+            <button class="katalog-btn-pensil" title="Hapus Produk" onclick="katalogHapusSatuProduk('${p.sku.replace(/'/g, "\\'")}')">🗑️</button>
+          </div>
         </div>
       </td>
     </tr>
