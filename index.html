@@ -9634,13 +9634,24 @@ function katalogBadgeChannelCompact(channelArray) {
   }).join('');
 }
 
-function katalogBadgeChannel(channelArray) {
+const URL_CARI_MARKETPLACE = {
+  'Shopee': (q) => `https://shopee.co.id/search?keyword=${encodeURIComponent(q)}`,
+  'TikTok Shop': (q) => `https://shop.tiktok.com/view/search?keyword=${encodeURIComponent(q)}`,
+  'Tokopedia': (q) => `https://www.tokopedia.com/search?st=product&q=${encodeURIComponent(q)}`
+};
+
+function katalogBadgeChannel(channelArray, namaProduk) {
   if (!channelArray || channelArray.length === 0) return '<span style="color:var(--web-text-dim); font-size:11px;">Belum tampil</span>';
   return channelArray.map(ch => {
     const iconB64 = ICON_CHANNEL_MAP[ch];
-    return iconB64
-      ? `<img src="data:image/png;base64,${iconB64}" title="${escapeHtml(ch)}" style="width:20px; height:20px; border-radius:4px; margin-right:3px;" />`
+    const urlCari = URL_CARI_MARKETPLACE[ch] ? URL_CARI_MARKETPLACE[ch](namaProduk || ch) : null;
+    const isiTag = iconB64
+      ? `<img src="data:image/png;base64,${iconB64}" title="Cari produk ini di ${escapeHtml(ch)}" style="width:20px; height:20px; border-radius:4px; margin-right:3px;" />`
       : `<span class="web-status-pill aktif" style="margin-right:3px;" title="${escapeHtml(ch)}">${escapeHtml(ch)}</span>`;
+    // Bukan link ke halaman produk PERSIS (sistem belum nyimpen URL produk per SKU) -
+    // tautan ini buka PENCARIAN nama produk di marketplace terkait, cara paling akurat
+    // yang bisa dibangun dari data yang beneran ada sekarang.
+    return urlCari ? `<a href="${urlCari}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="text-decoration:none;">${isiTag}</a>` : isiTag;
   }).join('');
 }
 
@@ -9681,7 +9692,7 @@ function katalogRenderTabel(halamanIni) {
         <div class="status-text katalog-nama-aksi-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px;"></div>
       </td>
       <td>${p.kategori ? escapeHtml(p.kategori) : '<i style="color:var(--web-text-dim);">- pilih -</i>'}</td>
-      <td>${katalogBadgeChannel(p.channel)}</td>
+      <td>${katalogBadgeChannel(p.channel, p.nama)}</td>
       <td>
         <div style="display:flex; gap:6px; align-items:center;">
           <button class="katalog-btn-pensil katalog-btn-link-sku-supplier" data-sku="${escapeHtml(p.sku)}" title="Hubungkan SKU Supplier">🔗</button>
@@ -10264,7 +10275,7 @@ async function katalogBukaModalEditProduk(sku) {
 
     el('tp-deskripsi').value = p.deskripsi || '';
     el('tp-tampil-website').checked = !!p.tampilWebsite;
-    el('tp-channel-badges').innerHTML = (p.channel && p.channel.length > 0) ? katalogBadgeChannel(p.channel) : 'Belum Tampil di marketplace manapun.';
+    el('tp-channel-badges').innerHTML = (p.channel && p.channel.length > 0) ? katalogBadgeChannel(p.channel, p.nama) : 'Belum Tampil di marketplace manapun.';
     katalogMuatFotoGrid(p.urlFoto, p.galeriFotoTambahan);
     el('tp-status').textContent = '';
   } catch (err) {
