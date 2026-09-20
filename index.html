@@ -10394,6 +10394,29 @@ function katalogSmartParseTeksSupplier(teks) {
 // Deteksi paste di KOLOM MANAPUN dalam modal Tambah/Edit Produk. Teks pendek (nilai wajar
 // buat 1 field) dibiarkan lewat normal; teks panjang (dump halaman supplier) di-intercept
 // dan didistribusikan otomatis ke semua field yang cocok.
+// Kolom single-line (SKU, Merk, Tipe, Material, Volume, Warna, Berat, Dimensi P/L/T, Nama/Nilai
+// Spesifikasi Dinamis, dst) TIDAK BOLEH kemasukan baris baru mentah - kalau staf paste teks
+// yang ada enter-nya (misal nyalin 1 blok "Dimensi" dari tabel spesifikasi supplier), gabungkan
+// jadi 1 baris rapi pakai koma, JANGAN biarkan newline-nya nyelip ke database.
+// Dipasang di CAPTURE phase (bukan bubble) - biar jalan LEBIH DULU daripada listener Smart
+// Paste global di bawah, sekaligus stopPropagation biar teks ini nggak ikut "disebar" ke
+// kolom lain oleh Smart Paste (itu akar masalah "kepecah ke kolom lain" yang dilaporkan).
+document.getElementById('katalog-modal-tambah-produk').addEventListener('paste', function (e) {
+  const target = e.target;
+  if (target.tagName !== 'INPUT' || target.type !== 'text') return; // textarea (Deskripsi) sengaja dibiarkan - multi-baris di situ memang wajar
+
+  const teks = (e.clipboardData || window.clipboardData).getData('text');
+  if (!teks || !/[\r\n]/.test(teks)) return; // nggak ada baris baru - biarkan paste normal jalan apa adanya
+
+  e.preventDefault();
+  e.stopPropagation();
+  const bersih = teks.split(/\r\n|\r|\n/).map(b => b.trim()).filter(b => b).join(', ');
+  const start = target.selectionStart, end = target.selectionEnd;
+  const nilaiLama = target.value;
+  target.value = nilaiLama.substring(0, start) + bersih + nilaiLama.substring(end);
+  target.selectionStart = target.selectionEnd = start + bersih.length;
+}, true);
+
 document.addEventListener('paste', function (e) {
   const modal = el('katalog-modal-tambah-produk');
   if (!modal || modal.style.display === 'none') return;
