@@ -1233,6 +1233,47 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
     width: 100%; margin-top: 4px; font-size: 11px; padding: 6px; border-radius: 6px;
     border: 1px solid var(--web-accent); background: none; color: var(--web-accent); cursor: pointer; font-family: inherit;
   }
+/* Overlay untuk seluruh halaman */
+.page-loader-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 9999;
+}
+/* Animasi 3 Dots (Warna Cyan #3b82f6) */
+.loader-dots {
+  width: 60px; aspect-ratio: 2;
+  --_g: no-repeat radial-gradient(circle closest-side, #3b82f6 90%, #0000);
+  background: var(--_g) 0% 50%, var(--_g) 50% 50%, var(--_g) 100% 50%;
+  background-size: calc(100%/3) 50%;
+  animation: l3-dots 1s infinite linear;
+}
+@keyframes l3-dots {
+    20%{background-position:0% 0%, 50% 50%,100% 50%}
+    40%{background-position:0% 100%, 50% 0%,100% 50%}
+    60%{background-position:0% 50%, 50% 100%,100% 0%}
+    80%{background-position:0% 50%, 50% 50%,100% 100%}
+}
+
+/* Overlay untuk komponen/box (Pastikan parent box memiliki position: relative) */
+.component-loader-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(255, 255, 255, 0.7);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 100;
+  border-radius: inherit;
+}
+/* Animasi Spinner (Warna Hijau #25b09b) */
+.loader-spinner {
+  width: 50px; padding: 8px; aspect-ratio: 1; border-radius: 50%;
+  background: #25b09b;
+  --_m: conic-gradient(#0000 10%,#000), linear-gradient(#000 0 0) content-box;
+  -webkit-mask: var(--_m); mask: var(--_m);
+  -webkit-mask-composite: source-out; mask-composite: subtract;
+  animation: l3-spin 1s infinite linear;
+}
+@keyframes l3-spin {to{transform: rotate(1turn)}}
 </style>
 </head>
 <body>
@@ -4414,11 +4455,6 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
                 <button class="web-chart-toggle-btn" onclick="katalogSimpanDeskripsi()">💾 Simpan Deskripsi</button>
                 <button class="web-chart-toggle-btn" onclick="katalogSalinDeskripsiDariSupplier()">📋 Salin Deskripsi dari URL Supplier</button>
                 <div class="status-text" id="katalog-detail-deskripsi-status" style="text-align:left; margin-top:4px;"></div>
-              </div>
-
-              <div class="web-panel" style="margin-bottom:14px;">
-                <div class="web-panel-header"><span>Tampil di Channel</span></div>
-                <div id="katalog-detail-channel-list" style="font-size:13px;"></div>
               </div>
 
               <!-- Atribut Produk - auto-save pas field berubah, TANPA tombol -->
@@ -10747,6 +10783,7 @@ async function katalogSimpanProdukBaru() {
 
   btn.disabled = true;
   setLoadingDots(statusEl, 'Menyimpan');
+  showBoxLoader('katalog-modal-tambah-produk');
   try {
     let data;
     if (katalogModalMode === 'edit') {
@@ -10772,6 +10809,8 @@ async function katalogSimpanProdukBaru() {
     statusEl.textContent = '✗ Gagal terhubung: ' + err.message;
     statusEl.className = 'status-text err';
     btn.disabled = false;
+  } finally {
+    hideBoxLoader('katalog-modal-tambah-produk');
   }
 }
 
@@ -10823,6 +10862,7 @@ async function katalogBukaDetailProduk(sku) {
   el('katalog-detail-foto-wrap').innerHTML = '<span style="font-size:11px; color:var(--web-text-dim);">Memuat...</span>';
   el('katalog-detail-galeri-grid').innerHTML = '';
   katalogDetailGaleriSlotAktif = null;
+  showPageLoader();
   try {
     const data = await postJson({ aksi: 'lihat_detail_produk', sku, email: currentUserEmail() });
     if (!data.success) { el('katalog-detail-nama').textContent = 'Gagal: ' + (data.error || ''); return; }
@@ -10853,13 +10893,12 @@ async function katalogBukaDetailProduk(sku) {
     el('katalog-detail-deskripsi-status').textContent = '';
     el('katalog-detail-url-supplier-input').value = p.urlSupplier || '';
     el('katalog-url-supplier-status').textContent = '';
-    el('katalog-detail-channel-list').innerHTML = p.channel.length > 0
-      ? p.channel.map(c => `<div style="padding:6px 0; border-bottom:1px solid var(--web-border);">${escapeHtml(c.nama)} - Harga: Rp ${Number(c.hargaDiChannel).toLocaleString('id-ID')}, Stock: ${c.stockDiChannel}</div>`).join('')
-      : '<span style="color:var(--web-text-dim);">Belum tampil di channel manapun.</span>';
     el('katalog-detail-tampil-website').checked = !!p.tampilWebsite;
     el('katalog-detail-tampil-website-status').textContent = '';
   } catch (err) {
     el('katalog-detail-nama').textContent = 'Gagal terhubung: ' + err.message;
+  } finally {
+    hidePageLoader();
   }
 }
 
@@ -17213,6 +17252,42 @@ function wpTanganiPasteBlokPembeliBulk(e, idx) {
 function tampilkanMemuatTabel(idBody, colspan) {
   el(idBody).innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; color:var(--web-text-dim);" id="${idBody}-memuat-td"></td></tr>`;
   setLoadingDots(el(idBody + '-memuat-td'), 'Memuat');
+}
+
+/* ===== Global Loader Helpers ===== */
+// Full-page loader (blur + dots). Pakai counter di window (bukan let) biar aman kalau dipanggil
+// saat inisialisasi, dan biar 2 pemanggilan berurutan nggak saling menghapus loader satu sama lain.
+function showPageLoader() {
+  window._pageLoaderCount = (window._pageLoaderCount || 0) + 1;
+  if (document.getElementById('page-loader-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'page-loader-overlay';
+  overlay.className = 'page-loader-overlay';
+  overlay.innerHTML = '<div class="loader-dots"></div>';
+  document.body.appendChild(overlay);
+}
+function hidePageLoader() {
+  window._pageLoaderCount = Math.max(0, (window._pageLoaderCount || 0) - 1);
+  if (window._pageLoaderCount > 0) return;
+  const overlay = document.getElementById('page-loader-overlay');
+  if (overlay) overlay.remove();
+}
+
+// Component loader (spinner) di dalam 1 kotak/box, berdasarkan ID elemennya.
+function showBoxLoader(elementId) {
+  const box = document.getElementById(elementId);
+  if (!box || box.querySelector(':scope > .component-loader-overlay')) return;
+  if (getComputedStyle(box).position === 'static') { box.style.position = 'relative'; box.dataset.loaderSetRelative = '1'; }
+  const overlay = document.createElement('div');
+  overlay.className = 'component-loader-overlay';
+  overlay.innerHTML = '<div class="loader-spinner"></div>';
+  box.appendChild(overlay);
+}
+function hideBoxLoader(elementId) {
+  const box = document.getElementById(elementId);
+  if (!box) return;
+  box.querySelectorAll(':scope > .component-loader-overlay').forEach(o => o.remove());
+  if (box.dataset.loaderSetRelative === '1') { box.style.position = ''; delete box.dataset.loaderSetRelative; }
 }
 
 function setLoadingDots(elemen, teksDasar) {
