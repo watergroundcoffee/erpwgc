@@ -1327,6 +1327,28 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
 .tabel-kategori-badge { font-size: 13px; padding: 5px 12px; line-height: 1.3; display: inline-block; }
 .tabel-kategori-kosong { font-size: 13px; font-style: italic; color: var(--web-text-dim); }
 
+/* ===== Detail Produk Master ===== */
+/* Eyebrow heading (judul halaman di top bar saat di Detail Produk) */
+#web-page-title.page-title-eyebrow {
+  font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em;
+  color: #64748b; opacity: 0.9;
+}
+.detail-kategori-badge { font-size: 14px; font-weight: 600; padding: 5px 14px; line-height: 1.3; display: inline-block; }
+/* URL Supplier: read-only by default + mode edit */
+.url-supplier-baca { display: flex; align-items: center; gap: 6px; }
+.url-supplier-badge {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; padding: 7px 10px; border-radius: 6px;
+  background: var(--web-bg); border: 1px solid var(--web-border); color: var(--web-text);
+}
+.url-supplier-badge.kosong { font-style: italic; color: var(--web-text-dim); }
+.url-supplier-ikon {
+  flex: none; width: 32px; height: 32px; border: 1px solid var(--web-border); background: transparent;
+  border-radius: 6px; cursor: pointer; font-size: 14px; padding: 0; line-height: 1;
+}
+.url-supplier-ikon:hover:not(:disabled) { background: var(--web-bg); }
+.url-supplier-ikon:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* Wrapper untuk foto di tabel */
 .katalog-foto-wrap { flex: none; }
 .tabel-img-wrapper {
@@ -4542,7 +4564,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
             <div>
               <div id="katalog-detail-kategori-badge" style="margin-bottom:6px;"></div>
               <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                <h2 id="katalog-detail-nama" style="margin:0 0 4px; font-size:22px;"></h2>
+                <h2 id="katalog-detail-nama" style="margin:0 0 4px; font-size:26px; line-height:1.25;"></h2>
                 <button class="web-btn-secondary" style="margin:0 0 4px; flex:none;" onclick="katalogBukaModalEditProduk(katalogSkuDetailAktif)">✏️ Edit Produk</button>
               </div>
               <button class="web-chart-toggle-btn" id="katalog-btn-simpan-nama-ai" style="display:none; margin-bottom:8px;" onclick="katalogSimpanNamaDariAI()">💾 Simpan Nama Ini</button>
@@ -4597,18 +4619,31 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
                 <div class="status-text" id="katalog-detail-atribut-status" style="text-align:left; margin-top:4px;"></div>
               </div>
 
-              <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:6px;">
-                <input id="katalog-detail-url-supplier-input" class="web-form-input" placeholder="URL produk di halaman supplier" style="margin:0; flex:1;" onchange="katalogAutoSaveUrlSupplier()" />
-                <button class="web-btn-secondary" style="margin:0; flex:none; white-space:nowrap;" onclick="katalogAutoDetectNama()">🪄 Auto-Detect</button>
-              </div>
-              <div class="status-text" id="katalog-url-supplier-status" style="text-align:left; margin-bottom:12px;"></div>
-
               <!-- Panel Logistik - split 2 kolom, DIBUNGKUS di kolom kanan (bukan full-width halaman) -->
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
 
                 <!-- KIRI: Kelola Supplier - cuma daftar Kode SKU, nggak ada Nama/Harga -->
                 <div class="web-panel" id="katalog-box-supplier" style="position:relative; min-height:120px;">
                   <div class="web-panel-header"><span>📦 Kelola Supplier</span></div>
+                  <div style="margin-bottom:12px;">
+                    <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:4px;">Halaman Produk di Supplier</div>
+                    <!-- Mode baca (default): teks read-only + ✏️ Edit + 🔗 Buka di tab baru -->
+                    <div id="katalog-url-supplier-baca" class="url-supplier-baca">
+                      <span id="katalog-url-supplier-teks" class="url-supplier-badge kosong">Belum ada URL supplier</span>
+                      <button class="url-supplier-ikon" title="Edit URL" onclick="katalogUrlSupplierMulaiEdit()">✏️</button>
+                      <button class="url-supplier-ikon" id="katalog-url-supplier-btn-buka" title="Buka halaman supplier di tab baru" onclick="katalogUrlSupplierBuka()" disabled>🔗</button>
+                    </div>
+                    <!-- Mode edit: input aktif + Simpan/Batal lokal -->
+                    <div id="katalog-url-supplier-edit" style="display:none;">
+                      <input id="katalog-detail-url-supplier-input" class="web-form-input" placeholder="URL produk di halaman supplier" style="margin:0 0 6px;" />
+                      <div style="display:flex; gap:6px;">
+                        <button class="web-btn-primary" id="katalog-url-supplier-btn-simpan" style="margin:0; flex:1; font-size:12px;" onclick="katalogAutoSaveUrlSupplier()">💾 Simpan</button>
+                        <button class="web-btn-secondary" style="margin:0; flex:1; font-size:12px;" onclick="katalogUrlSupplierBatal()">Batal</button>
+                      </div>
+                    </div>
+                    <div class="status-text" id="katalog-url-supplier-status" style="text-align:left; margin-top:4px;"></div>
+                    <button class="web-btn-secondary" style="margin:6px 0 0; width:100%; font-size:12px;" onclick="katalogAutoDetectNama()">🪄 Auto-Detect Nama dari Supplier</button>
+                  </div>
                   <div id="katalog-baris-sku-supplier" style="display:flex; flex-direction:column; gap:6px;"></div>
                   <button class="web-btn-secondary" style="width:100%; margin-top:8px;" onclick="katalogTambahBarisSkuSupplier()">+ Tambah SKU</button>
                 </div>
@@ -5815,7 +5850,7 @@ function gantiTabWeb(tab) {
   el('web-tab-' + tab).style.display = 'block';
 
   const judul = { overview: 'Beranda', pesanan: 'Penjualan', pengiriman: 'Pengiriman', pembelian: 'Pembelian', stock: 'Stock', invoicesupplier: 'Invoice Supplier', staff: 'Kelola Akses', tagihan: 'Tagihan' };
-  el('web-page-title').textContent = judul[tab] || tab;
+  setPageTitle(judul[tab] || tab);
 
   if (tab === 'overview') {
     el('ov-view-resi').style.display = 'none';
@@ -9750,7 +9785,7 @@ function gantiTabWebLangsung(tab) {
   document.querySelectorAll('.web-nav-item[data-tab]').forEach(btn => { btn.classList.toggle('active', btn.dataset.tab === tab); });
   document.querySelectorAll('.web-tab-content').forEach(div => { div.style.display = 'none'; });
   el('web-tab-' + tab).style.display = 'block';
-  el('web-page-title').textContent = 'Katalog';
+  setPageTitle('Katalog');
   if (saranAICache.length > 0) tampilkanSaranAIUntukHalamanIni();
 }
 
@@ -11002,7 +11037,7 @@ async function katalogBukaDetailProduk(sku) {
   katalogMuatPemetaanSku();
   ['produk', 'harga', 'promosi', 'kategori', 'laporan'].forEach(s => { el('katalog-view-' + s).style.display = 'none'; });
   el('katalog-view-detail-produk').style.display = 'block';
-  el('web-page-title').textContent = 'Katalog';
+  setPageTitle('DETAIL PRODUK MASTER', true);
 
   el('katalog-detail-nama').textContent = 'Memuat...';
   // Bersihkan SEMUA sisa tampilan produk sebelumnya - biar nggak ada foto/nama lama yang
@@ -11020,7 +11055,7 @@ async function katalogBukaDetailProduk(sku) {
 
     katalogRenderDetailFotoUtama(p.urlFoto);
     katalogRenderDetailGaleriGrid(p.galeriFotoTambahan || []);
-    el('katalog-detail-kategori-badge').innerHTML = p.kategori ? `<span class="web-status-pill aktif">${escapeHtml(p.kategori)}</span>` : '';
+    el('katalog-detail-kategori-badge').innerHTML = p.kategori ? `<span class="web-status-pill aktif detail-kategori-badge">${escapeHtml(p.kategori)}</span>` : '';
     el('katalog-detail-nama').textContent = p.nama;
     el('katalog-detail-sku').textContent = p.sku;
     el('katalog-detail-preview-sku').textContent = p.sku;
@@ -11042,6 +11077,8 @@ async function katalogBukaDetailProduk(sku) {
     el('katalog-detail-atribut-status').textContent = '';
     el('katalog-detail-deskripsi-status').textContent = '';
     el('katalog-detail-url-supplier-input').value = p.urlSupplier || '';
+    katalogUrlSupplierTersimpan = p.urlSupplier || '';
+    katalogUrlSupplierRender();
     el('katalog-url-supplier-status').textContent = '';
     el('katalog-detail-tampil-website').checked = !!p.tampilWebsite;
     el('katalog-detail-tampil-website-status').textContent = '';
@@ -11207,7 +11244,7 @@ function katalogRenderBarisSupplier() {
   const wrap = el('katalog-baris-sku-supplier');
   wrap.innerHTML = katalogBarisSupplier.map((r, idx) => `
     <div style="display:flex; gap:6px; align-items:center;">
-      <input class="web-form-input" style="margin:0; flex:1;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU Supplier" oninput="katalogBarisSupplier[${idx}].sku = this.value" />
+      <input class="web-form-input" style="margin:0; flex:1; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU Supplier" oninput="katalogBarisSupplier[${idx}].sku = this.value" />
       <button class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="katalogHapusBarisSupplier(${idx})">❌</button>
     </div>
   `).join('') || '<div style="font-size:11.5px; color:var(--web-text-dim); text-align:center; padding:8px 0;">Belum ada SKU Supplier.</div>';
@@ -11224,17 +11261,24 @@ function katalogHapusBarisSupplier(idx) {
 }
 
 /* ---- Kelola Marketplace: Platform + SKU per baris, auto-mirror TikTok Shop <-> Tokopedia ---- */
+// Logo platform di depan tiap baris Kelola Marketplace (TikTok / Tokopedia / Shopee / Website = logo Waterground)
+function katalogIkonPlatform(platform) {
+  const b64 = ICON_CHANNEL_MAP[platform];
+  return b64 ? `<img src="data:image/png;base64,${b64}" title="${escapeHtml(platform)}" style="width:24px; height:24px; border-radius:5px; object-fit:contain; flex:none;" />` : '';
+}
+
 function katalogRenderBarisMarketplace() {
   const wrap = el('katalog-baris-sku-marketplace');
   wrap.innerHTML = katalogBarisMarketplace.map((r, idx) => `
     <div style="display:flex; gap:6px; align-items:center;">
+      ${katalogIkonPlatform(r.platform)}
       <select class="web-form-input" style="margin:0; flex:none; width:88px; padding:8px 4px; font-size:11px;" onchange="katalogUbahPlatformMarketplace(${idx}, this.value)">
         <option value="TikTok Shop" ${r.platform === 'TikTok Shop' ? 'selected' : ''}>TikTok</option>
         <option value="Tokopedia" ${r.platform === 'Tokopedia' ? 'selected' : ''}>Tokopedia</option>
         <option value="Shopee" ${r.platform === 'Shopee' ? 'selected' : ''}>Shopee</option>
         <option value="Website" ${r.platform === 'Website' ? 'selected' : ''}>Website</option>
       </select>
-      <input class="web-form-input" style="margin:0; flex:1;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU" oninput="katalogUbahSkuMarketplace(${idx}, this.value)" />
+      <input class="web-form-input" style="margin:0; flex:1; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU" oninput="katalogUbahSkuMarketplace(${idx}, this.value)" />
       <button class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="katalogHapusBarisMarketplace(${idx})">❌</button>
     </div>
   `).join('') || '<div style="font-size:11.5px; color:var(--web-text-dim); text-align:center; padding:8px 0;">Belum ada SKU Marketplace.</div>';
@@ -11332,15 +11376,56 @@ async function katalogAutoSaveAtribut() {
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung'; statusEl.className = 'status-text err'; }
 }
 
+// ---- URL Supplier: read-only by default, baru bisa diedit lewat tombol ✏️ (cegah accidental edit) ----
+let katalogUrlSupplierTersimpan = '';
+function katalogUrlSupplierRender() {
+  const url = katalogUrlSupplierTersimpan;
+  const teks = el('katalog-url-supplier-teks');
+  teks.textContent = url || 'Belum ada URL supplier';
+  teks.title = url;
+  teks.classList.toggle('kosong', !url);
+  el('katalog-url-supplier-btn-buka').disabled = !/^https?:\/\//i.test(url);
+  el('katalog-url-supplier-baca').style.display = 'flex';
+  el('katalog-url-supplier-edit').style.display = 'none';
+}
+function katalogUrlSupplierMulaiEdit() {
+  const input = el('katalog-detail-url-supplier-input');
+  input.value = katalogUrlSupplierTersimpan;
+  el('katalog-url-supplier-status').textContent = '';
+  el('katalog-url-supplier-baca').style.display = 'none';
+  el('katalog-url-supplier-edit').style.display = 'block';
+  input.focus(); input.select();
+}
+function katalogUrlSupplierBatal() {
+  el('katalog-detail-url-supplier-input').value = katalogUrlSupplierTersimpan;
+  el('katalog-url-supplier-status').textContent = '';
+  katalogUrlSupplierRender();
+}
+function katalogUrlSupplierBuka() {
+  // Hanya http/https - cegah skema berbahaya (javascript:, dll) terbuka dari data sheet
+  if (!/^https?:\/\//i.test(katalogUrlSupplierTersimpan)) return;
+  window.open(katalogUrlSupplierTersimpan, '_blank', 'noopener,noreferrer');
+}
 async function katalogAutoSaveUrlSupplier() {
   const statusEl = el('katalog-url-supplier-status');
+  const input = el('katalog-detail-url-supplier-input');
+  const btn = el('katalog-url-supplier-btn-simpan');
+  let url = input.value.trim();
+  if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url; // biar 🔗 selalu valid
+  input.value = url;
+  btn.disabled = true;
   setLoadingDots(statusEl, 'Menyimpan');
   try {
-    const data = await postJson({ aksi: 'simpan_atribut_produk', sku: katalogSkuDetailAktif, urlSupplier: el('katalog-detail-url-supplier-input').value.trim(), email: currentUserEmail() });
+    const data = await postJson({ aksi: 'simpan_atribut_produk', sku: katalogSkuDetailAktif, urlSupplier: url, email: currentUserEmail() });
     stopLoadingDots(statusEl);
-    if (data.success) { playBeep(); statusEl.textContent = '✓ Tersimpan'; statusEl.className = 'status-text ok'; }
-    else { statusEl.textContent = '✗ ' + (data.error || ''); statusEl.className = 'status-text err'; }
+    if (data.success) {
+      playBeep();
+      katalogUrlSupplierTersimpan = url;
+      katalogUrlSupplierRender(); // kembali ke mode baca
+      statusEl.textContent = '✓ Tersimpan'; statusEl.className = 'status-text ok';
+    } else { statusEl.textContent = '✗ ' + (data.error || ''); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung'; statusEl.className = 'status-text err'; }
+  btn.disabled = false;
 }
 
 async function katalogSimpanNamaDariAI() {
@@ -14075,7 +14160,7 @@ function gantiTabWebLangsung2(tab) {
   document.querySelectorAll('.web-nav-item[data-tab]').forEach(btn => { btn.classList.toggle('active', btn.dataset.tab === tab); });
   document.querySelectorAll('.web-tab-content').forEach(div => { div.style.display = 'none'; });
   el('web-tab-' + tab).style.display = 'block';
-  el('web-page-title').textContent = 'Persediaan';
+  setPageTitle('Persediaan');
   if (saranAICache.length > 0) tampilkanSaranAIUntukHalamanIni();
 }
 
@@ -17407,6 +17492,14 @@ function wpTanganiPasteBlokPembeliBulk(e, idx) {
 function tampilkanMemuatTabel(idBody, colspan) {
   el(idBody).innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; color:var(--web-text-dim);" id="${idBody}-memuat-td"></td></tr>`;
   setLoadingDots(el(idBody + '-memuat-td'), 'Memuat');
+}
+
+// Judul halaman di top bar. eyebrow=true -> gaya eyebrow heading (uppercase, tracking lebar, abu slate redup).
+// Semua tempat yang mengganti judul lewat fungsi ini, jadi gaya eyebrow otomatis hilang di halaman lain.
+function setPageTitle(teks, eyebrow) {
+  const t = el('web-page-title');
+  t.textContent = teks;
+  t.classList.toggle('page-title-eyebrow', !!eyebrow);
 }
 
 /* ===== Global Loader Helpers ===== */
