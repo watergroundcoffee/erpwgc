@@ -1365,6 +1365,32 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
     opacity: 1;
     visibility: visible;
 }
+
+/* ===== Loader tambahan: Spinner Hijau (modal Edit/Tambah Produk) & 3 Dots lokal (box Kelola Supplier/Marketplace) ===== */
+.loader-spinner-box {
+  width: 50px;
+  aspect-ratio: 1;
+  --_c: no-repeat radial-gradient(farthest-side, #25b09b 92%, #0000);
+  background:
+    var(--_c) top,
+    var(--_c) left,
+    var(--_c) right,
+    var(--_c) bottom;
+  background-size: 12px 12px;
+  animation: l7 1s infinite;
+}
+@keyframes l7 {to{transform: rotate(.5turn)}}
+.loader-box-dots {
+  width: 60px;
+  aspect-ratio: 2;
+  --_g: no-repeat radial-gradient(circle closest-side, #3b82f6 90%, #0000);
+  background:
+    var(--_g) 0%   50%,
+    var(--_g) 50%  50%,
+    var(--_g) 100% 50%;
+  background-size: calc(100%/3) 50%;
+  animation: l3-dots 1s infinite linear; /* keyframes l3-dots sudah didefinisikan di atas (page loader) */
+}
 </style>
 </head>
 <body>
@@ -4573,14 +4599,14 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
 
                 <!-- KIRI: Kelola Supplier - cuma daftar Kode SKU, nggak ada Nama/Harga -->
-                <div class="web-panel">
+                <div class="web-panel" id="katalog-box-supplier" style="position:relative; min-height:120px;">
                   <div class="web-panel-header"><span>📦 Kelola Supplier</span></div>
                   <div id="katalog-baris-sku-supplier" style="display:flex; flex-direction:column; gap:6px;"></div>
                   <button class="web-btn-secondary" style="width:100%; margin-top:8px;" onclick="katalogTambahBarisSkuSupplier()">+ Tambah SKU</button>
                 </div>
 
                 <!-- KANAN: Kelola Marketplace - Platform + SKU per baris, auto-mirror TikTok<->Tokopedia -->
-                <div class="web-panel">
+                <div class="web-panel" id="katalog-box-marketplace" style="position:relative; min-height:120px;">
                   <div class="web-panel-header"><span>🚀 Kelola Marketplace</span></div>
                   <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer; margin-bottom:10px;">
                     <input type="checkbox" id="katalog-detail-tampil-website" onchange="katalogToggleTampilWebsite()" style="width:15px; height:15px; cursor:pointer;" />
@@ -10416,6 +10442,16 @@ function katalogAmbilSpesifikasiDinamis() {
   return hasil;
 }
 
+// Lock + Spinner Hijau untuk modal Tambah/Edit Produk. Overlay dipasang di wrapper luar modal (position:fixed,
+// nggak ikut ke-scroll), dan panel form dikunci (inert) supaya nggak bisa diketik/di-Tab selama loading.
+function katalogModalProdukLoading(aktif) {
+  const modal = el('katalog-modal-tambah-produk');
+  if (!modal) return;
+  if (aktif) showBoxLoader('katalog-modal-tambah-produk', 'spinner-box');
+  else hideBoxLoader('katalog-modal-tambah-produk');
+  if (modal.firstElementChild) modal.firstElementChild.inert = aktif;
+}
+
 async function katalogBukaModalTambahProduk() {
   katalogModalMode = 'tambah';
   katalogModalSkuLama = null;
@@ -10440,6 +10476,12 @@ async function katalogBukaModalTambahProduk() {
 }
 
 async function katalogBukaModalEditProduk(sku) {
+  katalogModalProdukLoading(true);
+  try { await katalogBukaModalEditProdukInti(sku); }
+  finally { katalogModalProdukLoading(false); }
+}
+
+async function katalogBukaModalEditProdukInti(sku) {
   katalogModalMode = 'edit';
   katalogModalSkuLama = sku;
   el('tp-judul-modal').textContent = '✏️ Edit Produk';
@@ -10883,7 +10925,7 @@ async function katalogSimpanProdukBaru() {
 
   btn.disabled = true;
   setLoadingDots(statusEl, 'Menyimpan');
-  showPageLoader();
+  katalogModalProdukLoading(true);
   try {
     let data;
     if (katalogModalMode === 'edit') {
@@ -10910,7 +10952,7 @@ async function katalogSimpanProdukBaru() {
     statusEl.className = 'status-text err';
     btn.disabled = false;
   } finally {
-    hidePageLoader();
+    katalogModalProdukLoading(false);
   }
 }
 
@@ -11133,8 +11175,10 @@ let katalogMirrorCounter = 0;
 async function katalogMuatPemetaanSku() {
   katalogBarisSupplier = [];
   katalogBarisMarketplace = [];
-  el('katalog-baris-sku-supplier').innerHTML = '<div class="status-text" id="katalog-pemetaan-memuat"></div>';
-  setLoadingDots(el('katalog-pemetaan-memuat'), 'Memuat');
+  el('katalog-baris-sku-supplier').innerHTML = '';
+  el('katalog-baris-sku-marketplace').innerHTML = '';
+  showBoxLoader('katalog-box-supplier', 'dots');      // overlay lokal - cuma menutup box ini, bukan seluruh halaman
+  showBoxLoader('katalog-box-marketplace', 'dots');
   try {
     const [dataSupp, dataMarket] = await Promise.all([
       postJson({ aksi: 'lihat_sku_supplier_terhubung', skuJual: katalogSkuDetailAktif, email: currentUserEmail() }),
@@ -11146,6 +11190,8 @@ async function katalogMuatPemetaanSku() {
   katalogRenderBarisSupplier();
   katalogRenderBarisMarketplace();
   el('katalog-pemetaan-status').textContent = '';
+  hideBoxLoader('katalog-box-supplier');
+  hideBoxLoader('katalog-box-marketplace');
 }
 
 /* ---- Kelola Supplier: cuma daftar Kode SKU ---- */
@@ -17374,13 +17420,14 @@ function hidePageLoader() {
 }
 
 // Component loader (spinner) di dalam 1 kotak/box, berdasarkan ID elemennya.
-function showBoxLoader(elementId) {
+function showBoxLoader(elementId, jenis) { // jenis: 'dots' | 'spinner-box' | (kosong = spinner ring hijau)
   const box = document.getElementById(elementId);
   if (!box || box.querySelector(':scope > .component-loader-overlay')) return;
   if (getComputedStyle(box).position === 'static') { box.style.position = 'relative'; box.dataset.loaderSetRelative = '1'; }
   const overlay = document.createElement('div');
   overlay.className = 'component-loader-overlay';
-  overlay.innerHTML = '<div class="loader-spinner"></div>';
+  const kelasAnimasi = jenis === 'dots' ? 'loader-box-dots' : jenis === 'spinner-box' ? 'loader-spinner-box' : 'loader-spinner';
+  overlay.innerHTML = `<div class="${kelasAnimasi}"></div>`;
   box.appendChild(overlay);
 }
 function hideBoxLoader(elementId) {
