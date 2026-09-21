@@ -4375,7 +4375,10 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
             </div>
             <div>
               <div id="katalog-detail-kategori-badge" style="margin-bottom:6px;"></div>
-              <h2 id="katalog-detail-nama" style="margin:0 0 4px; font-size:22px;"></h2>
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <h2 id="katalog-detail-nama" style="margin:0 0 4px; font-size:22px;"></h2>
+                <button class="web-btn-secondary" style="margin:0 0 4px; flex:none;" onclick="katalogBukaModalEditProduk(katalogSkuDetailAktif)">✏️ Edit Produk</button>
+              </div>
               <button class="web-chart-toggle-btn" id="katalog-btn-simpan-nama-ai" style="display:none; margin-bottom:8px;" onclick="katalogSimpanNamaDariAI()">💾 Simpan Nama Ini</button>
               <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:14px;">SKU: <span id="katalog-detail-sku"></span></div>
 
@@ -4483,21 +4486,7 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
             <input id="tp-url-foto" type="hidden" />
             <input id="tp-galeri-foto-tambahan" type="hidden" />
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
-              <div style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:8px; padding:10px;">
-                <div style="font-size:11.5px; font-weight:700; margin-bottom:4px;">📋 Paste 1: Judul & SKU</div>
-                <div style="font-size:10px; color:var(--web-text-dim); margin-bottom:6px;">Paste bagian atas halaman supplier (judul produk sampai baris SKU/harga).</div>
-                <textarea id="tp-paste-judul-sku" class="web-form-input" rows="3" placeholder="Contoh: Nama Produk...&#10;SKUXXXXXXX&#10;Rp99.000" style="font-size:10.5px; margin-bottom:6px;"></textarea>
-                <button type="button" class="web-btn-secondary" style="width:100%; margin:0;" onclick="katalogParseBoxJudulSku()">🪄 Ekstrak</button>
-              </div>
-              <div style="background:var(--web-bg); border:1px dashed var(--web-info); border-radius:8px; padding:10px;">
-                <div style="font-size:11.5px; font-weight:700; margin-bottom:4px;">📋 Paste 2: Rincian & Spesifikasi</div>
-                <div style="font-size:10px; color:var(--web-text-dim); margin-bottom:6px;">Paste bagian "Rincian Produk" s.d. tabel "Spesifikasi" di halaman supplier.</div>
-                <textarea id="tp-paste-rincian" class="web-form-input" rows="3" placeholder="Contoh: Brand...&#10;Material...&#10;Dimensi..." style="font-size:10.5px; margin-bottom:6px;"></textarea>
-                <button type="button" class="web-btn-secondary" style="width:100%; margin:0;" onclick="katalogParseBoxRincianSpesifikasi()">🪄 Ekstrak</button>
-              </div>
-            </div>
-            <div class="status-text" id="tp-paste-status" style="text-align:left; margin:6px 0 12px;"></div>
+            <div class="status-text" id="tp-paste-status" style="text-align:left; margin:0 0 8px;"></div>
 
             <!-- 1. Nama Produk - fokus utama, lebar penuh -->
             <label style="font-size:12.5px; font-weight:700;">Nama Produk <span style="color:var(--web-danger);">*</span></label>
@@ -5604,8 +5593,8 @@ let tabWebAktif = 'overview';
 
 // Simpan lokasi (tab + submenu) yang lagi dibuka, biar kalau di-refresh browser TETAP di
 // halaman yang sama - nggak balik ke Beranda terus.
-function simpanLokasiTerakhir(tab, sub) {
-  localStorage.setItem('lokasi_terakhir_web', JSON.stringify({ tab, sub: sub || null }));
+function simpanLokasiTerakhir(tab, sub, detailSku) {
+  localStorage.setItem('lokasi_terakhir_web', JSON.stringify({ tab, sub: sub || null, detailSku: detailSku || null }));
 }
 
 function pulihkanLokasiTerakhir() {
@@ -5639,6 +5628,11 @@ function pulihkanLokasiTerakhir() {
   }
   if (lokasi.sub && submenuMap[lokasi.tab]) {
     submenuMap[lokasi.tab](lokasi.sub);
+    // Kalau terakhir lagi di Detail Produk (bukan cuma list Produk Master), lanjut buka
+    // detail SKU-nya juga - ini yang bikin refresh nggak balik ke list doang.
+    if (lokasi.tab === 'katalog' && lokasi.sub === 'produk' && lokasi.detailSku) {
+      katalogBukaDetailProduk(lokasi.detailSku);
+    }
   } else if (tombolTab) {
     gantiTabWeb(lokasi.tab);
   } else {
@@ -10299,6 +10293,7 @@ async function katalogBukaModalTambahProduk() {
   katalogKosongkanFotoGrid();
   katalogKosongkanSpesifikasiDinamis();
   el('tp-status').textContent = '';
+  el('tp-paste-status').textContent = '';
   el('tp-btn-simpan').disabled = false;
   el('tp-btn-simpan').textContent = '💾 Simpan';
   katalogAmbilMarginDefault();
@@ -10313,6 +10308,7 @@ async function katalogBukaModalEditProduk(sku) {
   katalogModalSkuLama = sku;
   el('tp-judul-modal').textContent = '✏️ Edit Produk';
   el('tp-status').textContent = 'Memuat data produk...';
+  el('tp-paste-status').textContent = '';
   el('tp-btn-simpan').disabled = true;
   el('tp-btn-simpan').textContent = '💾 Simpan Perubahan';
   katalogKosongkanSpesifikasiDinamis();
@@ -10366,157 +10362,173 @@ async function katalogBukaModalEditProduk(sku) {
   }
 }
 
-/* ===== Smart Parse - deteksi paste teks mentah supplier di KOLOM MANAPUN dalam form,
-   otomatis pecah & distribusi ke field yang cocok. Ditarget khusus pola JakartaNotebook
-   dan situs sejenis; field yang nggak ketemu polanya dibiarkan kosong (nggak ditebak). ===== */
-/* ===== Dual Paste Section - 2 kotak dedicated, lebih akurat daripada deteksi "paste di
-   manapun" karena masing-masing kotak cuma perlu ngenalin 1 pola spesifik (nggak ada resiko
-   ketuker sama teks sampah bagian lain halaman). ===== */
+/* ===== Invisible Smart Paste - gabungan Paste 1 (Judul/SKU/Harga) + Paste 2 (Rincian/Spesifikasi).
+   Tanpa UI: paste teks panjang multi-baris di FIELD MANAPUN dalam modal Tambah/Edit Produk
+   otomatis diekstrak & disebar ke semua field. Paste pendek / teks yang polanya nggak dikenali
+   tetap paste biasa. ===== */
 
-// Box 1: Judul & SKU. Isinya sengaja ditempel TERPISAH & CUMA bagian atas halaman, jadi baris
-// PERTAMA yang nggak kosong hampir pasti Nama Produk-nya - jauh lebih simpel & akurat
-// dibanding nyari pola "di atas Informasi Produk" yang nggak selalu ada di semua supplier.
-function katalogParseBoxJudulSku() {
-  const teks = el('tp-paste-judul-sku').value;
-  const statusEl = el('tp-paste-status');
-  if (!teks.trim()) { statusEl.textContent = '✗ Kotak Paste 1 masih kosong.'; statusEl.className = 'status-text err'; return; }
+// Marker awal bagian "rincian" di halaman supplier. Semua yang SEBELUM marker pertama = blok judul.
+const KATALOG_MARKER_RINCIAN = /^(Informasi Produk|Rincian Produk|Keunggulan Produk|Overview|Fitur|Spesifikasi|Brand|Berat Produk|Material)\s*$/mi;
 
-  const kolomTerisi = [];
-  const barisIsi = teks.split('\n').map(b => b.trim()).filter(b => b);
+// Fungsi MURNI (nggak nyentuh DOM) - cuma baca teks, balikin { hasil, kolom }.
+function katalogEkstrakTeksSupplier(teksMentah) {
+  const teks = String(teksMentah || '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ');
+  const hasil = { spesifikasi: [] };
+  const kolom = [];
 
-  if (barisIsi.length > 0) {
-    const namaProduk = barisIsi[0];
-    el('tp-nama').value = namaProduk;
-    kolomTerisi.push('Nama Produk');
-    const segmen = namaProduk.split(' - ').map(s => s.trim()).filter(s => s);
-    if (segmen.length >= 2) { el('tp-tipe').value = segmen[segmen.length - 2]; kolomTerisi.push('Tipe/Model'); }
+  // --- Pisahkan blok judul (atas) dan blok rincian (bawah) ---
+  const mMarker = teks.match(KATALOG_MARKER_RINCIAN);
+  const idxMarker = mMarker ? mMarker.index : -1;
+  const blokJudul = idxMarker === -1 ? teks : teks.substring(0, idxMarker);
+  const body = '\n' + (idxMarker === -1 ? teks : teks.substring(idxMarker)); // '\n' depan biar "\nSpesifikasi" di baris pertama tetap ketemu
+
+  // --- Bagian ex-Paste 1: Judul, Tipe, SKU, Harga (dicari HANYA di blok judul) ---
+  const mSku = blokJudul.match(/\bSKU([A-Z0-9]{4,})/);
+  const mHarga = blokJudul.match(/Rp\s*([\d.,]+)/);
+  const barisJudul = blokJudul.split('\n').map(b => b.trim()).filter(b => b);
+  // Baris pertama baru dianggap Nama Produk kalau blok atas kelihatan seperti header produk (ada SKU/harga)
+  if (barisJudul.length > 0 && (mSku || mHarga)) {
+    hasil.nama = barisJudul[0]; kolom.push('Nama Produk');
+    const segmen = hasil.nama.split(' - ').map(s => s.trim()).filter(s => s);
+    if (segmen.length >= 2) { hasil.tipe = segmen[segmen.length - 2]; kolom.push('Tipe/Model'); }
   }
-
-  const mSku = teks.match(/\bSKU([A-Z0-9]{4,})/);
-  if (mSku) { el('tp-sku').value = mSku[1]; kolomTerisi.push('SKU'); }
-
-  const mHarga = teks.match(/Rp\s*([\d.,]+)/);
+  if (mSku) { hasil.sku = mSku[1]; kolom.push('SKU'); }
   if (mHarga) {
     const angka = parseInt(mHarga[1].replace(/[.,]/g, ''), 10);
-    if (!isNaN(angka)) { el('tp-harga-supplier').value = angka; kolomTerisi.push('Harga Beli'); katalogHitungHargaJualOtomatis(); }
+    if (!isNaN(angka)) { hasil.hargaSupplier = angka; kolom.push('Harga Beli'); }
   }
 
-  statusEl.textContent = kolomTerisi.length > 0
-    ? `✓ Paste 1 - auto-isi: ${kolomTerisi.join(', ')}. Cek ulang sebelum simpan!`
-    : '⚠ Nggak ada pola yang kekenali dari Paste 1 - isi manual aja.';
-  statusEl.className = kolomTerisi.length > 0 ? 'status-text ok' : 'status-text err';
-}
+  // --- Bagian ex-Paste 2: Brand, Berat, Dimensi, Material, Spesifikasi, Deskripsi ---
+  const adaRincian = /^(Rincian Produk|Informasi Produk|Spesifikasi|Berat Produk|Brand)\s*$/mi.test(body);
+  const mBrand = body.match(/\bBrand\s*\n\s*([^\n]+)/);
+  if (mBrand && mBrand[1].trim().length > 0 && mBrand[1].trim().length < 40) {
+    hasil.merk = mBrand[1].trim(); kolom.push('Merk');
+  } else if (adaRincian) {
+    hasil.merk = 'NO BRAND'; hasil.merkDefault = true; kolom.push('Merk');
+  }
 
-// Box 2: Rincian & Spesifikasi. Parser tabel spesifikasi versi PERBAIKAN - deteksi Label
-// lewat karakter TAB di akhir baris (pola konsisten hasil copy-paste tabel HTML), biar
-// nilai MULTI-BARIS (misal "Dimensi" isinya 5 baris rincian) tetap tergabung benar ke
-// Label yang sama, nggak kayak versi lama yang asumsi 1 baris = 1 nilai (rusak kalau
-// ada value panjang). Ada fallback ke pola gantian sederhana kalau nggak ada tab sama sekali.
-function katalogParseBoxRincianSpesifikasi() {
-  const teks = el('tp-paste-rincian').value;
-  const statusEl = el('tp-paste-status');
-  if (!teks.trim()) { statusEl.textContent = '✗ Kotak Paste 2 masih kosong.'; statusEl.className = 'status-text err'; return; }
-
-  const kolomTerisi = [];
-
-  const mBrand = teks.match(/\bBrand\s*\n\s*([^\n]+)/);
-  const merk = (mBrand && mBrand[1].trim().length > 0 && mBrand[1].trim().length < 40) ? mBrand[1].trim() : 'NO BRAND';
-  el('tp-merk').value = merk; kolomTerisi.push('Merk');
-
-  const mBerat = teks.match(/Berat Produk\s*\n\s*([\d.,]+)\s*(kg|gram|g)?/i);
+  const mBerat = body.match(/Berat Produk\s*\n\s*([\d.,]+)\s*(kg|gram|g)?/i);
   if (mBerat) {
-    el('tp-berat-angka').value = mBerat[1].replace(',', '.');
-    katalogSetBeratSatuan(/kg/i.test(mBerat[2] || '') ? 'Kg' : 'Gram');
-    kolomTerisi.push('Berat');
+    hasil.beratAngka = mBerat[1].replace(',', '.');
+    hasil.beratSatuan = /kg/i.test(mBerat[2] || '') ? 'Kg' : 'Gram';
+    kolom.push('Berat');
   }
 
   let dimensiSudahDiisi = false;
-  const mDimensiKemasan = teks.match(/Dimensi Kemasan\s*\n\s*([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
-  if (mDimensiKemasan) {
-    el('tp-dimensi-p').value = mDimensiKemasan[1]; el('tp-dimensi-l').value = mDimensiKemasan[2]; el('tp-dimensi-t').value = mDimensiKemasan[3];
-    dimensiSudahDiisi = true;
-    kolomTerisi.push('Dimensi');
+  const mDimKemasan = body.match(/Dimensi Kemasan\s*\n\s*([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+  if (mDimKemasan) {
+    hasil.dimensi = [mDimKemasan[1], mDimKemasan[2], mDimKemasan[3]].map(v => v.replace(',', '.'));
+    dimensiSudahDiisi = true; kolom.push('Dimensi');
   }
 
-  const mMaterial = teks.match(/\bMaterial\s*\n\s*([^\n]+)/i);
-  if (mMaterial) { el('tp-material').value = mMaterial[1].trim(); kolomTerisi.push('Material'); }
+  const mMaterial = body.match(/\bMaterial\s*\n\s*([^\n]+)/i);
+  if (mMaterial) { hasil.material = mMaterial[1].trim(); kolom.push('Material'); }
 
-  const spesifikasiTambahan = [];
-  const idxSpesTabel = teks.lastIndexOf('\nSpesifikasi');
-  if (idxSpesTabel !== -1) {
-    const teksSetelah = teks.substring(idxSpesTabel + '\nSpesifikasi'.length);
+  // Tabel Spesifikasi (Label berakhir TAB, nilai multi-baris digabung; fallback pola gantian)
+  const idxSpes = body.lastIndexOf('\nSpesifikasi');
+  if (idxSpes !== -1) {
+    const teksSetelah = body.substring(idxSpes + '\nSpesifikasi'.length);
     const idxGaleri = teksSetelah.search(/\nGaleri\b/i);
     const idxUlasan = teksSetelah.search(/\nUlasan\b/i);
     let idxAkhir = teksSetelah.length;
     if (idxGaleri !== -1) idxAkhir = Math.min(idxAkhir, idxGaleri);
     if (idxUlasan !== -1) idxAkhir = Math.min(idxAkhir, idxUlasan);
-    const blokTabel = teksSetelah.substring(0, idxAkhir);
+    const barisMentah = teksSetelah.substring(0, idxAkhir).split('\n').filter(b => !/^Lebih (Sedikit|Banyak)\s*$/i.test(b.trim()));
 
-    const barisMentah = blokTabel.split('\n').filter(b => !/^Lebih (Sedikit|Banyak)\s*$/i.test(b.trim()));
     const pasangan = [];
-    let labelSaatIni = null, nilaiSaatIni = [];
-    let adaTabTerdeteksi = false;
+    let label = null, nilai = [], adaTab = false;
     barisMentah.forEach(b => {
       const berakhirTab = /\t\s*$/.test(b);
-      const trimmed = b.replace(/\t+\s*$/, '').trim();
-      if (!trimmed) return;
+      const t = b.replace(/\t+\s*$/, '').trim();
+      if (!t) return;
       if (berakhirTab) {
-        adaTabTerdeteksi = true;
-        if (labelSaatIni) pasangan.push({ nama: labelSaatIni, nilai: nilaiSaatIni.join(', ') });
-        labelSaatIni = trimmed;
-        nilaiSaatIni = [];
-      } else {
-        nilaiSaatIni.push(trimmed);
-      }
+        adaTab = true;
+        if (label) pasangan.push({ nama: label, nilai: nilai.join(', ') });
+        label = t; nilai = [];
+      } else nilai.push(t);
     });
-    if (labelSaatIni) pasangan.push({ nama: labelSaatIni, nilai: nilaiSaatIni.join(', ') });
+    if (label) pasangan.push({ nama: label, nilai: nilai.join(', ') });
 
-    let pasanganFinal = pasangan;
-    if (!adaTabTerdeteksi) {
-      const barisRapi = barisMentah.map(b => b.trim()).filter(b => b);
-      pasanganFinal = [];
-      for (let i = 0; i + 1 < barisRapi.length; i += 2) pasanganFinal.push({ nama: barisRapi[i], nilai: barisRapi[i + 1] });
+    let final = pasangan;
+    if (!adaTab) {
+      const rapi = barisMentah.map(b => b.trim()).filter(b => b);
+      final = [];
+      for (let i = 0; i + 1 < rapi.length; i += 2) final.push({ nama: rapi[i], nilai: rapi[i + 1] });
     }
-
-    pasanganFinal.forEach(p => {
-      if (/^dimensi$/i.test(p.nama)) {
-        const mDimensiTabel = p.nilai.match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
-        if (mDimensiTabel && !dimensiSudahDiisi) {
-          el('tp-dimensi-p').value = mDimensiTabel[1]; el('tp-dimensi-l').value = mDimensiTabel[2]; el('tp-dimensi-t').value = mDimensiTabel[3];
-          dimensiSudahDiisi = true;
-        } else {
-          spesifikasiTambahan.push(p);
-        }
-      } else {
-        spesifikasiTambahan.push(p);
-      }
+    final.forEach(p => {
+      const mDim = /^dimensi$/i.test(p.nama) && p.nilai.match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+      if (mDim && !dimensiSudahDiisi) {
+        hasil.dimensi = [mDim[1], mDim[2], mDim[3]].map(v => v.replace(',', '.'));
+        dimensiSudahDiisi = true;
+        if (!kolom.includes('Dimensi')) kolom.push('Dimensi');
+      } else hasil.spesifikasi.push(p);
     });
-  }
-  if (spesifikasiTambahan.length > 0) {
-    katalogKosongkanSpesifikasiDinamis();
-    spesifikasiTambahan.forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
-    kolomTerisi.push(`Spesifikasi Tambahan (${spesifikasiTambahan.length})`);
+    if (hasil.spesifikasi.length > 0) kolom.push(`Spesifikasi Tambahan (${hasil.spesifikasi.length})`);
   }
 
-  const penanda = ['Keunggulan Produk', 'Overview', 'Fitur'];
+  // Deskripsi narasi: dari penanda pertama sampai sebelum tabel Spesifikasi
   let startIdx = -1;
-  penanda.forEach(p => {
-    const idx = teks.indexOf(p);
-    if (idx !== -1 && (startIdx === -1 || idx < startIdx)) startIdx = idx;
+  ['Keunggulan Produk', 'Overview', 'Fitur'].forEach(p => {
+    const i = body.indexOf(p);
+    if (i !== -1 && (startIdx === -1 || i < startIdx)) startIdx = i;
   });
   if (startIdx !== -1) {
-    let endIdx = teks.indexOf('\nSpesifikasi', startIdx);
-    if (endIdx === -1) endIdx = teks.length;
-    let narasi = teks.substring(startIdx, endIdx).trim();
-    narasi = narasi.split('\n').filter(b => !/^Lebih (Sedikit|Banyak)\s*$/i.test(b.trim())).join('\n').trim();
-    if (narasi) { el('tp-deskripsi').value = narasi; kolomTerisi.push('Deskripsi'); }
+    let endIdx = body.indexOf('\nSpesifikasi', startIdx);
+    if (endIdx === -1) endIdx = body.length;
+    const narasi = body.substring(startIdx, endIdx).split('\n')
+      .filter(b => !/^Lebih (Sedikit|Banyak)\s*$/i.test(b.trim())).join('\n').trim();
+    if (narasi) { hasil.deskripsi = narasi; kolom.push('Deskripsi'); }
   }
 
-  statusEl.textContent = kolomTerisi.length > 0
-    ? `✓ Paste 2 - auto-isi: ${kolomTerisi.join(', ')}. Cek ulang sebelum simpan!`
-    : '⚠ Nggak ada pola yang kekenali dari Paste 2 - isi manual aja.';
-  statusEl.className = kolomTerisi.length > 0 ? 'status-text ok' : 'status-text err';
+  return { hasil, kolom };
 }
+
+// Tulis hasil ekstraksi ke field form. Field yang nggak ketemu polanya DIBIARKAN (nggak ditimpa).
+function katalogTerapkanHasilEkstrak(h) {
+  if (h.nama) el('tp-nama').value = h.nama;
+  if (h.tipe) el('tp-tipe').value = h.tipe;
+  if (h.sku) el('tp-sku').value = h.sku;
+  if (h.hargaSupplier !== undefined) { el('tp-harga-supplier').value = h.hargaSupplier; katalogHitungHargaJualOtomatis(); }
+  if (h.merk && !(h.merkDefault && el('tp-merk').value.trim())) el('tp-merk').value = h.merk; // 'NO BRAND' nggak menimpa merk yang sudah terisi
+  if (h.beratAngka !== undefined) { el('tp-berat-angka').value = h.beratAngka; katalogSetBeratSatuan(h.beratSatuan); }
+  if (h.dimensi) { el('tp-dimensi-p').value = h.dimensi[0]; el('tp-dimensi-l').value = h.dimensi[1]; el('tp-dimensi-t').value = h.dimensi[2]; }
+  if (h.material) el('tp-material').value = h.material;
+  if (h.spesifikasi.length > 0) {
+    katalogKosongkanSpesifikasiDinamis();
+    h.spesifikasi.forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
+  }
+  if (h.deskripsi) el('tp-deskripsi').value = h.deskripsi;
+}
+
+// Global paste listener (delegasi di document, fase bubble). Sengaja BUBBLE, bukan capture:
+// kotak foto sudah stopPropagation() untuk paste gambar/URL, jadi nggak bentrok.
+document.addEventListener('paste', function (e) {
+  const modal = el('katalog-modal-tambah-produk');
+  if (!modal || modal.style.display === 'none' || !modal.contains(e.target)) return;
+
+  const cd = e.clipboardData || window.clipboardData;
+  const teks = cd ? (cd.getData('text') || '') : '';
+
+  // 1) Filter cepat: harus multi-baris & cukup panjang, kalau nggak -> paste normal
+  const jumlahBaris = teks.split(/\r?\n/).filter(b => b.trim()).length;
+  if (!/\n/.test(teks) || jumlahBaris < 3 || teks.length < 80) return;
+
+  // 2) Ekstrak DULU tanpa menyentuh form. Kurang dari 2 field dikenali = bukan dump supplier
+  //    (misal staff paste catatan biasa) -> paste normal, nggak dicegat.
+  const { hasil, kolom } = katalogEkstrakTeksSupplier(teks);
+  if (kolom.length < 2) return;
+
+  // 3) Mode Edit: konfirmasi dulu, soalnya bisa menimpa data produk yang sudah ada
+  if (katalogModalMode === 'edit' && !confirm('Teks yang ditempel terdeteksi sebagai data supplier.\nIsi otomatis field yang cocok? (data lama di field tersebut akan ditimpa)\n\nBatal = tempel sebagai teks biasa.')) return;
+
+  // 4) Cegat paste default & isi semua field sekaligus
+  e.preventDefault();
+  katalogTerapkanHasilEkstrak(hasil);
+
+  const statusEl = el('tp-paste-status');
+  statusEl.textContent = `✓ Terisi otomatis: ${kolom.join(', ')}. Cek ulang sebelum simpan!`;
+  statusEl.className = 'status-text ok';
+});
 
 /* ===== Galeri Foto Produk - 5 kotak, upload/drag/paste per kotak, multi-upload sekaligus ===== */
 let katalogFotoGaleri = [null, null, null, null, null]; // isi tiap kotak: null (kosong) atau URL foto
@@ -10795,6 +10807,7 @@ let katalogSkuDetailAktif = null;
 
 async function katalogBukaDetailProduk(sku) {
   katalogSkuDetailAktif = sku;
+  simpanLokasiTerakhir('katalog', 'produk', sku); // biar refresh (F5) balik ke detail produk ini, bukan ke list
   katalogNamaBaruDariAI = null;
   el('katalog-btn-simpan-nama-ai').style.display = 'none';
   katalogMuatPemetaanSku();
