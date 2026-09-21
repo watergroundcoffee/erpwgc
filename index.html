@@ -1300,6 +1300,71 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
 .katalog-card-kategori { min-height: 24px; display: flex; align-items: center; margin-bottom: 4px; }
 .katalog-card-kategori .web-status-pill { font-size: 11px; }
 .katalog-card-channel { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-height: 20px; }
+
+/* ===== Katalog Produk - tampilan Table/List ===== */
+/* Popover zoom foto melayang keluar dari sel, jadi wrapper tabel ini TIDAK boleh overflow:auto (kalau nggak, popover terpotong) */
+#katalog-produk-tampilan-table .web-table-wrap { overflow: visible; max-height: none; }
+#katalog-produk-tampilan-table .web-table th { padding: 12px 16px; }
+#katalog-produk-tampilan-table .web-table td { padding: 14px 16px; vertical-align: top; }
+
+/* Hierarki teks kolom Produk */
+.tabel-produk-teks { display: flex; flex-direction: column; gap: 2px; }
+.tabel-produk-brand { font-size: 12px; color: var(--web-text-dim); line-height: 1.3; }
+.tabel-produk-nama { font-size: 14px; font-weight: 500; color: var(--web-text); line-height: 1.4; cursor: pointer; }
+.tabel-produk-nama:hover { color: var(--web-info); text-decoration: underline; }
+.tabel-produk-sku {
+  align-self: flex-start; margin-top: 4px; font-size: 12px; line-height: 1.4;
+  color: var(--web-text-dim); background: var(--web-bg); border: 1px solid var(--web-border);
+  border-radius: 4px; padding: 1px 7px;
+}
+.tabel-produk-sku-terhubung { font-size: 11px; color: var(--web-text-dim); margin-top: 2px; line-height: 1.3; }
+
+/* Wrapper untuk foto di tabel */
+.katalog-foto-wrap { flex: none; }
+.tabel-img-wrapper {
+    position: relative;
+    display: inline-block;
+    cursor: zoom-in;
+}
+/* Thumbnail kecil di tabel */
+.tabel-img-wrapper img.tabel-thumb {
+    width: 65px;
+    height: 65px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    display: block;
+}
+/* Placeholder kalau produk belum punya foto */
+.tabel-thumb-kosong {
+    width: 65px; height: 65px; border-radius: 6px; border: 1px solid var(--web-border);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--web-bg); color: var(--web-text-dim); font-size: 20px;
+}
+/* Popup gambar besar ala Alibaba (disembunyikan secara default) */
+.tabel-img-wrapper .tabel-img-zoom {
+    position: absolute;
+    top: -30px;
+    left: 100%; /* Muncul melayang di sebelah kanan thumbnail */
+    margin-left: 12px;
+    width: 250px; /* Ukuran gambar zoom */
+    height: 250px;
+    object-fit: contain;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    border: 1px solid #e5e7eb;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none; /* Mencegah kedip saat kursor bergerak */
+}
+/* Munculkan popup saat thumbnail di-hover */
+.tabel-img-wrapper:hover .tabel-img-zoom {
+    opacity: 1;
+    visibility: visible;
+}
 </style>
 </head>
 <body>
@@ -9785,6 +9850,13 @@ function katalogFotoAtauPlaceholder(urlFoto, ukuran) {
     : `<span style="font-size:${ukuran}px; color:var(--web-text-dim);">🖼️</span>`;
 }
 
+// Foto untuk Table view: thumbnail + popover zoom (pure CSS, lihat .tabel-img-wrapper). Tanpa foto -> placeholder saja.
+function katalogFotoTabelHtml(urlFoto, nama) {
+  if (!urlFoto) return '<div class="tabel-thumb-kosong">🖼️</div>';
+  const src = escapeHtml(urlFoto), alt = escapeHtml(nama || '');
+  return `<div class="tabel-img-wrapper"><img src="${src}" class="tabel-thumb" alt="${alt}"><img src="${src}" class="tabel-img-zoom" alt="${alt}"></div>`;
+}
+
 function katalogRenderTabel(halamanIni) {
   el('katalog-produk-tampilan-table').style.display = 'block';
   el('katalog-produk-tampilan-card').style.display = 'none';
@@ -9793,9 +9865,9 @@ function katalogRenderTabel(halamanIni) {
     <tr>
       <td><input type="checkbox" class="katalog-produk-checkbox" data-sku="${escapeHtml(p.sku)}" ${katalogProdukTerpilih.has(p.sku) ? 'checked' : ''} onchange="katalogToggleSelectSatu('${p.sku.replace(/'/g, "\\'")}', this.checked)" /></td>
       <td>
-        <div style="display:flex; align-items:center; gap:3px;" class="katalog-foto-hover-wrap">
-          <div class="katalog-foto-wrap" data-sku="${escapeHtml(p.sku)}" style="width:44px; height:44px; border-radius:8px; overflow:hidden; border:1px solid var(--web-border); display:flex; align-items:center; justify-content:center; background:var(--web-bg); flex:none;">
-            ${katalogFotoAtauPlaceholder(p.urlFoto, 16)}
+        <div style="display:flex; align-items:flex-start; gap:3px;" class="katalog-foto-hover-wrap">
+          <div class="katalog-foto-wrap" data-sku="${escapeHtml(p.sku)}">
+            ${katalogFotoTabelHtml(p.urlFoto, p.nama)}
           </div>
           <div style="position:relative;">
             <button class="katalog-btn-pensil-foto" data-sku="${escapeHtml(p.sku)}" title="Edit Foto" style="background:none; border:none; cursor:pointer; font-size:14px; padding:2px;">✏️</button>
@@ -9809,11 +9881,13 @@ function katalogRenderTabel(halamanIni) {
         <div class="status-text katalog-foto-ai-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px; max-width:110px;"></div>
       </td>
       <td>
-        <div style="font-size:10px; color:var(--web-text-dim); line-height:1.3;">${p.brand ? escapeHtml(p.brand) : '-'}</div>
-        <div class="katalog-klik-detail" data-sku="${escapeHtml(p.sku)}" style="cursor:pointer; color:var(--web-info); font-weight:700; font-size:13px; line-height:1.35;">${escapeHtml(p.nama)}</div>
-        <div style="font-size:10px; color:var(--web-text-dim); line-height:1.3;">${escapeHtml(p.sku)}</div>
-        ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div style="font-size:9.5px; color:var(--web-text-dim);">SKU Terhubung: ${escapeHtml(katalogSkuTerhubungMap[p.sku].join(' '))}</div>` : ''}
-        <div class="status-text katalog-nama-aksi-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px;"></div>
+        <div class="tabel-produk-teks">
+          <div class="tabel-produk-brand">${p.brand ? escapeHtml(p.brand) : '-'}</div>
+          <div class="tabel-produk-nama katalog-klik-detail" data-sku="${escapeHtml(p.sku)}">${escapeHtml(p.nama)}</div>
+          <div class="tabel-produk-sku">${escapeHtml(p.sku)}</div>
+          ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div class="tabel-produk-sku-terhubung">SKU Terhubung: ${escapeHtml(katalogSkuTerhubungMap[p.sku].join(' '))}</div>` : ''}
+          <div class="status-text katalog-nama-aksi-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px;"></div>
+        </div>
       </td>
       <td>${p.kategori ? escapeHtml(p.kategori) : '<i style="color:var(--web-text-dim);">- pilih -</i>'}</td>
       <td>
@@ -10104,7 +10178,7 @@ async function katalogAmbilFotoDariSupplier(sku, btn) {
       const item = katalogProdukCache.find(p => p.sku === sku);
       if (item) item.urlFoto = data.urlFoto;
       const fotoWrap = el('katalog-produk-body').querySelector(`.katalog-foto-wrap[data-sku="${sku}"]`);
-      if (fotoWrap) fotoWrap.innerHTML = katalogFotoAtauPlaceholder(data.urlFoto, 16);
+      if (fotoWrap) fotoWrap.innerHTML = katalogFotoTabelHtml(data.urlFoto, '');
       statusEl.textContent = '✓ Foto diambil';
       statusEl.className = 'status-text ok katalog-foto-ai-status';
     } else { statusEl.textContent = '✗ ' + (data.error || ''); statusEl.className = 'status-text err katalog-foto-ai-status'; }
