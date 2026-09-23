@@ -1342,6 +1342,24 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 }
 .detail-atribut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 16px; }
 .detail-atribut-grid > div { min-width: 0; }
+/* D: Varian Produk - thumbnail strip */
+.katalog-varian-thumb {
+  position: relative; flex: none; width: 72px; cursor: pointer; text-align: center;
+}
+.katalog-varian-thumb.aktif { cursor: default; }
+.katalog-varian-thumb-img {
+  width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 2px solid var(--web-border);
+  display: flex; align-items: center; justify-content: center; background: var(--web-bg); font-size: 24px;
+  color: var(--web-text-dim); transition: border-color 0.15s ease;
+}
+.katalog-varian-thumb-img img { width: 100%; height: 100%; object-fit: cover; }
+.katalog-varian-thumb.aktif .katalog-varian-thumb-img { border-color: var(--web-accent); }
+.katalog-varian-thumb:not(.aktif):hover .katalog-varian-thumb-img { border-color: var(--web-info); }
+.katalog-varian-thumb-label { font-size: 10px; color: var(--web-text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.katalog-varian-thumb-hapus {
+  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; border: none;
+  background: rgba(0,0,0,0.65); color: #fff; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2;
+}
 .detail-atribut-label { display: block; font-size: 10.5px; color: var(--web-text-dim); margin-bottom: 2px; }
 .detail-atribut-nilai { display: block; font-size: 13px; font-weight: 600; word-break: break-word; }
 /* Eyebrow heading (judul halaman di top bar saat di Detail Produk) */
@@ -4683,6 +4701,16 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
                 </div>
               </div>
 
+              <!-- ===== D: Varian Produk - strip thumbnail varian lain (warna/ukuran dst) dari produk
+                   yang SAMA. Hover thumbnail = ganti preview foto utama (sementara); klik = pindah ke
+                   halaman Detail varian itu. ===== -->
+              <div class="web-panel" id="katalog-panel-varian" style="margin-bottom:14px;">
+                <div class="web-panel-header"><span>🎨 Varian Produk</span></div>
+                <div id="katalog-varian-strip" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;"></div>
+                <button class="web-btn-secondary" style="width:100%; margin-top:8px;" onclick="katalogTambahVarianProduk()">+ Tambah Varian</button>
+                <div class="status-text" id="katalog-varian-status" style="text-align:left; margin-top:4px;"></div>
+              </div>
+
               <!-- ===== Unified Card: SKU Mapping (Supplier + Marketplace) ===== -->
               <div class="web-panel pemetaan-card" id="katalog-box-pemetaan">
                 <div class="web-panel-header"><span>🔗 SKU Mapping</span></div>
@@ -4751,7 +4779,8 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 
             <div id="katalog-modal-tambah-produk-body" style="position:relative;">
             <!-- Galeri Foto Produk - 5 kotak, drag&drop/paste/klik per kotak, multi-upload sekaligus -->
-            <div id="tp-foto-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:14px;"></div>
+            <div id="tp-foto-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:8px;"></div>
+            <button type="button" class="web-btn-secondary" style="width:100%; margin-bottom:14px;" onclick="tpBukaDialogUploadBanyakFoto()">📤 Upload Banyak Foto Sekaligus</button>
             <input id="tp-foto-file-input-multi" type="file" accept="image/*" multiple style="display:none;" onchange="katalogUploadFotoMultiDariInput(this.files); this.value='';" />
             <input id="tp-url-foto" type="hidden" />
             <input id="tp-galeri-foto-tambahan" type="hidden" />
@@ -4778,7 +4807,7 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
               <div>
                 <label style="font-size:12px; font-weight:600;">Kategori</label>
-                <select id="tp-kategori" class="web-form-input">
+                <select id="tp-kategori" class="web-form-input" onchange="katalogTpKategoriBerubah(this)">
                   <option value="">- Pilih Kategori (opsional) -</option>
                 </select>
               </div>
@@ -4804,6 +4833,17 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
             <!-- 7. URL Supplier -->
             <label style="font-size:12px; font-weight:600;">URL Supplier</label>
             <input id="tp-url-supplier" type="text" class="web-form-input" placeholder="Opsional" />
+
+            <!-- 7b. SKU Supplier & SKU Marketplace - C1: bisa langsung diisi sejak awal pembuatan produk,
+                 nggak perlu nunggu buka halaman Detail Produk dulu. -->
+            <div style="font-size:12.5px; font-weight:700; margin-top:6px; margin-bottom:6px; padding-top:8px; border-top:1px solid var(--web-border);">🔗 SKU Supplier</div>
+            <div id="tp-baris-sku-supplier" style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;"></div>
+            <button type="button" class="web-btn-secondary" style="width:100%; margin-bottom:12px;" onclick="tpTambahBarisSkuSupplier()">+ Tambah SKU Supplier</button>
+
+            <div style="font-size:12.5px; font-weight:700; margin-bottom:6px;">🌐 SKU Marketplace</div>
+            <div id="tp-baris-sku-marketplace" style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;"></div>
+            <button type="button" class="web-btn-secondary" style="width:100%; margin-bottom:6px;" onclick="tpTambahBarisSkuMarketplace()">+ Tambah SKU Marketplace</button>
+            <div style="font-size:10.5px; color:var(--web-text-dim); margin-top:-2px; margin-bottom:12px;">Pilih platform "Website" kalau produk ini mau tampil di Website Toko Online - wajib diisi kalau centang "Tampilkan di Website" di bawah.</div>
 
             <!-- 8. Spesifikasi -->
             <div style="font-size:12.5px; font-weight:700; margin-top:6px; margin-bottom:6px; padding-top:8px; border-top:1px solid var(--web-border);">📐 Spesifikasi</div>
@@ -9903,7 +9943,8 @@ async function katalogFetchProduk() {
     const [dataProduk, dataLink, dataMarket] = await Promise.all([
       postJson({ aksi: 'lihat_katalog_produk', email: currentUserEmail() }),
       postJson({ aksi: 'lihat_sku_supplier_terhubung', email: currentUserEmail() }),
-      postJson({ aksi: 'lihat_sku_marketplace_terhubung', email: currentUserEmail() })
+      postJson({ aksi: 'lihat_sku_marketplace_terhubung', email: currentUserEmail() }),
+      katalogMuatDaftarKategori() // dipanggil BARENGAN (bukan sesudah render) - biar dropdown Kategori di tiap baris udah siap opsinya pas render pertama, nggak kosong dulu
     ]);
     if (!dataProduk.success) { if (katalogProdukCache.length === 0) el('katalog-produk-body').innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(dataProduk.error||'')}</td></tr>`; return; }
     katalogProdukCache = dataProduk.daftar || [];
@@ -9929,7 +9970,6 @@ async function katalogFetchProduk() {
     }
 
     katalogProdukRenderHalaman();
-    await katalogMuatDaftarKategori();
     katalogIsiDropdownFilterKategori();
     simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
   } catch (err) {
@@ -9993,9 +10033,28 @@ function katalogPasangHandlerSelectKategori(container) {
   });
 }
 
-// Versi ringkas buat tampilan Card - cuma ikon kecil tanpa teks "Belum tampil" (biar card tetap
-// rapi walau produk belum tampil di channel manapun). Ikon base64 udah tertanam di HTML, jadi
-// nggak ada fetch jaringan tambahan - render-nya instan.
+// Versi untuk <select id="tp-kategori"> di modal Tambah/Edit Produk - pola sama dengan dropdown
+// Kategori di tabel/card (katalogOpsiKategoriHtml), tapi teks opsi kosongnya beda ("- Pilih
+// Kategori (opsional) -") biar konsisten sama tampilan modal yang sudah ada sebelumnya.
+function katalogIsiOpsiKategoriModal(kategoriTerpilih) {
+  const daftar = katalogDaftarKategoriCache.slice();
+  if (kategoriTerpilih && !daftar.includes(kategoriTerpilih)) daftar.push(kategoriTerpilih);
+  const opsi = daftar.map(k => `<option value="${escapeHtml(k)}" ${k === kategoriTerpilih ? 'selected' : ''}>${escapeHtml(k)}</option>`).join('');
+  el('tp-kategori').innerHTML = `<option value="">- Pilih Kategori (opsional) -</option>${opsi}<option value="${KATALOG_OPSI_TAMBAH_KATEGORI}">+ Tambah Kategori Baru...</option>`;
+}
+function katalogTpKategoriBerubah(select) {
+  if (select.value !== KATALOG_OPSI_TAMBAH_KATEGORI) return;
+  const namaBaru = prompt('Nama kategori baru:');
+  if (!namaBaru || !namaBaru.trim()) { select.value = ''; return; }
+  const namaBersih = namaBaru.trim();
+  if (!katalogDaftarKategoriCache.includes(namaBersih)) {
+    katalogDaftarKategoriCache.push(namaBersih);
+    simpanCacheTTL('daftar_kategori', katalogDaftarKategoriCache, 60);
+  }
+  katalogIsiOpsiKategoriModal(namaBersih); // render ulang - kategori baru langsung terpilih (auto-input)
+}
+
+
 function katalogBadgeChannelCompact(channelArray) {
   if (!channelArray || channelArray.length === 0) return '';
   return channelArray.map(ch => {
@@ -10575,6 +10634,69 @@ function katalogModalProdukLoading(aktif) {
   body.inert = aktif;
 }
 
+// ===== C1: SKU Supplier & SKU Marketplace di modal Tambah/Edit Produk - state LOCAL, terpisah
+// dari katalogBarisSupplier/katalogBarisMarketplace (punya kartu "SKU Mapping" di halaman
+// Detail), disatukan ke sheet yang sama lewat aksi 'simpan_pemetaan_sku' pas tombol Simpan modal
+// diklik (lihat katalogSimpanProdukBaru). Nggak pakai fitur mirror-group (disederhanakan). =====
+let tpBarisSupplier = [];    // [{ sku, namaSupplier }]
+let tpBarisMarketplace = []; // [{ platform, sku }]
+
+function tpRenderBarisSupplier() {
+  const wrap = el('tp-baris-sku-supplier');
+  if (!wrap) return;
+  wrap.innerHTML = tpBarisSupplier.map((r, idx) => `
+    <div style="display:flex; gap:6px; align-items:center;">
+      <select class="web-form-input" style="margin:0; flex:none; width:120px; padding:8px 4px; font-size:11px;" onchange="tpBarisSupplier[${idx}].namaSupplier = this.value">
+        ${katalogOpsiSupplierHtml(r.namaSupplier)}
+      </select>
+      <input class="web-form-input" style="margin:0; flex:1; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU Supplier" oninput="tpBarisSupplier[${idx}].sku = this.value" />
+      <button type="button" class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="tpHapusBarisSupplier(${idx})">❌</button>
+    </div>
+  `).join('') || '<div style="font-size:11.5px; color:var(--web-text-dim); text-align:center; padding:6px 0;">Belum ada SKU Supplier.</div>';
+}
+function tpTambahBarisSkuSupplier() {
+  tpBarisSupplier.push({ sku: '', namaSupplier: '' });
+  tpRenderBarisSupplier();
+  const semuaInput = el('tp-baris-sku-supplier').querySelectorAll('input');
+  if (semuaInput.length > 0) semuaInput[semuaInput.length - 1].focus();
+}
+function tpHapusBarisSupplier(idx) {
+  tpBarisSupplier.splice(idx, 1);
+  tpRenderBarisSupplier();
+}
+
+function tpRenderBarisMarketplace() {
+  const wrap = el('tp-baris-sku-marketplace');
+  if (!wrap) return;
+  wrap.innerHTML = tpBarisMarketplace.map((r, idx) => `
+    <div style="display:flex; gap:6px; align-items:center;">
+      ${katalogIkonPlatform(r.platform)}
+      <select class="web-form-input" style="margin:0; flex:none; width:88px; padding:8px 4px; font-size:11px;" onchange="tpUbahPlatformMarketplace(${idx}, this.value)">
+        <option value="TikTok Shop" ${r.platform === 'TikTok Shop' ? 'selected' : ''}>TikTok</option>
+        <option value="Tokopedia" ${r.platform === 'Tokopedia' ? 'selected' : ''}>Tokopedia</option>
+        <option value="Shopee" ${r.platform === 'Shopee' ? 'selected' : ''}>Shopee</option>
+        <option value="Website" ${r.platform === 'Website' ? 'selected' : ''}>Website</option>
+      </select>
+      <input class="web-form-input" style="margin:0; flex:1; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU" oninput="tpBarisMarketplace[${idx}].sku = this.value" />
+      <button type="button" class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="tpHapusBarisMarketplace(${idx})">❌</button>
+    </div>
+  `).join('') || '<div style="font-size:11.5px; color:var(--web-text-dim); text-align:center; padding:6px 0;">Belum ada SKU Marketplace.</div>';
+}
+function tpTambahBarisSkuMarketplace() {
+  tpBarisMarketplace.push({ platform: 'TikTok Shop', sku: '' });
+  tpRenderBarisMarketplace();
+  const semuaInput = el('tp-baris-sku-marketplace').querySelectorAll('input');
+  if (semuaInput.length > 0) semuaInput[semuaInput.length - 1].focus();
+}
+function tpHapusBarisMarketplace(idx) {
+  tpBarisMarketplace.splice(idx, 1);
+  tpRenderBarisMarketplace();
+}
+function tpUbahPlatformMarketplace(idx, platformBaru) {
+  tpBarisMarketplace[idx].platform = platformBaru;
+  tpRenderBarisMarketplace();
+}
+
 async function katalogBukaModalTambahProduk() {
   katalogModalMode = 'tambah';
   katalogModalSkuLama = null;
@@ -10593,8 +10715,12 @@ async function katalogBukaModalTambahProduk() {
   el('tp-btn-simpan').textContent = '💾 Simpan';
   katalogAmbilMarginDefault();
   if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
-  el('tp-kategori').innerHTML = '<option value="">- Pilih Kategori (opsional) -</option>' + katalogDaftarKategoriCache.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
-  el('tp-kategori').value = '';
+  katalogIsiOpsiKategoriModal('');
+  if (katalogDaftarSupplierCache.length === 0) await katalogMuatDaftarSupplier();
+  tpBarisSupplier = [];
+  tpBarisMarketplace = [];
+  tpRenderBarisSupplier();
+  tpRenderBarisMarketplace();
   el('katalog-modal-tambah-produk').style.display = 'flex';
 }
 
@@ -10618,7 +10744,24 @@ async function katalogBukaModalEditProdukInti(sku) {
   katalogAmbilMarginDefault();
 
   if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
-  el('tp-kategori').innerHTML = '<option value="">- Pilih Kategori (opsional) -</option>' + katalogDaftarKategoriCache.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  katalogIsiOpsiKategoriModal('');
+  if (katalogDaftarSupplierCache.length === 0) await katalogMuatDaftarSupplier();
+
+  // C1: muat SKU Supplier & SKU Marketplace yang sudah terhubung ke produk ini - state
+  // TERPISAH dari katalogBarisSupplier/katalogBarisMarketplace milik kartu "SKU Mapping" di
+  // halaman Detail (biar nggak saling ganggu kalau dua-duanya lagi kebuka).
+  tpBarisSupplier = [];
+  tpBarisMarketplace = [];
+  try {
+    const [dataSupp, dataMarket] = await Promise.all([
+      postJson({ aksi: 'lihat_sku_supplier_terhubung', skuJual: sku, email: currentUserEmail() }),
+      postJson({ aksi: 'lihat_sku_marketplace_terhubung', skuJual: sku, email: currentUserEmail() })
+    ]);
+    if (dataSupp.success) tpBarisSupplier = (dataSupp.daftar || []).map(d => ({ sku: d.skuSupplier, namaSupplier: d.namaSupplier || '' }));
+    if (dataMarket.success) tpBarisMarketplace = (dataMarket.daftar || []).map(d => ({ platform: d.platform, sku: d.skuMarketplace }));
+  } catch (err) { /* biarin kosong kalau gagal - staff masih bisa isi manual */ }
+  tpRenderBarisSupplier();
+  tpRenderBarisMarketplace();
 
   try {
     const data = await postJson({ aksi: 'lihat_detail_produk', sku, toko: currentToko, email: currentUserEmail() });
@@ -10628,7 +10771,7 @@ async function katalogBukaModalEditProdukInti(sku) {
     el('tp-sku').value = p.sku; el('tp-sku').disabled = false;
     el('tp-nama').value = p.nama || '';
     el('tp-merk').value = p.brand || '';
-    el('tp-kategori').value = p.kategori || '';
+    katalogIsiOpsiKategoriModal(p.kategori || '');
     el('tp-url-supplier').value = p.urlSupplier || '';
     el('tp-tipe').value = p.tipe || '';
     el('tp-harga').value = p.hargaDefault || '';
@@ -10977,8 +11120,19 @@ async function katalogUploadFotoKeKotak(idx, files) {
 
 // Klik SALAH SATU kotak -> upload cuma 1 file ke kotak itu. Kalau user malah PILIH BANYAK
 // file sekaligus dari file picker yang sama, tetap diisi berurutan mulai dari kotak yang
-// diklik (fallback wajar) - tapi jalur UTAMA multi-upload itu lewat drag&drop ke grid.
+// diklik (fallback wajar) - tapi jalur UTAMA multi-upload itu lewat drag&drop ke grid ATAU
+// tombol "📤 Upload Banyak Foto Sekaligus" (buka dialog Open dalam mode multi-select).
 let katalogFotoBoxTargetKlik = null;
+
+// C5: tombol "Upload Banyak Foto Sekaligus" - beda dari klik 1 kotak spesifik (yang sengaja
+// cuma 1 file), ini BUKA dialog Open dengan mode pilih-banyak-file aktif, lalu semua file
+// terpilih otomatis mengisi kotak-kotak kosong berurutan (lihat katalogUploadFotoMultiKeKotakKosong).
+function tpBukaDialogUploadBanyakFoto() {
+  katalogFotoBoxTargetKlik = null; // pastikan BUKAN mode "1 kotak spesifik"
+  el('tp-foto-file-input-multi').setAttribute('multiple', 'multiple');
+  el('tp-foto-file-input-multi').click();
+}
+
 async function katalogUploadFotoMultiDariInput(fileList) {
   const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
   if (files.length === 0) return;
@@ -11065,6 +11219,14 @@ async function katalogSimpanProdukBaru() {
   if (!payload.sku) { statusEl.textContent = '✗ SKU wajib diisi.'; statusEl.className = 'status-text err'; return; }
   if (!payload.namaProduk) { statusEl.textContent = '✗ Nama Produk wajib diisi.'; statusEl.className = 'status-text err'; return; }
 
+  // C2: centang "Tampilkan di Website" WAJIB punya minimal 1 SKU Marketplace platform "Website"
+  // terisi - biar data yang ditarik ke website beneran siap, nggak cuma checkbox doang.
+  if (payload.tampilWebsite && !tpBarisMarketplace.some(r => r.platform === 'Website' && r.sku.trim())) {
+    statusEl.textContent = '✗ Centang "Tampilkan di Website" butuh minimal 1 SKU Marketplace dengan platform "Website" - isi dulu di bagian SKU Marketplace di atas.';
+    statusEl.className = 'status-text err';
+    return;
+  }
+
   btn.disabled = true;
   setLoadingDots(statusEl, 'Menyimpan');
   katalogModalProdukLoading(true);
@@ -11076,29 +11238,47 @@ async function katalogSimpanProdukBaru() {
     } else {
       data = await postJson({ aksi: 'tambah_produk_baru', ...payload });
     }
-    stopLoadingDots(statusEl);
-    if (data.success) {
-      hapusCacheTTL('daftar_kategori');
-      statusEl.textContent = '✓ Tersimpan!';
-      statusEl.className = 'status-text ok';
-      const skuLamaUntukBaris = katalogModalSkuLama;
-      const modeSaatSimpan = katalogModalMode;
-      setTimeout(() => {
-        katalogTutupModalTambahProduk();
-        if (modeSaatSimpan === 'edit') {
-          // Produk EDIT sudah ada barisnya di tabel/card - jangan refresh seluruh katalog,
-          // cukup update baris ini sendiri (lihat B2: Localized Row Refresh).
-          katalogPerbaruiBarisSetelahEdit(skuLamaUntukBaris, payload.sku);
-        } else {
-          // Produk BARU belum ada barisnya di DOM - refresh katalog normal wajar di sini.
-          katalogFetchProduk();
-        }
-      }, 900);
-    } else {
+    if (!data.success) {
+      stopLoadingDots(statusEl);
       statusEl.textContent = '✗ Gagal: ' + (data.error || '');
       statusEl.className = 'status-text err';
       btn.disabled = false;
+      return;
     }
+
+    // C1: simpan SKU Supplier & SKU Marketplace yang diisi di modal ini SEKALIGUS - jadi
+    // nggak perlu buka halaman Detail Produk dulu buat mengisi pemetaan SKU.
+    const daftarSkuSupplier = tpBarisSupplier.filter(r => r.sku.trim()).map(r => ({ sku: r.sku.trim(), namaSupplier: (r.namaSupplier || '').trim() }));
+    const daftarMarketplace = tpBarisMarketplace.filter(r => r.sku.trim()).map(r => ({ platform: r.platform, sku: r.sku.trim() }));
+    try {
+      await postJson({ aksi: 'simpan_pemetaan_sku', skuJual: payload.sku, daftarSkuSupplier, daftarMarketplace, email: currentUserEmail() }, 30000);
+    } catch (errPemetaan) { /* produk utama sudah kesimpan - pemetaan SKU gagal jangan gagalkan seluruh proses, cukup lanjut */ }
+
+    stopLoadingDots(statusEl);
+    hapusCacheTTL('daftar_kategori');
+    statusEl.textContent = '✓ Tersimpan!';
+    statusEl.className = 'status-text ok';
+    const skuLamaUntukBaris = katalogModalSkuLama;
+    const modeSaatSimpan = katalogModalMode;
+    const skuDetailSaatIni = katalogSkuDetailAktif;
+    // Update maps LIST (badge SKU Terhubung/Marketplace di tabel/card) sesuai pemetaan final
+    // yang barusan disimpan - persis lho, karena simpan_pemetaan_sku sifatnya REPLACE-ALL.
+    katalogSkuTerhubungMap[payload.sku] = daftarSkuSupplier.map(r => r.sku);
+    katalogSkuMarketplaceMap[payload.sku] = daftarMarketplace.map(r => ({ skuMarketplace: r.sku, platform: r.platform }));
+    setTimeout(() => {
+      katalogTutupModalTambahProduk();
+      if (modeSaatSimpan === 'edit') {
+        // Produk EDIT sudah ada barisnya di tabel/card - jangan refresh seluruh katalog,
+        // cukup update baris ini sendiri (lihat B2: Localized Row Refresh).
+        katalogPerbaruiBarisSetelahEdit(skuLamaUntukBaris, payload.sku);
+        // Kalau modal ini diedit dari SKU yang SAMA dengan yang lagi kebuka di halaman Detail,
+        // segarkan juga kartu "SKU Mapping" di situ biar nggak nyisa data lama.
+        if (skuDetailSaatIni === skuLamaUntukBaris) katalogMuatPemetaanSku();
+      } else {
+        // Produk BARU belum ada barisnya di DOM - refresh katalog normal wajar di sini.
+        katalogFetchProduk();
+      }
+    }, 900);
   } catch (err) {
     stopLoadingDots(statusEl);
     statusEl.textContent = '✗ Gagal terhubung: ' + err.message;
@@ -11251,6 +11431,8 @@ async function katalogBukaDetailProduk(sku) {
     el('katalog-detail-material').textContent = p.material || '-';
     el('katalog-detail-volume').textContent = p.volume || '-';
     el('katalog-detail-warna').textContent = p.warna || '-';
+    katalogVarianDataAktif = p; // simpan buat referensi hover-preview (foto asli produk ini)
+    katalogRenderVarianStrip(p);
     el('katalog-detail-url-supplier-input').value = p.urlSupplier || '';
     katalogUrlSupplierTersimpan = p.urlSupplier || '';
     katalogUrlSupplierRender();
@@ -11360,9 +11542,30 @@ function katalogBukaJendelaCetakLabel(namaProduk, sku, u, jumlahLabel, qrDataUrl
 /* ===== Pemetaan SKU (Supplier & Marketplace) - model LOCAL STATE, cuma sync ke backend
    sekali pas tombol "Simpan Pemetaan SKU" diklik. Tambah/hapus baris di sisi frontend dulu,
    nggak ada panggilan backend per-baris kayak sebelumnya. ===== */
-let katalogBarisSupplier = [];   // [{ sku }]
+let katalogBarisSupplier = [];   // [{ sku, namaSupplier }]
 let katalogBarisMarketplace = []; // [{ id, platform, sku, mirrorGroup }]
 let katalogMirrorCounter = 0;
+
+// C4: daftar Nama Supplier (dari sheet "Data Supplier") - dipakai sebagai dropdown, sama pola
+// cache TTL 60 menit seperti daftar Kategori (jarang berubah, aman di-cache agak lama).
+let katalogDaftarSupplierCache = [];
+async function katalogMuatDaftarSupplier() {
+  const dariCache = ambilCacheTTL('daftar_supplier');
+  if (dariCache) { katalogDaftarSupplierCache = dariCache; return; }
+  try {
+    const data = await postJson({ aksi: 'lihat_supplier', email: currentUserEmail() });
+    if (data.success) {
+      katalogDaftarSupplierCache = (data.daftar || []).map(s => s.nama).filter(Boolean);
+      simpanCacheTTL('daftar_supplier', katalogDaftarSupplierCache, 60);
+    }
+  } catch (err) { /* biarin kosong - dropdown tetap tampil, cuma tanpa opsi */ }
+}
+function katalogOpsiSupplierHtml(supplierTerpilih) {
+  const daftar = katalogDaftarSupplierCache.slice();
+  if (supplierTerpilih && !daftar.includes(supplierTerpilih)) daftar.push(supplierTerpilih);
+  const opsi = daftar.map(s => `<option value="${escapeHtml(s)}" ${s === supplierTerpilih ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+  return `<option value="">- Nama Supplier -</option>${opsi}`;
+}
 
 async function katalogMuatPemetaanSku() {
   katalogBarisSupplier = [];
@@ -11374,9 +11577,10 @@ async function katalogMuatPemetaanSku() {
   try {
     const [dataSupp, dataMarket] = await Promise.all([
       postJson({ aksi: 'lihat_sku_supplier_terhubung', skuJual: katalogSkuDetailAktif, email: currentUserEmail() }),
-      postJson({ aksi: 'lihat_sku_marketplace_terhubung', skuJual: katalogSkuDetailAktif, email: currentUserEmail() })
+      postJson({ aksi: 'lihat_sku_marketplace_terhubung', skuJual: katalogSkuDetailAktif, email: currentUserEmail() }),
+      katalogDaftarSupplierCache.length === 0 ? katalogMuatDaftarSupplier() : Promise.resolve()
     ]);
-    if (dataSupp.success) katalogBarisSupplier = (dataSupp.daftar || []).map(d => ({ sku: d.skuSupplier }));
+    if (dataSupp.success) katalogBarisSupplier = (dataSupp.daftar || []).map(d => ({ sku: d.skuSupplier, namaSupplier: d.namaSupplier || '' }));
     if (dataMarket.success) katalogBarisMarketplace = (dataMarket.daftar || []).map(d => ({ id: 'm' + (katalogMirrorCounter++), platform: d.platform, sku: d.skuMarketplace, mirrorGroup: null }));
   } catch (err) { /* biarin kosong kalau gagal fetch - user masih bisa mulai dari nol */ }
   katalogRenderBarisSupplier();
@@ -11386,18 +11590,21 @@ async function katalogMuatPemetaanSku() {
   hideBoxLoader('katalog-box-marketplace');
 }
 
-/* ---- Kelola Supplier: cuma daftar Kode SKU ---- */
+/* ---- Kelola Supplier: Kode SKU + Nama Supplier (dropdown, sama pola sama UI Marketplace) ---- */
 function katalogRenderBarisSupplier() {
   const wrap = el('katalog-baris-sku-supplier');
   wrap.innerHTML = katalogBarisSupplier.map((r, idx) => `
     <div style="display:flex; gap:6px; align-items:center;">
+      <select class="web-form-input" style="margin:0; flex:none; width:120px; padding:8px 4px; font-size:11px;" onchange="katalogBarisSupplier[${idx}].namaSupplier = this.value">
+        ${katalogOpsiSupplierHtml(r.namaSupplier)}
+      </select>
       <input class="web-form-input" style="margin:0; flex:1; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU Supplier" oninput="katalogBarisSupplier[${idx}].sku = this.value" />
       <button class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="katalogHapusBarisSupplier(${idx})">❌</button>
     </div>
   `).join('') || '<div style="font-size:11.5px; color:var(--web-text-dim); text-align:center; padding:8px 0;">Belum ada SKU Supplier.</div>';
 }
 function katalogTambahBarisSkuSupplier() {
-  katalogBarisSupplier.push({ sku: '' });
+  katalogBarisSupplier.push({ sku: '', namaSupplier: '' });
   katalogRenderBarisSupplier();
   const semuaInput = el('katalog-baris-sku-supplier').querySelectorAll('input');
   if (semuaInput.length > 0) semuaInput[semuaInput.length - 1].focus();
@@ -11490,7 +11697,7 @@ async function katalogSimpanPemetaanSku() {
   const statusEl = el('katalog-pemetaan-status');
   setLoadingDots(statusEl, 'Menyimpan');
   try {
-    const daftarSkuSupplier = katalogBarisSupplier.map(r => r.sku.trim()).filter(s => s);
+    const daftarSkuSupplier = katalogBarisSupplier.filter(r => r.sku.trim()).map(r => ({ sku: r.sku.trim(), namaSupplier: (r.namaSupplier || '').trim() }));
     const daftarMarketplace = katalogBarisMarketplace.filter(r => r.sku.trim()).map(r => ({ platform: r.platform, sku: r.sku.trim() }));
     const data = await postJson({
       aksi: 'simpan_pemetaan_sku', skuJual: katalogSkuDetailAktif,
@@ -11559,9 +11766,7 @@ async function katalogAutoSaveUrlSupplier() {
   btn.disabled = false;
 }
 
-el('katalog-detail-foto-wrap').addEventListener('click', () => el('katalog-detail-foto-file-input').click());
-el('katalog-detail-foto-file-input').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+async function katalogUploadFotoUtamaDetail(file) {
   if (!file || !katalogSkuDetailAktif) return;
   const reader = new FileReader();
   reader.onload = async () => {
@@ -11569,15 +11774,108 @@ el('katalog-detail-foto-file-input').addEventListener('change', async (e) => {
     el('katalog-detail-foto-wrap').innerHTML = '<span style="font-size:11px; color:var(--web-text-dim);">Mengupload...</span>';
     try {
       const data = await postJson({ aksi: 'upload_foto_produk', sku: katalogSkuDetailAktif, base64, mimeType: file.type, email: currentUserEmail() }, 30000);
-      if (data.success) { playBeep(); katalogRenderDetailFotoUtama(data.urlFoto); }
+      if (data.success) { katalogRenderDetailFotoUtama(data.urlFoto); }
       else { alert('Gagal upload: ' + (data.error || '')); }
     } catch (err) { alert('Gagal terhubung: ' + err.message); }
   };
   reader.readAsDataURL(file);
+}
+
+el('katalog-detail-foto-wrap').addEventListener('click', () => el('katalog-detail-foto-file-input').click());
+el('katalog-detail-foto-file-input').addEventListener('change', (e) => katalogUploadFotoUtamaDetail(e.target.files[0]));
+
+// C5: Drag & Drop Foto Utama - sebelumnya cuma bisa klik buat upload, sekarang file gambar
+// bisa langsung di-drag ke kotak ini juga (sama seperti kotak foto di modal Tambah/Edit Produk).
+el('katalog-detail-foto-wrap').addEventListener('dragover', (e) => {
+  e.preventDefault();
+  el('katalog-detail-foto-wrap').style.outline = '2px dashed var(--web-info)';
+});
+el('katalog-detail-foto-wrap').addEventListener('dragleave', () => { el('katalog-detail-foto-wrap').style.outline = 'none'; });
+el('katalog-detail-foto-wrap').addEventListener('drop', (e) => {
+  e.preventDefault();
+  el('katalog-detail-foto-wrap').style.outline = 'none';
+  const fileGambar = Array.from(e.dataTransfer.files || []).find(f => f.type.startsWith('image/'));
+  if (fileGambar) katalogUploadFotoUtamaDetail(fileGambar);
 });
 
 /* ===== Galeri Foto 2-5 di halaman Detail Produk - klik kotak buat upload/ganti spesifik ===== */
 let katalogDetailGaleriSlotAktif = null; // slot yang lagi diklik (0-3), dipakai file-input change handler
+
+// ===== D: Varian Produk =====
+let katalogVarianDataAktif = null; // {sku, nama, urlFoto, ...} produk yang lagi kebuka - dipakai buat balikin preview foto pas hover selesai
+
+// Ganti tampilan foto utama JADI PREVIEW SEMENTARA (tanpa tombol hapus) - dipakai pas hover
+// thumbnail varian lain. Beda dari katalogRenderDetailFotoUtama yang beneran nge-render foto
+// PRODUK AKTIF (lengkap sama tombol hapus) - sengaja dipisah biar nggak ada resiko salah target
+// hapus foto produk lain gara-gara lagi preview.
+function katalogPreviewFotoVarian(urlFoto) {
+  const wrap = el('katalog-detail-foto-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = urlFoto
+    ? `<img src="${urlFoto}" style="width:100%; height:100%; object-fit:cover;" />`
+    : `<span style="font-size:40px; color:var(--web-text-dim);">🖼️</span>`;
+}
+
+function katalogRenderVarianStrip(p) {
+  const strip = el('katalog-varian-strip');
+  if (!strip) return;
+  const semua = [{ sku: p.sku, nama: p.nama, urlFoto: p.urlFoto, labelVarian: p.labelVarian || '', diriSendiri: true }]
+    .concat((p.daftarVarian || []).map(v => ({ ...v, diriSendiri: false })));
+
+  strip.innerHTML = semua.map(v => `
+    <div class="katalog-varian-thumb${v.diriSendiri ? ' aktif' : ''}" data-sku="${escapeHtml(v.sku)}" data-foto="${escapeHtml(v.urlFoto || '')}">
+      <div class="katalog-varian-thumb-img" title="${escapeHtml(v.labelVarian || v.sku)}">${v.urlFoto ? `<img src="${escapeHtml(v.urlFoto)}" alt="${escapeHtml(v.nama || v.sku)}" />` : '<span>🖼️</span>'}</div>
+      <div class="katalog-varian-thumb-label">${escapeHtml(v.labelVarian || v.sku)}</div>
+      ${!v.diriSendiri ? `<button type="button" class="katalog-varian-thumb-hapus" data-sku="${escapeHtml(v.sku)}" title="Lepas dari grup varian">✕</button>` : ''}
+    </div>
+  `).join('');
+
+  const fotoAsli = p.urlFoto;
+  strip.querySelectorAll('.katalog-varian-thumb:not(.aktif)').forEach(thumb => {
+    thumb.addEventListener('mouseenter', () => katalogPreviewFotoVarian(thumb.dataset.foto));
+    thumb.addEventListener('mouseleave', () => katalogRenderDetailFotoUtama(fotoAsli));
+    thumb.addEventListener('click', (e) => {
+      if (e.target.closest('.katalog-varian-thumb-hapus')) return;
+      katalogBukaDetailProduk(thumb.dataset.sku);
+    });
+  });
+  strip.querySelectorAll('.katalog-varian-thumb-hapus').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Lepas produk ini dari grup varian?')) return;
+      try {
+        const data = await postJson({ aksi: 'hapus_varian_produk', sku: btn.dataset.sku, toko: currentToko, email: currentUserEmail() });
+        if (data.success) katalogBukaDetailProduk(katalogSkuDetailAktif); // reload biar strip ikut update
+        else alert('Gagal: ' + (data.error || ''));
+      } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    });
+  });
+}
+
+// "+ Tambah Varian" - hubungkan produk yang lagi kebuka sebagai varian dari/ke produk lain
+// (SKU harus udah ada duluan di Master Produk). Pakai prompt() sederhana, konsisten sama gaya
+// input cepat lain di halaman ini (misal Kategori Baru).
+async function katalogTambahVarianProduk() {
+  const labelSaya = prompt(`Label varian untuk produk ini (misal "Merah - L") - kosongkan kalau nggak perlu:`, katalogVarianDataAktif ? katalogVarianDataAktif.labelVarian || '' : '');
+  if (labelSaya === null) return; // batal
+  const skuLain = prompt('Masukkan SKU produk LAIN yang mau dijadikan varian bersama produk ini:');
+  if (!skuLain || !skuLain.trim()) return;
+
+  const statusEl = el('katalog-varian-status');
+  setLoadingDots(statusEl, 'Menyimpan');
+  try {
+    const data = await postJson({
+      aksi: 'simpan_varian_produk', sku: katalogSkuDetailAktif, labelVarian: labelSaya.trim(),
+      skuVarianLain: skuLain.trim(), toko: currentToko, email: currentUserEmail()
+    });
+    stopLoadingDots(statusEl);
+    if (data.success) {
+      statusEl.textContent = '✓ Varian terhubung';
+      statusEl.className = 'status-text ok';
+      katalogBukaDetailProduk(katalogSkuDetailAktif); // reload biar strip & label ikut update
+    } else { statusEl.textContent = '✗ ' + (data.error || ''); statusEl.className = 'status-text err'; }
+  } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
+}
 
 function katalogRenderDetailFotoUtama(urlFoto) {
   el('katalog-detail-foto-wrap').innerHTML = urlFoto
@@ -12007,12 +12305,21 @@ async function katalogFetchKategori() {
 
     el('katalog-kategori-list').innerHTML = daftarKategori.map((k, idx) => `
       <div class="web-panel" style="padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <div style="font-weight:700; font-size:14px;">${escapeHtml(k.nama)}</div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+          <div style="flex:1; min-width:0;">
+            <div class="katalog-kategori-nama-tampil" id="katalog-kategori-nama-${idx}" style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:6px;">
+              <span>${escapeHtml(k.nama)}</span>
+              <button class="katalog-kategori-btn-edit-nama" data-idx="${idx}" title="Ubah nama kategori" style="background:none; border:none; cursor:pointer; font-size:12px; padding:2px 4px; opacity:0.6;">✏️</button>
+            </div>
+            <div class="katalog-kategori-nama-edit" id="katalog-kategori-edit-${idx}" style="display:none; gap:6px; align-items:center; margin-bottom:2px;">
+              <input type="text" class="web-form-input katalog-input-nama-kategori" data-idx="${idx}" value="${escapeHtml(k.nama)}" style="margin:0; flex:1; font-size:13px; padding:6px 8px;" />
+              <button class="web-chart-toggle-btn katalog-btn-simpan-nama-kategori" data-idx="${idx}" style="padding:5px 9px; flex:none;">✓</button>
+              <button class="web-btn-secondary katalog-btn-batal-nama-kategori" data-idx="${idx}" style="padding:5px 9px; margin:0; flex:none;">✕</button>
+            </div>
             <div style="font-size:11.5px; color:var(--web-text-dim);">${k.jumlahProduk} produk ${k.deskripsi ? '• ' + escapeHtml(k.deskripsi) : ''}</div>
+            <div class="status-text katalog-status-nama-kategori" data-idx="${idx}" style="text-align:left; margin-top:2px;"></div>
           </div>
-          <button class="web-chart-toggle-btn" data-idx="${idx}">Kelola Produk</button>
+          <button class="web-chart-toggle-btn" style="flex:none;" data-idx="${idx}">Kelola Produk</button>
         </div>
         <div class="katalog-kelola-produk-wrap" id="katalog-kelola-produk-${idx}" style="display:none; margin-top:12px; border-top:1px solid var(--web-border); padding-top:12px;">
           <input type="text" class="web-form-input katalog-search-produk" data-idx="${idx}" placeholder="Cari SKU/nama produk..." style="margin-bottom:8px;" />
@@ -12022,7 +12329,7 @@ async function katalogFetchKategori() {
       </div>
     `).join('');
 
-    el('katalog-kategori-list').querySelectorAll('button.web-chart-toggle-btn[data-idx]').forEach(btn => {
+    el('katalog-kategori-list').querySelectorAll('button.web-chart-toggle-btn[data-idx]:not(.katalog-btn-simpan-nama-kategori)').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = btn.dataset.idx;
         const wrap = el('katalog-kelola-produk-' + idx);
@@ -12037,9 +12344,63 @@ async function katalogFetchKategori() {
     el('katalog-kategori-list').querySelectorAll('button.web-btn-primary[data-idx]').forEach(btn => {
       btn.addEventListener('click', () => katalogSimpanKategoriProduk(daftarKategori[btn.dataset.idx].nama));
     });
+    // ---- C3: Edit nama kategori (rename) ----
+    el('katalog-kategori-list').querySelectorAll('.katalog-kategori-btn-edit-nama').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = btn.dataset.idx;
+        el('katalog-kategori-nama-' + idx).style.display = 'none';
+        const editRow = el('katalog-kategori-edit-' + idx);
+        editRow.style.display = 'flex';
+        const input = editRow.querySelector('.katalog-input-nama-kategori');
+        input.focus(); input.select();
+      });
+    });
+    el('katalog-kategori-list').querySelectorAll('.katalog-btn-batal-nama-kategori').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = btn.dataset.idx;
+        el('katalog-kategori-edit-' + idx).style.display = 'none';
+        el('katalog-kategori-nama-' + idx).style.display = 'flex';
+      });
+    });
+    el('katalog-kategori-list').querySelectorAll('.katalog-btn-simpan-nama-kategori').forEach(btn => {
+      btn.addEventListener('click', () => katalogUbahNamaKategori(btn.dataset.idx, daftarKategori[btn.dataset.idx].nama));
+    });
   } catch (err) {
     el('katalog-kategori-list').innerHTML = `<div style="color:var(--web-danger); font-size:12px;">Gagal terhubung: ${escapeHtml(err.message)}</div>`;
   }
+}
+
+// C3: Simpan rename kategori - update sheet Kategori + cascade ke semua produk (backend),
+// lalu sinkronkan ke cache lokal (katalogDaftarKategoriCache, katalogProdukCache) biar dropdown
+// Kategori di tabel/card produk maupun modal langsung ikut berubah tanpa perlu reload manual.
+async function katalogUbahNamaKategori(idx, namaLama) {
+  const editRow = el('katalog-kategori-edit-' + idx);
+  const input = editRow.querySelector('.katalog-input-nama-kategori');
+  const namaBaru = input.value.trim();
+  const statusEl = el('katalog-kategori-list').querySelector(`.katalog-status-nama-kategori[data-idx="${idx}"]`);
+  if (!namaBaru) { statusEl.textContent = '✗ Nama kategori tidak boleh kosong.'; statusEl.className = 'status-text err'; return; }
+  if (namaBaru === namaLama) { editRow.style.display = 'none'; el('katalog-kategori-nama-' + idx).style.display = 'flex'; return; }
+
+  setLoadingDots(statusEl, 'Menyimpan');
+  try {
+    const data = await postJson({ aksi: 'ubah_nama_kategori', namaLama, namaBaru, toko: currentToko, email: currentUserEmail() });
+    stopLoadingDots(statusEl);
+    if (data.success) {
+      statusEl.textContent = `✓ Diganti jadi "${namaBaru}"${data.jumlahProdukDiupdate ? ` (${data.jumlahProdukDiupdate} produk ikut diperbarui)` : ''}`;
+      statusEl.className = 'status-text ok';
+
+      // Sinkronkan cache lokal biar list/dropdown Kategori di halaman Produk Master ikut update
+      // tanpa perlu reload manual.
+      const idxCache = katalogDaftarKategoriCache.indexOf(namaLama);
+      if (idxCache > -1) katalogDaftarKategoriCache[idxCache] = namaBaru;
+      hapusCacheTTL('daftar_kategori');
+      simpanCacheTTL('daftar_kategori', katalogDaftarKategoriCache, 60);
+      katalogProdukCache.forEach(p => { if (p.kategori === namaLama) p.kategori = namaBaru; });
+      simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
+
+      setTimeout(() => katalogFetchKategori(), 700); // reload halaman Kategori biar sinkron sama data final di sheet
+    } else { statusEl.textContent = '✗ ' + (data.error || ''); statusEl.className = 'status-text err'; }
+  } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
 
 function katalogRenderProdukPicker(idx, namaKategori, kataCari) {
