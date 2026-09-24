@@ -1303,7 +1303,7 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 .katalog-card-img-container img { transition: transform 0.4s ease; }
 .katalog-card-img-container img:hover { transform: scale(1.2); }
 .katalog-card-title { font-size: 15px; font-weight: 600; line-height: 1.3; margin-bottom: 2px; }
-.katalog-card-sku { font-size: 14px; font-weight: bold; }
+.katalog-card-sku { font-size: 12px; color: var(--web-text-dim); margin-bottom: 2px; }
 /* Kategori + Channel didorong ke dasar card (margin-top:auto) supaya baris Channel sejajar antar card */
 .katalog-card-bawah { margin-top: auto; padding-top: 6px; }
 .katalog-card-kategori { min-height: 24px; display: flex; align-items: center; margin-bottom: 4px; }
@@ -1319,16 +1319,14 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 .tabel-produk-brand { font-size: 13px; color: var(--web-text-dim); line-height: 1.3; }
 .tabel-produk-nama { font-size: 15px; font-weight: 500; color: var(--web-text); line-height: 1.4; cursor: pointer; }
 .tabel-produk-nama:hover { color: var(--web-info); text-decoration: underline; }
-.tabel-produk-sku {
-  align-self: flex-start; margin-top: 4px; font-size: 14px; font-weight: bold; line-height: 1.4;
-  color: var(--web-text-dim); background: var(--web-bg); border: 1px solid var(--web-border);
-  border-radius: 4px; padding: 1px 7px;
-}
+.tabel-produk-sku { align-self: flex-start; margin-top: 4px; font-size: 12px; color: var(--web-text-dim); line-height: 1.4; }
 .tabel-produk-sku-terhubung { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .tabel-sku-terhubung-label { font-size: 12px; color: var(--web-text-dim); }
-.tabel-sku-terhubung-badge {
-  font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--web-text);
-  background: var(--web-bg); border: 1px solid var(--web-border); border-radius: 6px; padding: 3px 10px;
+/* Ralat A5: badge cuma bungkus NILAI SKU-nya (bukan label teksnya) - dipakai SAMA PERSIS buat
+   SKU Gudang & SKU Supplier (tabel, card, maupun halaman Detail) biar hierarki visualnya konsisten. */
+.katalog-sku-badge {
+  display: inline-block; font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--web-text);
+  background: var(--web-bg); border: 1px solid var(--web-border); border-radius: 6px; padding: 2px 9px;
 }
 /* Kolom Kategori */
 .tabel-kategori-badge { font-size: 13px; padding: 5px 12px; line-height: 1.3; display: inline-block; }
@@ -1356,10 +1354,6 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 .katalog-varian-thumb.aktif .katalog-varian-thumb-img { border-color: var(--web-accent); }
 .katalog-varian-thumb:not(.aktif):hover .katalog-varian-thumb-img { border-color: var(--web-info); }
 .katalog-varian-thumb-label { font-size: 10px; color: var(--web-text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.katalog-varian-thumb-hapus {
-  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; border: none;
-  background: rgba(0,0,0,0.65); color: #fff; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2;
-}
 .detail-atribut-label { display: block; font-size: 10.5px; color: var(--web-text-dim); margin-bottom: 2px; }
 .detail-atribut-nilai { display: block; font-size: 13px; font-weight: 600; word-break: break-word; }
 /* Eyebrow heading (judul halaman di top bar saat di Detail Produk) */
@@ -4672,7 +4666,7 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
                 <h2 id="katalog-detail-nama" class="detail-nama-teks"></h2>
                 <button class="web-btn-secondary detail-btn-edit-produk" onclick="katalogBukaModalEditProduk(katalogSkuDetailAktif)">✏️ Edit Produk</button>
               </div>
-              <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:14px;">SKU Gudang: <span id="katalog-detail-sku"></span></div>
+              <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:14px;">SKU Gudang: <span id="katalog-detail-sku" class="katalog-sku-badge"></span></div>
 
               <!-- Harga Default / HPP / Stock - persis di bawah Nama & SKU -->
               <div class="web-kpi-grid detail-kpi-grid" style="margin-bottom:10px;">
@@ -4701,14 +4695,18 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
                 </div>
               </div>
 
-              <!-- ===== D: Varian Produk - strip thumbnail varian lain (warna/ukuran dst) dari produk
-                   yang SAMA. Hover thumbnail = ganti preview foto utama (sementara); klik = pindah ke
-                   halaman Detail varian itu. ===== -->
+              <!-- ===== Koreksi C4: Varian Produk - form pair dinamis [SKU] + [Nama Varian] yang bisa
+                   diedit langsung (persis variasi produk Shopee). Strip thumbnail di bawahnya HANYA
+                   navigasi (klik = pindah ke SKU itu) - TIDAK bisa diedit lewat gambar. ===== -->
               <div class="web-panel" id="katalog-panel-varian" style="margin-bottom:14px;">
                 <div class="web-panel-header"><span>🎨 Varian Produk</span></div>
-                <div id="katalog-varian-strip" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;"></div>
-                <button class="web-btn-secondary" style="width:100%; margin-top:8px;" onclick="katalogTambahVarianProduk()">+ Tambah Varian</button>
+                <div id="katalog-varian-daftar-rows" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+                <button class="web-btn-secondary" style="width:100%; margin-bottom:10px;" onclick="katalogVarianTambahBaris()">+ Tambah Baris Varian</button>
+                <button class="web-btn-primary" style="width:100%;" onclick="katalogSimpanDaftarVarian()">💾 Simpan Varian</button>
                 <div class="status-text" id="katalog-varian-status" style="text-align:left; margin-top:4px;"></div>
+
+                <!-- Strip navigasi murni - cuma buat pindah halaman, bukan buat edit -->
+                <div id="katalog-varian-strip" style="display:flex; gap:10px; overflow-x:auto; padding-top:12px; margin-top:12px; border-top:1px solid var(--web-border);"></div>
               </div>
 
               <!-- ===== Unified Card: SKU Mapping (Supplier + Marketplace) ===== -->
@@ -4778,9 +4776,12 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
             </div>
 
             <div id="katalog-modal-tambah-produk-body" style="position:relative;">
-            <!-- Galeri Foto Produk - 5 kotak, drag&drop/paste/klik per kotak, multi-upload sekaligus -->
-            <div id="tp-foto-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:8px;"></div>
-            <button type="button" class="web-btn-secondary" style="width:100%; margin-bottom:14px;" onclick="tpBukaDialogUploadBanyakFoto()">📤 Upload Banyak Foto Sekaligus</button>
+            <!-- Koreksi C5: Galeri Foto Produk - 5 kotak, drag&drop ATAU klik langsung mendukung
+                 multi-select (bisa sorot 5 foto sekaligus dari file manager) - nggak perlu tombol
+                 terpisah lagi. Maksimal 5 foto per produk - kelebihan otomatis dipotong (lihat
+                 katalogUploadFotoMultiKeKotakKosong). -->
+            <div id="tp-foto-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:4px;"></div>
+            <div class="status-text err" id="tp-foto-batas-status" style="text-align:left; margin:0 0 10px; min-height:14px;"></div>
             <input id="tp-foto-file-input-multi" type="file" accept="image/*" multiple style="display:none;" onchange="katalogUploadFotoMultiDariInput(this.files); this.value='';" />
             <input id="tp-url-foto" type="hidden" />
             <input id="tp-galeri-foto-tambahan" type="hidden" />
@@ -10113,8 +10114,8 @@ function katalogRenderTabel(halamanIni) {
         <div class="tabel-produk-teks">
           <div class="tabel-produk-brand">${p.brand ? escapeHtml(p.brand) : '-'}</div>
           <div class="tabel-produk-nama katalog-klik-detail" data-sku="${escapeHtml(p.sku)}">${escapeHtml(p.nama)}</div>
-          <div class="tabel-produk-sku">SKU Gudang: ${escapeHtml(p.sku)}</div>
-          ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div class="tabel-produk-sku-terhubung"><span class="tabel-sku-terhubung-label">SKU Supplier:</span>${katalogSkuTerhubungMap[p.sku].map(k => `<span class="tabel-sku-terhubung-badge">${escapeHtml(k)}</span>`).join('')}</div>` : ''}
+          <div class="tabel-produk-sku">SKU Gudang: <span class="katalog-sku-badge">${escapeHtml(p.sku)}</span></div>
+          ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div class="tabel-produk-sku-terhubung"><span class="tabel-sku-terhubung-label">SKU Supplier:</span>${katalogSkuTerhubungMap[p.sku].map(k => `<span class="katalog-sku-badge">${escapeHtml(k)}</span>`).join('')}</div>` : ''}
           <div class="status-text katalog-nama-aksi-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px;"></div>
         </div>
       </td>
@@ -10254,7 +10255,7 @@ function katalogRenderCard(halamanIni) {
         ${katalogFotoAtauPlaceholder(p.urlFoto, 28)}
       </div>
       <div class="katalog-card-title">${escapeHtml(p.nama)}</div>
-      <div class="katalog-card-sku">SKU Gudang: ${escapeHtml(p.sku)}</div>
+      <div class="katalog-card-sku">SKU Gudang: <span class="katalog-sku-badge">${escapeHtml(p.sku)}</span></div>
       <div class="katalog-card-bawah">
         <div class="katalog-card-kategori">
           <select class="web-form-input katalog-select-kategori" data-sku="${escapeHtml(p.sku)}" style="margin:0; padding:3px 5px; font-size:11.5px; max-width:120px;" onclick="event.stopPropagation();">
@@ -11001,7 +11002,10 @@ function katalogRenderFotoGrid() {
     box.addEventListener('click', (e) => {
       if (e.target.closest('.tp-foto-box-hapus')) return; // biar klik ✕ nggak ikut buka file picker
       katalogFotoBoxTargetKlik = idx;
-      el('tp-foto-file-input-multi').removeAttribute('multiple'); // klik 1 kotak spesifik = 1 file aja
+      // Koreksi C5: TIDAK strip atribut "multiple" lagi - klik kotak manapun tetap boleh
+      // pilih banyak file sekaligus dari dialog Open. Kalau ujungnya cuma 1 file terpilih,
+      // katalogUploadFotoMultiDariInput tetap mengarahkannya ke kotak yang diklik ini secara
+      // spesifik (fallback "ganti 1 foto"); kalau lebih dari 1, semua masuk ke kotak kosong berurutan.
       el('tp-foto-file-input-multi').click();
     });
     box.addEventListener('dragover', (e) => { e.preventDefault(); box.style.borderColor = 'var(--web-info)'; box.style.background = 'rgba(59,130,246,0.08)'; });
@@ -11063,6 +11067,7 @@ function katalogKosongkanFotoGrid() {
   katalogFotoGaleri = [null, null, null, null, null];
   katalogSinkronFotoHidden();
   katalogRenderFotoGrid();
+  if (el('tp-foto-batas-status')) el('tp-foto-batas-status').textContent = '';
 }
 
 // Isi galeri dari data produk (mode Edit): kotak 1 dari urlFoto lama, kotak 2-5 dari galeriFotoTambahan
@@ -11083,9 +11088,15 @@ function katalogKunciSimpanSaatUpload(aktif) {
   if (aktif) {
     katalogUploadFotoAktifCount++;
     btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
   } else if (katalogUploadFotoAktifCount > 0) {
     katalogUploadFotoAktifCount--;
-    if (katalogUploadFotoAktifCount === 0) btn.disabled = false;
+    if (katalogUploadFotoAktifCount === 0) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }
   }
 }
 
@@ -11118,20 +11129,11 @@ async function katalogUploadFotoKeKotak(idx, files) {
   }
 }
 
-// Klik SALAH SATU kotak -> upload cuma 1 file ke kotak itu. Kalau user malah PILIH BANYAK
-// file sekaligus dari file picker yang sama, tetap diisi berurutan mulai dari kotak yang
-// diklik (fallback wajar) - tapi jalur UTAMA multi-upload itu lewat drag&drop ke grid ATAU
-// tombol "📤 Upload Banyak Foto Sekaligus" (buka dialog Open dalam mode multi-select).
+// Klik kotak MANAPUN atau drag&drop ke grid, sama-sama boleh multi-select. Kalau ujungnya
+// cuma 1 file yang terpilih DAN ada kotak spesifik yang diklik, file itu diarahkan ke kotak
+// itu (fallback "ganti 1 foto"). Kalau lebih dari 1 file, semua diisi ke kotak KOSONG berurutan
+// (lihat katalogUploadFotoMultiKeKotakKosong) - maksimal 5 foto per produk.
 let katalogFotoBoxTargetKlik = null;
-
-// C5: tombol "Upload Banyak Foto Sekaligus" - beda dari klik 1 kotak spesifik (yang sengaja
-// cuma 1 file), ini BUKA dialog Open dengan mode pilih-banyak-file aktif, lalu semua file
-// terpilih otomatis mengisi kotak-kotak kosong berurutan (lihat katalogUploadFotoMultiKeKotakKosong).
-function tpBukaDialogUploadBanyakFoto() {
-  katalogFotoBoxTargetKlik = null; // pastikan BUKAN mode "1 kotak spesifik"
-  el('tp-foto-file-input-multi').setAttribute('multiple', 'multiple');
-  el('tp-foto-file-input-multi').click();
-}
 
 async function katalogUploadFotoMultiDariInput(fileList) {
   const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
@@ -11147,21 +11149,33 @@ async function katalogUploadFotoMultiDariInput(fileList) {
 
 // Multi-upload: isi kotak yang MASIH KOSONG secara berurutan kiri ke kanan, sampai 5 kotak
 // penuh atau file habis (yang mana lebih dulu).
+// Koreksi C5: kalau user pilih/drag LEBIH DARI 5 foto sekaligus dalam satu aksi, sistem otomatis
+// cuma ambil 5 foto PERTAMA - sisanya diabaikan (bukan error), lalu tampilkan teks kecil merah
+// di bawah area foto (bukan alert() yang mengganggu/nge-block).
 // Multi-upload PARALEL SUNGGUHAN - kotak kosong dialokasikan DULU sebelum upload mulai
 // (biar nggak race condition kalau di-cek "kotak kosong mana" pas beberapa upload lagi
 // jalan bersamaan), baru semua file dikirim BARENGAN lewat Promise.all.
 async function katalogUploadFotoMultiKeKotakKosong(files) {
+  const statusEl = el('tp-foto-batas-status');
+  if (statusEl) statusEl.textContent = '';
+
+  let filesFinal = files;
+  if (files.length > 5) {
+    filesFinal = files.slice(0, 5);
+    if (statusEl) statusEl.textContent = 'Maksimal 5 foto per produk master. Hanya 5 foto pertama yang dimuat.';
+  }
+
   const idxKosong = [];
   katalogFotoGaleri.forEach((u, i) => { if (!u) idxKosong.push(i); });
 
-  if (files.length > idxKosong.length) {
-    alert(`Cuma ${idxKosong.length} kotak kosong tersisa - ${files.length - idxKosong.length} foto terakhir nggak keupload. Hapus beberapa foto dulu kalau mau upload lebih banyak.`);
-  }
-  const jumlahDiproses = Math.min(files.length, idxKosong.length);
+  const jumlahDiproses = Math.min(filesFinal.length, idxKosong.length);
   if (jumlahDiproses === 0) return;
+  if (jumlahDiproses < filesFinal.length && statusEl && !statusEl.textContent) {
+    statusEl.textContent = `Cuma ${idxKosong.length} kotak kosong tersisa - hapus beberapa foto dulu kalau mau upload lebih banyak.`;
+  }
 
   await Promise.all(
-    files.slice(0, jumlahDiproses).map((file, i) => katalogUploadFotoKeKotak(idxKosong[i], [file]))
+    filesFinal.slice(0, jumlahDiproses).map((file, i) => katalogUploadFotoKeKotak(idxKosong[i], [file]))
   );
 }
 
@@ -11433,6 +11447,7 @@ async function katalogBukaDetailProduk(sku) {
     el('katalog-detail-warna').textContent = p.warna || '-';
     katalogVarianDataAktif = p; // simpan buat referensi hover-preview (foto asli produk ini)
     katalogRenderVarianStrip(p);
+    katalogVarianIsiFormDariData(p);
     el('katalog-detail-url-supplier-input').value = p.urlSupplier || '';
     katalogUrlSupplierTersimpan = p.urlSupplier || '';
     katalogUrlSupplierRender();
@@ -11801,8 +11816,9 @@ el('katalog-detail-foto-wrap').addEventListener('drop', (e) => {
 /* ===== Galeri Foto 2-5 di halaman Detail Produk - klik kotak buat upload/ganti spesifik ===== */
 let katalogDetailGaleriSlotAktif = null; // slot yang lagi diklik (0-3), dipakai file-input change handler
 
-// ===== D: Varian Produk =====
+// ===== Koreksi C4: Varian Produk - form pair dinamis =====
 let katalogVarianDataAktif = null; // {sku, nama, urlFoto, ...} produk yang lagi kebuka - dipakai buat balikin preview foto pas hover selesai
+let katalogVarianBarisForm = []; // [{ sku, namaVarian }] - isi form, SELALU termasuk baris SKU aktif sendiri
 
 // Ganti tampilan foto utama JADI PREVIEW SEMENTARA (tanpa tombol hapus) - dipakai pas hover
 // thumbnail varian lain. Beda dari katalogRenderDetailFotoUtama yang beneran nge-render foto
@@ -11816,6 +11832,9 @@ function katalogPreviewFotoVarian(urlFoto) {
     : `<span style="font-size:40px; color:var(--web-text-dim);">🖼️</span>`;
 }
 
+// Strip thumbnail - NAVIGASI MURNI. Klik = pindah halaman ke SKU itu. Hover = cuma preview foto
+// sementara. TIDAK ADA tombol edit/hapus di gambar - semua perubahan data wajib lewat form
+// pair [SKU] + [Nama Varian] di atasnya (katalogVarianRenderFormBaris).
 function katalogRenderVarianStrip(p) {
   const strip = el('katalog-varian-strip');
   if (!strip) return;
@@ -11826,7 +11845,6 @@ function katalogRenderVarianStrip(p) {
     <div class="katalog-varian-thumb${v.diriSendiri ? ' aktif' : ''}" data-sku="${escapeHtml(v.sku)}" data-foto="${escapeHtml(v.urlFoto || '')}">
       <div class="katalog-varian-thumb-img" title="${escapeHtml(v.labelVarian || v.sku)}">${v.urlFoto ? `<img src="${escapeHtml(v.urlFoto)}" alt="${escapeHtml(v.nama || v.sku)}" />` : '<span>🖼️</span>'}</div>
       <div class="katalog-varian-thumb-label">${escapeHtml(v.labelVarian || v.sku)}</div>
-      ${!v.diriSendiri ? `<button type="button" class="katalog-varian-thumb-hapus" data-sku="${escapeHtml(v.sku)}" title="Lepas dari grup varian">✕</button>` : ''}
     </div>
   `).join('');
 
@@ -11834,45 +11852,53 @@ function katalogRenderVarianStrip(p) {
   strip.querySelectorAll('.katalog-varian-thumb:not(.aktif)').forEach(thumb => {
     thumb.addEventListener('mouseenter', () => katalogPreviewFotoVarian(thumb.dataset.foto));
     thumb.addEventListener('mouseleave', () => katalogRenderDetailFotoUtama(fotoAsli));
-    thumb.addEventListener('click', (e) => {
-      if (e.target.closest('.katalog-varian-thumb-hapus')) return;
-      katalogBukaDetailProduk(thumb.dataset.sku);
-    });
-  });
-  strip.querySelectorAll('.katalog-varian-thumb-hapus').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (!confirm('Lepas produk ini dari grup varian?')) return;
-      try {
-        const data = await postJson({ aksi: 'hapus_varian_produk', sku: btn.dataset.sku, toko: currentToko, email: currentUserEmail() });
-        if (data.success) katalogBukaDetailProduk(katalogSkuDetailAktif); // reload biar strip ikut update
-        else alert('Gagal: ' + (data.error || ''));
-      } catch (err) { alert('Gagal terhubung: ' + err.message); }
-    });
+    thumb.addEventListener('click', () => katalogBukaDetailProduk(thumb.dataset.sku));
   });
 }
 
-// "+ Tambah Varian" - hubungkan produk yang lagi kebuka sebagai varian dari/ke produk lain
-// (SKU harus udah ada duluan di Master Produk). Pakai prompt() sederhana, konsisten sama gaya
-// input cepat lain di halaman ini (misal Kategori Baru).
-async function katalogTambahVarianProduk() {
-  const labelSaya = prompt(`Label varian untuk produk ini (misal "Merah - L") - kosongkan kalau nggak perlu:`, katalogVarianDataAktif ? katalogVarianDataAktif.labelVarian || '' : '');
-  if (labelSaya === null) return; // batal
-  const skuLain = prompt('Masukkan SKU produk LAIN yang mau dijadikan varian bersama produk ini:');
-  if (!skuLain || !skuLain.trim()) return;
+// Form pair dinamis - baris [Input No SKU] + [Input Nama Varian], bisa diedit langsung, bisa
+// ditambah/dihapus barisnya. Dipanggil pas halaman Detail dimuat, diisi dari SKU aktif sendiri
+// + seluruh daftarVarian (saudara) yang udah ada.
+function katalogVarianIsiFormDariData(p) {
+  katalogVarianBarisForm = [{ sku: p.sku, namaVarian: p.labelVarian || '' }]
+    .concat((p.daftarVarian || []).map(v => ({ sku: v.sku, namaVarian: v.labelVarian || '' })));
+  katalogVarianRenderFormBaris();
+}
+function katalogVarianRenderFormBaris() {
+  const wrap = el('katalog-varian-daftar-rows');
+  if (!wrap) return;
+  wrap.innerHTML = katalogVarianBarisForm.map((r, idx) => `
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input class="web-form-input" style="margin:0; flex:1; font-size:13px;" value="${escapeHtml(r.sku)}" placeholder="No SKU" oninput="katalogVarianBarisForm[${idx}].sku = this.value" />
+      <input class="web-form-input" style="margin:0; flex:1; font-size:13px;" value="${escapeHtml(r.namaVarian)}" placeholder="Nama Varian (misal Hitam, Putih)" oninput="katalogVarianBarisForm[${idx}].namaVarian = this.value" />
+      <button type="button" class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="katalogVarianHapusBaris(${idx})">❌</button>
+    </div>
+  `).join('') || '<div style="font-size:11.5px; color:var(--web-text-dim); text-align:center; padding:6px 0;">Belum ada varian.</div>';
+}
+function katalogVarianTambahBaris() {
+  katalogVarianBarisForm.push({ sku: '', namaVarian: '' });
+  katalogVarianRenderFormBaris();
+  const semuaInput = el('katalog-varian-daftar-rows').querySelectorAll('input');
+  if (semuaInput.length > 0) semuaInput[semuaInput.length - 2].focus(); // fokus ke input SKU baris baru
+}
+function katalogVarianHapusBaris(idx) {
+  katalogVarianBarisForm.splice(idx, 1);
+  katalogVarianRenderFormBaris();
+}
 
+// Simpan SELURUH daftar (set membership) - backend nyamain kondisi sheet sama daftar ini:
+// SKU yang hilang dilepas dari grup, SKU baru digabung, Nama Varian ditimpa sesuai form.
+async function katalogSimpanDaftarVarian() {
   const statusEl = el('katalog-varian-status');
+  const daftar = katalogVarianBarisForm.filter(r => r.sku.trim()).map(r => ({ sku: r.sku.trim(), namaVarian: r.namaVarian.trim() }));
   setLoadingDots(statusEl, 'Menyimpan');
   try {
-    const data = await postJson({
-      aksi: 'simpan_varian_produk', sku: katalogSkuDetailAktif, labelVarian: labelSaya.trim(),
-      skuVarianLain: skuLain.trim(), toko: currentToko, email: currentUserEmail()
-    });
+    const data = await postJson({ aksi: 'simpan_daftar_varian', skuAktif: katalogSkuDetailAktif, daftar, toko: currentToko, email: currentUserEmail() });
     stopLoadingDots(statusEl);
     if (data.success) {
-      statusEl.textContent = '✓ Varian terhubung';
+      statusEl.textContent = '✓ Varian tersimpan';
       statusEl.className = 'status-text ok';
-      katalogBukaDetailProduk(katalogSkuDetailAktif); // reload biar strip & label ikut update
+      katalogBukaDetailProduk(katalogSkuDetailAktif); // reload biar form & strip ikut sinkron sama data final
     } else { statusEl.textContent = '✗ ' + (data.error || ''); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
