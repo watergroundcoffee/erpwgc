@@ -5151,14 +5151,14 @@ a.harga-url-toggle.ada { color: #1e6b45; }
               <span id="bulk-judul-modal">⊞ Tambah Produk Massal</span>
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="bulkTutupModal()" aria-label="Tutup">✕</button>
             </div>
-            <div class="bulk-hint">Salin baris dari Excel / Google Sheets dengan urutan kolom <b>SKU, Nama Produk, Kategori, HPP, Harga Default</b>, klik sel awal di tabel, lalu tekan <b>Ctrl+V</b>. Foto: klik atau tarik gambar ke kotak foto.</div>
+            <div class="bulk-hint">Tempel (<b>Ctrl+V</b>) di sel awal: data Excel / Google Sheets berurutan <b>Nama Produk, SKU, Kategori, HPP, Harga Default</b>, <b>atau</b> teks produk yang di-copy langsung dari halaman supplier (Nama, SKU, harga otomatis dikenali). Foto: klik atau tarik gambar ke kotak foto.</div>
             <div class="bulk-grid-wrap" id="bulk-grid-wrap">
               <table class="bulk-grid">
                 <thead><tr>
                   <th class="bulk-col-no">#</th>
                   <th class="bulk-col-foto">Foto Utama</th>
-                  <th class="bulk-col-sku">SKU <span class="bulk-wajib">*</span></th>
                   <th class="bulk-col-nama">Nama Produk <span class="bulk-wajib">*</span></th>
+                  <th class="bulk-col-sku">SKU <span class="bulk-wajib">*</span></th>
                   <th class="bulk-col-kategori">Kategori</th>
                   <th class="bulk-col-angka">HPP</th>
                   <th class="bulk-col-angka">Harga Default</th>
@@ -14117,7 +14117,7 @@ function katalogBukaBiayaPenjualan(channel) {
      sekaligus -> diisi ke baris itu dan baris-baris di bawahnya. Tombol Simpan terkunci selama upload.
    - Simpan: baris yang benar-benar kosong diabaikan; sisanya dikirim sebagai SATU array 2D
      [urlFoto, sku, nama, kategori, hpp, hargaDefault] dalam SATU request ke simpanProdukBaruMassal(). */
-const BULK_KOLOM_TEKS = ['sku', 'nama', 'kategori', 'hpp', 'hargaDefault']; // urutan kolom yang bisa di-paste
+const BULK_KOLOM_TEKS = ['nama', 'sku', 'kategori', 'hpp', 'hargaDefault']; // urutan kolom input di tabel (kiri -> kanan)
 const BULK_KOLOM_PAYLOAD = ['urlFoto', 'sku', 'nama', 'kategori', 'hpp', 'hargaDefault']; // urutan array 2D ke backend
 const BULK_BARIS_AWAL = 5;
 const BULK_MAKS_BARIS = 1000;
@@ -14159,8 +14159,8 @@ function bulkBarisHtml(b, idx) {
     <tr data-id="${b.id}" class="${b.error ? 'bulk-baris-error' : ''}" ${b.error ? `title="${escapeHtml(b.error)}"` : ''}>
       <td class="bulk-col-no">${idx + 1}</td>
       <td class="bulk-col-foto">${bulkFotoHtml(b)}</td>
-      <td>${inp('sku', '', 'SKU')}</td>
       <td>${inp('nama', '', 'Nama produk')}</td>
+      <td>${inp('sku', '', 'SKU')}</td>
       <td>${inp('kategori', '', 'Kategori')}</td>
       <td>${inp('hpp', 'angka', '0')}</td>
       <td>${inp('hargaDefault', 'angka', '0')}</td>
@@ -14219,6 +14219,111 @@ function bulkParseTsv(teks) {
   return hasil;
 }
 
+/* ---------- Smart Paste SUPPLIER (teks dari halaman toko/marketplace supplier) ----------
+   Contoh teks yang di-copy dari kartu produk supplier (bisa 1 atau BANYAK produk sekaligus):
+     One Two Cups Sikat Pembersih Mesin Espresso ... - S11 - Black   -> Nama Produk
+     Belum ada ulasan•SKU7CHK4XBK                                   -> SKU = teks setelah "SKU" (7CHK4XBK)
+     Rp7.100                                                        -> HPP (harga Rp PERTAMA di blok produk)
+     Rp18.90063%                                                    -> harga coret + diskon supplier (diabaikan)
+   Browser kadang memecah "ulasan • SKU..." jadi beberapa baris - tetap aman karena tiap baris dikenali
+   dari isinya (bukan dari posisinya). Parser TSV Excel (bulkParseTsv) TIDAK dipakai/diubah di sini. */
+const BULK_RE_SKU = /SKU\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-_.\/]{3,})/i;
+const BULK_RE_HARGA = /Rp\.?\s*([\d.,]+)/i;
+const BULK_RE_NOISE = /^(belum ada ulasan|ulasan|terjual|stok\b|sisa\b|iklan|ad|promo|gratis ongkir|cod|preorder|pre-order|terlaris|mall|star\+?|official store|power merchant)/i;
+
+// "7.100" -> 7100 | "7,100" -> 7100 | "7.100,00" -> 7100 | "7,100.50" -> 7100
+function bulkParseHargaTeks(angka) {
+  let t = String(angka || '').trim();
+  if (/\.\d{3}/.test(t) && /,\d{1,2}$/.test(t)) t = t.replace(/,\d{1,2}$/, '');   // format ID dengan desimal
+  else if (/,\d{3}/.test(t) && /\.\d{1,2}$/.test(t)) t = t.replace(/\.\d{1,2}$/, ''); // format EN dengan desimal
+  const n = Number(t.replace(/[.,]/g, ''));
+  return isFinite(n) && n > 0 ? n : null;
+}
+
+function bulkApakahNamaProduk(baris) {
+  if (baris.length < 5) return false;
+  if (BULK_RE_HARGA.test(baris) || BULK_RE_SKU.test(baris) || BULK_RE_NOISE.test(baris)) return false;
+  if ((baris.match(/[A-Za-z]/g) || []).length < 3) return false;        // "•", "4.9", "(120)", "63%" dll
+  if (/^[\d.,\s()%+★☆•|-]+$/.test(baris)) return false;
+  if (/\b(terjual|sold|ulasan|review)\b/i.test(baris)) return false;           // "1rb+ terjual", "Belum ada ulasan"
+  if (/^\d[.,]\d\s*(\(|★|•|$)/.test(baris)) return false;                     // rating "4.9 (120)"
+
+  return true;
+}
+
+// Teks bebas -> [{ nama, sku, hpp }]. Produk baru dimulai tiap ketemu baris "nama produk" setelah
+// produk sebelumnya punya SKU atau harga. Produk tanpa SKU & tanpa harga dianggap bukan produk.
+function bulkEkstrakBlokSupplier(teksMentah) {
+  const baris = String(teksMentah || '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ')
+    .split('\n').map(b => b.trim()).filter(b => b);
+  const produk = [];
+  let kini = null;
+  const tutup = () => { if (kini && kini.nama && (kini.sku || kini.hpp)) produk.push(kini); kini = null; };
+  baris.forEach(b => {
+    if (bulkApakahNamaProduk(b)) {
+      if (kini && (kini.sku || kini.hpp)) tutup();
+      if (!kini) kini = { nama: b, sku: '', hpp: null };
+      else if (!kini.sku && !kini.hpp) kini.nama = b; // baris teks sebelumnya ternyata bukan nama (label/lokasi) -> ganti
+      return;
+    }
+    if (!kini) return;
+    const mSku = b.match(BULK_RE_SKU);
+    if (mSku && !kini.sku) kini.sku = mSku[1].toUpperCase();
+    const mHarga = b.match(BULK_RE_HARGA);
+    if (mHarga && kini.hpp === null) kini.hpp = bulkParseHargaTeks(mHarga[1]); // harga PERTAMA = HPP
+  });
+  tutup();
+  return produk;
+}
+
+function bulkTeksSepertiSupplier(teks) {
+  if (/\t/.test(teks)) return false; // ada tab = data Excel/Sheets -> pakai parser TSV
+  return BULK_RE_SKU.test(teks) || /Rp\.?\s*\d/i.test(teks);
+}
+
+// Isi hasil Smart Paste Supplier ke grid mulai dari baris yang difokuskan (baris baru dibuat otomatis)
+function bulkIsiDariSupplier(inp, produk) {
+  const idAwal = Number(inp.closest('tr').dataset.id);
+  const idxBarisAwal = bulkBaris.findIndex(b => b.id === idAwal);
+  const kurang = idxBarisAwal + produk.length - bulkBaris.length;
+  const idBaru = [];
+  if (kurang > 0) {
+    const bisa = Math.min(kurang, BULK_MAKS_BARIS - bulkBaris.length);
+    for (let i = 0; i < bisa; i++) { const b = bulkBarisKosong(); bulkBaris.push(b); idBaru.push(b.id); }
+    bulkRender(idBaru);
+  }
+  let tr = el('bulk-body').querySelector(`tr[data-id="${idAwal}"]`);
+  let terisi = 0, tanpaSku = 0;
+  produk.forEach(p => {
+    if (!tr) return;
+    const b = bulkCariBaris(tr.dataset.id);
+    const isi = { nama: p.nama, sku: p.sku, hpp: p.hpp !== null ? String(p.hpp) : '' };
+    Object.keys(isi).forEach(k => {
+      const target = tr.querySelector(`input.bulk-input[data-kolom="${k}"]`);
+      if (target) { target.value = isi[k]; target.classList.remove('invalid'); }
+      if (b) b[k] = isi[k];
+    });
+    if (b) { b.error = ''; b.errorKolom = []; }
+    tr.classList.remove('bulk-baris-error'); tr.removeAttribute('title');
+    if (!p.sku) tanpaSku++;
+    terisi++;
+    tr = tr.nextElementSibling;
+  });
+  bulkUpdateInfo();
+  const status = el('bulk-status');
+  status.className = 'status-text ok';
+  status.textContent = `✓ Smart Paste Supplier: ${terisi} produk terdeteksi (Nama, SKU, HPP)${idBaru.length ? `, ${idBaru.length} baris baru dibuat` : ''}${tanpaSku ? `. ⚠️ ${tanpaSku} produk tanpa SKU - isi manual` : ''}. Cek ulang sebelum simpan!`;
+  const fokus = el('bulk-body').querySelector(`tr[data-id="${idAwal}"] .bulk-input[data-kolom="nama"]`);
+  if (fokus) fokus.focus();
+}
+
+// Smart Paste - penempatan data pakai DOM TRAVERSAL row-major:
+//   * Data kolom (hasil split tab)      -> input BERIKUTNYA DI KANAN, pada <tr> YANG SAMA.
+//     Kolom [Foto Utama] otomatis terlewati karena bukan <input class="bulk-input">.
+//   * Data baris (hasil split newline)  -> <tr> BERIKUTNYA DI BAWAH, target kembali ke kolom awal paste
+//     (kalau paste dimulai dari Nama Produk = kolom input pertama baris itu).
+//   * Baris <tr> kurang -> dibuat otomatis dulu (failsafe), baru diisi.
+// Parser clipboard (bulkParseTsv) TIDAK diubah.
 function bulkTanganiPaste(e) {
   const inp = e.target.closest('.bulk-input');
   if (!inp) return;
@@ -14226,35 +14331,57 @@ function bulkTanganiPaste(e) {
   if (!teks) return;
   // Paste 1 sel biasa (tanpa tab/newline) -> biarkan perilaku normal browser
   if (!/[\t\n\r]/.test(teks.replace(/[\r\n]+$/, ''))) return;
+  // Teks dari halaman supplier (ada "SKU..." / "Rp...", tanpa tab) -> Smart Paste Supplier
+  if (bulkTeksSepertiSupplier(teks)) {
+    const produk = bulkEkstrakBlokSupplier(teks);
+    if (produk.length > 0) { e.preventDefault(); bulkIsiDariSupplier(inp, produk); return; }
+  }
   e.preventDefault();
   const data = bulkParseTsv(teks);
   if (data.length === 0) return;
-  const idxBarisAwal = bulkBaris.findIndex(b => b.id === Number(inp.dataset.id));
-  const idxKolomAwal = BULK_KOLOM_TEKS.indexOf(inp.dataset.kolom);
+
+  const trAwal = inp.closest('tr');
+  const idAwal = Number(trAwal.dataset.id);
+  const kolomFokus = inp.dataset.kolom;
+  const idxBarisAwal = bulkBaris.findIndex(b => b.id === idAwal);
+  // Posisi kolom awal = urutan input di dalam <tr> (DOM order, kiri -> kanan, tanpa kolom Foto)
+  const idxKolomAwal = Array.from(trAwal.querySelectorAll('input.bulk-input')).indexOf(inp);
+
   // FAILSAFE: buat baris baru otomatis kalau data paste lebih banyak dari baris yang tersedia
   const kurang = idxBarisAwal + data.length - bulkBaris.length;
   const idBaru = [];
   if (kurang > 0) {
     const bisa = Math.min(kurang, BULK_MAKS_BARIS - bulkBaris.length);
     for (let i = 0; i < bisa; i++) { const b = bulkBarisKosong(); bulkBaris.push(b); idBaru.push(b.id); }
+    bulkRender(idBaru); // <tr> baru sudah ada di DOM sebelum traversal
   }
+
+  // Traversal: mulai dari <tr> tempat kursor berada, lalu turun lewat nextElementSibling
+  let tr = el('bulk-body').querySelector(`tr[data-id="${idAwal}"]`);
   let terisi = 0, kolomDibuang = 0;
-  data.forEach((sel, i) => {
-    const b = bulkBaris[idxBarisAwal + i];
-    if (!b) return;
-    sel.forEach((nilai, j) => {
-      const kolom = BULK_KOLOM_TEKS[idxKolomAwal + j];
-      if (!kolom) { kolomDibuang++; return; }
-      b[kolom] = String(nilai).trim();
+  for (let i = 0; i < data.length; i++) {
+    if (!tr) break; // melewati batas BULK_MAKS_BARIS
+    const inputBaris = Array.from(tr.querySelectorAll('input.bulk-input')); // kolom input di baris INI saja
+    const b = bulkCariBaris(tr.dataset.id);
+    data[i].forEach((nilai, j) => {
+      const target = inputBaris[idxKolomAwal + j]; // melangkah ke KANAN di <tr> yang sama
+      if (!target) { kolomDibuang++; return; }
+      target.value = String(nilai).trim();
+      target.classList.remove('invalid');
+      if (b) b[target.dataset.kolom] = target.value; // sinkronkan ke state
     });
-    b.error = ''; b.errorKolom = [];
+    if (b) { b.error = ''; b.errorKolom = []; }
+    tr.classList.remove('bulk-baris-error');
+    tr.removeAttribute('title');
     terisi++;
-  });
-  bulkRender(idBaru);
+    tr = tr.nextElementSibling; // baris data berikutnya -> <tr> di bawahnya
+  }
+  bulkUpdateInfo();
+
   const status = el('bulk-status');
   status.className = 'status-text ok';
   status.textContent = `✓ ${terisi} baris ditempel${idBaru.length ? `, ${idBaru.length} baris baru dibuat otomatis` : ''}${kolomDibuang ? ` (${kolomDibuang} sel di luar kolom tabel diabaikan)` : ''}${data.length > terisi ? ` - ${data.length - terisi} baris melebihi batas ${BULK_MAKS_BARIS}` : ''}.`;
-  const fokus = el('bulk-body').querySelector(`tr[data-id="${bulkBaris[idxBarisAwal].id}"] .bulk-input[data-kolom="${inp.dataset.kolom}"]`);
+  const fokus = el('bulk-body').querySelector(`tr[data-id="${idAwal}"] .bulk-input[data-kolom="${kolomFokus}"]`);
   if (fokus) fokus.focus();
 }
 
