@@ -287,28 +287,53 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   }
   body.tema-terang .rl-tanggal-input { color-scheme: light; }
   .rl-tanggal-input.active { border-color: var(--keluar); background: rgba(47,158,110,0.16); }
-  /* Kartu resi compact 2x2: [Resi | Invoice] / [Kurir • Jam | Status + Hapus] */
+  /* Kartu resi compact 2x2 + gestur native: tap = salin, geser kiri = hapus (soft delete) */
   #list-items { gap: 6px; }
+  .rc-item { position: relative; flex-shrink: 0; border-radius: 9px; overflow: hidden; }
+  .swipe-action {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 76px;
+    display: flex; align-items: stretch; justify-content: flex-end;
+    background: var(--error); opacity: 0; transition: opacity 0.15s ease;
+  }
+  .rc-item.rc-geser .swipe-action { opacity: 1; }
+  .rc-btn-hapus {
+    width: 76px; border: none; background: transparent; color: #fff; cursor: pointer; font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    font-size: 17px; line-height: 1;
+  }
+  .rc-btn-hapus span { font-size: 10px; font-weight: 800; letter-spacing: 0.03em; }
+  .rc-btn-hapus:active { background: rgba(0,0,0,0.15); }
+  .swipe-content {
+    position: relative; z-index: 1; transform: translateX(0);
+    transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+    touch-action: pan-y; will-change: transform;
+    -webkit-user-select: none; user-select: none;
+  }
+  .swipe-content.rc-dragging { transition: none; }
   .rc-card {
-    display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 2px;
     background: var(--panel); border: 1px solid var(--panel-border); border-left: 3px solid var(--panel-border);
-    border-radius: 9px; padding: 7px 8px 6px 9px;
+    border-radius: 9px; padding: 7px 9px 6px 9px;
   }
   .rc-card.rc-ok { border-left-color: var(--success); background: linear-gradient(90deg, rgba(47,158,110,0.09), rgba(47,158,110,0) 60%), var(--panel); }
   .rc-card.rc-err { border-left-color: var(--error); background: linear-gradient(90deg, rgba(217,82,79,0.11), rgba(217,82,79,0) 60%), var(--panel); }
   .rc-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-  .rc-tl, .rc-tr, .rc-bl, .rc-br { display: flex; align-items: center; gap: 1px; min-width: 0; }
+  .rc-tl, .rc-tr, .rc-bl, .rc-br { display: flex; align-items: center; min-width: 0; }
   .rc-tr, .rc-br { justify-content: flex-end; }
   /* Baris atas: No Resi diprioritaskan tampil utuh, Invoice yang dipotong (…) duluan kalau sempit */
   .rc-tl { flex: 0 1 auto; }
   .rc-tr { flex: 1 10 auto; }
-  /* Baris bawah: Status + tong sampah selalu utuh, nama kurir yang dipotong kalau sempit */
+  /* Baris bawah: Status selalu utuh, nama kurir yang dipotong kalau sempit */
   .rc-bl { flex: 1 1 auto; }
   .rc-br { flex: 0 0 auto; }
   .rc-resi, .rc-inv, .rc-kurir, .rc-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rc-resi { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: 0.01em; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
   .rc-inv { font-size: 11.5px; font-weight: 600; color: var(--text); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
   .rc-inv.rc-inv-err { color: var(--error); font-weight: 800; font-family: inherit; }
+  /* Teks yang bisa di-tap buat disalin: kotak samar pas disentuh, kedip hijau pas berhasil */
+  .rc-tap { cursor: pointer; padding: 1px 4px; margin: -1px -4px; border-radius: 5px; transition: background 0.15s ease; }
+  .rc-tap:active { background: rgba(127,127,127,0.22); }
+  .rc-tap.rc-tersalin { background: rgba(47,158,110,0.30); }
   .rc-bl { font-size: 11px; color: var(--text-dim); gap: 4px; }
   .rc-kurir { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
   .rc-jam { font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
@@ -319,18 +344,25 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   .rc-dot-dikirim { background: #3b82f6; }
   .rc-dot-selesai { background: #22c55e; }
   .rc-dot-retur { background: #ef4444; }
+  .rc-dot.rc-dot-kosong { display: none; }
   .rc-status.rc-status-netral { color: var(--text-dim); }
-  .rc-copy {
-    flex-shrink: 0; border: none; background: transparent; color: inherit; font-size: 11px; line-height: 1;
-    padding: 2px 2px; border-radius: 5px; cursor: pointer; font-family: inherit; opacity: 0.8;
+  /* Proses hapus lagi jalan ke server */
+  .rc-item.rc-menghapus { opacity: 0.6; pointer-events: none; }
+  /* Soft delete: jejak historis, nggak ikut dihitung di rekap */
+  .rc-item.deleted-card { opacity: 0.5; }
+  .rc-item.deleted-card .rc-resi { text-decoration: line-through; }
+  .rc-item.deleted-card .rc-card { border-left-color: var(--error); background: var(--panel); }
+  .rc-item.deleted-card .rc-dot { display: block; background: var(--error); }
+  .rc-item.deleted-card .rc-status { color: var(--error); font-weight: 800; }
+  .rc-item.deleted-card .rc-kurir { text-decoration: none; cursor: default; }
+
+  /* Sembunyikan scrollbar: list resi selalu, halaman utama khusus perangkat sentuh (HP/tablet) */
+  #list-items { scrollbar-width: none; -ms-overflow-style: none; }
+  #list-items::-webkit-scrollbar { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    html, body, #app { scrollbar-width: none; -ms-overflow-style: none; }
+    html::-webkit-scrollbar, body::-webkit-scrollbar, #app::-webkit-scrollbar { display: none; }
   }
-  .rc-copy:active { transform: scale(0.9); }
-  .rc-copy.pgr-tersalin { color: var(--success); font-weight: 800; opacity: 1; }
-  .rc-hapus {
-    flex-shrink: 0; border: none; background: transparent; font-size: 13px; line-height: 1;
-    padding: 2px 2px 2px 6px; margin-left: 2px; cursor: pointer; font-family: inherit; opacity: 0.85;
-  }
-  .rc-hapus:active { transform: scale(0.9); }
 
   #kurir-summary-wrap { width: 100%; display: flex; flex-direction: column; gap: 6px; }
   .kurir-summary-row {
@@ -20355,6 +20387,9 @@ let listTanggalAktif = '';      // '' = hari ini (ikut tanggal server), selain i
 let listLabelAktif = 'hari ini';
 let listFetchSeq = 0;
 let listDelegasiTerpasang = false;
+let rlTanggalDataAktif = '';   // tanggal asli dari server (yyyy-MM-dd) buat kunci jejak hapus
+// Jejak soft delete selama sesi ini (hilang kalau halaman di-reload), kunci: tipe|tanggal
+const rlJejakHapus = {};
 const RL_DOT = { 'Menunggu Kurir': 'rc-dot-menunggu', 'Dalam Pengiriman': 'rc-dot-dikirim', 'Pesanan Selesai': 'rc-dot-selesai', 'Retur': 'rc-dot-retur' };
 
 function rlFormatTanggal(d) {
@@ -20439,6 +20474,11 @@ async function fetchList() {
 
     el('stat-today').textContent = data.jumlah;
     currentListItems = data.items || [];
+    rlTanggalDataAktif = data.tanggal || '';
+    // Pulihkan kartu yang tadi di-soft delete (di tanggal & mode yang sama) sebagai jejak di paling bawah
+    const jejak = rlJejakHapus[currentMode + '|' + rlTanggalDataAktif] || [];
+    const resiAktif = new Set(currentListItems.map(it => String(it.noResi)));
+    jejak.forEach(j => { if (!resiAktif.has(String(j.noResi))) currentListItems.push(j); });
     rlBangunKelompokKurir();
     renderRingkasanKurirUI();
 
@@ -20460,6 +20500,7 @@ async function fetchList() {
 function rlBangunKelompokKurir() {
   kelompokKurirCache = {};
   currentListItems.forEach(it => {
+    if (it.dihapus) return; // soft delete nggak ikut rekap produktivitas
     const k = it.kurir || 'Tidak Diketahui';
     if (!kelompokKurirCache[k]) kelompokKurirCache[k] = [];
     kelompokKurirCache[k].push({ noResi: it.noResi, row: it.row });
@@ -20552,55 +20593,220 @@ function filterListItems() {
   applyListFilters();
 }
 
-// Kartu resi: No Resi | No Invoice | Status berdampingan (buat pencocokan cepat),
-// baris bawah: kurir (tap = koreksi), jam scan, tombol hapus.
+// Kartu resi 2x2 dengan gestur native:
+//   - Tap No Resi / No Invoice  -> salin ke clipboard + toast
+//   - Geser kartu ke kiri        -> muncul tombol Hapus merah di baliknya
+//   - Tap Hapus                  -> resi dihapus di Sheets, kartunya tetap tampil sebagai jejak (soft delete)
+//   - Tap nama kurir             -> koreksi kurir (fungsi lama)
+const RL_LEBAR_AKSI = 76;
+
 function rlHtmlKartu(it, pakaiInvoice) {
-  // Layout 2x2 compact (2 baris flex kiri-kanan): [Resi 📋 | Invoice 📋] / [Kurir • Jam | ● Status 🗑️]
   const kurir = it.kurir || 'Tidak Diketahui';
   const cocok = !!it.noInvoice;
+  const dihapus = !!it.dihapus;
   const kelasKartu = !pakaiInvoice ? '' : (cocok ? ' rc-ok' : ' rc-err');
 
-  const kiriAtas = `<div class="rc-tl"><span class="rc-resi" title="${pgrAttr(it.noResi)}">${escapeHtml(it.noResi)}</span><button type="button" class="rc-copy" data-rl-copy="${pgrAttr(it.noResi)}" aria-label="Salin No Resi">📋</button></div>`;
+  const kiriAtas = `<div class="rc-tl"><span class="rc-resi rc-tap" data-rl-copy="${pgrAttr(it.noResi)}" data-rl-jenis="Resi" title="Tap untuk menyalin">${escapeHtml(it.noResi)}</span></div>`;
 
   let kananAtas = '<div class="rc-tr"></div>';
-  let statusHtml = '';
+  let status = '';
+  let kelasDot = 'rc-dot-kosong';
+  let kelasStatus = '';
   if (pakaiInvoice) {
     kananAtas = cocok
-      ? `<div class="rc-tr"><span class="rc-inv" title="${pgrAttr(it.noInvoice)}">${escapeHtml(it.noInvoice)}</span><button type="button" class="rc-copy" data-rl-copy="${pgrAttr(it.noInvoice)}" aria-label="Salin No Invoice">📋</button></div>`
+      ? `<div class="rc-tr"><span class="rc-inv rc-tap" data-rl-copy="${pgrAttr(it.noInvoice)}" data-rl-jenis="Invoice" title="Tap untuk menyalin">${escapeHtml(it.noInvoice)}</span></div>`
       : '<div class="rc-tr"><span class="rc-inv rc-inv-err">Nggak cocok</span></div>';
-    const status = cocok ? (it.statusPesanan || '-') : 'Belum terhubung';
-    const kelasDot = cocok ? (RL_DOT[status] || '') : '';
-    statusHtml = `<span class="rc-dot ${kelasDot}"></span><span class="rc-status${cocok ? '' : ' rc-status-netral'}">${escapeHtml(status)}</span>`;
+    status = cocok ? (it.statusPesanan || '-') : 'Belum terhubung';
+    kelasDot = cocok ? (RL_DOT[status] || '') : '';
+    kelasStatus = cocok ? '' : ' rc-status-netral';
   }
+  if (dihapus) status = 'Deleted';
 
   const kiriBawah = `<div class="rc-bl"><span class="rc-kurir" data-rl-kurir="${pgrAttr(kurir)}" title="Tap untuk koreksi kurir">${escapeHtml(kurir)}</span><span class="rc-sep">•</span><span class="rc-jam">${escapeHtml(it.jam || '-')}</span></div>`;
-  const kananBawah = `<div class="rc-br">${statusHtml}<button type="button" class="rc-hapus" data-rl-hapus="1" aria-label="Hapus resi">🗑️</button></div>`;
+  const kananBawah = `<div class="rc-br"><span class="rc-dot ${kelasDot}"></span><span class="rc-status${kelasStatus}">${escapeHtml(status)}</span></div>`;
 
-  return `<div class="rc-card${kelasKartu}" data-row="${it.row}"><div class="rc-row">${kiriAtas}${kananAtas}</div><div class="rc-row">${kiriBawah}${kananBawah}</div></div>`;
+  return `
+    <div class="rc-item${dihapus ? ' deleted-card' : ''}" data-row="${it.row}" data-resi="${pgrAttr(it.noResi)}">
+      <div class="swipe-action"><button type="button" class="rc-btn-hapus" data-rl-hapus="1" aria-label="Hapus resi">🗑️<span>Hapus</span></button></div>
+      <div class="swipe-content">
+        <div class="rc-card${kelasKartu}">
+          <div class="rc-row">${kiriAtas}${kananAtas}</div>
+          <div class="rc-row">${kiriBawah}${kananBawah}</div>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderListItems(items) {
   rlPasangDelegasiList();
+  rlItemTerbuka = null;
   const pakaiInvoice = currentMode !== 'stock'; // Pembelian Stock nggak punya invoice penjualan
-  el('list-items').innerHTML = items.map(it => rlHtmlKartu(it, pakaiInvoice)).join('');
+  // Kartu aktif di atas, jejak soft delete selalu di paling bawah
+  const urut = items.filter(it => !it.dihapus).concat(items.filter(it => it.dihapus));
+  el('list-items').innerHTML = urut.map(it => rlHtmlKartu(it, pakaiInvoice)).join('');
 }
 
-// 1 listener buat semua kartu (event delegation) - render 100+ kartu tetap enteng di HP
+/* ---------- Gestur swipe (touch + mouse buat laptop gudang) ---------- */
+let rlSwipe = null;          // state geser yang lagi jalan
+let rlItemTerbuka = null;    // kartu yang tombol hapusnya lagi kebuka
+let rlAbaikanKlik = false;   // cegah "click" palsu setelah jari selesai menggeser
+
+function rlBukaSwipe(item) {
+  if (rlItemTerbuka && rlItemTerbuka !== item) rlTutupSwipe(rlItemTerbuka);
+  item.classList.add('rc-geser', 'rc-terbuka');
+  item.querySelector('.swipe-content').style.transform = `translateX(-${RL_LEBAR_AKSI}px)`;
+  rlItemTerbuka = item;
+}
+
+function rlTutupSwipe(item) {
+  if (!item) return;
+  const content = item.querySelector('.swipe-content');
+  if (content) content.style.transform = '';
+  item.classList.remove('rc-terbuka');
+  if (rlItemTerbuka === item) rlItemTerbuka = null;
+  setTimeout(() => { if (!item.classList.contains('rc-terbuka')) item.classList.remove('rc-geser'); }, 250);
+}
+
+function rlSwipeMulai(x, y, target) {
+  if (rlItemTerbuka && !rlItemTerbuka.contains(target)) rlTutupSwipe(rlItemTerbuka);
+  const content = target.closest('.swipe-content');
+  if (!content) return;
+  const item = content.closest('.rc-item');
+  if (!item || item.classList.contains('deleted-card') || item.classList.contains('rc-menghapus')) return;
+  rlSwipe = {
+    item, content, startX: x, startY: y, arah: null,
+    basis: item.classList.contains('rc-terbuka') ? -RL_LEBAR_AKSI : 0, posisi: null
+  };
+}
+
+function rlSwipeGerak(x, y) {
+  if (!rlSwipe) return;
+  const dx = x - rlSwipe.startX;
+  const dy = y - rlSwipe.startY;
+  if (!rlSwipe.arah) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    rlSwipe.arah = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'; // kunci arah: horizontal = swipe, vertikal = scroll biasa
+    if (rlSwipe.arah === 'h') {
+      rlSwipe.item.classList.add('rc-geser');
+      rlSwipe.content.classList.add('rc-dragging');
+    }
+  }
+  if (rlSwipe.arah !== 'h') return;
+  let posisi = rlSwipe.basis + dx;
+  if (posisi > 0) posisi = 0;
+  if (posisi < -RL_LEBAR_AKSI) posisi = -RL_LEBAR_AKSI + (posisi + RL_LEBAR_AKSI) * 0.25; // efek "karet" kalau ditarik kejauhan
+  rlSwipe.posisi = posisi;
+  rlSwipe.content.style.transform = `translateX(${posisi}px)`;
+}
+
+function rlSwipeSelesai() {
+  if (!rlSwipe) return;
+  const s = rlSwipe;
+  rlSwipe = null;
+  if (s.arah !== 'h') return;
+  s.content.classList.remove('rc-dragging');
+  rlAbaikanKlik = true;
+  setTimeout(() => { rlAbaikanKlik = false; }, 300);
+  const posisiAkhir = s.posisi === null ? s.basis : s.posisi;
+  if (posisiAkhir < -RL_LEBAR_AKSI / 2) rlBukaSwipe(s.item); else rlTutupSwipe(s.item);
+}
+
+// 1 set listener buat semua kartu (event delegation) - render 100+ kartu tetap enteng di HP
 function rlPasangDelegasiList() {
   if (listDelegasiTerpasang) return;
   const wrap = el('list-items');
   if (!wrap) return;
   listDelegasiTerpasang = true;
+
+  wrap.addEventListener('touchstart', e => { const t = e.touches[0]; rlSwipeMulai(t.clientX, t.clientY, e.target); }, { passive: true });
+  wrap.addEventListener('touchmove', e => { const t = e.touches[0]; rlSwipeGerak(t.clientX, t.clientY); }, { passive: true });
+  wrap.addEventListener('touchend', rlSwipeSelesai);
+  wrap.addEventListener('touchcancel', rlSwipeSelesai);
+
+  // Mouse (laptop gudang): tahan klik + geser ke kiri
+  wrap.addEventListener('mousedown', e => { if (e.button === 0) rlSwipeMulai(e.clientX, e.clientY, e.target); });
+  window.addEventListener('mousemove', e => { if (rlSwipe) rlSwipeGerak(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', rlSwipeSelesai);
+
+  // Scroll daftar = tutup kartu yang lagi kebuka
+  wrap.addEventListener('scroll', () => { if (rlItemTerbuka && !rlSwipe) rlTutupSwipe(rlItemTerbuka); }, { passive: true });
+
   wrap.addEventListener('click', e => {
-    const btnCopy = e.target.closest('[data-rl-copy]');
-    if (btnCopy) { pgrSalinTeks(btnCopy.dataset.rlCopy, btnCopy); return; }
-    const kartu = e.target.closest('.rc-card');
-    if (!kartu) return;
-    const row = parseInt(kartu.dataset.row, 10);
-    if (e.target.closest('[data-rl-hapus]')) { hapusItem(row); return; }
+    if (rlAbaikanKlik) { e.preventDefault(); return; }
+    const item = e.target.closest('.rc-item');
+    if (!item) return;
+
+    if (e.target.closest('[data-rl-hapus]')) { rlSoftDelete(item); return; }
+
+    // Kartu lagi kebuka -> tap isinya cuma nutup, biar nggak kesalin/kekoreksi nggak sengaja
+    if (item.classList.contains('rc-terbuka')) { rlTutupSwipe(item); return; }
+
+    const tapSalin = e.target.closest('[data-rl-copy]');
+    if (tapSalin) { rlTapSalin(tapSalin); return; }
+
     const tagKurir = e.target.closest('[data-rl-kurir]');
-    if (tagKurir) koreksiKurir(row, tagKurir.dataset.rlKurir);
+    if (tagKurir && !item.classList.contains('deleted-card')) koreksiKurir(parseInt(item.dataset.row, 10), tagKurir.dataset.rlKurir);
   });
+}
+
+async function rlTapSalin(elm) {
+  const teks = elm.dataset.rlCopy;
+  const jenis = elm.dataset.rlJenis || 'Teks';
+  const berhasil = await pgrSalinTeks(teks, null, true);
+  elm.classList.remove('rc-tersalin');
+  void elm.offsetWidth; // restart animasi kalau di-tap berkali-kali
+  elm.classList.add('rc-tersalin');
+  setTimeout(() => elm.classList.remove('rc-tersalin'), 600);
+  pgrToast(berhasil ? `${jenis} disalin!` : 'Gagal menyalin - browser menolak akses clipboard.');
+  if (berhasil && navigator.vibrate) navigator.vibrate(15);
+}
+
+/* ---------- Soft delete ---------- */
+function rlHitungUlangRekap() {
+  el('stat-today').textContent = currentListItems.filter(it => !it.dihapus).length;
+  rlBangunKelompokKurir();
+  renderRingkasanKurirUI();
+}
+
+async function rlSoftDelete(item) {
+  const row = parseInt(item.dataset.row, 10);
+  const noResi = item.dataset.resi;
+  const data = currentListItems.find(it => !it.dihapus && it.row === row && String(it.noResi) === noResi);
+  if (!data) return;
+
+  rlTutupSwipe(item);
+  item.classList.add('rc-menghapus');
+  try {
+    // noResi ikut dikirim: server cek ulang barisnya, kalau udah geser dicari lagi (anti salah hapus)
+    const res = await postJson({ aksi: 'hapus', tipe: currentMode, row: row, noResi: noResi, email: currentUserEmail() });
+    if (!res.success) throw new Error(res.error || 'error tidak diketahui');
+
+    // Baris di bawahnya di Sheets naik 1 -> samakan nomor baris kartu lain biar aksi berikutnya tepat sasaran
+    const barisTerhapus = parseInt(res.rowTerhapus, 10) || row;
+    currentListItems.forEach(it => { if (!it.dihapus && it.row > barisTerhapus) it.row--; });
+    el('list-items').querySelectorAll('.rc-item:not(.deleted-card)').forEach(kartu => {
+      const r = parseInt(kartu.dataset.row, 10);
+      if (kartu !== item && r > barisTerhapus) kartu.dataset.row = r - 1;
+    });
+
+    data.dihapus = true;
+    const kunci = currentMode + '|' + rlTanggalDataAktif;
+    (rlJejakHapus[kunci] = rlJejakHapus[kunci] || []).push(data);
+
+    item.classList.remove('rc-menghapus');
+    item.classList.add('deleted-card');
+    const statusEl = item.querySelector('.rc-status');
+    if (statusEl) { statusEl.textContent = 'Deleted'; statusEl.classList.remove('rc-status-netral'); }
+    el('list-items').appendChild(item); // pindah ke paling bawah
+
+    rlHitungUlangRekap();
+    playBeep();
+    pgrToast('Resi ' + noResi + ' dihapus.');
+  } catch (err) {
+    item.classList.remove('rc-menghapus');
+    pgrToast('Gagal menghapus: ' + err.message);
+    playToot();
+  }
 }
 
 async function koreksiKurir(row, kurirSekarang) {
