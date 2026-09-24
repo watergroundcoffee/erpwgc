@@ -274,6 +274,62 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   }
   .list-row .kurir-tag.unknown { background: rgba(143,161,150,0.2); color: var(--text-dim); }
 
+  /* ===== Daftar Resi v2 - card layout mobile (pilih tanggal + kartu resi/invoice/status) ===== */
+  .rl-tanggal-bar { display: flex; gap: 6px; align-items: stretch; width: 100%; }
+  .rl-chip {
+    flex: 1; padding: 9px 8px; border-radius: 9px; border: 1px solid var(--panel-border); background: var(--panel);
+    color: var(--text-dim); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+  }
+  .rl-chip.active { border-color: var(--keluar); color: var(--text); background: rgba(47,158,110,0.16); }
+  .rl-tanggal-input {
+    flex: 1.3; min-width: 0; padding: 7px 8px; border-radius: 9px; border: 1px solid var(--panel-border);
+    background: var(--panel); color: var(--text); font-size: 12px; font-family: inherit; color-scheme: dark;
+  }
+  body.tema-terang .rl-tanggal-input { color-scheme: light; }
+  .rl-tanggal-input.active { border-color: var(--keluar); background: rgba(47,158,110,0.16); }
+  .rc-card {
+    background: var(--panel); border: 1px solid var(--panel-border); border-left: 4px solid var(--panel-border);
+    border-radius: 10px; padding: 10px 10px 8px 11px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+  }
+  .rc-card.rc-ok { border-left-color: var(--success); background: linear-gradient(90deg, rgba(47,158,110,0.10), rgba(47,158,110,0) 70%), var(--panel); }
+  .rc-card.rc-err { border-left-color: var(--error); background: linear-gradient(90deg, rgba(217,82,79,0.12), rgba(217,82,79,0) 70%), var(--panel); }
+  .rc-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, auto); gap: 8px; align-items: start; }
+  .rc-grid.rc-grid-1 { grid-template-columns: minmax(0, 1fr); }
+  .rc-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .rc-cell-status { align-items: flex-end; text-align: right; }
+  .rc-label { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+  .rc-val { display: flex; align-items: flex-start; gap: 2px; min-width: 0; }
+  .rc-resi { font-size: 15px; font-weight: 800; line-height: 1.25; word-break: break-all; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .rc-inv { font-size: 12px; font-weight: 600; line-height: 1.3; word-break: break-all; }
+  .rc-inv.rc-inv-err { color: var(--error); font-weight: 800; }
+  .rc-copy {
+    flex-shrink: 0; border: none; background: transparent; color: inherit; font-size: 12px; line-height: 1;
+    padding: 2px 3px; border-radius: 5px; cursor: pointer; font-family: inherit;
+  }
+  .rc-copy:active { transform: scale(0.9); }
+  .rc-copy.pgr-tersalin { color: var(--success); font-weight: 800; }
+  .rc-pill {
+    display: inline-block; font-size: 9.5px; font-weight: 800; padding: 3px 8px; border-radius: 999px;
+    line-height: 1.2; text-align: center; max-width: 92px;
+  }
+  .rc-pill-menunggu { background: #fde68a; color: #422006; }
+  .rc-pill-dikirim { background: #dbeafe; color: #1e3a8a; }
+  .rc-pill-selesai { background: #dcfce7; color: #14532d; }
+  .rc-pill-retur { background: #fee2e2; color: #7f1d1d; }
+  .rc-pill-netral { background: rgba(143,161,150,0.22); color: var(--text-dim); }
+  .rc-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); }
+  .rc-meta .kurir-tag {
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+    background: rgba(79,143,201,0.2); color: #7fb8e8; cursor: pointer; white-space: nowrap;
+  }
+  .rc-meta .kurir-tag.unknown { background: rgba(143,161,150,0.2); color: var(--text-dim); }
+  .rc-jam { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rc-hapus {
+    margin-left: auto; background: transparent; border: 1px solid rgba(217,82,79,0.5); color: var(--error);
+    border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .rc-hapus:active { transform: scale(0.95); }
+
   #kurir-summary-wrap { width: 100%; display: flex; flex-direction: column; gap: 6px; }
   .kurir-summary-row {
     display: flex; justify-content: space-between; align-items: center;
@@ -2033,10 +2089,15 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
     <div id="screen-list" style="display:none;">
       <div class="mode-badge" id="list-title" style="background:var(--panel); color:var(--text);"></div>
       <div class="text-input-wrap" style="padding:10px 14px;">
-        <input id="list-search-input" type="text" placeholder="🔍 Cari No Resi..." oninput="filterListItems()" />
+        <input id="list-search-input" type="text" placeholder="🔍 Cari No Resi / No Invoice..." oninput="filterListItems()" />
+      </div>
+      <div class="rl-tanggal-bar">
+        <button type="button" class="rl-chip active" id="rl-chip-hari-ini" onclick="listPilihTanggal('hari-ini')">Hari Ini</button>
+        <button type="button" class="rl-chip" id="rl-chip-kemarin" onclick="listPilihTanggal('kemarin')">Kemarin</button>
+        <input type="date" class="rl-tanggal-input" id="rl-tanggal-input" onchange="listPilihTanggal(this.value)" title="Pilih tanggal scan" />
       </div>
       <div id="pending-list-wrap"></div>
-      <div id="list-stats"><div>Discan hari ini<b id="stat-today">-</b></div></div>
+      <div id="list-stats"><div><span id="stat-label">Discan hari ini</span><b id="stat-today">-</b></div></div>
       <div id="kurir-summary-wrap"></div>
       <button class="lihat-daftar-btn" style="border-color:#4f8fc9; background:rgba(79,143,201,0.15); color:#7fb8e8; display:none;" id="btn-buka-tanda-terima" onclick="openTandaTerima()">📋 Print Tanda Terima Kurir</button>
       <div class="loading-text" id="list-loading" style="display:none;">Memuat data...</div>
@@ -19852,6 +19913,8 @@ function openList() {
   stopCamera();
   const cfg = modeConfig[currentMode];
   el('list-title').textContent = 'Daftar: ' + cfg.label;
+  listTanggalAktif = ''; // tiap buka daftar, selalu mulai dari "Hari Ini"
+  listLabelAktif = 'hari ini';
   fetchList();
 }
 
@@ -20282,7 +20345,63 @@ async function fetchPendingList() {
 }
 
 
+/* ===== Daftar Resi v2: 1 request cepat per tanggal (lihat_resi_harian) =====
+   Server cuma memproses resi di tanggal yang dipilih (reverse loop + break), sekaligus
+   ngirim No Invoice & status pesanan. Ringkasan kurir dihitung dari data yang sama di browser,
+   jadi nggak perlu request ringkasan_kurir terpisah lagi. */
+let listTanggalAktif = '';      // '' = hari ini (ikut tanggal server), selain itu 'yyyy-MM-dd'
+let listLabelAktif = 'hari ini';
+let listFetchSeq = 0;
+let listDelegasiTerpasang = false;
+const RL_PILL = { 'Menunggu Kurir': 'rc-pill-menunggu', 'Dalam Pengiriman': 'rc-pill-dikirim', 'Pesanan Selesai': 'rc-pill-selesai', 'Retur': 'rc-pill-retur' };
+
+function rlFormatTanggal(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function rlTanggalKemarin() {
+  const k = new Date();
+  k.setDate(k.getDate() - 1);
+  return rlFormatTanggal(k);
+}
+
+function listPilihTanggal(pilihan) {
+  const hariIniStr = rlFormatTanggal(new Date());
+  const kemarinStr = rlTanggalKemarin();
+  if (pilihan === 'hari-ini' || pilihan === hariIniStr) {
+    listTanggalAktif = ''; listLabelAktif = 'hari ini';
+  } else if (pilihan === 'kemarin' || pilihan === kemarinStr) {
+    listTanggalAktif = kemarinStr; listLabelAktif = 'kemarin';
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(pilihan)) {
+    const [y, m, d] = pilihan.split('-').map(Number);
+    listTanggalAktif = pilihan;
+    listLabelAktif = 'tgl ' + new Date(y, m - 1, d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  } else {
+    return;
+  }
+  fetchList();
+}
+
+function rlUpdateChipTanggal() {
+  const hariIniStr = rlFormatTanggal(new Date());
+  const isHariIni = listTanggalAktif === '';
+  const isKemarin = listTanggalAktif === rlTanggalKemarin();
+  const chipHariIni = el('rl-chip-hari-ini');
+  const chipKemarin = el('rl-chip-kemarin');
+  const input = el('rl-tanggal-input');
+  if (chipHariIni) chipHariIni.classList.toggle('active', isHariIni);
+  if (chipKemarin) chipKemarin.classList.toggle('active', isKemarin);
+  if (input) {
+    input.max = hariIniStr;
+    input.value = listTanggalAktif || hariIniStr;
+    input.classList.toggle('active', !isHariIni && !isKemarin);
+  }
+}
+
 async function fetchList() {
+  const seq = ++listFetchSeq;
+  const lihatHariIni = listTanggalAktif === '';
+  el('list-loading').textContent = 'Memuat resi ' + listLabelAktif + '...';
   el('list-loading').style.display = 'block';
   el('list-empty').style.display = 'none';
   el('list-items').innerHTML = '';
@@ -20290,8 +20409,13 @@ async function fetchList() {
   el('pending-list-wrap').innerHTML = '';
   el('list-search-input').value = '';
   activeKurirFilter = null;
-  el('btn-buka-tanda-terima').style.display = currentMode === 'keluar' ? 'block' : 'none';
-  if (currentMode === 'keluar') fetchPendingList();
+  currentListItems = [];
+  kelompokKurirCache = {};
+  if (el('stat-label')) el('stat-label').textContent = 'Discan ' + listLabelAktif;
+  el('stat-today').textContent = '-';
+  rlUpdateChipTanggal();
+  el('btn-buka-tanda-terima').style.display = (currentMode === 'keluar' && lihatHariIni) ? 'block' : 'none';
+  if (currentMode === 'keluar' && lihatHariIni) fetchPendingList();
 
   if (!checkConfig()) {
     el('list-loading').style.display = 'none';
@@ -20301,7 +20425,8 @@ async function fetchList() {
   }
 
   try {
-    const data = await postJson({ aksi: 'lihat', tipe: currentMode, email: currentUserEmail() });
+    const data = await postJson({ aksi: 'lihat_resi_harian', tipe: currentMode, tanggal: listTanggalAktif, email: currentUserEmail() });
+    if (seq !== listFetchSeq) return; // user udah pindah tanggal lain selama loading - abaikan hasil lama
     el('list-loading').style.display = 'none';
 
     if (!data.success) {
@@ -20310,20 +20435,33 @@ async function fetchList() {
       return;
     }
 
-    el('stat-today').textContent = data.countToday;
-    currentListItems = data.items;
-    fetchRingkasanKurirAkurat();
+    el('stat-today').textContent = data.jumlah;
+    currentListItems = data.items || [];
+    rlBangunKelompokKurir();
+    renderRingkasanKurirUI();
 
-    if (data.items.length === 0) {
+    if (currentListItems.length === 0) {
+      el('list-empty').textContent = 'Belum ada resi yang discan ' + listLabelAktif + '.';
       el('list-empty').style.display = 'block';
       return;
     }
-    renderListItems(data.items);
+    renderListItems(currentListItems);
   } catch (err) {
+    if (seq !== listFetchSeq) return;
     el('list-loading').style.display = 'none';
     el('list-empty').textContent = '✗ Gagal terhubung: ' + (err.name === 'AbortError' ? 'waktu tunggu habis' : err.message);
     el('list-empty').style.display = 'block';
   }
+}
+
+// Ringkasan kurir dihitung dari data daftar yang udah ada (bukan request terpisah)
+function rlBangunKelompokKurir() {
+  kelompokKurirCache = {};
+  currentListItems.forEach(it => {
+    const k = it.kurir || 'Tidak Diketahui';
+    if (!kelompokKurirCache[k]) kelompokKurirCache[k] = [];
+    kelompokKurirCache[k].push({ noResi: it.noResi, row: it.row });
+  });
 }
 
 let kelompokKurirCache = {};
@@ -20355,14 +20493,14 @@ function renderRingkasanKurirUI() {
   if (daftarKurir.length === 0) {
     const kosong = document.createElement('div');
     kosong.style.cssText = 'font-size:11px; color:var(--text-dim); text-align:center; padding:8px 0;';
-    kosong.textContent = 'Belum ada resi yang discan hari ini — ringkasan kurir muncul otomatis begitu ada.';
+    kosong.textContent = 'Belum ada resi yang discan ' + listLabelAktif + ' — ringkasan kurir muncul otomatis begitu ada.';
     wrap.appendChild(kosong);
     return;
   }
 
   const judul = document.createElement('div');
   judul.style.cssText = 'font-size:11px; color:var(--text-dim); margin-top:4px;';
-  judul.textContent = 'Ringkasan kurir hari ini (tap buat filter):';
+  judul.textContent = 'Ringkasan kurir ' + listLabelAktif + ' (tap buat filter):';
   wrap.appendChild(judul);
 
   daftarKurir.sort().forEach(kurir => {
@@ -20393,57 +20531,90 @@ function filterByKurir(kurir) {
 
 function applyListFilters() {
   const query = el('list-search-input').value.trim().toLowerCase();
-  let filtered;
+  let filtered = currentListItems;
 
+  // Data dari server udah LENGKAP untuk tanggal terpilih, jadi filter kurir cukup dari list ini
   if (activeKurirFilter) {
-    // Pakai data LENGKAP hari ini dari ringkasan kurir (bukan list yang dibatasi 50 item terbaru)
-    const daftarLengkap = kelompokKurirCache[activeKurirFilter] || [];
-    filtered = daftarLengkap.map(item => ({
-      row: item.row, noResi: item.noResi, tanggal: 'Hari ini', kurir: activeKurirFilter, hariIni: true
-    }));
-  } else {
-    filtered = currentListItems;
+    filtered = filtered.filter(item => (item.kurir || 'Tidak Diketahui') === activeKurirFilter);
   }
-
   if (query) {
-    filtered = filtered.filter(item => String(item.noResi).toLowerCase().includes(query));
+    filtered = filtered.filter(item => String(item.noResi).toLowerCase().includes(query) || String(item.noInvoice || '').toLowerCase().includes(query));
   }
 
   renderListItems(filtered);
   el('list-empty').style.display = filtered.length === 0 ? 'block' : 'none';
-  el('list-empty').textContent = (query || activeKurirFilter) ? 'Tidak ada resi yang cocok.' : 'Belum ada resi yang discan.';
+  el('list-empty').textContent = (query || activeKurirFilter) ? 'Tidak ada resi yang cocok.' : 'Belum ada resi yang discan ' + listLabelAktif + '.';
 }
 
 function filterListItems() {
   applyListFilters();
 }
 
-function renderListItems(items) {
-  const wrap = el('list-items');
-  wrap.innerHTML = '';
+// Kartu resi: No Resi | No Invoice | Status berdampingan (buat pencocokan cepat),
+// baris bawah: kurir (tap = koreksi), jam scan, tombol hapus.
+function rlHtmlKartu(it, pakaiInvoice) {
+  const kurir = it.kurir || 'Tidak Diketahui';
+  const kurirClass = kurir === 'Tidak Diketahui' ? 'kurir-tag unknown' : 'kurir-tag';
+  const cocok = !!it.noInvoice;
+  const kelasKartu = !pakaiInvoice ? '' : (cocok ? ' rc-ok' : ' rc-err');
 
-  // Urutkan berdasarkan kurir biar terkelompok visual
-  const sorted = [...items].sort((a, b) => (a.kurir || '').localeCompare(b.kurir || ''));
+  const selResi = `
+      <div class="rc-cell">
+        <span class="rc-label">No Resi</span>
+        <div class="rc-val"><span class="rc-resi">${escapeHtml(it.noResi)}</span><button type="button" class="rc-copy" data-rl-copy="${pgrAttr(it.noResi)}" aria-label="Salin No Resi">📋</button></div>
+      </div>`;
 
-  sorted.forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'list-row';
-    const kurirClass = (!item.kurir || item.kurir === 'Tidak Diketahui') ? 'kurir-tag unknown' : 'kurir-tag';
-    row.innerHTML = `
-      <div class="info">
-        <span class="no-resi">${escapeHtml(item.noResi)}</span>
-        <span class="tgl">${escapeHtml(item.tanggal || '-')}</span>
-        <span class="${kurirClass}" data-koreksi-row="${item.row}" data-koreksi-kurir="${escapeHtml(item.kurir || 'Tidak Diketahui')}">${escapeHtml(item.kurir || 'Tidak Diketahui')} ✏️</span>
+  let selInvoice = '';
+  let selStatus = '';
+  if (pakaiInvoice) {
+    selInvoice = `
+      <div class="rc-cell">
+        <span class="rc-label">No Invoice</span>
+        <div class="rc-val">${cocok
+          ? `<span class="rc-inv">${escapeHtml(it.noInvoice)}</span><button type="button" class="rc-copy" data-rl-copy="${pgrAttr(it.noInvoice)}" aria-label="Salin No Invoice">📋</button>`
+          : '<span class="rc-inv rc-inv-err">Nggak cocok</span>'}</div>
+      </div>`;
+    const status = cocok ? (it.statusPesanan || '-') : 'Belum terhubung';
+    const kelasPill = cocok ? (RL_PILL[status] || 'rc-pill-netral') : 'rc-pill-netral';
+    selStatus = `
+      <div class="rc-cell rc-cell-status">
+        <span class="rc-label">Status</span>
+        <span class="rc-pill ${kelasPill}">${escapeHtml(status)}</span>
+      </div>`;
+  }
+
+  return `
+    <div class="rc-card${kelasKartu}" data-row="${it.row}">
+      <div class="rc-grid${pakaiInvoice ? '' : ' rc-grid-1'}">${selResi}${selInvoice}${selStatus}</div>
+      <div class="rc-meta">
+        <span class="${kurirClass}" data-rl-kurir="${pgrAttr(kurir)}">${escapeHtml(kurir)} ✏️</span>
+        <span class="rc-jam">🕐 ${escapeHtml(it.jam || '-')}</span>
+        <button type="button" class="rc-hapus" data-rl-hapus="1" aria-label="Hapus resi">🗑️</button>
       </div>
-      <button class="delete-btn" data-row="${item.row}">🗑️</button>
-    `;
-    wrap.appendChild(row);
-  });
-  wrap.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', () => hapusItem(parseInt(btn.dataset.row, 10)));
-  });
-  wrap.querySelectorAll('[data-koreksi-row]').forEach(tag => {
-    tag.addEventListener('click', () => koreksiKurir(parseInt(tag.dataset.koreksiRow, 10), tag.dataset.koreksiKurir));
+    </div>`;
+}
+
+function renderListItems(items) {
+  rlPasangDelegasiList();
+  const pakaiInvoice = currentMode !== 'stock'; // Pembelian Stock nggak punya invoice penjualan
+  el('list-items').innerHTML = items.map(it => rlHtmlKartu(it, pakaiInvoice)).join('');
+}
+
+// 1 listener buat semua kartu (event delegation) - render 100+ kartu tetap enteng di HP
+function rlPasangDelegasiList() {
+  if (listDelegasiTerpasang) return;
+  const wrap = el('list-items');
+  if (!wrap) return;
+  listDelegasiTerpasang = true;
+  wrap.addEventListener('click', e => {
+    const btnCopy = e.target.closest('[data-rl-copy]');
+    if (btnCopy) { pgrSalinTeks(btnCopy.dataset.rlCopy, btnCopy); return; }
+    const kartu = e.target.closest('.rc-card');
+    if (!kartu) return;
+    const row = parseInt(kartu.dataset.row, 10);
+    if (e.target.closest('[data-rl-hapus]')) { hapusItem(row); return; }
+    const tagKurir = e.target.closest('[data-rl-kurir]');
+    if (tagKurir) koreksiKurir(row, tagKurir.dataset.rlKurir);
   });
 }
 
@@ -20478,8 +20649,8 @@ async function hapusItem(row) {
 /* ================= STATISTIK MENU UTAMA (anti-macet) ================= */
 async function fetchCount(tipe) {
   try {
-    const data = await postJson({ aksi: 'lihat', tipe: tipe, email: currentUserEmail() }, 8000);
-    if (data.success) return data.countToday;
+    const data = await postJson({ aksi: 'lihat_resi_harian', tipe: tipe, hanyaHitung: true, email: currentUserEmail() }, 8000);
+    if (data.success) return data.jumlah;
   } catch (e) {}
   return null;
 }
