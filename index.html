@@ -1840,6 +1840,40 @@ a.harga-url-toggle.ada { color: #1e6b45; }
   .harga-biaya-row .harga-biaya-maks { grid-column: 1 / -1; grid-row: 2; }
   .harga-biaya-row .harga-biaya-maks.nonaktif { display: none; }
 }
+/* ===== Pengiriman v2: Control Bar, checkbox aksi massal, pill badge status, quick copy ===== */
+.pgr-control-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; background: var(--web-panel); border: 1px solid var(--web-border); border-radius: 12px; }
+.pgr-search-wrap { position: relative; flex: 1 1 260px; max-width: 360px; }
+.pgr-search-wrap svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--web-text-dim); pointer-events: none; }
+.pgr-search-input { width: 100%; padding: 9px 12px 9px 34px; border-radius: 8px; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text); font-family: inherit; font-size: 13px; }
+.pgr-select { padding: 9px 10px; border-radius: 8px; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text); font-family: inherit; font-size: 13px; cursor: pointer; }
+.pgr-select:disabled { opacity: 0.55; cursor: not-allowed; }
+.pgr-search-input:focus, .pgr-select:focus { outline: none; border-color: var(--web-accent); box-shadow: 0 0 0 3px rgba(47,158,110,0.14); }
+.pgr-info-terpilih { font-size: 11.5px; font-weight: 700; color: var(--web-accent); }
+.pgr-info-jumlah { font-size: 11.5px; color: var(--web-text-dim); }
+.web-table .pgr-col-cek { width: 34px; padding-right: 0; }
+.pgr-col-cek input[type="checkbox"] { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--web-accent); vertical-align: middle; }
+.web-table tr.pgr-row-terpilih td { background: rgba(47,158,110,0.08); }
+.pgr-sel-copy { display: inline-flex; align-items: center; gap: 3px; }
+.pgr-mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11.5px; }
+.pgr-inv { font-size: 11.5px; font-weight: 600; }
+.pgr-inv-error { font-size: 11.5px; font-weight: 800; color: #c62828; }
+body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
+.pgr-btn-ikon { border: none; background: transparent; color: inherit; cursor: pointer; font-size: 12px; line-height: 1; padding: 3px 4px; border-radius: 5px; opacity: 0.45; transition: opacity 0.15s ease, background 0.15s ease; }
+.web-table tr:hover .pgr-btn-ikon, .pgr-btn-ikon:focus-visible, .pgr-btn-ikon.pgr-btn-link { opacity: 1; }
+.pgr-btn-ikon:hover { background: rgba(127,127,127,0.15); }
+.pgr-btn-ikon.pgr-tersalin { opacity: 1; color: var(--web-accent); font-weight: 700; }
+.pgr-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.pgr-pill-menunggu { background: #fde68a; color: #422006; }
+.pgr-pill-dikirim { background: #dbeafe; color: #1e3a8a; }
+.pgr-pill-selesai { background: #dcfce7; color: #14532d; }
+.pgr-pill-retur { background: #fee2e2; color: #7f1d1d; }
+.pgr-muat-lagi { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: var(--web-text-dim); }
+#pgr-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(12px); background: #1e2b24; color: #fafafa; padding: 9px 16px; border-radius: 10px; font-size: 12.5px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s ease; z-index: 10000; max-width: 90vw; }
+#pgr-toast.tampil { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 640px) {
+  .pgr-search-wrap { max-width: none; flex-basis: 100%; }
+  .pgr-control-bar .pgr-select { flex: 1 1 45%; }
+}
 </style>
 </head>
 <body>
@@ -3547,6 +3581,33 @@ a.harga-url-toggle.ada { color: #1e6b45; }
           <div style="flex:1;"></div>
           <span id="pgr-status-info" style="font-size:11px; color:var(--web-text-dim); align-self:center;"></span>
           <button class="web-btn-secondary" onclick="pgrRefreshRiwayat()" style="font-size:11px; padding:4px 10px;" title="Tarik ulang data riwayat dari server (biasanya nggak perlu, cache otomatis berlaku 2 jam)">🔄</button>
+        </div>
+
+        <!-- CONTROL BAR PENGIRIMAN (cari + filter kurir + aksi massal) - tampil di 4 tab kategori -->
+        <div id="pgr-control-bar" class="pgr-control-bar">
+          <div class="pgr-search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="search" id="pgr-cari" class="pgr-search-input" placeholder="Cari No Resi / No Invoice..." autocomplete="off" oninput="pgrSaatCariBerubah()" />
+          </div>
+          <select id="pgr-filter-kurir" class="pgr-select" onchange="pgrSaatFilterBerubah()" title="Filter kurir">
+            <option value="">Semua Kurir</option>
+            <option value="jnt">J&amp;T</option>
+            <option value="spx">Shopee Express</option>
+            <option value="anteraja">AnterAja</option>
+            <option value="jne">JNE</option>
+            <option value="sicepat">SiCepat</option>
+          </select>
+          <select id="pgr-bulk-aksi" class="pgr-select" onchange="pgrSaatBulkDipilih(this)" disabled title="Centang resi dulu untuk aksi massal">
+            <option value="">Aksi Massal…</option>
+            <option value="selesai">✓ Tandai Selesai</option>
+            <option value="retur">↩ Tandai Retur</option>
+            <option value="cetak-label">🖨️ Cetak Ulang Label</option>
+            <option value="export-csv">⬇️ Export CSV</option>
+          </select>
+          <span id="pgr-info-terpilih" class="pgr-info-terpilih"></span>
+          <div style="flex:1;"></div>
+          <span id="pgr-info-jumlah" class="pgr-info-jumlah"></span>
+          <button type="button" id="pgr-btn-muat-ulang" class="web-btn-secondary" onclick="pgrMuatUlangAktif()" style="font-size:11.5px; padding:6px 12px;" title="Tarik ulang resi aktif terbaru dari server">↻ Muat Ulang</button>
         </div>
 
         <!-- TAB: BELUM SELESAI -->
@@ -8054,6 +8115,7 @@ async function pengirimanBukaSub(sub) {
   });
   document.querySelectorAll('#web-tab-pengiriman [data-pgrview]').forEach(div => { div.style.display = div.dataset.pgrview === sub ? 'block' : 'none'; });
   pgrPaginasiState.page = 1;
+  pgrSaatGantiSub(sub);
 
   if (sub === 'resi-masuk') { wpFetchLogResiMasuk(); return; }
 
@@ -8076,11 +8138,29 @@ async function pengirimanBukaSub(sub) {
   wpRenderPengirimanTab();
 }
 
-async function wpMuatAktifPengiriman() {
+// Data aktif dimuat BERTAHAP: awalnya cuma 200 resi aktif terbaru (biar instan & nggak timeout),
+// sisanya lewat tombol "Muat resi lebih lama" pakai cursor baris dari server.
+const PGR_LIMIT_AWAL = 200;
+let pgrAktifMeta = { cursorBerikut: null, adaLagi: false, memuat: false };
+
+async function wpMuatAktifPengiriman(opsi) {
+  const lanjut = !!(opsi && opsi.lanjut);
+  if (pgrAktifMeta.memuat) return;
+  pgrAktifMeta.memuat = true;
   try {
-    const data = await postJson({ aksi: 'lihat_log_resi_aktif', email: currentUserEmail() });
-    if (data.success) wpPengirimanAktifCache = data.daftar || [];
-  } catch (err) {}
+    const payload = { aksi: 'lihat_log_resi_aktif', email: currentUserEmail(), limit: PGR_LIMIT_AWAL };
+    if (lanjut && pgrAktifMeta.cursorBerikut) payload.sebelumBaris = pgrAktifMeta.cursorBerikut;
+    const data = await postJson(payload);
+    if (data.success) {
+      const baru = data.daftar || [];
+      wpPengirimanAktifCache = (lanjut && wpPengirimanAktifCache) ? wpPengirimanAktifCache.concat(baru) : baru;
+      pgrAktifMeta.cursorBerikut = data.cursorBerikut || null;
+      pgrAktifMeta.adaLagi = !!data.adaLagi;
+    }
+  } catch (err) {
+  } finally {
+    pgrAktifMeta.memuat = false;
+  }
 }
 
 async function wpMuatRiwayatPengiriman() {
@@ -8103,10 +8183,287 @@ async function pgrRefreshRiwayat() {
 const PGR_KATEGORI_MAP = { 'belum-selesai': 'Belum Selesai', 'perlu-dicek': 'Perlu Dicek', 'selesai': 'Selesai', 'komplain-batal': 'Komplain/Batal' };
 const PGR_PILL_STATUS = { 'Menunggu Kurir': 'aktif', 'Dalam Pengiriman': 'dikirim', 'Pesanan Selesai': 'dikirim', 'Retur': 'batal' };
 
+/* ===== Pengiriman v2: Control Bar (cari + filter kurir + aksi massal), checkbox, pill badge,
+   quick copy. Dipakai 4 tab kategori (Belum Selesai, Perlu Dicek, Selesai, Komplain/Batal).
+   Tab "Semua Log Resi" & "Resi Masuk" tetap pakai render lamanya. ===== */
+const PGR_SUB_KATEGORI = ['belum-selesai', 'perlu-dicek', 'selesai', 'komplain-batal'];
+const PGR_KURIR_ALIAS = {
+  jnt: ['j&t', 'jnt', 'j & t'],
+  spx: ['shopee express', 'shopee xpress', 'spx'],
+  anteraja: ['anteraja', 'anter aja'],
+  jne: ['jne'],
+  sicepat: ['sicepat', 'si cepat']
+};
+const PGR_PILL_KELAS = { 'Menunggu Kurir': 'pgr-pill-menunggu', 'Dalam Pengiriman': 'pgr-pill-dikirim', 'Pesanan Selesai': 'pgr-pill-selesai', 'Retur': 'pgr-pill-retur' };
+const PGR_LABEL_AKSI_MASSAL = { 'selesai': 'Tandai Selesai', 'retur': 'Tandai Retur', 'cetak-label': 'Cetak Ulang Label', 'export-csv': 'Export CSV' };
+let pgrTerpilih = new Set();   // No Resi yang dicentang
+let pgrResiTampil = [];        // No Resi yang lagi tampil di halaman tabel saat ini
+let pgrCariTimer = null;
+let pgrDelegasiTerpasang = false;
+
+function pgrAttr(str) {
+  return escapeHtml(String(str == null ? '' : str)).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function pgrSaatGantiSub(sub) {
+  const bar = el('pgr-control-bar');
+  if (bar) bar.style.display = PGR_SUB_KATEGORI.includes(sub) ? 'flex' : 'none';
+  const isAktif = sub === 'belum-selesai' || sub === 'perlu-dicek';
+  const btnMuatUlang = el('pgr-btn-muat-ulang');
+  if (btnMuatUlang) btnMuatUlang.style.display = isAktif ? '' : 'none';
+  if (isAktif && wpPengirimanAktifCache === null) {
+    el('pgr-body-' + sub).innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--web-text-dim);">Memuat resi aktif terbaru...</td></tr>';
+  }
+  pgrTerpilih.clear();
+  pgrUpdateInfoTerpilih();
+}
+
+function pgrSaatCariBerubah() {
+  clearTimeout(pgrCariTimer);
+  pgrCariTimer = setTimeout(() => { pgrPaginasiState.page = 1; pgrTerpilih.clear(); wpRenderPengirimanTab(); }, 150);
+}
+
+function pgrSaatFilterBerubah() {
+  pgrPaginasiState.page = 1;
+  pgrTerpilih.clear();
+  wpRenderPengirimanTab();
+}
+
+function pgrCocokKurir(kurirData, kodeFilter) {
+  if (!kodeFilter) return true;
+  const k = String(kurirData || '').toLowerCase();
+  return (PGR_KURIR_ALIAS[kodeFilter] || []).some(alias => k.includes(alias));
+}
+
+function pgrTerapkanFilter(daftar) {
+  const cari = (el('pgr-cari')?.value || '').toLowerCase().trim();
+  const kurir = el('pgr-filter-kurir')?.value || '';
+  if (!cari && !kurir) return daftar;
+  return daftar.filter(d => {
+    if (!pgrCocokKurir(d.kurir, kurir)) return false;
+    if (!cari) return true;
+    return String(d.noResiScan || '').toLowerCase().includes(cari) || String(d.noInvoice || '').toLowerCase().includes(cari);
+  });
+}
+
+function pgrPasangHeaderTabel(sub) {
+  const tbody = el('pgr-body-' + sub);
+  const table = tbody ? tbody.closest('table') : null;
+  if (!table || table.dataset.pgrV2 === '1') return;
+  table.tHead.innerHTML = `<tr><th class="pgr-col-cek"><input type="checkbox" class="pgr-cek-master" id="pgr-cekall-${sub}" title="Pilih / batal pilih semua yang tampil" aria-label="Pilih semua yang tampil"></th><th>No Resi</th><th>Waktu Scan</th><th>Kurir</th><th>No Invoice</th><th>Status Pesanan</th><th>Resi Retur</th></tr>`;
+  table.dataset.pgrV2 = '1';
+}
+
+function pgrPillStatus(status) {
+  return `<span class="pgr-pill ${PGR_PILL_KELAS[status] || 'pgr-pill-menunggu'}">${escapeHtml(status || '-')}</span>`;
+}
+
+function pgrHtmlBaris(d) {
+  const resi = String(d.noResiScan || '');
+  const dipilih = pgrTerpilih.has(resi);
+  const kolomInvoice = d.noInvoice
+    ? `<span class="pgr-sel-copy"><span class="pgr-inv">${escapeHtml(d.noInvoice)}</span><button type="button" class="pgr-btn-ikon" data-pgr-copy="${pgrAttr(d.noInvoice)}" title="Salin No Invoice">📋</button></span>`
+    : `<span class="pgr-sel-copy"><span class="pgr-inv-error">Nggak cocok</span><button type="button" class="pgr-btn-ikon pgr-btn-link" data-pgr-tautkan="${pgrAttr(resi)}" title="Tautkan resi ini ke invoice secara manual">🔗</button></span>`;
+  return `
+    <tr data-resi="${pgrAttr(resi)}"${dipilih ? ' class="pgr-row-terpilih"' : ''}>
+      <td class="pgr-col-cek"><input type="checkbox" class="pgr-cek-baris"${dipilih ? ' checked' : ''} aria-label="Pilih resi"></td>
+      <td><span class="pgr-sel-copy"><span class="pgr-mono">${escapeHtml(resi)}</span><button type="button" class="pgr-btn-ikon" data-pgr-copy="${pgrAttr(resi)}" title="Salin No Resi">📋</button></span></td>
+      <td style="font-size:11px; color:var(--web-text-dim); white-space:nowrap;">${escapeHtml(d.tanggal || '-')}</td>
+      <td style="font-size:11px;">${escapeHtml(d.kurir || '-')}</td>
+      <td>${kolomInvoice}</td>
+      <td>${pgrPillStatus(d.statusPesanan)}</td>
+      <td style="font-size:11.5px;">${d.resiRetur ? escapeHtml(d.resiRetur) : '-'}</td>
+    </tr>`;
+}
+
+function pgrRenderTabelKategori(sub) {
+  pgrPasangHeaderTabel(sub);
+  pgrPasangDelegasi();
+  const isRiwayat = sub === 'selesai' || sub === 'komplain-batal';
+  const sumber = isRiwayat ? (wpPengirimanRiwayatCache || []) : (wpPengirimanAktifCache || []);
+  const kategoriTarget = PGR_KATEGORI_MAP[sub];
+  const daftarKategori = sumber.filter(d => d.kategoriPengiriman === kategoriTarget);
+  const daftar = pgrTerapkanFilter(daftarKategori);
+
+  const emptyEl = el('pgr-empty-' + sub);
+  if (!emptyEl.dataset.teksAsli) emptyEl.dataset.teksAsli = emptyEl.textContent;
+  emptyEl.textContent = (daftarKategori.length > 0 && daftar.length === 0) ? 'Nggak ada resi yang cocok dengan pencarian / filter kurir.' : emptyEl.dataset.teksAsli;
+  emptyEl.style.display = daftar.length === 0 ? 'block' : 'none';
+
+  const halamanIni = halamanDataPaginasi(daftar, pgrPaginasiState);
+  pgrResiTampil = halamanIni.map(d => String(d.noResiScan || ''));
+  el('pgr-body-' + sub).innerHTML = halamanIni.map(pgrHtmlBaris).join('');
+  renderPaginasi('pgr-paginasi-' + sub, daftar.length, pgrPaginasiState, wpRenderPengirimanTab);
+
+  const infoEl = el('pgr-info-jumlah');
+  if (infoEl) infoEl.textContent = daftar.length === daftarKategori.length ? `${daftarKategori.length} resi` : `${daftar.length} dari ${daftarKategori.length} resi`;
+  pgrRenderMuatLagi(sub, isRiwayat);
+  pgrUpdateMasterCheckbox(sub);
+  pgrUpdateInfoTerpilih();
+}
+
+function pgrRenderMuatLagi(sub, isRiwayat) {
+  const idWrap = 'pgr-muatlagi-' + sub;
+  let wrap = el(idWrap);
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = idWrap;
+    wrap.className = 'pgr-muat-lagi';
+    el('pgr-paginasi-' + sub).after(wrap);
+  }
+  if (isRiwayat || !pgrAktifMeta.adaLagi) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<span>Menampilkan ${(wpPengirimanAktifCache || []).length} resi aktif terbaru.</span>
+    <button type="button" class="web-btn-secondary" style="font-size:11.5px; padding:5px 12px;" onclick="pgrMuatLebihBanyak(this)">Muat ${PGR_LIMIT_AWAL} resi lebih lama</button>`;
+}
+
+async function pgrMuatLebihBanyak(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
+  await wpMuatAktifPengiriman({ lanjut: true });
+  wpRenderPengirimanTab();
+}
+
+async function pgrMuatUlangAktif() {
+  const btn = el('pgr-btn-muat-ulang');
+  if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
+  await wpMuatAktifPengiriman();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Muat Ulang'; }
+  pgrTerpilih.clear();
+  wpRenderPengirimanTab();
+}
+
+// Satu listener buat seluruh tab Pengiriman (event delegation) - nggak perlu pasang
+// onclick di tiap baris, jadi render 100+ baris tetap enteng.
+function pgrPasangDelegasi() {
+  if (pgrDelegasiTerpasang) return;
+  const root = el('web-tab-pengiriman');
+  if (!root) return;
+  pgrDelegasiTerpasang = true;
+  root.addEventListener('click', e => {
+    const btnCopy = e.target.closest('[data-pgr-copy]');
+    if (btnCopy) { e.preventDefault(); pgrSalinTeks(btnCopy.dataset.pgrCopy, btnCopy); return; }
+    const btnLink = e.target.closest('[data-pgr-tautkan]');
+    if (btnLink) { e.preventDefault(); pgrTautkanManual(btnLink.dataset.pgrTautkan); }
+  });
+  root.addEventListener('change', e => {
+    const t = e.target;
+    if (t.classList.contains('pgr-cek-master')) { pgrPilihSemuaTampil(t.checked); return; }
+    if (t.classList.contains('pgr-cek-baris')) {
+      const tr = t.closest('tr');
+      const resi = tr ? tr.dataset.resi : '';
+      if (!resi) return;
+      if (t.checked) pgrTerpilih.add(resi); else pgrTerpilih.delete(resi);
+      tr.classList.toggle('pgr-row-terpilih', t.checked);
+      pgrUpdateMasterCheckbox(wpPengirimanSubAktif);
+      pgrUpdateInfoTerpilih();
+    }
+  });
+}
+
+function pgrPilihSemuaTampil(centang) {
+  pgrResiTampil.forEach(r => { if (centang) pgrTerpilih.add(r); else pgrTerpilih.delete(r); });
+  const tbody = el('pgr-body-' + wpPengirimanSubAktif);
+  if (tbody) tbody.querySelectorAll('tr[data-resi]').forEach(tr => {
+    const cb = tr.querySelector('.pgr-cek-baris');
+    if (cb) cb.checked = centang;
+    tr.classList.toggle('pgr-row-terpilih', centang);
+  });
+  pgrUpdateMasterCheckbox(wpPengirimanSubAktif);
+  pgrUpdateInfoTerpilih();
+}
+
+function pgrUpdateMasterCheckbox(sub) {
+  const m = el('pgr-cekall-' + sub);
+  if (!m) return;
+  const jml = pgrResiTampil.filter(r => pgrTerpilih.has(r)).length;
+  m.checked = jml > 0 && jml === pgrResiTampil.length;
+  m.indeterminate = jml > 0 && jml < pgrResiTampil.length;
+  m.disabled = pgrResiTampil.length === 0;
+}
+
+function pgrUpdateInfoTerpilih() {
+  const n = pgrTerpilih.size;
+  const info = el('pgr-info-terpilih');
+  if (info) info.textContent = n ? `${n} dipilih` : '';
+  const bulk = el('pgr-bulk-aksi');
+  if (bulk) {
+    bulk.disabled = n === 0;
+    bulk.options[0].textContent = n ? `Aksi Massal (${n})…` : 'Aksi Massal…';
+  }
+}
+
+function pgrSaatBulkDipilih(selectEl) {
+  const aksi = selectEl.value;
+  selectEl.value = '';
+  if (!aksi) return;
+  const daftarResi = Array.from(pgrTerpilih);
+  if (!daftarResi.length) { pgrToast('Centang minimal 1 resi dulu.'); return; }
+  pgrJalankanAksiMassal(aksi, daftarResi);
+}
+
+// KERANGKA aksi massal - fungsi aslinya menyusul. Tiap aksi nanti tinggal diisi di sini
+// (misal postJson ke backend dengan daftarResi sekaligus, 1x request batch).
+function pgrJalankanAksiMassal(aksi, daftarResi) {
+  const label = PGR_LABEL_AKSI_MASSAL[aksi] || aksi;
+  pgrToast(`"${label}" untuk ${daftarResi.length} resi - fitur ini segera hadir.`);
+}
+
+// KERANGKA tautkan manual resi "Nggak cocok" ke invoice - dialognya menyusul.
+// Sementara: No Resi otomatis disalin biar gampang dicari manual di Penjualan.
+async function pgrTautkanManual(noResi) {
+  const berhasil = await pgrSalinTeks(noResi, null, true);
+  pgrToast(`${berhasil ? 'No Resi ' + noResi + ' disalin. ' : ''}Fitur tautkan manual ke invoice segera hadir.`);
+}
+
+async function pgrSalinTeks(teks, tombol, diam) {
+  if (!teks) return false;
+  let berhasil = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(teks); berhasil = true; }
+  } catch (err) {}
+  if (!berhasil) {
+    // Cadangan kalau Clipboard API ditolak browser (misal di dalam iframe Apps Script)
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = teks;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed; top:-1000px; opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      berhasil = document.execCommand('copy');
+      ta.remove();
+    } catch (err) {}
+  }
+  if (diam) return berhasil;
+  if (tombol) {
+    if (!tombol.dataset.ikonAsli) tombol.dataset.ikonAsli = tombol.textContent;
+    tombol.textContent = berhasil ? '✓' : '✕';
+    tombol.classList.add('pgr-tersalin');
+    clearTimeout(tombol._pgrTimer);
+    tombol._pgrTimer = setTimeout(() => { tombol.textContent = tombol.dataset.ikonAsli; tombol.classList.remove('pgr-tersalin'); }, 1200);
+  }
+  pgrToast(berhasil ? `Disalin: ${teks}` : 'Gagal menyalin - browser menolak akses clipboard.');
+  return berhasil;
+}
+
+function pgrToast(pesan) {
+  let t = el('pgr-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'pgr-toast';
+    t.setAttribute('role', 'status');
+    document.body.appendChild(t);
+  }
+  t.textContent = pesan;
+  t.classList.add('tampil');
+  clearTimeout(pgrToast._timer);
+  pgrToast._timer = setTimeout(() => t.classList.remove('tampil'), 2000);
+}
+
 function wpRenderPengirimanTab() {
   const sub = wpPengirimanSubAktif;
   if (sub === 'semua-log') { wpRenderSemuaLogResi(); return; }
   if (sub === 'resi-masuk') return; // ditangani wpLogMasukRenderHalaman sendiri
+  if (PGR_SUB_KATEGORI.includes(sub)) { pgrRenderTabelKategori(sub); return; } // Pengiriman v2
 
   const kategoriTarget = PGR_KATEGORI_MAP[sub];
   const sumberData = (sub === 'selesai' || sub === 'komplain-batal') ? (wpPengirimanRiwayatCache || []) : (wpPengirimanAktifCache || []);
