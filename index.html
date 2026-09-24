@@ -1752,8 +1752,7 @@ a.harga-url-toggle.ada { color: #1e6b45; }
 .harga-input-terkunci:focus-within { box-shadow: none; border-color: var(--web-border); background: #f3f4f6; }
 .harga-input-terkunci input { cursor: default; }
 .harga-teks-kosong { color: var(--web-text-dim); font-weight: 500; font-style: italic; font-size: 11.5px; }
-.harga-ch-cell[data-ch="default"] .harga-static { margin: -4px -6px 0; }
-.harga-ch-cell[data-mode-massal="1"] .harga-rp-input { border-color: var(--web-info); box-shadow: 0 0 0 2px rgba(63,127,201,0.12); background: #fff; }
+.harga-default-statis { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--web-text); padding: 4px 0; white-space: nowrap; }
 /* Tab 2: baris Harga Coret permanen (bawaan sistem) */
 .harga-biaya-row.harga-baris-sistem .harga-biaya-input[data-field="nama"],
 .harga-biaya-row.harga-baris-sistem .harga-biaya-tipe-tetap { opacity: 0.7; }
@@ -5263,7 +5262,7 @@ a.harga-url-toggle.ada { color: #1e6b45; }
               <label class="harga-bulk-field"><span>Target Margin</span>
                 <span class="harga-persen-input harga-bulk-input-margin"><input type="text" inputmode="decimal" autocomplete="off" id="harga-bulk-margin" placeholder="20" /><span>%</span></span>
               </label>
-              <button type="button" class="web-btn-secondary" id="harga-bulk-btn-default" onclick="hargaTerapkanMassal('default')" title="Buka mode edit Harga Default untuk semua baris yang dicentang">Terapkan ke Harga Default</button>
+              <button type="button" class="web-btn-secondary" id="harga-bulk-btn-default" onclick="hargaTerapkanMassal('default')" title="Hitung ulang Harga Default baris yang dicentang dari HPP & Target Margin masing-masing (biaya Card Offline)">Terapkan ke Harga Default</button>
               <button type="button" class="web-btn-secondary" onclick="hargaTerapkanMassal('shopee')">Terapkan ke Harga Shopee</button>
               <button type="button" class="web-btn-secondary" onclick="hargaTerapkanMassal('tiktok')">Terapkan ke Harga TikTok Shop &amp; Tokopedia</button>
               <span class="harga-bulk-scope" id="harga-bulk-scope"></span>
@@ -12655,7 +12654,6 @@ let hargaParamMeta = {};
 let hargaCariKeyword = '';
 let hargaTabAktif = 'tabel';
 let hargaSkuSedangSimpan = new Set();
-const hargaEditMassalDefault = new Set(); // SKU yang Harga Default-nya sedang dibuka lewat Edit Massal
 
 /* ---------- Util angka ---------- */
 function hargaFmtAngka(n) { return Math.round(Number(n) || 0).toLocaleString('id-ID'); }
@@ -13084,17 +13082,13 @@ function katalogHargaUpdateBulkCount() {
 
 function hargaSelChannelHtml(sku, ch, d) {
   const s = escapeHtml(sku);
-  // Harga Default (offline): Hover-to-Edit - teks statis, ✏️ saat hover, klik -> input, blur/Enter -> statis.
+  // Harga Default (offline): TEKS STATIS (readonly), tidak bisa diketik manual. Nilainya hanya
+  // berubah lewat "Klik untuk terapkan" atau Aksi Massal "Terapkan ke Harga Default" (dihitung sistem).
   if (ch.key === 'default') {
-    const massal = hargaEditMassalDefault.has(sku);
     return `
-    <td class="harga-ch-cell harga-edit-cell ${massal ? 'editing' : ''}" data-ch="default" data-field="default" data-sku="${s}" ${massal ? 'data-mode-massal="1"' : ''}>
+    <td class="harga-ch-cell" data-ch="default">
       <div class="harga-ch-stack">
-        <div class="harga-static" tabindex="0" role="button" aria-label="Edit Harga Default">
-          <span class="harga-static-teks" data-role="default-teks"></span>
-          <span class="harga-ikon-hover" aria-hidden="true">✏️</span>
-        </div>
-        <div class="harga-rp-input harga-edit-box" data-role="final-box"><span>Rp.</span><input type="text" inputmode="numeric" autocomplete="off" class="harga-input-final harga-input-edit" data-sku="${s}" data-ch="default" value="${escapeHtml(d.final.default)}" placeholder="0" aria-label="Harga Default" /><span>,-</span></div>
+        <div class="harga-default-statis" data-role="default-teks" title="Harga Default - diisi sistem lewat Klik untuk terapkan / Aksi Massal"></div>
         <div class="harga-rekom-line" data-role="rekom-line"></div>
         <div class="harga-rekom-aksi" data-role="rekom-aksi"></div>
       </div>
@@ -13224,7 +13218,8 @@ function hargaHitungBaris(sku) {
       aksi.innerHTML = '';
     }
     const nilaiFinal = hargaParseRupiah(d.final[ch.key]);
-    cell.querySelector('[data-role="final-box"]').classList.toggle('invalid', nilaiFinal !== null && !hargaAngkaValidPositif(nilaiFinal));
+    const finalBox = cell.querySelector('[data-role="final-box"]');
+    if (finalBox) finalBox.classList.toggle('invalid', nilaiFinal !== null && !hargaAngkaValidPositif(nilaiFinal));
     const teksDefault = cell.querySelector('[data-role="default-teks"]');
     if (teksDefault) {
       teksDefault.innerHTML = nilaiFinal === null ? '<span class="harga-teks-kosong">Belum diset</span>'
@@ -13265,8 +13260,8 @@ function hargaMulaiEdit(td) {
   const d = hargaAmbilDraft(sku);
   if (!d) return;
   const inp = td.querySelector('.harga-input-edit');
-  if (field === 'default') { inp.value = d.final.default; inp.dataset.nilaiAwal = d.final.default; }
-  else { inp.value = field === 'hpp' ? (hargaParseRupiah(d.hpp) > 0 ? d.hpp : '') : d.margin; inp.dataset.nilaiAwal = field === 'hpp' ? d.hpp : d.margin; }
+  inp.value = field === 'hpp' ? (hargaParseRupiah(d.hpp) > 0 ? d.hpp : '') : d.margin;
+  inp.dataset.nilaiAwal = field === 'hpp' ? d.hpp : d.margin;
   delete inp.dataset.batal;
   td.classList.add('editing');
   inp.focus();
@@ -13278,10 +13273,7 @@ function hargaSelesaiEdit(inp) {
   if (!td || !td.classList.contains('editing')) return;
   const sku = td.dataset.sku, field = td.dataset.field;
   const d = hargaAmbilDraft(sku);
-  if (td.dataset.modeMassal === '1') return; // mode edit massal: tetap terbuka sampai "Selesai Edit Massal"
-  if (field === 'default') {
-    if (inp.dataset.batal === '1') { d.final.default = inp.dataset.nilaiAwal || ''; inp.value = d.final.default; }
-  } else if (inp.dataset.batal === '1') {
+  if (inp.dataset.batal === '1') {
     if (field === 'hpp') d.hpp = inp.dataset.nilaiAwal; else d.margin = inp.dataset.nilaiAwal;
   } else if (field === 'hpp') {
     d.hpp = inp.value === '' ? '0' : inp.value;
@@ -13316,19 +13308,6 @@ function hargaSelesaiEdit(inp) {
   body.addEventListener('keydown', (e) => {
     const t = e.target;
     if (t.classList.contains('harga-input-edit')) {
-      const tdMassal = t.closest('[data-mode-massal="1"]');
-      if (tdMassal) {
-        // Mode edit massal Harga Default: Enter = lompat ke baris berikutnya (atas -> bawah)
-        if (e.key === 'Enter') { e.preventDefault(); hargaFokusMassalBerikutnya(t, e.shiftKey ? -1 : 1); }
-        else if (e.key === 'Escape') {
-          e.preventDefault();
-          const d = hargaAmbilDraft(tdMassal.dataset.sku);
-          d.final.default = t.dataset.nilaiAwal || '';
-          t.value = d.final.default;
-          hargaHitungBaris(tdMassal.dataset.sku); hargaUpdateTombolSimpanSemua();
-        }
-        return;
-      }
       if (e.key === 'Enter') { e.preventDefault(); t.blur(); }
       else if (e.key === 'Escape') { e.preventDefault(); t.dataset.batal = '1'; t.blur(); }
       return;
@@ -13339,12 +13318,6 @@ function hargaSelesaiEdit(inp) {
       e.preventDefault();
       const btn = t.parentElement.querySelector('.harga-btn-ai');
       if (btn && !btn.disabled) katalogUpdateHppDariSupplier(t.dataset.sku, btn);
-    }
-  });
-  body.addEventListener('focusin', (e) => {
-    const t = e.target;
-    if (t.classList && t.classList.contains('harga-input-edit') && t.closest('[data-mode-massal="1"]') && t.dataset.nilaiAwal === undefined) {
-      const d = hargaAmbilDraft(t.dataset.sku); t.dataset.nilaiAwal = d ? d.final.default : '';
     }
   });
   body.addEventListener('focusout', (e) => {
@@ -13400,7 +13373,8 @@ function hargaTerapkanRekomendasi(sku, chKey, link) {
   const tr = hargaBarisEl(sku);
   if (tr) {
     const cell = tr.querySelector(`.harga-ch-cell[data-ch="${chKey}"]`);
-    cell.querySelector('.harga-input-final').value = d.final[chKey];
+    const inpFinal = cell.querySelector('.harga-input-final'); // kolom Harga Default tidak punya input (teks statis)
+    if (inpFinal) inpFinal.value = d.final[chKey];
     const inpCoret = cell.querySelector('.harga-input-coret');
     if (inpCoret) inpCoret.value = d.coret[chKey];
     cell.classList.remove('baru-diterapkan'); void cell.offsetWidth; cell.classList.add('baru-diterapkan');
@@ -13531,7 +13505,6 @@ async function hargaSimpanDaftarPerubahan(dirty, statusEl) {
 }
 
 async function hargaSimpanSemuaPerubahan() {
-  if (hargaEditMassalDefault.size > 0) { hargaEditMassalDefault.clear(); hargaUpdateTombolMassalDefault(); }
   await hargaSimpanDaftarPerubahan(hargaDaftarDirty(), el('harga-simpan-semua-status'));
 }
 
@@ -13539,68 +13512,38 @@ async function hargaSimpanSemuaPerubahan() {
 // Mengisi Harga Jual Final channel terpilih dengan Rekomendasi Harga yang dihitung pakai Target Margin
 // massal (HPP masing-masing produk tetap). Target Margin per produk TIDAK diubah. Hasilnya masuk
 // sebagai perubahan (belum tersimpan) supaya bisa dicek dulu -> tekan "Simpan Semua Perubahan".
-/* ---------- Edit Massal Harga Default ----------
-   Tombol "Terapkan ke Harga Default": semua baris yang DICENTANG (di halaman ini) langsung dibuka ke
-   mode edit sekaligus. Enter = lompat ke baris berikutnya, Shift+Enter = baris sebelumnya,
-   Esc = kembalikan nilai baris itu. Tutup semua lewat tombol "✓ Selesai Edit Harga Default". */
-function hargaInputMassalTampil() {
-  return Array.from(el('katalog-harga-body').querySelectorAll('td[data-mode-massal="1"] .harga-input-edit'));
-}
-function hargaFokusMassalBerikutnya(inp, arah) {
-  const semua = hargaInputMassalTampil();
-  const i = semua.indexOf(inp);
-  const target = semua[i + arah];
-  if (target) { target.focus(); target.select(); }
-}
-function hargaUpdateTombolMassalDefault() {
-  const btn = el('harga-bulk-btn-default');
-  if (!btn) return;
-  const aktif = hargaEditMassalDefault.size > 0;
-  btn.textContent = aktif ? '✓ Selesai Edit Harga Default' : 'Terapkan ke Harga Default';
-  btn.classList.toggle('web-btn-primary', aktif);
-  btn.classList.toggle('web-btn-secondary', !aktif);
-}
-function hargaMulaiEditMassalDefault() {
+/* ---------- Aksi Massal "Terapkan ke Harga Default" ----------
+   Untuk setiap baris yang DICENTANG: ambil Target Margin BARIS ITU SENDIRI + HPP-nya, hitung
+   Rekomendasi Harga Default pakai rumus True Margin dengan biaya dari Card "Offline" (Tab 2):
+     Harga_Default_Baru = (HPP + Total_Biaya_Offline_Rp) / (1 - Target_Margin% - Total_Biaya_Offline_%)
+   (Tahap 2 Batas Maks ikut berjalan kalau ada biaya Offline bertipe % yang punya Batas Maks.)
+   Hasilnya langsung mengisi kolom Harga Default (sebagai perubahan; simpan lewat "Simpan Semua Perubahan").
+   Baris dengan HPP / Target Margin invalid DILEWATI - tidak pernah diisi Rp 0. */
+function hargaTerapkanMassalDefault() {
   const statusEl = el('katalog-harga-bulk-status');
-  if (hargaEditMassalDefault.size > 0) { hargaSelesaiEditMassalDefault(); return; }
-  const halamanIni = halamanDataPaginasi(hargaDaftarTampil(), katalogHargaPaginasiState);
-  const target = halamanIni.filter(p => katalogHargaTerpilih.has(p.sku));
-  if (target.length === 0) { statusEl.className = 'status-text err'; statusEl.textContent = 'Centang dulu produk yang Harga Default-nya mau diubah.'; return; }
-  target.forEach(p => {
-    hargaEditMassalDefault.add(p.sku);
-    const td = hargaBarisEl(p.sku) && hargaBarisEl(p.sku).querySelector('td[data-field="default"]');
-    if (!td) return;
-    const d = hargaAmbilDraft(p.sku);
-    const inp = td.querySelector('.harga-input-edit');
-    inp.value = d.final.default;
-    inp.dataset.nilaiAwal = d.final.default;
-    td.dataset.modeMassal = '1';
-    td.classList.add('editing');
+  const target = Array.from(katalogHargaTerpilih);
+  if (target.length === 0) { statusEl.className = 'status-text err'; statusEl.textContent = 'Centang dulu produk yang Harga Default-nya mau dihitung ulang.'; return; }
+  const param = hargaParamDipakai();
+  let diisi = 0;
+  const dilewati = [];
+  target.forEach(sku => {
+    const d = hargaAmbilDraft(sku);
+    if (!d) return;
+    const hpp = hargaParseRupiah(d.hpp);
+    const marginBaris = hargaMarginDraft(d); // Target Margin milik baris ini (kosong = margin global)
+    const r = hargaRekomendasiChannel('default', hpp, marginBaris, param);
+    if (r.status !== 'ok') { dilewati.push(`${sku} (${r.status === 'hpp-invalid' ? 'HPP invalid' : r.status === 'margin-invalid' ? 'margin invalid' : 'biaya+margin ≥100%'})`); return; }
+    d.final.default = hargaFmtAngka(r.harga);
+    diisi++;
+    hargaHitungBaris(sku); // update tampilan kalau barisnya sedang tampil
   });
-  hargaUpdateTombolMassalDefault();
-  const diLuar = katalogHargaTerpilih.size - target.length;
-  statusEl.className = 'status-text ok';
-  statusEl.textContent = `✏️ ${target.length} Harga Default siap diedit. Enter = baris berikutnya. Tekan "✓ Selesai Edit Harga Default" kalau sudah.${diLuar > 0 ? ` (${diLuar} produk tercentang ada di halaman lain)` : ''}`;
-  const pertama = hargaInputMassalTampil()[0];
-  if (pertama) { pertama.focus(); pertama.select(); }
-}
-function hargaSelesaiEditMassalDefault() {
-  hargaEditMassalDefault.clear();
-  el('katalog-harga-body').querySelectorAll('td[data-mode-massal="1"]').forEach(td => {
-    delete td.dataset.modeMassal;
-    td.classList.remove('editing');
-    hargaHitungBaris(td.dataset.sku);
-  });
-  hargaUpdateTombolMassalDefault();
   hargaUpdateTombolSimpanSemua();
-  const dirty = hargaDaftarDirty().length;
-  const statusEl = el('katalog-harga-bulk-status');
-  statusEl.className = 'status-text ok';
-  statusEl.textContent = dirty > 0 ? `✓ Edit massal selesai. ${dirty} produk berubah - tekan Simpan Semua Perubahan.` : '✓ Edit massal selesai.';
+  statusEl.className = 'status-text ' + (diisi > 0 ? 'ok' : 'err');
+  statusEl.textContent = `${diisi > 0 ? '✓' : '✗'} Harga Default dihitung ulang untuk ${diisi} produk (pakai Target Margin masing-masing)${dilewati.length ? `, ${dilewati.length} dilewati: ${dilewati.slice(0, 3).join(', ')}${dilewati.length > 3 ? ', ...' : ''}` : ''}.${diisi > 0 ? ' Tekan Simpan Semua Perubahan.' : ''}`;
 }
 
 function hargaTerapkanMassal(chKey) {
-  if (chKey === 'default') return hargaMulaiEditMassalDefault();
+  if (chKey === 'default') return hargaTerapkanMassalDefault();
   const statusEl = el('katalog-harga-bulk-status');
   const salah = (t) => { statusEl.className = 'status-text err'; statusEl.textContent = t; };
   const margin = hargaParsePersen(el('harga-bulk-margin').value);
