@@ -14818,8 +14818,17 @@ function belRenderPembelianManual() {
 }
 
 let pmItemsAktif = [];
+// Kunci idempotensi per form Pembelian: tetap SAMA selama form ini belum sukses tersimpan, jadi
+// kalau request pertama sebenarnya sudah masuk tapi browser timeout, klik Simpan lagi TIDAK dobel
+// (server mengembalikan hasil sukses yang sama). Dibuat ulang tiap form baru dibuka.
+let pmIdempotencyKey = null;
+function pmBuatIdempotencyKey() {
+  try { if (window.crypto && crypto.randomUUID) return 'pm-' + crypto.randomUUID(); } catch (e) { /* lanjut fallback */ }
+  return 'pm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
 async function belBukaModalPembelianManual() {
+  pmIdempotencyKey = pmBuatIdempotencyKey();
   el('pm-btn-simpan').disabled = false;
   el('pm-nama-supplier').value = '';
   el('pm-no-invoice').value = '';
@@ -14910,30 +14919,47 @@ async function pmSimpanPembelian() {
   const jumlahKoli = el('pm-jumlah-koli').value.trim();
   const ongkosKirim = parseFloat(el('pm-ongkos-kirim').value) || 0;
   const statusEl = el('pm-status');
-  const itemsValid = pmItemsAktif.filter(it => it.sku.trim() && it.qty > 0);
+  // Kirim hanya field yang dibutuhkan server (angka sudah dinormalisasi) - payload kecil & bersih
+  const itemsValid = pmItemsAktif
+    .filter(it => String(it.sku || '').trim() && Number(it.qty) > 0)
+    .map(it => ({ sku: String(it.sku).trim(), nama: String(it.nama || '').trim(), qty: Number(it.qty) || 0, hargaSatuan: Number(it.hargaSatuan) || 0 }));
 
   if (!namaSupplier) { statusEl.textContent = '✗ Nama Supplier wajib diisi.'; statusEl.className = 'status-text err'; return; }
   if (!noInvoice) { statusEl.textContent = '✗ No Invoice wajib diisi.'; statusEl.className = 'status-text err'; return; }
   if (itemsValid.length === 0) { statusEl.textContent = '✗ Isi minimal 1 barang (SKU & Qty wajib).'; statusEl.className = 'status-text err'; return; }
+  if (!pmIdempotencyKey) pmIdempotencyKey = pmBuatIdempotencyKey();
+
+  const payload = {
+    aksi: 'simpan_pembelian_manual',
+    idempotencyKey: pmIdempotencyKey,
+    namaSupplier, noInvoice, cabang, jumlahKoli, ongkosKirim,
+    tanggalTransaksi: pmTanggalTransaksiDariPaste || null, // sudah ISO string dari smart-paste
+    items: itemsValid,
+    email: currentUserEmail()
+  };
 
   btn.disabled = true;
   setLoadingDots(statusEl, 'Menyimpan');
   try {
-    const data = await postJson({ aksi: 'simpan_pembelian_manual', namaSupplier, noInvoice, cabang, jumlahKoli, ongkosKirim, tanggalTransaksi: pmTanggalTransaksiDariPaste, items: itemsValid, email: currentUserEmail() });
+    const data = await postJsonTulis(payload, 90000);
     stopLoadingDots(statusEl);
-    if (data.success) {
+    if (data && data.success) {
+      pmIdempotencyKey = null; // form ini selesai
       playBeep();
-      statusEl.textContent = `✓ Tersimpan! ${data.jumlahItem} barang, Total Rp ${Number(data.total).toLocaleString('id-ID')}`;
+      statusEl.textContent = `✓ Tersimpan! ${data.jumlahItem} barang, Total Rp ${Number(data.total).toLocaleString('id-ID')}${data.sudahTersimpanSebelumnya ? ' (sudah masuk dari percobaan sebelumnya)' : ''}`;
       statusEl.className = 'status-text ok';
       setTimeout(() => { belTutupModalPembelianManual(); belFetchPembelianManual(); }, 1200);
     } else {
-      statusEl.textContent = '✗ Gagal: ' + (data.error || '');
+      const d = (data && data.errorDetail) || {};
+      const lokasi = d.fungsi ? ` [${d.fungsi}${d.baris ? ' baris ' + d.baris : ''}]` : '';
+      statusEl.textContent = '✗ Gagal: ' + ((data && data.error) || 'respons kosong dari server') + lokasi;
       statusEl.className = 'status-text err';
-      btn.disabled = false; // gagal, biar bisa dicoba lagi (misal abis benerin input)
+      btn.disabled = false; // gagal, biar bisa dicoba lagi (kunci idempotensi tetap -> aman dari dobel)
     }
   } catch (err) {
     stopLoadingDots(statusEl);
-    statusEl.textContent = '✗ Gagal terhubung: ' + err.message;
+    console.error('[Simpan Pembelian] gagal terhubung:', err, payload);
+    statusEl.textContent = `✗ ${err.message}. Data mungkin sudah masuk - klik Simpan lagi dengan aman (tidak akan dobel), atau cek daftar Pembelian.`;
     statusEl.className = 'status-text err';
     btn.disabled = false;
   }
@@ -17869,24 +17895,56 @@ function gantiToko(tokoBaru) {
   // toko DEFAULT buat hal-hal yang belum punya pilihan toko sendiri (misal produk baru di Katalog).
 }
 
+// Kirim 1 request ke Web App Apps Script. Konfigurasi yang BENAR untuk Apps Script:
+//  - method POST + body JSON.stringify(payload)
+//  - Content-Type 'text/plain' (BUKAN 'application/json'): application/json memicu preflight CORS
+//    (OPTIONS) yang TIDAK didukung Apps Script -> request gagal total. text/plain = "simple request".
+//  - redirect 'follow': Web App selalu membalas 302 ke script.googleusercontent.com.
+// Respons dibaca sebagai teks dulu, baru di-parse - kalau server membalas HTML (halaman login/error
+// Google), pesan errornya jelas, bukan "Unexpected token <".
+async function kirimKeWebApp(body, waktuTunggu) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), waktuTunggu);
+  try {
+    const res = await fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+      redirect: 'follow',
+      signal: controller.signal
+    });
+    const teks = await res.text();
+    try {
+      return JSON.parse(teks);
+    } catch (eParse) {
+      const cuplikan = teks.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+      throw new Error(`Respons server bukan JSON (HTTP ${res.status}). ${cuplikan || '(kosong)'}`);
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`Timeout: server tidak menjawab dalam ${Math.round(waktuTunggu / 1000)} detik`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Untuk aksi yang MENULIS data: SATU kali kirim saja (tanpa retry otomatis) supaya tidak
+// ada kiriman dobel saat server sebenarnya masih memproses request pertama.
+async function postJsonTulis(body, timeoutMs) {
+  if (body.toko === undefined) body.toko = currentToko;
+  const data = await kirimKeWebApp(body, timeoutMs || 90000);
+  if (data && data.success === false && data.errorDetail) console.error(`[Backend error] aksi=${body.aksi}`, data.errorDetail);
+  return data;
+}
+
 async function postJson(body, timeoutMs, silent) {
   timeoutMs = timeoutMs || 20000;
   if (body.toko === undefined) body.toko = currentToko; // otomatis kirim toko yang lagi aktif, kecuali udah diisi manual
 
   async function coba(waktuTunggu) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), waktuTunggu);
-    try {
-      const res = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body),
-        signal: controller.signal
-      });
-      return await res.json();
-    } finally {
-      clearTimeout(timer);
-    }
+    const data = await kirimKeWebApp(body, waktuTunggu);
+    if (data && data.success === false && data.errorDetail) console.error(`[Backend error] aksi=${body.aksi}`, data.errorDetail);
+    return data;
   }
 
   try {
