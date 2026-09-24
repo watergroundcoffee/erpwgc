@@ -12641,7 +12641,7 @@ const HARGA_CHANNEL = [
 ];
 const HARGA_GRUP_BIAYA = ['default', 'shopee', 'tiktok', 'tokopedia'];
 const HARGA_GRUP_LABEL = { default: 'Offline', shopee: 'Shopee', tiktok: 'TikTok Shop', tokopedia: 'Tokopedia' };
-const HARGA_UKURAN_BATCH_SIMPAN = 200; // back-end menerima maks 500 item per request
+const HARGA_MAKS_ITEM_SIMPAN = 3000; // batas back-end per 1 request simpan
 
 let katalogHargaCache = [];
 let katalogHargaPaginasiState = buatStatePaginasi();
@@ -13438,28 +13438,27 @@ function hargaTerapkanHasilSimpan(tersimpan) {
   });
 }
 
-// Kirim perubahan per batch (maks HARGA_UKURAN_BATCH_SIMPAN / request). SEMUA sudah divalidasi
-// sebelum fungsi ini dipanggil. Kalau 1 batch gagal, batch berikutnya TIDAK dikirim.
-async function hargaKirimPerubahan(daftarPerubahan, onProgress) {
+// Kirim SEMUA perubahan dalam SATU request (batch payload). Tidak ada loop fetch per baris / per
+// batch, dan TIDAK ada retry otomatis (postJsonTulis) - retry saat server masih memproses request
+// pertama justru membuat request kedua antre di ScriptLock sampai "Batas waktu penguncian habis".
+// Semua perubahan sudah divalidasi sebelum fungsi ini dipanggil.
+async function hargaKirimPerubahan(daftarPerubahan) {
+  const items = daftarPerubahan.map(r => r.payload); // 1 array berisi semua baris yang berubah
   daftarPerubahan.forEach(r => hargaSetBarisLoading(r.sku, true));
   hargaUpdateTombolSimpanSemua(); katalogHargaUpdateBulkCount();
-  let jumlahTersimpan = 0;
   try {
-    for (let i = 0; i < daftarPerubahan.length; i += HARGA_UKURAN_BATCH_SIMPAN) {
-      const batch = daftarPerubahan.slice(i, i + HARGA_UKURAN_BATCH_SIMPAN);
-      if (onProgress) onProgress(i, daftarPerubahan.length);
-      const items = batch.map(r => r.payload);
-      const data = await postJson({ aksi: 'simpan_harga_jual_final', items, email: currentUserEmail() }, 60000);
-      if (!data.success) throw new Error(data.error || 'Gagal menyimpan');
-      hargaTerapkanHasilSimpan(data.tersimpan || items);
-      jumlahTersimpan += batch.length;
-      batch.forEach(r => hargaSetBarisLoading(r.sku, false));
+    const data = await postJsonTulis({ aksi: 'simpan_harga_jual_final', items, email: currentUserEmail() }, 120000);
+    if (!data || !data.success) {
+      const d = (data && data.errorDetail) || {};
+      throw new Error(((data && data.error) || 'Gagal menyimpan') + (d.fungsi ? ` [${d.fungsi}${d.baris ? ' baris ' + d.baris : ''}]` : ''));
     }
+    hargaTerapkanHasilSimpan(data.tersimpan || items);
     simpanCacheLokal('katalog_harga_v7', { daftar: katalogHargaCache, marginGlobal: katalogMarginGlobalCache, paramBiaya: Object.assign({ versi: 4, grup: hargaParamTersimpan }, hargaParamMeta) });
     playBeep();
-    return { ok: true, jumlahTersimpan };
+    return { ok: true, jumlahTersimpan: items.length };
   } catch (err) {
-    return { ok: false, jumlahTersimpan, pesan: String(err.message || err).replace(/^Error:\s*/, '') };
+    // Server menyimpan all-or-nothing: kalau gagal, TIDAK ada baris yang tersimpan sebagian.
+    return { ok: false, jumlahTersimpan: 0, pesan: String(err.message || err).replace(/^Error:\s*/, '') };
   } finally {
     daftarPerubahan.forEach(r => hargaSetBarisLoading(r.sku, false));
     hargaUpdateTombolSimpanSemua(); katalogHargaUpdateBulkCount();
@@ -13494,8 +13493,13 @@ async function hargaSimpanDaftarPerubahan(dirty, statusEl) {
     statusEl.textContent = `✗ ${bermasalah.length} produk belum valid (${bermasalah.slice(0, 3).map(r => r.sku).join(', ')}${bermasalah.length > 3 ? ', ...' : ''}). Tidak ada yang dikirim.`;
     return false;
   }
+  if (dirty.length > HARGA_MAKS_ITEM_SIMPAN) {
+    statusEl.className = 'status-text err';
+    statusEl.textContent = `✗ Terlalu banyak perubahan (${dirty.length}). Maksimal ${HARGA_MAKS_ITEM_SIMPAN} produk per simpan.`;
+    return false;
+  }
   setLoadingDots(statusEl, `Menyimpan ${dirty.length} produk`);
-  const hasil = await hargaKirimPerubahan(dirty);
+  const hasil = await hargaKirimPerubahan(dirty); // 1x request untuk semua baris
   stopLoadingDots(statusEl);
   katalogHargaRenderHalaman();
   if (hasil.ok) { statusEl.className = 'status-text ok'; statusEl.textContent = `✓ ${hasil.jumlahTersimpan} produk tersimpan`; return true; }
@@ -13505,7 +13509,11 @@ async function hargaSimpanDaftarPerubahan(dirty, statusEl) {
 }
 
 async function hargaSimpanSemuaPerubahan() {
-  await hargaSimpanDaftarPerubahan(hargaDaftarDirty(), el('harga-simpan-semua-status'));
+  const btn = el('harga-btn-simpan-semua');
+  if (btn.dataset.proses === '1') return; // cegah klik dobel mengirim 2 request sekaligus
+  btn.dataset.proses = '1';
+  try { await hargaSimpanDaftarPerubahan(hargaDaftarDirty(), el('harga-simpan-semua-status')); }
+  finally { delete btn.dataset.proses; hargaUpdateTombolSimpanSemua(); }
 }
 
 /* ---------- Aksi Massal: Target Margin -> Harga Jual Final 1 channel ---------- */
