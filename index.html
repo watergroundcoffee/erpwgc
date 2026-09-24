@@ -1747,6 +1747,18 @@ a.harga-url-toggle.ada { color: #1e6b45; }
 .harga-ch-cell .harga-coret-box input::placeholder { text-decoration: none; font-style: italic; color: #b3b8c0; }
 .harga-ch-cell .harga-coret-box input:focus { text-decoration: none; color: var(--web-text); }
 .harga-coret-box.invalid { border-color: var(--web-danger); background: #fdf0f0; }
+/* Input Shopee/TikTok terkunci (readonly) - hanya diisi lewat "Klik untuk terapkan" */
+.harga-input-terkunci { background: #f3f4f6; border-style: dashed; }
+.harga-input-terkunci:focus-within { box-shadow: none; border-color: var(--web-border); background: #f3f4f6; }
+.harga-input-terkunci input { cursor: default; }
+.harga-teks-kosong { color: var(--web-text-dim); font-weight: 500; font-style: italic; font-size: 11.5px; }
+.harga-ch-cell[data-ch="default"] .harga-static { margin: -4px -6px 0; }
+.harga-ch-cell[data-mode-massal="1"] .harga-rp-input { border-color: var(--web-info); box-shadow: 0 0 0 2px rgba(63,127,201,0.12); background: #fff; }
+/* Tab 2: baris Harga Coret permanen (bawaan sistem) */
+.harga-biaya-row.harga-baris-sistem .harga-biaya-input[data-field="nama"],
+.harga-biaya-row.harga-baris-sistem .harga-biaya-tipe-tetap { opacity: 0.7; }
+.harga-biaya-row.harga-baris-sistem .harga-biaya-input[data-field="nama"] { cursor: default; background: #f3f4f6; }
+.harga-biaya-tipe-tetap { font-size: 12.5px; font-weight: 600; color: var(--web-text-dim); text-align: center; border: 1px dashed var(--web-border); border-radius: 7px; padding: 5px 0; }
 .harga-ch-cell .harga-rp-input[data-role="final-box"] input { font-weight: 700; }
 .harga-param-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 14px; margin-bottom: 14px; align-items: stretch; }
 @media (max-width: 620px) { .harga-param-cards { grid-template-columns: minmax(0, 1fr); } }
@@ -5251,12 +5263,12 @@ a.harga-url-toggle.ada { color: #1e6b45; }
               <label class="harga-bulk-field"><span>Target Margin</span>
                 <span class="harga-persen-input harga-bulk-input-margin"><input type="text" inputmode="decimal" autocomplete="off" id="harga-bulk-margin" placeholder="20" /><span>%</span></span>
               </label>
-              <button type="button" class="web-btn-secondary" onclick="hargaTerapkanMassal('default')">Terapkan ke Harga Default</button>
+              <button type="button" class="web-btn-secondary" id="harga-bulk-btn-default" onclick="hargaTerapkanMassal('default')" title="Buka mode edit Harga Default untuk semua baris yang dicentang">Terapkan ke Harga Default</button>
               <button type="button" class="web-btn-secondary" onclick="hargaTerapkanMassal('shopee')">Terapkan ke Harga Shopee</button>
               <button type="button" class="web-btn-secondary" onclick="hargaTerapkanMassal('tiktok')">Terapkan ke Harga TikTok Shop &amp; Tokopedia</button>
               <span class="harga-bulk-scope" id="harga-bulk-scope"></span>
               <span class="harga-bulk-spacer"></span>
-              <button type="button" class="web-btn-primary harga-btn-sync-utama" id="harga-btn-sync" onclick="hargaSyncHarga()" title="Kirim Harga Jual Final (Shopee & TikTok Shop/Tokopedia) yang sudah tersimpan ke marketplace. Tanpa centang = semua produk di halaman ini.">☁️ Sync Harga</button>
+              <button type="button" class="web-btn-primary harga-btn-sync-utama" id="harga-btn-sync" onclick="hargaSyncHarga()" title="Kirim Harga Coret (sebagai Harga Normal) Shopee & TikTok Shop yang sudah tersimpan ke marketplace. Tanpa centang = semua produk di halaman ini.">☁️ Sync Harga</button>
               <span class="status-text" id="katalog-harga-bulk-status" style="text-align:left; flex-basis:100%;"></span>
             </div>
             <div class="web-toolbar-row" style="margin-bottom:10px;">
@@ -12643,6 +12655,7 @@ let hargaParamMeta = {};
 let hargaCariKeyword = '';
 let hargaTabAktif = 'tabel';
 let hargaSkuSedangSimpan = new Set();
+const hargaEditMassalDefault = new Set(); // SKU yang Harga Default-nya sedang dibuka lewat Edit Massal
 
 /* ---------- Util angka ---------- */
 function hargaFmtAngka(n) { return Math.round(Number(n) || 0).toLocaleString('id-ID'); }
@@ -12689,9 +12702,19 @@ function hargaSaringInputPersen(inp) {
 // Semua seksi berformat baris sama: { nama, nominal, tipe:'%'|'Rp', maks, peran?:'markup' }
 const HARGA_SEKSI = ['biaya', 'promosi', 'operasional'];
 const HARGA_SEKSI_LABEL = { biaya: 'Biaya Platform', promosi: 'Promosi & Iklan', operasional: 'Biaya Operasional Gudang' };
-const HARGA_REGEX_MARKUP = /harga\s*coret|markup/i;
+const HARGA_NAMA_MARKUP = 'Harga Coret (Markup)';
 
-function hargaGrupKosong() { return { biaya: [], promosi: [], operasional: [] }; }
+function hargaGrupKosong() { return { biaya: [], promosi: [{ nama: HARGA_NAMA_MARKUP, nominal: 0, tipe: '%', maks: null, peran: 'markup' }], operasional: [] }; }
+// Pastikan baris "Harga Coret (Markup)" PERMANEN ada tepat 1 di posisi pertama seksi Promosi & Iklan
+// (semua card, termasuk Offline). Nama & tipe dikunci (%), hanya nominal yang bisa diubah.
+function hargaPastikanBarisMarkup(promosi) {
+  const list = (promosi || []).map(b => Object.assign({}, b));
+  const i = list.findIndex(b => b.peran === 'markup');
+  const markup = i === -1 ? { nama: HARGA_NAMA_MARKUP, nominal: 0, tipe: '%', maks: null, peran: 'markup' } : list.splice(i, 1)[0];
+  list.forEach(b => { delete b.peran; });
+  markup.nama = HARGA_NAMA_MARKUP; markup.tipe = '%'; markup.maks = null; markup.peran = 'markup';
+  return [markup].concat(list);
+}
 function hargaSalinParam(p) {
   const src = (p && p.grup) ? p.grup : (p || {});
   const hasil = {};
@@ -12699,6 +12722,7 @@ function hargaSalinParam(p) {
     const x = src[g] || {};
     hasil[g] = {};
     HARGA_SEKSI.forEach(seksi => { hasil[g][seksi] = (Array.isArray(x[seksi]) ? x[seksi] : []).map(b => Object.assign({}, b)); });
+    hasil[g].promosi = hargaPastikanBarisMarkup(hasil[g].promosi);
   });
   return hasil;
 }
@@ -12722,13 +12746,9 @@ function hargaParamKeDraft(p) {
   });
   return hasil;
 }
-// Baris markup (Harga Coret) di 1 grup: yang ber-peran 'markup'; kalau tidak ada, baris promosi
-// yang namanya mengandung "harga coret"/"markup". BUKAN biaya - tidak masuk rumus True Margin.
+// Baris markup (Harga Coret) = baris ber-peran 'markup' (permanen). BUKAN biaya - tidak masuk rumus True Margin.
 function hargaIndexMarkup(x) {
-  const promosi = (x && x.promosi) || [];
-  let i = promosi.findIndex(b => b.peran === 'markup');
-  if (i === -1) i = promosi.findIndex(b => HARGA_REGEX_MARKUP.test(String(b.nama || '')));
-  return i;
+  return ((x && x.promosi) || []).findIndex(b => b.peran === 'markup');
 }
 // Teks mentah -> angka bersih + error per input (kunci "grup:seksi:index:field")
 function hargaParamDariDraft(draft) {
@@ -12740,8 +12760,8 @@ function hargaParamDariDraft(draft) {
     let totalPersen = 0;
     HARGA_SEKSI.forEach(seksi => {
       data[g][seksi] = (x[seksi] || []).map((b, i) => {
-        const tipe = b.tipe === 'Rp' ? 'Rp' : '%';
         const markup = seksi === 'promosi' && i === idxMarkup;
+        const tipe = markup ? '%' : (b.tipe === 'Rp' ? 'Rp' : '%');
         const nama = String(b.nama || '').trim();
         if (!nama) error[`${g}:${seksi}:${i}:nama`] = 'Nama wajib diisi';
         let nominal = tipe === 'Rp' ? hargaParseRupiah(b.nominal) : hargaParsePersen(b.nominal);
@@ -13064,11 +13084,29 @@ function katalogHargaUpdateBulkCount() {
 
 function hargaSelChannelHtml(sku, ch, d) {
   const s = escapeHtml(sku);
+  // Harga Default (offline): Hover-to-Edit - teks statis, ✏️ saat hover, klik -> input, blur/Enter -> statis.
+  if (ch.key === 'default') {
+    const massal = hargaEditMassalDefault.has(sku);
+    return `
+    <td class="harga-ch-cell harga-edit-cell ${massal ? 'editing' : ''}" data-ch="default" data-field="default" data-sku="${s}" ${massal ? 'data-mode-massal="1"' : ''}>
+      <div class="harga-ch-stack">
+        <div class="harga-static" tabindex="0" role="button" aria-label="Edit Harga Default">
+          <span class="harga-static-teks" data-role="default-teks"></span>
+          <span class="harga-ikon-hover" aria-hidden="true">✏️</span>
+        </div>
+        <div class="harga-rp-input harga-edit-box" data-role="final-box"><span>Rp.</span><input type="text" inputmode="numeric" autocomplete="off" class="harga-input-final harga-input-edit" data-sku="${s}" data-ch="default" value="${escapeHtml(d.final.default)}" placeholder="0" aria-label="Harga Default" /><span>,-</span></div>
+        <div class="harga-rekom-line" data-role="rekom-line"></div>
+        <div class="harga-rekom-aksi" data-role="rekom-aksi"></div>
+      </div>
+    </td>`;
+  }
+  // Shopee & TikTok Shop: Harga Coret & Harga Jual Final READONLY - hanya bisa diisi lewat
+  // "Klik untuk terapkan" (atau Aksi Massal), supaya staf tidak salah ketik harga marketplace.
   return `
     <td class="harga-ch-cell" data-ch="${ch.key}">
       <div class="harga-ch-stack">
-        ${ch.coretField ? `<div class="harga-rp-input harga-coret-box" data-role="coret-box" title="Harga Coret (sebelum diskon)"><span>Rp.</span><input type="text" inputmode="numeric" autocomplete="off" class="harga-input-coret" data-sku="${s}" data-ch="${ch.key}" value="${escapeHtml(d.coret[ch.key])}" placeholder="Harga coret" aria-label="Harga Coret ${escapeHtml(ch.label)}" /><span>,-</span></div>` : ''}
-        <div class="harga-rp-input" data-role="final-box"><span>Rp.</span><input type="text" inputmode="numeric" autocomplete="off" class="harga-input-final" data-sku="${s}" data-ch="${ch.key}" value="${escapeHtml(d.final[ch.key])}" placeholder="0" aria-label="Harga Jual Final ${escapeHtml(ch.label)}" /><span>,-</span></div>
+        ${ch.coretField ? `<div class="harga-rp-input harga-coret-box harga-input-terkunci" data-role="coret-box" title="Harga Coret (Harga Normal di marketplace) - diisi lewat Klik untuk terapkan"><span>Rp.</span><input type="text" readonly tabindex="-1" class="harga-input-coret" data-sku="${s}" data-ch="${ch.key}" value="${escapeHtml(d.coret[ch.key])}" placeholder="Harga coret" aria-label="Harga Coret ${escapeHtml(ch.label)}" /><span>,-</span></div>` : ''}
+        <div class="harga-rp-input harga-input-terkunci" data-role="final-box" title="Harga Jual Final - diisi lewat Klik untuk terapkan"><span>Rp.</span><input type="text" readonly tabindex="-1" class="harga-input-final" data-sku="${s}" data-ch="${ch.key}" value="${escapeHtml(d.final[ch.key])}" placeholder="0" aria-label="Harga Jual Final ${escapeHtml(ch.label)}" /><span>,-</span></div>
         <div class="harga-rekom-line" data-role="rekom-line"></div>
         <div class="harga-rekom-aksi" data-role="rekom-aksi"></div>
       </div>
@@ -13187,6 +13225,11 @@ function hargaHitungBaris(sku) {
     }
     const nilaiFinal = hargaParseRupiah(d.final[ch.key]);
     cell.querySelector('[data-role="final-box"]').classList.toggle('invalid', nilaiFinal !== null && !hargaAngkaValidPositif(nilaiFinal));
+    const teksDefault = cell.querySelector('[data-role="default-teks"]');
+    if (teksDefault) {
+      teksDefault.innerHTML = nilaiFinal === null ? '<span class="harga-teks-kosong">Belum diset</span>'
+        : hargaAngkaValidPositif(nilaiFinal) ? escapeHtml(hargaFmtRp(nilaiFinal)) : '<span class="harga-teks-merah">⚠️ Rp. 0,-</span>';
+    }
     const boxCoret = cell.querySelector('[data-role="coret-box"]');
     if (boxCoret) {
       const coret = hargaParseRupiah(d.coret[ch.key]);
@@ -13222,8 +13265,8 @@ function hargaMulaiEdit(td) {
   const d = hargaAmbilDraft(sku);
   if (!d) return;
   const inp = td.querySelector('.harga-input-edit');
-  inp.value = field === 'hpp' ? (hargaParseRupiah(d.hpp) > 0 ? d.hpp : '') : d.margin;
-  inp.dataset.nilaiAwal = field === 'hpp' ? d.hpp : d.margin;
+  if (field === 'default') { inp.value = d.final.default; inp.dataset.nilaiAwal = d.final.default; }
+  else { inp.value = field === 'hpp' ? (hargaParseRupiah(d.hpp) > 0 ? d.hpp : '') : d.margin; inp.dataset.nilaiAwal = field === 'hpp' ? d.hpp : d.margin; }
   delete inp.dataset.batal;
   td.classList.add('editing');
   inp.focus();
@@ -13235,7 +13278,10 @@ function hargaSelesaiEdit(inp) {
   if (!td || !td.classList.contains('editing')) return;
   const sku = td.dataset.sku, field = td.dataset.field;
   const d = hargaAmbilDraft(sku);
-  if (inp.dataset.batal === '1') {
+  if (td.dataset.modeMassal === '1') return; // mode edit massal: tetap terbuka sampai "Selesai Edit Massal"
+  if (field === 'default') {
+    if (inp.dataset.batal === '1') { d.final.default = inp.dataset.nilaiAwal || ''; inp.value = d.final.default; }
+  } else if (inp.dataset.batal === '1') {
     if (field === 'hpp') d.hpp = inp.dataset.nilaiAwal; else d.margin = inp.dataset.nilaiAwal;
   } else if (field === 'hpp') {
     d.hpp = inp.value === '' ? '0' : inp.value;
@@ -13270,6 +13316,19 @@ function hargaSelesaiEdit(inp) {
   body.addEventListener('keydown', (e) => {
     const t = e.target;
     if (t.classList.contains('harga-input-edit')) {
+      const tdMassal = t.closest('[data-mode-massal="1"]');
+      if (tdMassal) {
+        // Mode edit massal Harga Default: Enter = lompat ke baris berikutnya (atas -> bawah)
+        if (e.key === 'Enter') { e.preventDefault(); hargaFokusMassalBerikutnya(t, e.shiftKey ? -1 : 1); }
+        else if (e.key === 'Escape') {
+          e.preventDefault();
+          const d = hargaAmbilDraft(tdMassal.dataset.sku);
+          d.final.default = t.dataset.nilaiAwal || '';
+          t.value = d.final.default;
+          hargaHitungBaris(tdMassal.dataset.sku); hargaUpdateTombolSimpanSemua();
+        }
+        return;
+      }
       if (e.key === 'Enter') { e.preventDefault(); t.blur(); }
       else if (e.key === 'Escape') { e.preventDefault(); t.dataset.batal = '1'; t.blur(); }
       return;
@@ -13280,6 +13339,12 @@ function hargaSelesaiEdit(inp) {
       e.preventDefault();
       const btn = t.parentElement.querySelector('.harga-btn-ai');
       if (btn && !btn.disabled) katalogUpdateHppDariSupplier(t.dataset.sku, btn);
+    }
+  });
+  body.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (t.classList && t.classList.contains('harga-input-edit') && t.closest('[data-mode-massal="1"]') && t.dataset.nilaiAwal === undefined) {
+      const d = hargaAmbilDraft(t.dataset.sku); t.dataset.nilaiAwal = d ? d.final.default : '';
     }
   });
   body.addEventListener('focusout', (e) => {
@@ -13466,6 +13531,7 @@ async function hargaSimpanDaftarPerubahan(dirty, statusEl) {
 }
 
 async function hargaSimpanSemuaPerubahan() {
+  if (hargaEditMassalDefault.size > 0) { hargaEditMassalDefault.clear(); hargaUpdateTombolMassalDefault(); }
   await hargaSimpanDaftarPerubahan(hargaDaftarDirty(), el('harga-simpan-semua-status'));
 }
 
@@ -13473,7 +13539,68 @@ async function hargaSimpanSemuaPerubahan() {
 // Mengisi Harga Jual Final channel terpilih dengan Rekomendasi Harga yang dihitung pakai Target Margin
 // massal (HPP masing-masing produk tetap). Target Margin per produk TIDAK diubah. Hasilnya masuk
 // sebagai perubahan (belum tersimpan) supaya bisa dicek dulu -> tekan "Simpan Semua Perubahan".
+/* ---------- Edit Massal Harga Default ----------
+   Tombol "Terapkan ke Harga Default": semua baris yang DICENTANG (di halaman ini) langsung dibuka ke
+   mode edit sekaligus. Enter = lompat ke baris berikutnya, Shift+Enter = baris sebelumnya,
+   Esc = kembalikan nilai baris itu. Tutup semua lewat tombol "✓ Selesai Edit Harga Default". */
+function hargaInputMassalTampil() {
+  return Array.from(el('katalog-harga-body').querySelectorAll('td[data-mode-massal="1"] .harga-input-edit'));
+}
+function hargaFokusMassalBerikutnya(inp, arah) {
+  const semua = hargaInputMassalTampil();
+  const i = semua.indexOf(inp);
+  const target = semua[i + arah];
+  if (target) { target.focus(); target.select(); }
+}
+function hargaUpdateTombolMassalDefault() {
+  const btn = el('harga-bulk-btn-default');
+  if (!btn) return;
+  const aktif = hargaEditMassalDefault.size > 0;
+  btn.textContent = aktif ? '✓ Selesai Edit Harga Default' : 'Terapkan ke Harga Default';
+  btn.classList.toggle('web-btn-primary', aktif);
+  btn.classList.toggle('web-btn-secondary', !aktif);
+}
+function hargaMulaiEditMassalDefault() {
+  const statusEl = el('katalog-harga-bulk-status');
+  if (hargaEditMassalDefault.size > 0) { hargaSelesaiEditMassalDefault(); return; }
+  const halamanIni = halamanDataPaginasi(hargaDaftarTampil(), katalogHargaPaginasiState);
+  const target = halamanIni.filter(p => katalogHargaTerpilih.has(p.sku));
+  if (target.length === 0) { statusEl.className = 'status-text err'; statusEl.textContent = 'Centang dulu produk yang Harga Default-nya mau diubah.'; return; }
+  target.forEach(p => {
+    hargaEditMassalDefault.add(p.sku);
+    const td = hargaBarisEl(p.sku) && hargaBarisEl(p.sku).querySelector('td[data-field="default"]');
+    if (!td) return;
+    const d = hargaAmbilDraft(p.sku);
+    const inp = td.querySelector('.harga-input-edit');
+    inp.value = d.final.default;
+    inp.dataset.nilaiAwal = d.final.default;
+    td.dataset.modeMassal = '1';
+    td.classList.add('editing');
+  });
+  hargaUpdateTombolMassalDefault();
+  const diLuar = katalogHargaTerpilih.size - target.length;
+  statusEl.className = 'status-text ok';
+  statusEl.textContent = `✏️ ${target.length} Harga Default siap diedit. Enter = baris berikutnya. Tekan "✓ Selesai Edit Harga Default" kalau sudah.${diLuar > 0 ? ` (${diLuar} produk tercentang ada di halaman lain)` : ''}`;
+  const pertama = hargaInputMassalTampil()[0];
+  if (pertama) { pertama.focus(); pertama.select(); }
+}
+function hargaSelesaiEditMassalDefault() {
+  hargaEditMassalDefault.clear();
+  el('katalog-harga-body').querySelectorAll('td[data-mode-massal="1"]').forEach(td => {
+    delete td.dataset.modeMassal;
+    td.classList.remove('editing');
+    hargaHitungBaris(td.dataset.sku);
+  });
+  hargaUpdateTombolMassalDefault();
+  hargaUpdateTombolSimpanSemua();
+  const dirty = hargaDaftarDirty().length;
+  const statusEl = el('katalog-harga-bulk-status');
+  statusEl.className = 'status-text ok';
+  statusEl.textContent = dirty > 0 ? `✓ Edit massal selesai. ${dirty} produk berubah - tekan Simpan Semua Perubahan.` : '✓ Edit massal selesai.';
+}
+
 function hargaTerapkanMassal(chKey) {
+  if (chKey === 'default') return hargaMulaiEditMassalDefault();
   const statusEl = el('katalog-harga-bulk-status');
   const salah = (t) => { statusEl.className = 'status-text err'; statusEl.textContent = t; };
   const margin = hargaParsePersen(el('harga-bulk-margin').value);
@@ -13523,7 +13650,7 @@ function katalogTerapkanMarginMassal() { return hargaTerapkanMassal('default'); 
 // Tombol utama "☁️ Sync Harga" di baris Aksi Massal:
 //   - Ada produk dicentang  -> sync HANYA produk yang dicentang.
 //   - Tidak ada yang dicentang -> otomatis mencentang SEMUA produk yang tampil di halaman ini, lalu sync semuanya.
-// Yang dikirim = Harga Jual Final Shopee & TikTok Shop/Tokopedia YANG SUDAH TERSIMPAN (> Rp 0).
+// Yang dikirim = HANYA Harga Coret Shopee & TikTok Shop YANG SUDAH TERSIMPAN (> Rp 0) sebagai Harga Normal.
 // Nanti diganti postJson({ aksi: 'push_harga_marketplace', ... }); back-end sudah punya gerbang
 // pushHargaKeMarketplace() yang menolak harga <= 0. Validasi di bawah = lapis pertama di front-end.
 function hargaFmtWaktu(tgl) {
@@ -13565,16 +13692,18 @@ function hargaSyncHarga() {
     const item = katalogHargaCache.find(p => p.sku === sku);
     if (!item) return;
     if (hargaPerubahanBaris(sku).jumlah > 0) { dilewati.push(`${sku} (ada perubahan belum disimpan)`); return; }
-    const harga = {};
+    // ====================== PAYLOAD SYNC MARKETPLACE DISIAPKAN DI SINI ======================
+    // Yang dikirim ke Shopee & TikTok Shop HANYA [Harga Coret] (tersimpan) sebagai HARGA NORMAL produk.
+    // [Harga Jual Final] SENGAJA DIABAIKAN - harga setelah diskon diatur terpisah lewat Seller Center.
+    // Failsafe: Harga Coret kosong / Rp 0 TIDAK dikirim (channel itu dilewati).
+    const hargaNormal = {};
     HARGA_CHANNEL.filter(ch => ch.sync).forEach(ch => {
-      const nilai = Number(item[ch.field]) || 0;
-      if (hargaAngkaValidPositif(nilai)) {
-        const coret = Number(item[ch.coretField]) || 0;
-        harga[ch.platform] = { hargaJual: nilai, hargaCoret: coret > nilai ? coret : null };
-      }
+      const coret = Number(item[ch.coretField]) || 0;
+      if (hargaAngkaValidPositif(coret)) hargaNormal[ch.platform] = coret;
     });
-    if (Object.keys(harga).length === 0) { dilewati.push(`${sku} (harga Shopee & TikTok masih kosong)`); return; }
-    payload.push({ sku, harga });
+    if (Object.keys(hargaNormal).length === 0) { dilewati.push(`${sku} (Harga Coret Shopee & TikTok masih kosong)`); return; }
+    payload.push({ sku, hargaNormal }); // contoh: { sku: 'WG-KP-001', hargaNormal: { Shopee: 195424, 'TikTok Shop': 173617 } }
+    // ========================================================================================
   });
 
   if (payload.length === 0) {
@@ -13713,8 +13842,19 @@ function hargaDraftParam() {
 
 // SATU format baris untuk semua seksi: [Nama] [Nominal] [Tipe % / Rp] [Batas Maks] [Hapus]
 function hargaBarisBiayaHtml(g, seksi, b, i, markup) {
+  if (markup) {
+    // Baris sistem PERMANEN: nama & tipe terkunci, tanpa tombol hapus; hanya nominal % yang bisa diubah (0 = tidak dipakai)
+    return `
+    <div class="harga-biaya-row harga-baris-sistem" data-grup="${g}" data-seksi="${seksi}" data-idx="${i}">
+      <input type="text" class="harga-biaya-input" data-field="nama" value="${escapeHtml(HARGA_NAMA_MARKUP)}" readonly tabindex="-1" aria-label="Harga Coret (Markup) - baris sistem" title="Baris bawaan sistem" />
+      <input type="text" class="harga-biaya-input harga-num" data-field="nominal" inputmode="decimal" value="${escapeHtml(b.nominal)}" placeholder="0" aria-label="Persen Harga Coret (Markup)" />
+      <span class="harga-biaya-tipe-tetap">%</span>
+      <span></span>
+      <span></span>
+    </div>`;
+  }
   const rp = b.tipe === 'Rp';
-  const maksNonaktif = rp || markup; // Batas Maks hanya relevan untuk biaya bertipe %
+  const maksNonaktif = rp; // Batas Maks hanya relevan untuk biaya bertipe %
   return `
     <div class="harga-biaya-row" data-grup="${g}" data-seksi="${seksi}" data-idx="${i}">
       <input type="text" class="harga-biaya-input" data-field="nama" value="${escapeHtml(b.nama)}" placeholder="Nama biaya" maxlength="60" aria-label="Nama biaya" />
@@ -13832,15 +13972,7 @@ function hargaRenderUlangCard(g) {
     if (inp.dataset.field === 'maks' || (inp.dataset.field === 'nominal' && b.tipe === 'Rp')) hargaFormatInputRupiah(inp);
     else if (inp.dataset.field === 'nominal') hargaSaringInputPersen(inp);
     b[inp.dataset.field] = inp.value;
-    // Nama diganti -> status "baris markup" bisa berubah (deteksi nama) -> render ulang card saat blur saja
     hargaParamSetelahBerubah();
-  });
-  wadah.addEventListener('focusout', (e) => {
-    const inp = e.target;
-    if (inp.dataset && inp.dataset.field === 'nama' && inp.closest('.harga-biaya-row[data-seksi="promosi"]')) {
-      const g = inp.closest('.harga-biaya-row').dataset.grup;
-      setTimeout(() => { if (!el('harga-param-cards').querySelector(`.harga-card[data-grup="${g}"]`).contains(document.activeElement)) hargaRenderUlangCard(g); }, 0);
-    }
   });
   wadah.addEventListener('change', (e) => {
     const sel = e.target;
@@ -13881,6 +14013,8 @@ function hargaRenderUlangCard(g) {
       hargaParamSetelahBerubah();
     } else if (btn.dataset.aksi === 'hapus') {
       const row = btn.closest('.harga-biaya-row');
+      const target = x[seksi][Number(row.dataset.idx)];
+      if (!target || target.peran === 'markup') return; // baris Harga Coret permanen - tidak bisa dihapus
       x[seksi].splice(Number(row.dataset.idx), 1);
       hargaRenderUlangCard(g);
       hargaParamSetelahBerubah();
