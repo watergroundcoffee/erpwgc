@@ -2061,6 +2061,29 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 .so-sesi { text-align: center; }
 .so-sesi-angka { font-size: 34px; font-weight: 800; color: var(--web-accent); line-height: 1; }
 .so-sesi-label { font-size: 11.5px; color: var(--web-text-dim); margin-top: 4px; }
+/* ----- Monitor Stok: Input Master Massal (checkbox tersembunyi sampai mode aktif) ----- */
+.per-pilar-table .bulk-col { display: none; width: 34px; text-align: center; padding-left: 10px !important; padding-right: 4px !important; }
+.per-pilar-table.bulk-mode-active .bulk-col { display: table-cell; }
+.per-pilar-table.bulk-mode-active tbody td.bulk-col { animation: per-muncul .2s ease; }
+.per-pilar-table input.bulk-cb, .per-pilar-table input.bulk-cb-all { width: 16px; height: 16px; cursor: pointer; accent-color: var(--web-accent); vertical-align: middle; margin: 0; }
+.per-pilar-table.bulk-mode-active tbody tr.per-row-terpilih td { background: rgba(47,158,110,0.08); }
+.per-pilar-table.bulk-mode-active tbody tr[data-bisa-pilih="1"] { cursor: pointer; }
+.per-pilar-table.bulk-mode-active .per-btn-master { display: none; }
+.per-bulk-na { display: inline-block; width: 16px; text-align: center; color: var(--web-text-dim); opacity: .5; }
+.per-btn-bulk.active { background: rgba(217,82,79,0.10) !important; border-color: var(--web-danger) !important; color: var(--web-danger) !important; }
+.per-bulk-bar { position: fixed; left: 50%; bottom: 22px; z-index: 240; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  max-width: calc(100vw - 32px); padding: 10px 12px 10px 16px; border-radius: 14px; background: var(--web-panel); border: 1px solid var(--web-border);
+  box-shadow: 0 10px 34px rgba(16,24,32,0.18), 0 2px 6px rgba(16,24,32,0.08);
+  opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-50%, 16px) scale(.98);
+  transition: opacity .22s ease, transform .26s cubic-bezier(.2,.8,.2,1), visibility 0s linear .26s; }
+.per-bulk-bar.show { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, 0); transition: opacity .22s ease, transform .26s cubic-bezier(.2,.8,.2,1), visibility 0s; }
+.per-bulk-info { min-width: 190px; }
+.per-bulk-judul { font-size: 12.5px; font-weight: 800; }
+.per-bulk-sub { font-size: 11px; color: var(--web-text-dim); margin-top: 1px; }
+.per-bulk-submit { margin: 0 !important; padding: 9px 16px !important; font-weight: 700; white-space: nowrap; }
+.per-bulk-submit:disabled { opacity: .45; cursor: not-allowed; }
+.per-bulk-submit.pop { animation: per-pop .25s ease; }
+@keyframes per-pop { 50% { transform: scale(1.05); } }
 /* ----- Monitor Stok: loading overlay, skeleton, modal animasi, Smart Paste ----- */
 .per-mon-area { position: relative; min-height: 180px; }
 .per-loading-overlay { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; border-radius: 12px;
@@ -5907,13 +5930,15 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
                 <button class="per-chip" data-permonf="order" onclick="perMonSetFilter('order')">Ada On Order</button>
                 <button class="per-chip" data-permonf="master" onclick="perMonSetFilter('master')">⚠️ Belum Master</button>
               </div>
+              <button class="web-btn-secondary per-btn-kecil per-btn-bulk" id="per-mon-btn-bulk" onclick="perMonToggleBulk()" title="Tampilkan kotak centang untuk mendaftarkan banyak SKU ⚠️ sekaligus">☑️ Pilih Massal</button>
               <button class="web-btn-secondary per-btn-kecil" onclick="perFetchMonitorStok(true)">↻ Muat Ulang</button>
             </div>
 
             <div class="per-mon-area" id="per-mon-area">
             <div class="web-table-wrap">
-              <table class="web-table per-pilar-table">
+              <table class="web-table per-pilar-table" id="per-mon-table">
                 <thead><tr>
+                  <th class="bulk-col"><input type="checkbox" id="per-mon-cb-all" class="bulk-cb-all" title="Pilih semua SKU ⚠️ (sesuai filter & pencarian aktif)" onchange="perMonPilihSemua(this.checked)" /></th>
                   <th>SKU</th><th>Nama Produk</th>
                   <th class="num" title="Fisik riil di gudang (Qty Opname + Masuk - Keluar sejak detik opname)">On Hand</th>
                   <th class="num" title="Invoice pembelian belum divalidasi + sisa Purchase Order">On Order</th>
@@ -5929,6 +5954,16 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <div class="per-loading-overlay" id="per-mon-overlay" aria-hidden="true">
                 <div class="per-loading-box"><div class="per-spinner"></div><span id="per-mon-overlay-teks">Memuat data stok...</span></div>
               </div>
+            </div>
+
+            <!-- Bar aksi mengambang - hanya muncul saat mode Pilih Massal aktif -->
+            <div class="per-bulk-bar" id="per-bulk-bar" aria-hidden="true">
+              <div class="per-bulk-info">
+                <div class="per-bulk-judul">☑️ Mode Pilih Massal</div>
+                <div class="per-bulk-sub" id="per-bulk-sub">Centang SKU ⚠️ yang mau didaftarkan ke Produk Master.</div>
+              </div>
+              <button class="web-btn-secondary per-btn-kecil" id="per-bulk-btn-kosongkan" onclick="perMonKosongkanPilihan()">Kosongkan</button>
+              <button class="web-btn-primary per-bulk-submit" id="per-bulk-btn-submit" onclick="perMonSubmitBulk()" disabled>+ Daftarkan (0) SKU Terpilih</button>
             </div>
             <div class="per-legend">
               <b>On Hand</b> = Qty Opname + Masuk − Keluar (waktu fisik, sejak detik opname terakhir) ·
@@ -18524,7 +18559,7 @@ let perMonFilter = 'semua';
 let perMonPaginasiState = buatStatePaginasi();
 let perMonCariTimer = null;
 let perMonSedangMuat = false;
-let perMonFlashSku = '';
+const perMonFlashSet = new Set();
 
 function perFmtAngka(n) {
   const v = Number(n) || 0;
@@ -18546,7 +18581,7 @@ function perMonOverlay(tampil, teks) {
 function perMonRenderSkeleton() {
   const lebar = [70, 85, 40, 35, 40, 45, 60];
   el('per-mon-empty').style.display = 'none';
-  el('per-mon-body').innerHTML = Array.from({ length: 8 }).map((_, i) => `<tr>${lebar.map((w, j) =>
+  el('per-mon-body').innerHTML = Array.from({ length: 8 }).map((_, i) => `<tr><td class="bulk-col"></td>${lebar.map((w, j) =>
     `<td${j >= 2 && j <= 5 ? ' class="num"' : ''}><span class="per-skel" style="width:${Math.max(25, w - (i * 7 + j * 3) % 25)}%; ${j >= 2 && j <= 5 ? 'margin-left:auto;' : ''}"></span></td>`).join('')}</tr>`).join('');
   el('per-mon-paginasi').innerHTML = '';
 }
@@ -18563,18 +18598,22 @@ async function perFetchMonitorStok(segarkan) {
   try {
     const data = await postJson({ aksi: 'lihat_monitor_stok', segarkan: !!segarkan, email: currentUserEmail() }, 45000);
     if (!data.success) {
-      if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error || '')}</td></tr>`;
+      if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error || '')}</td></tr>`;
       return;
     }
     perMonTerapkanData(data);
     simpanCacheLokal('monitor_stok_v2', data);
   } catch (err) {
-    if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
+    if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
   } finally { perMonSedangMuat = false; perMonOverlay(false); }
 }
 
 function perMonTerapkanData(data) {
   perMonCache = data.daftar || [];
+  if (perMonTerpilih.size) {
+    const masihValid = new Set(perMonCache.filter(p => !p.terdaftar).map(p => String(p.sku).toUpperCase()));
+    [...perMonTerpilih].forEach(k => { if (!masihValid.has(k)) perMonTerpilih.delete(k); });
+  }
   const r = data.ringkasan || {};
   el('per-mon-kpi-total').textContent = r.totalSku ?? '-';
   el('per-mon-kpi-hand-minus').textContent = r.onHandMinus ?? '-';
@@ -18647,8 +18686,14 @@ function perMonRender() {
     const opname = p.opnameTerakhir
       ? `<span title="${escapeHtml((p.sumberOpname || '') + ' · qty ' + (p.qtyOpname ?? '-'))}">${escapeHtml(p.opnameTerakhir)}</span>`
       : '<span style="color:var(--web-warning);">Belum pernah</span>';
-    const kelasFlash = perMonFlashSku && String(p.sku).toUpperCase() === perMonFlashSku ? ' class="per-row-flash"' : '';
-    return `<tr data-sku="${escapeHtml(p.sku)}"${kelasFlash}>
+    const kunci = String(p.sku).toUpperCase();
+    const terpilih = !p.terdaftar && perMonTerpilih.has(kunci);
+    const kelas = [perMonFlashSet.has(kunci) ? 'per-row-flash' : '', terpilih ? 'per-row-terpilih' : ''].filter(Boolean).join(' ');
+    const kolomCb = p.terdaftar
+      ? '<td class="bulk-col"><span class="per-bulk-na" title="Sudah terdaftar di Produk Master">·</span></td>'
+      : `<td class="bulk-col"><input type="checkbox" class="bulk-cb" data-sku="${escapeHtml(p.sku)}" ${terpilih ? 'checked' : ''} aria-label="Pilih ${escapeHtml(p.sku)}" /></td>`;
+    return `<tr data-sku="${escapeHtml(p.sku)}"${kelas ? ` class="${kelas}"` : ''}${p.terdaftar ? '' : ' data-bisa-pilih="1"'}>
+      ${kolomCb}
       ${kolomSku}
       <td>${escapeHtml(p.nama || (p.terdaftar ? '-' : '(belum ada nama)'))}</td>
       ${perMonSel(p.onHand, 'hand')}
@@ -18659,7 +18704,8 @@ function perMonRender() {
     </tr>`;
   }).join('');
   renderPaginasi('per-mon-paginasi', data.length, perMonPaginasiState, perMonRender);
-  perMonFlashSku = '';
+  perMonFlashSet.clear();
+  perMonUpdateBulkUI();
 }
 
 async function perMonJalankanRekon() {
@@ -18692,6 +18738,187 @@ async function perMonPasangTrigger() {
     if (data.success) { playBeep(); statusEl.textContent = '✓ Rekonsiliasi Malam terjadwal setiap hari ±02:00.'; statusEl.className = 'status-text ok'; perFetchMonitorStok(true); }
     else { statusEl.textContent = '✗ ' + (data.error || 'Gagal'); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
+}
+
+/* =====================================================================
+   MONITOR STOK - INPUT MASTER MASSAL
+   Checkbox tersembunyi (CSS) sampai tabel diberi class .bulk-mode-active lewat tombol
+   [☑️ Pilih Massal]. Pilihan disimpan di Set (kunci SKU uppercase) supaya tetap ada
+   walau pindah halaman paginasi / ganti filter / pencarian.
+   ===================================================================== */
+let perMonBulkAktif = false;
+const perMonTerpilih = new Set();
+const PER_BULK_UKURAN_BATCH = 400; // per request ke server (backend sanggup 1000, dibuat aman)
+let perMonBulkSedangKirim = false;
+
+function perMonToggleBulk(paksa) {
+  perMonBulkAktif = typeof paksa === 'boolean' ? paksa : !perMonBulkAktif;
+  el('per-mon-table').classList.toggle('bulk-mode-active', perMonBulkAktif);
+  const btn = el('per-mon-btn-bulk');
+  btn.textContent = perMonBulkAktif ? '✕ Batal Pilih' : '☑️ Pilih Massal';
+  btn.classList.toggle('active', perMonBulkAktif);
+  const bar = el('per-bulk-bar');
+  bar.classList.toggle('show', perMonBulkAktif);
+  bar.setAttribute('aria-hidden', perMonBulkAktif ? 'false' : 'true');
+  if (!perMonBulkAktif) perMonTerpilih.clear();
+  perMonRender();
+}
+
+function perMonKosongkanPilihan() {
+  perMonTerpilih.clear();
+  perMonRender();
+}
+
+// Kandidat "Pilih Semua": HANYA SKU ⚠️ (belum terdaftar) dari hasil filter + pencarian aktif (semua halaman)
+function perMonKandidatBulk() {
+  return perMonDataTersaring().filter(p => !p.terdaftar);
+}
+
+function perMonPilihSemua(centang) {
+  perMonKandidatBulk().forEach(p => {
+    const k = String(p.sku).toUpperCase();
+    if (centang) perMonTerpilih.add(k); else perMonTerpilih.delete(k);
+  });
+  perMonRender();
+}
+
+function perMonUpdateBulkUI() {
+  const n = perMonTerpilih.size;
+  const btn = el('per-bulk-btn-submit');
+  const teksLama = btn.textContent;
+  btn.textContent = `+ Daftarkan (${n}) SKU Terpilih`;
+  btn.disabled = n === 0 || perMonBulkSedangKirim;
+  if (teksLama !== btn.textContent && n > 0) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); }
+
+  const kandidat = perMonKandidatBulk();
+  const jumlahTerpilihDiFilter = kandidat.filter(p => perMonTerpilih.has(String(p.sku).toUpperCase())).length;
+  const cbAll = el('per-mon-cb-all');
+  cbAll.disabled = kandidat.length === 0;
+  cbAll.checked = kandidat.length > 0 && jumlahTerpilihDiFilter === kandidat.length;
+  cbAll.indeterminate = jumlahTerpilihDiFilter > 0 && jumlahTerpilihDiFilter < kandidat.length;
+
+  const tanpaNama = perMonCache.filter(p => !p.terdaftar && !p.nama && perMonTerpilih.has(String(p.sku).toUpperCase())).length;
+  let sub;
+  if (kandidat.length === 0 && n === 0) sub = 'Tidak ada SKU ⚠️ di tampilan ini. Coba filter "⚠️ Belum Master".';
+  else if (n === 0) sub = `Centang SKU ⚠️, atau centang kotak di header untuk memilih ${kandidat.length} sekaligus.`;
+  else sub = `${n} SKU dipilih` + (tanpaNama ? ` · ${tanpaNama} tanpa nama → nama sementara = SKU` : '');
+  el('per-bulk-sub').textContent = sub;
+}
+
+function perMonBulkPasangEvent() {
+  const tbody = el('per-mon-body');
+  if (!tbody || tbody.dataset.bulkEvent) return;
+  tbody.dataset.bulkEvent = '1';
+  // Delegasi: 1 listener untuk semua checkbox baris (aman walau tabel dirender ulang)
+  tbody.addEventListener('change', e => {
+    const cb = e.target;
+    if (!cb.classList || !cb.classList.contains('bulk-cb')) return;
+    const k = String(cb.dataset.sku || '').toUpperCase();
+    if (cb.checked) perMonTerpilih.add(k); else perMonTerpilih.delete(k);
+    const tr = cb.closest('tr');
+    if (tr) tr.classList.toggle('per-row-terpilih', cb.checked);
+    perMonUpdateBulkUI();
+  });
+  // Klik di mana saja pada baris ⚠️ = toggle centang (lebih cepat daripada membidik kotak kecil)
+  tbody.addEventListener('click', e => {
+    if (!perMonBulkAktif) return;
+    const tr = e.target.closest('tr[data-bisa-pilih="1"]');
+    if (!tr || e.target.closest('input, button, a')) return;
+    const cb = tr.querySelector('input.bulk-cb');
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', perMonBulkPasangEvent);
+else perMonBulkPasangEvent();
+
+async function perMonSubmitBulk() {
+  if (perMonBulkSedangKirim || perMonTerpilih.size === 0) return;
+  // Kumpulkan array of objects {sku, namaProduk} dari baris yang dicentang
+  const dataArray = perMonCache
+    .filter(p => !p.terdaftar && perMonTerpilih.has(String(p.sku).toUpperCase()))
+    .map(p => ({ sku: p.sku, namaProduk: p.nama || '' }));
+  if (dataArray.length === 0) { perMonTerpilih.clear(); perMonRender(); return; }
+  const tanpaNama = dataArray.filter(d => !d.namaProduk).length;
+  if (!confirm(`Daftarkan ${dataArray.length} SKU ke Produk Master?` +
+    (tanpaNama ? `\n\n${tanpaNama} SKU belum punya nama → sementara memakai SKU sebagai nama (bisa dirapikan nanti di Katalog).` : '') +
+    '\n\nSKU yang ternyata sudah ada di Master tidak akan diduplikasi.')) return;
+
+  perMonBulkSedangKirim = true;
+  perMonUpdateBulkUI();
+  el('per-bulk-btn-kosongkan').disabled = true;
+  el('per-mon-btn-bulk').disabled = true;
+  const statusEl = el('per-mon-rekon-status');
+  statusEl.textContent = '';
+  const total = { ditambah: 0, diperbarui: 0, sudahAda: 0, dilewati: 0 };
+  let terproses = 0, pesanGagal = '';
+  perMonOverlay(true, `Mendaftarkan 0/${dataArray.length} SKU...`);
+  try {
+    for (let i = 0; i < dataArray.length; i += PER_BULK_UKURAN_BATCH) {
+      const potongan = dataArray.slice(i, i + PER_BULK_UKURAN_BATCH);
+      el('per-mon-overlay-teks').textContent = `Mendaftarkan ${Math.min(i + potongan.length, dataArray.length)}/${dataArray.length} SKU...`;
+      const data = await postJsonTulis({ aksi: 'monitor_bulk_upsert_sku_master', items: potongan, email: currentUserEmail() }, 180000);
+      if (!data.success) { pesanGagal = data.error || 'Gagal'; break; }
+      const j = data.jumlah || {};
+      Object.keys(total).forEach(k => { total[k] += j[k] || 0; });
+      // Tandai lokal: yang ditambah / diperbarui / ternyata sudah ada -> semuanya kini terdaftar
+      const hasil = [];
+      (data.ditambah || []).forEach(d => hasil.push({ sku: d.sku, nama: d.nama }));
+      const namaKirim = {};
+      potongan.forEach(d => { namaKirim[String(d.sku).toUpperCase()] = d.namaProduk; });
+      (data.diperbarui || []).concat(data.sudahAda || []).forEach(sku => hasil.push({ sku, nama: namaKirim[String(sku).toUpperCase()] || '' }));
+      perMonTandaiTerdaftarMassal(hasil);
+      terproses += potongan.length;
+    }
+  } catch (err) {
+    pesanGagal = 'Gagal terhubung: ' + err.message;
+  } finally {
+    perMonBulkSedangKirim = false;
+    el('per-bulk-btn-kosongkan').disabled = false;
+    el('per-mon-btn-bulk').disabled = false;
+    perMonOverlay(false);
+  }
+
+  const ringkas = `${total.ditambah} ditambahkan` + (total.diperbarui ? `, ${total.diperbarui} diperbarui` : '') +
+    (total.sudahAda ? `, ${total.sudahAda} ternyata sudah ada` : '') + (total.dilewati ? `, ${total.dilewati} dilewati (format SKU tidak valid)` : '');
+  if (pesanGagal) {
+    statusEl.textContent = `✗ Berhenti setelah ${terproses}/${dataArray.length} SKU: ${pesanGagal}` + (terproses ? ` (sebelumnya: ${ringkas})` : '');
+    statusEl.className = 'status-text err';
+  } else {
+    playBeep();
+    statusEl.textContent = `✓ Input Master Massal selesai: ${ringkas}.`;
+    statusEl.className = 'status-text ok';
+  }
+  // Keluar dari mode massal otomatis kalau sudah tidak ada SKU ⚠️ tersisa
+  if (!pesanGagal && !perMonCache.some(p => !p.terdaftar)) perMonToggleBulk(false);
+  else perMonRender();
+}
+
+// Versi massal dari perMonTandaiTerdaftar: 1x render untuk ratusan SKU
+function perMonTandaiTerdaftarMassal(daftar) {
+  const peta = {};
+  daftar.forEach(d => { peta[String(d.sku).toUpperCase()] = d.nama; });
+  perMonCache.forEach(p => {
+    const k = String(p.sku).toUpperCase();
+    if (!peta.hasOwnProperty(k)) return;
+    p.terdaftar = true;
+    if (peta[k]) p.nama = peta[k];
+    perMonTerpilih.delete(k);
+    perMonFlashSet.add(k);
+  });
+  const sisa = perMonCache.filter(p => !p.terdaftar).length;
+  el('per-mon-kpi-master').textContent = sisa;
+  el('per-mon-kpi-master').style.color = sisa ? 'var(--web-warning)' : '';
+  try {
+    const lokal = ambilCacheLokal('monitor_stok_v2');
+    if (lokal && lokal.daftar) {
+      lokal.daftar = perMonCache;
+      if (lokal.ringkasan) lokal.ringkasan.belumMaster = sisa;
+      simpanCacheLokal('monitor_stok_v2', lokal);
+    }
+  } catch (e) { }
+  perMonRender();
 }
 
 /* =====================================================================
@@ -18760,30 +18987,49 @@ function perParseRupiah(teks) {
   return isNaN(n) ? null : Math.round(n * pengali * 100) / 100;
 }
 
+/* Parser teks produk dari supplier/marketplace - tahan format berantakan:
+   - SKU menempel tanpa spasi ("SKU7RHX3JXX") maupun dipisah spasi/titik dua ("SKU: ABC-9")
+   - baris sampah di antara Nama & SKU (rating "5", "(4)", "•", dll)
+   - harga pertama setelah "Rp" = Harga Modal ("Rp12.900" -> 12900; "Rp28.90056%" di baris
+     berikutnya = harga coret, diabaikan karena bukan yang pertama) */
 function perParseTeksProduk(teks) {
-  const baris = String(teks || '').replace(/\u00a0/g, ' ').split(/\r?\n/).map(b => b.trim()).filter(Boolean);
   const hasil = { nama: '', sku: '', harga: null };
+
+  // 1) Pecah per baris, trim, buang baris kosong
+  const baris = String(teks || '')
+    .replace(/\u00a0/g, ' ')          // non-breaking space dari web -> spasi biasa
+    .replace(/[\u200b-\u200d\ufeff]/g, '') // karakter tak terlihat (zero-width)
+    .split(/\r?\n/)
+    .map(b => b.trim())
+    .filter(Boolean);
   if (baris.length === 0) return hasil;
-  const reSku = /\bSKU\b\s*[:：=#\-]?\s*([A-Za-z0-9][A-Za-z0-9._\-\/]*)/i;
-  const reRp = /\bRp\.?\s*([0-9][0-9.,]*\s*(?:rb|ribu|k|jt|juta)?)/gi;
 
-  // SKU: teks setelah kata "SKU" (baris mana pun)
-  for (const b of baris) { const m = b.match(reSku); if (m && !/^rp$/i.test(m[1])) { hasil.sku = m[1]; break; } }
-
-  // Harga: angka setelah "Rp" - utamakan baris yang menyebut modal/HPP/beli/supplier
-  const semuaRp = [];
-  baris.forEach(b => { let m; reRp.lastIndex = 0; while ((m = reRp.exec(b)) !== null) semuaRp.push({ baris: b, angka: m[1] }); });
-  const prioritas = semuaRp.find(x => /modal|hpp|beli|supplier|cost/i.test(x.baris)) || semuaRp[0];
-  if (prioritas) hasil.harga = perParseRupiah(prioritas.angka);
-
-  // Nama: baris pertama (buang label "Nama:", dan potong kalau di baris yang sama ada "SKU"/"Rp")
+  // 2) Nama = baris pertama (index 0)
   let nama = baris[0];
-  if (/^\s*(sku|harga|rp)\b/i.test(nama) && baris.length > 1) {
-    nama = baris.find(b => !/^\s*(sku|harga|rp|modal|hpp|stok|stock|qty)\b/i.test(b)) || '';
+  if (baris.length === 1) {
+    // teks 1 baris: potong bagian "SKU..." / "Rp..." yang menempel di belakang nama
+    nama = nama.split(/\s+SKU\s*[:：=#]?\s*[A-Za-z0-9]|\s+Rp\.?\s*\d/i)[0];
   }
-  nama = nama.replace(/^\s*(nama(\s*produk)?|produk|product(\s*name)?)\s*[:：=\-]\s*/i, '');
-  nama = nama.split(/\bSKU\b|\bRp\.?\s*\d/i)[0].replace(/[\s|,;:\-–—]+$/, '').trim();
-  hasil.nama = nama;
+  hasil.nama = nama.replace(/^\s*(nama(\s*produk)?|produk)\s*[:：=]\s*/i, '').replace(/[\s|,;:\-–—•]+$/, '').trim();
+
+  // 3) SKU = capture group 1 dari /SKU\s*([A-Za-z0-9\-_]+)/i - dicari di SISA baris (index 1 dst).
+  //    Tambahan opsional [:：=#]? supaya format "SKU: ABC-9" juga tertangkap (tetap kompatibel).
+  const reSku = /SKU\s*[:：=#]?\s*([A-Za-z0-9\-_]+)/i;
+  const barisCariSku = baris.length > 1 ? baris.slice(1) : baris;
+  for (const b of barisCariSku) {
+    const m = b.match(reSku);
+    if (m && m[1]) { hasil.sku = m[1]; break; }
+  }
+
+  // 4) Harga Modal = angka pada "Rp" PERTAMA yang ditemukan, titik ribuan dibuang
+  const reRp = /Rp\s*([\d\.]+)/i;
+  for (const b of baris) {
+    const m = b.match(reRp);
+    if (m && m[1]) {
+      const angka = m[1].replace(/\./g, '');
+      if (angka !== '') { hasil.harga = Number(angka); break; }
+    }
+  }
   return hasil;
 }
 
@@ -18792,7 +19038,7 @@ function perMasterOnPaste(e) {
   if (!cb) return;
   const teks = cb.getData('text/plain') || cb.getData('text') || '';
   const multiBaris = /\r?\n/.test(teks.trim());
-  const adaKataSku = /\bSKU\b/i.test(teks);
+  const adaKataSku = /SKU/i.test(teks); // tanpa \b supaya "SKU7RHX3JXX" (menempel) juga terdeteksi
   if (!multiBaris && !adaKataSku) return; // paste biasa - biarkan normal
   e.preventDefault();
 
@@ -18886,7 +19132,8 @@ function perMonTandaiTerdaftar(sku, nama) {
       simpanCacheLokal('monitor_stok_v2', lokal);
     }
   } catch (e) { }
-  perMonFlashSku = kunci;
+  perMonFlashSet.add(kunci);
+  perMonTerpilih.delete(kunci);
   perMonRender();
   return berubah;
 }
