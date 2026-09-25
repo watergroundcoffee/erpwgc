@@ -1207,6 +1207,41 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   }
   .mgm-card.mgm-ghost { opacity: 0.45; }
   .mgm-card.mgm-ghost b { font-style: italic; }
+
+  /* ===== Checklist Barang Masuk: auto-pin ke atas + flash highlight pas SKU discan ===== */
+  .mgm-card-flash { animation: mgmFlashScan 1.6s ease-out; }
+  @keyframes mgmFlashScan {
+    0%   { background: rgba(250,204,21,0.55); border-color: #facc15; box-shadow: 0 0 0 3px rgba(250,204,21,0.35); transform: scale(1.015); }
+    25%  { background: rgba(63,166,107,0.35); border-color: #3fa66b; box-shadow: 0 0 0 2px rgba(63,166,107,0.25); transform: scale(1); }
+    100% { background: var(--panel); border-color: var(--panel-border); box-shadow: 0 0 0 0 rgba(63,166,107,0); }
+  }
+  .mgm-card-meta.mgm-target-pas { color: #3fa66b; font-weight: 800; }
+  .mgm-card-meta.mgm-target-lebih { color: #e0a33a; font-weight: 800; }
+  .mgm-card-meta.mgm-asal-inv { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ===== Pilih banyak invoice (chips) ===== */
+  .mgm-chips { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+  .mgm-chips:empty { display: none; }
+  .mgm-chip {
+    display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+    padding: 5px 6px 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    background: rgba(63,166,107,0.18); border: 1px solid #3fa66b; color: var(--text);
+  }
+  .mgm-chip.mgm-chip-asing { background: rgba(224,163,58,0.15); border-color: #e0a33a; }
+  .mgm-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mgm-chip button {
+    flex: none; width: 20px; height: 20px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(0,0,0,0.25); color: #fff; font-size: 12px; line-height: 20px; padding: 0;
+  }
+  .mgm-inv-card { width: 100%; box-sizing: border-box; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+  .mgm-inv-card.mgm-inv-dipilih { border-color: #3fa66b !important; background: rgba(63,166,107,0.12) !important; }
+  .mgm-inv-cek {
+    flex: none; width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--panel-border);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: #fff;
+  }
+  .mgm-inv-dipilih .mgm-inv-cek { background: #3fa66b; border-color: #3fa66b; }
+  .mgm-checklist-aksi { position: sticky; bottom: 10px; width: 100%; z-index: 5; }
+  .mgm-checklist-aksi button:disabled { opacity: 0.5; }
   /* Struktur baru: [Hapus] | [Detail Produk] | [Qty] - sejajar horizontal, ergonomis mobile */
   .mgm-card-main-row { display: flex; align-items: center; gap: 10px; }
   .mgm-card-hapus-kiri {
@@ -2643,11 +2678,16 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
     <div id="screen-memo-gudang-checklist" style="display:none; flex-direction:column; align-items:center; gap:10px; width:100%;">
       <button class="back-btn" onclick="hideAllScreens(); el('screen-memo-gudang').style.display='flex';">← Kembali</button>
       <div class="title">Pilih Invoice buat Checklist</div>
+      <div style="font-size:11.5px; color:var(--text-dim); text-align:center; width:100%;">Bisa pilih lebih dari 1 invoice - tap kartunya, atau ketik/scan No Invoice lalu Enter (pisahkan pakai koma kalau banyak).</div>
       <div class="text-input-wrap" style="width:100%;">
-        <input id="mgm-checklist-cari" type="text" placeholder="🔍 Cari No Invoice / Supplier..." oninput="mgmRenderDaftarChecklist()" />
+        <input id="mgm-checklist-cari" type="text" placeholder="🔍 Cari / ketik No Invoice, Enter buat tambah..." oninput="mgmRenderDaftarChecklist()" onkeydown="mgmChecklistInputKeydown(event)" onpaste="mgmChecklistInputPaste(event)" autocomplete="off" />
       </div>
+      <div id="mgm-checklist-chips" class="mgm-chips"></div>
       <div id="mgm-checklist-list" style="width:100%; display:flex; flex-direction:column; gap:8px;"></div>
       <div class="web-placeholder" id="mgm-checklist-empty" style="display:none; width:100%; box-sizing:border-box;">Nggak ada invoice yang masih "Belum Dicek".</div>
+      <div class="mgm-checklist-aksi">
+        <button class="detail-action-btn" id="mgm-checklist-btn-muat" style="width:100%; margin:0; background:#3fa66b; color:#06200f;" onclick="mgmMuatChecklistTerpilih()" disabled>Pilih minimal 1 invoice</button>
+      </div>
     </div>
 
     <div id="screen-lihat-stock" style="display:none; flex-direction:column; align-items:center; gap:10px; width:100%;">
@@ -17073,6 +17113,7 @@ async function mgBukaChecklist() {
       (dataRiwayat.success ? dataRiwayat.daftar : [])
         .map(m => m.noInvoiceTerkait)
         .filter(no => no && no !== '-')
+        .flatMap(no => String(no).split(/[,;]+/).map(s => s.trim()).filter(Boolean)) // memo gabungan "INV-1, INV-2"
     );
     mgRenderDaftarChecklist();
   } catch (err) {
@@ -18966,14 +19007,32 @@ function tone(ctx, freq, start, duration, type) {
   osc.start(t0);
   osc.stop(t0 + duration + 0.03);
 }
-function playBeep() { /* Notifikasi bunyi "beep" dimatikan di versi web sesuai permintaan Maswan */ }
+// Audio feedback KHUSUS tampilan mobile (staf gudang di lapangan). Tampilan web tetap senyap.
+// Pakai Web Audio API (oscillator) - tanpa file suara eksternal, jadi nggak mungkin gagal muat.
+function modeTampilanMobile() {
+  const web = el('app-web');
+  return !web || web.style.display === 'none';
+}
+function playBeep() {
+  if (!modeTampilanMobile()) return;
+  try {
+    const ctx = getAudioCtx();
+    tone(ctx, 1900, 0, 0.11, 'square'); // "tit" pendek khas scanner
+  } catch (e) {}
+  try { if (navigator.vibrate) navigator.vibrate(35); } catch (e) {}
+}
 function playToot() {
+  if (!modeTampilanMobile()) return;
   try {
     const ctx = getAudioCtx();
     tone(ctx, 340, 0, 0.28, 'sawtooth');
     tone(ctx, 300, 0.24, 0.22, 'sawtooth');
   } catch (e) {}
+  try { if (navigator.vibrate) navigator.vibrate([90, 60, 90]); } catch (e) {}
 }
+// Browser HP baru ngizinin suara setelah ada interaksi pertama - buka "kunci" audio di tap/ketikan pertama
+// (ketikan dari scanner USB juga dihitung interaksi)
+['touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, () => { try { getAudioCtx(); } catch (e) {} }, { once: true, passive: true }));
 
 function checkConfig() {
   if (!WEB_APP_URL || WEB_APP_URL.indexOf('PASTE_URL') !== -1) {
@@ -21460,8 +21519,7 @@ async function mgmStartCamera() {
         const now = Date.now();
         if (text === mgmLastScanResult && (now - mgmLastScanTime) < 2000) return; // cegah scan dobel beruntun
         mgmLastScanResult = text; mgmLastScanTime = now;
-        playBeep();
-        mgmTambahItemKeCart(text);
+        mgmTambahItemKeCart(text); // bunyi beep/peringatan diurus di dalam fungsi ini
       }
     });
 
@@ -21537,17 +21595,33 @@ async function mgmTambahItemDariInput() {
 
 function mgmTambahItemKeCart(sku) {
   const cart = mgmCarts[mgmTabAktif];
-  const sudahAda = cart.find(it => it.sku === sku);
-  if (sudahAda) {
-    sudahAda.qty = (sudahAda.qty || 0) + 1;
-    mgmSimpanDraftLokal();
-    mgmRenderCart(); // item lama cuma qty berubah - render biasa, nggak perlu animasi masuk
+  const idxAda = cart.findIndex(it => it.sku === sku);
+  if (idxAda !== -1) {
+    const item = cart[idxAda];
+    item.qty = (parseFloat(item.qty) || 0) + 1;
+    if (mgmTabAktif === 'barangmasuk') {
+      // AUTO-PIN: SKU yang barusan discan (checklist-nya jadi tercentang) langsung naik ke paling atas
+      cart.splice(idxAda, 1);
+      cart.unshift(item);
+      mgmSimpanDraftLokal();
+      mgmRenderCart(false, true); // flash highlight kartu teratas
+      mgmPastikanKartuAtasTerlihat();
+      if (item.dariChecklist && item.qty > item.qtyTarget) playToot(); else playBeep(); // kelebihan qty = bunyi peringatan
+    } else {
+      mgmSimpanDraftLokal();
+      mgmRenderCart(); // tab lain: item lama cuma qty berubah - render biasa
+      playBeep();
+    }
   } else {
     const produk = katalogProdukCache.find(pr => pr.sku === sku);
     cart.unshift({ sku, nama: produk ? produk.nama : sku, qty: 1, catatan: '', fotoUrl: '' }); // PREPEND - item baru selalu di urutan paling atas
     if (mgmTabAktif === 'mintastock' || mgmTabAktif === 'stockopname') mgmMintaStokRealtime();
     mgmSimpanDraftLokal();
     mgmRenderCart(true); // true = ada item baru di posisi paling atas, kasih animasi masuk
+    // Lagi pakai checklist tapi SKU-nya nggak ada di invoice manapun -> bunyi peringatan
+    const pakaiChecklist = mgmTabAktif === 'barangmasuk' && cart.some(it => it.dariChecklist);
+    const skuTakDikenal = !produk && katalogProdukCache.length > 0;
+    if (pakaiChecklist || skuTakDikenal) playToot(); else playBeep();
   }
 }
 
@@ -21581,8 +21655,9 @@ function mgmHapusItem(idx) {
 }
 
 /* ===== Render cart - kartu compact, dipakai bareng 4 tab ===== */
-function mgmRenderCart(animasikanItemBaru) {
+function mgmRenderCart(animasikanItemBaru, flashItemTeratas) {
   const cart = mgmCarts[mgmTabAktif];
+  const jumlahInvoiceChecklist = new Set(cart.filter(it => it.dariChecklist).map(it => it.noInvoiceAsal)).size;
   el('mgm-cart-empty').style.display = cart.length === 0 ? 'block' : 'none';
   el('mgm-list-header').style.display = cart.length === 0 ? 'none' : 'block';
 
@@ -21605,7 +21680,11 @@ function mgmRenderCart(animasikanItemBaru) {
       const sisaStok = mgmStokRealtimeCache[it.sku] ? mgmStokRealtimeCache[it.sku].stockSaatIni : '-';
       meta = `<span class="mgm-card-meta">Sisa: ${sisaStok}</span>`;
     } else if (mgmTabAktif === 'barangmasuk' && it.dariChecklist) {
-      meta = `<span class="mgm-card-meta">/ ${it.qtyTarget}</span>`;
+      const q = parseFloat(it.qty) || 0;
+      const kelasTarget = q === it.qtyTarget ? ' mgm-target-pas' : (q > it.qtyTarget ? ' mgm-target-lebih' : '');
+      meta = `<span class="mgm-card-meta${kelasTarget}">/ ${it.qtyTarget}${q === it.qtyTarget ? ' ✓' : ''}</span>`;
+      // Kalau checklist gabungan dari >1 invoice, tunjukin SKU ini asalnya dari invoice mana
+      if (jumlahInvoiceChecklist > 1 && it.noInvoiceAsal) meta += `<span class="mgm-card-meta mgm-asal-inv" title="${escapeHtml(it.noInvoiceAsal)}">${escapeHtml(it.noInvoiceAsal)}</span>`;
     } else if (mgmTabAktif === 'stockopname') {
       const stokSistem = it.stokSistem !== undefined ? it.stokSistem : (mgmStokRealtimeCache[it.sku] ? mgmStokRealtimeCache[it.sku].stockSaatIni : 0);
       const selisih = (parseFloat(it.qty) || 0) - stokSistem;
@@ -21614,7 +21693,7 @@ function mgmRenderCart(animasikanItemBaru) {
     }
 
     return `
-      <div class="mgm-card ${ghost ? 'mgm-ghost' : ''} ${idx === 0 && animasikanItemBaru ? 'mgm-card-masuk' : ''}">
+      <div class="mgm-card ${ghost ? 'mgm-ghost' : ''} ${idx === 0 && animasikanItemBaru ? 'mgm-card-masuk' : ''} ${idx === 0 && flashItemTeratas ? 'mgm-card-flash' : ''}">
         <div class="mgm-card-main-row">
           <button class="mgm-card-hapus-kiri" onclick="mgmHapusItem(${idx})" title="Hapus item">🗑️</button>
           <div class="mgm-card-detail">
@@ -21640,6 +21719,14 @@ function mgmRenderCart(animasikanItemBaru) {
   }).join('');
 }
 
+// Dipanggil setelah auto-pin: pastikan kartu teratas kelihatan di layar (tanpa ganggu fokus input scanner)
+function mgmPastikanKartuAtasTerlihat() {
+  const kartu = el('mgm-cart-list') ? el('mgm-cart-list').firstElementChild : null;
+  if (!kartu) return;
+  const r = kartu.getBoundingClientRect();
+  if (r.top < 0 || r.bottom > window.innerHeight) kartu.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
 async function mgmAmbilFotoBukti(idx) {
   mgmFotoTargetIdx = idx;
   try {
@@ -21661,14 +21748,22 @@ async function mgmAmbilFotoBukti(idx) {
   } catch (err) { alert('Gagal ambil foto: ' + err.message); }
 }
 
-/* ===== Checklist Invoice (khusus tab Barang Masuk) ===== */
+/* ===== Checklist Invoice (khusus tab Barang Masuk) - bisa pilih BANYAK invoice sekaligus ===== */
 let mgmChecklistDaftarInvoice = [];
 let mgmChecklistInvoiceSudahDicek = new Set();
+let mgmChecklistTerpilih = [];   // No Invoice yang dipilih (urut sesuai dipilih)
+
+// "INV-1, INV-2" (memo gabungan) -> dipecah per invoice
+function mgmPecahNoInvoice(teks) {
+  return String(teks || '').split(/[,;\n\t]+/).map(s => s.trim()).filter(Boolean);
+}
 
 async function mgmBukaChecklist() {
   hideAllScreens();
   el('screen-memo-gudang-checklist').style.display = 'flex';
   el('mgm-checklist-cari').value = '';
+  mgmChecklistTerpilih = [];
+  mgmRenderChipsChecklist();
   el('mgm-checklist-list').innerHTML = '<div style="text-align:center; color:var(--text-dim); padding:20px 0; font-size:12.5px;">Memuat daftar invoice...</div>';
   try {
     const [dataInvoice, dataRiwayat] = await Promise.all([
@@ -21677,7 +21772,9 @@ async function mgmBukaChecklist() {
     ]);
     if (!dataInvoice.success) { el('mgm-checklist-list').innerHTML = `<div style="color:var(--danger); font-size:12.5px;">Gagal: ${escapeHtml(dataInvoice.error||'')}</div>`; return; }
     mgmChecklistDaftarInvoice = (dataInvoice.daftar || []).filter(inv => inv.statusDicek === 'Belum Dicek');
-    mgmChecklistInvoiceSudahDicek = new Set((dataRiwayat.success ? dataRiwayat.daftar : []).map(m => m.noInvoiceTerkait).filter(no => no && no !== '-'));
+    const semuaInvoiceTerkait = [];
+    (dataRiwayat.success ? dataRiwayat.daftar : []).forEach(m => { if (m.noInvoiceTerkait && m.noInvoiceTerkait !== '-') semuaInvoiceTerkait.push(...mgmPecahNoInvoice(m.noInvoiceTerkait)); });
+    mgmChecklistInvoiceSudahDicek = new Set(semuaInvoiceTerkait);
     mgmRenderDaftarChecklist();
   } catch (err) { el('mgm-checklist-list').innerHTML = `<div style="color:var(--danger); font-size:12.5px;">Gagal terhubung: ${escapeHtml(err.message)}</div>`; }
 }
@@ -21689,28 +21786,112 @@ function mgmRenderDaftarChecklist() {
   el('mgm-checklist-empty').style.display = daftar.length === 0 ? 'block' : 'none';
   el('mgm-checklist-list').innerHTML = daftar.map(inv => {
     const sudahDicek = mgmChecklistInvoiceSudahDicek.has(inv.noInvoice);
+    const dipilih = mgmChecklistTerpilih.includes(inv.noInvoice);
     return `
-    <div class="section-box" style="width:100%; box-sizing:border-box; ${sudahDicek ? 'opacity:0.5;' : ''}" onclick="mgmPilihInvoiceChecklist('${inv.noInvoice.replace(/'/g, "\\'")}')">
+    <div class="section-box mgm-inv-card${dipilih ? ' mgm-inv-dipilih' : ''}" style="${sudahDicek && !dipilih ? 'opacity:0.5;' : ''}" data-no-invoice="${escapeHtml(inv.noInvoice).replace(/"/g, '&quot;')}" onclick="mgmToggleInvoiceChecklist(this.dataset.noInvoice)">
       <div style="display:flex; align-items:center; gap:8px;">
-        <b style="font-size:14px;">${escapeHtml(inv.noInvoice)}</b>
+        <span class="mgm-inv-cek">${dipilih ? '✓' : ''}</span>
+        <b style="font-size:14px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(inv.noInvoice)}</b>
         ${sudahDicek ? '<span class="mode-badge" style="background:#2f9e6e; margin:0; font-size:9.5px;">✓ Sudah Dicek</span>' : ''}
       </div>
-      <div style="font-size:11.5px; color:var(--text-dim); margin-top:4px;">${escapeHtml(inv.namaSupplier)} · ${escapeHtml(inv.tanggal)} · Rp ${Number(inv.total).toLocaleString('id-ID')}</div>
+      <div style="font-size:11.5px; color:var(--text-dim); margin-top:4px; padding-left:28px;">${escapeHtml(inv.namaSupplier)} · ${escapeHtml(inv.tanggal)} · Rp ${Number(inv.total).toLocaleString('id-ID')}</div>
     </div>`;
   }).join('');
 }
 
-async function mgmPilihInvoiceChecklist(noInvoice) {
-  el('mgm-checklist-list').innerHTML = '<div style="text-align:center; color:var(--text-dim); padding:20px 0; font-size:12.5px;">Memuat item invoice...</div>';
+function mgmRenderChipsChecklist() {
+  const dikenal = new Set(mgmChecklistDaftarInvoice.map(inv => inv.noInvoice));
+  el('mgm-checklist-chips').innerHTML = mgmChecklistTerpilih.map((no, i) => `
+    <span class="mgm-chip${dikenal.has(no) ? '' : ' mgm-chip-asing'}" title="${dikenal.has(no) ? '' : 'Nggak ada di daftar Belum Dicek - tetap dicari di data invoice'}">
+      <span>${escapeHtml(no)}</span><button type="button" onclick="mgmHapusChipChecklist(${i})" aria-label="Hapus">✕</button>
+    </span>`).join('');
+  const btn = el('mgm-checklist-btn-muat');
+  const n = mgmChecklistTerpilih.length;
+  btn.disabled = n === 0;
+  btn.textContent = n === 0 ? 'Pilih minimal 1 invoice' : `✅ Muat Checklist (${n} invoice)`;
+}
+
+function mgmToggleInvoiceChecklist(noInvoice) {
+  const idx = mgmChecklistTerpilih.indexOf(noInvoice);
+  if (idx === -1) mgmChecklistTerpilih.push(noInvoice); else mgmChecklistTerpilih.splice(idx, 1);
+  mgmRenderChipsChecklist();
+  mgmRenderDaftarChecklist();
+}
+
+function mgmHapusChipChecklist(i) {
+  mgmChecklistTerpilih.splice(i, 1);
+  mgmRenderChipsChecklist();
+  mgmRenderDaftarChecklist();
+}
+
+// Tambah dari teks bebas (ketik/scan/paste): pisah pakai koma/titik koma/baris baru.
+// Kalau potongannya bukan No Invoice yang dikenal & ada spasinya, dicoba dipecah per spasi juga.
+function mgmTambahInvoiceDariTeks(teks) {
+  const dikenalLower = {};
+  mgmChecklistDaftarInvoice.forEach(inv => { dikenalLower[inv.noInvoice.toLowerCase()] = inv.noInvoice; });
+  let token = [];
+  mgmPecahNoInvoice(teks).forEach(t => {
+    if (!dikenalLower[t.toLowerCase()] && /\s/.test(t)) token.push(...t.split(/\s+/).filter(Boolean));
+    else token.push(t);
+  });
+  let ditambah = 0;
+  token.forEach(t => {
+    const no = dikenalLower[t.toLowerCase()] || t; // samakan ke penulisan asli kalau ketemu
+    if (!mgmChecklistTerpilih.includes(no)) { mgmChecklistTerpilih.push(no); ditambah++; }
+  });
+  if (ditambah > 0) {
+    el('mgm-checklist-cari').value = '';
+    mgmRenderChipsChecklist();
+    mgmRenderDaftarChecklist();
+  }
+  return ditambah;
+}
+
+function mgmChecklistInputKeydown(e) {
+  if (e.key !== 'Enter' && e.key !== ',') return;
+  const teks = e.target.value.trim();
+  if (!teks) return;
+  e.preventDefault();
+  mgmTambahInvoiceDariTeks(teks);
+}
+
+function mgmChecklistInputPaste(e) {
+  const teks = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+  if (!/[,;\n\t]/.test(teks)) return; // paste 1 nomor aja -> biarin jadi teks pencarian biasa
+  e.preventDefault();
+  mgmTambahInvoiceDariTeks(teks);
+}
+
+async function mgmMuatChecklistTerpilih() {
+  if (mgmChecklistTerpilih.length === 0) return;
+  const btn = el('mgm-checklist-btn-muat');
+  btn.disabled = true;
+  btn.textContent = 'Memuat item invoice...';
   try {
-    const data = await postJson({ aksi: 'lihat_detail_invoice_manual_checklist', noInvoice, email: currentUserEmail() });
-    if (!data.success) { alert('Gagal ambil detail: ' + (data.error || '')); mgmRenderDaftarChecklist(); return; }
-    mgmCarts.barangmasuk = (data.daftar || []).map(it => ({ sku: it.sku, nama: it.nama, qty: 0, catatan: '', qtyTarget: it.qtyInvoice, dariChecklist: true, noInvoiceAsal: noInvoice }));
+    const data = await postJson({ aksi: 'lihat_detail_invoice_manual_checklist', noInvoices: mgmChecklistTerpilih, email: currentUserEmail() });
+    if (!data.success) { alert('Gagal ambil detail: ' + (data.error || '')); mgmRenderChipsChecklist(); return; }
+    const daftar = data.daftar || [];
+    if (daftar.length === 0) { playToot(); alert('Nggak ada item SKU di invoice yang dipilih.'); mgmRenderChipsChecklist(); return; }
+    if (data.tidakDitemukan && data.tidakDitemukan.length) {
+      alert('Invoice ini nggak ketemu datanya & dilewati:\n' + data.tidakDitemukan.join('\n'));
+    }
+    // 1 SKU yang muncul di beberapa invoice DIGABUNG jadi 1 kartu (qty target dijumlah)
+    mgmCarts.barangmasuk = daftar.map(it => ({
+      sku: it.sku, nama: it.nama, qty: 0, catatan: '', qtyTarget: it.qtyInvoice, dariChecklist: true,
+      noInvoiceAsal: (it.noInvoices || []).join(', ')
+    }));
     mgmSimpanDraftLokal();
     hideAllScreens();
     el('screen-memo-gudang').style.display = 'flex';
     mgmRenderCart();
-  } catch (err) { alert('Gagal terhubung: ' + err.message); mgmRenderDaftarChecklist(); }
+    playBeep();
+  } catch (err) { alert('Gagal terhubung: ' + err.message); mgmRenderChipsChecklist(); }
+}
+
+// Kompatibel: pemanggilan lama (1 invoice) tetap jalan
+async function mgmPilihInvoiceChecklist(noInvoice) {
+  mgmChecklistTerpilih = [noInvoice];
+  await mgmMuatChecklistTerpilih();
 }
 
 /* ===== Riwayat (read-only di mobile - eksekusi/approve tetap dari web/kantor) ===== */
@@ -21789,9 +21970,11 @@ async function mgmSubmitBarangMasuk() {
   if (items.length === 0) { statusEl.textContent = '✗ Keranjang kosong atau semua qty 0.'; statusEl.className = 'status-text err'; return; }
   statusEl.textContent = 'Mengirim...'; statusEl.className = 'status-text';
   const itemsKirim = items.map(it => ({ sku: it.sku, qtyMasuk: it.qty, catatan: it.catatan }));
-  const itemChecklistSumber = items.find(it => it.noInvoiceAsal);
+  // Checklist gabungan: kumpulkan SEMUA No Invoice asal (tanpa dobel) -> "INV-1, INV-2"
+  const semuaInvoiceAsal = [];
+  mgmCarts.barangmasuk.forEach(it => mgmPecahNoInvoice(it.noInvoiceAsal).forEach(no => { if (!semuaInvoiceAsal.includes(no)) semuaInvoiceAsal.push(no); }));
   try {
-    const data = await postJson({ aksi: 'simpan_memo_barang_masuk', items: itemsKirim, noInvoiceTerkait: itemChecklistSumber ? itemChecklistSumber.noInvoiceAsal : '', email: currentUserEmail() });
+    const data = await postJson({ aksi: 'simpan_memo_barang_masuk', items: itemsKirim, noInvoiceTerkait: semuaInvoiceAsal.join(', '), email: currentUserEmail() });
     if (data.success) {
       playBeep();
       statusEl.textContent = `✓ Memo ${data.noMemo} terkirim, menunggu dieksekusi Back Office.`; statusEl.className = 'status-text ok';
