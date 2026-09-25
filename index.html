@@ -2061,6 +2061,42 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 .so-sesi { text-align: center; }
 .so-sesi-angka { font-size: 34px; font-weight: 800; color: var(--web-accent); line-height: 1; }
 .so-sesi-label { font-size: 11.5px; color: var(--web-text-dim); margin-top: 4px; }
+/* ----- Monitor Stok: loading overlay, skeleton, modal animasi, Smart Paste ----- */
+.per-mon-area { position: relative; min-height: 180px; }
+.per-loading-overlay { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; border-radius: 12px;
+  background: rgba(245,246,248,0.72); backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px);
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .2s ease, visibility 0s linear .2s; }
+.per-loading-overlay.show { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .2s ease, visibility 0s; }
+.per-loading-overlay-modal { background: rgba(255,255,255,0.78); }
+.per-loading-box { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; background: var(--web-panel);
+  border: 1px solid var(--web-border); box-shadow: 0 6px 20px rgba(16,24,32,0.10); font-size: 12.5px; font-weight: 600; color: var(--web-text);
+  transform: translateY(4px) scale(.97); transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+.per-loading-overlay.show .per-loading-box { transform: none; }
+.per-spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(47,158,110,0.22); border-top-color: var(--web-accent); animation: per-putar .7s linear infinite; }
+@keyframes per-putar { to { transform: rotate(360deg); } }
+.per-skel { display: block; height: 11px; border-radius: 6px; background: linear-gradient(90deg, rgba(127,127,127,0.10) 25%, rgba(127,127,127,0.22) 37%, rgba(127,127,127,0.10) 63%);
+  background-size: 400% 100%; animation: per-kilau 1.3s ease infinite; }
+@keyframes per-kilau { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+.per-modal { position: fixed; inset: 0; z-index: 270; display: none; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(10,14,18,0); transition: background .22s ease; }
+.per-modal.show { background: rgba(10,14,18,0.48); }
+.per-modal-card { position: relative; max-width: 440px; width: 100%; opacity: 0; transform: translateY(10px) scale(.96);
+  transition: opacity .22s ease, transform .26s cubic-bezier(.2,.8,.2,1); }
+.per-modal.show .per-modal-card { opacity: 1; transform: none; }
+.per-master-info { font-size: 11.5px; color: var(--web-text-dim); background: var(--web-bg); border-radius: 8px; padding: 7px 10px; margin-bottom: 4px; line-height: 1.5; }
+.per-master-info.warn { background: rgba(217,165,58,0.14); color: #7a5610; }
+.per-master-input { margin-bottom: 4px !important; }
+.per-paste-hint { font-size: 11.5px; font-weight: 600; color: var(--web-accent); background: rgba(47,158,110,0.10); border-radius: 8px; padding: 6px 10px; margin-top: 6px; animation: per-muncul .25s ease; }
+.per-paste-hint.warn { color: #7a5610; background: rgba(217,165,58,0.14); }
+@keyframes per-muncul { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.per-flash-input { animation: per-flash-input 1.1s ease; }
+@keyframes per-flash-input { 0% { box-shadow: 0 0 0 3px rgba(47,158,110,0.45); background: rgba(47,158,110,0.10); } 100% { box-shadow: 0 0 0 0 rgba(47,158,110,0); } }
+.per-row-flash td { animation: per-row-flash 1.6s ease; }
+@keyframes per-row-flash { 0% { background: rgba(47,158,110,0.22); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .per-modal, .per-modal-card, .per-loading-overlay, .per-loading-box { transition: none !important; }
+  .per-spinner, .per-skel, .per-row-flash td, .per-flash-input { animation-duration: 0.01s !important; }
+}
 @media (max-width: 900px) {
   .so-wrap { grid-template-columns: 1fr; }
   .per-kartu-grid { grid-template-columns: repeat(2, 1fr); }
@@ -5874,6 +5910,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <button class="web-btn-secondary per-btn-kecil" onclick="perFetchMonitorStok(true)">↻ Muat Ulang</button>
             </div>
 
+            <div class="per-mon-area" id="per-mon-area">
             <div class="web-table-wrap">
               <table class="web-table per-pilar-table">
                 <thead><tr>
@@ -5889,6 +5926,10 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             </div>
             <div class="web-placeholder" id="per-mon-empty" style="display:none;">Tidak ada SKU yang cocok dengan filter.</div>
             <div id="per-mon-paginasi"></div>
+              <div class="per-loading-overlay" id="per-mon-overlay" aria-hidden="true">
+                <div class="per-loading-box"><div class="per-spinner"></div><span id="per-mon-overlay-teks">Memuat data stok...</span></div>
+              </div>
+            </div>
             <div class="per-legend">
               <b>On Hand</b> = Qty Opname + Masuk − Keluar (waktu fisik, sejak detik opname terakhir) ·
               <b>On Order</b> = invoice pembelian belum divalidasi + sisa PO ·
@@ -6435,21 +6476,27 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           </div>
         </div>
 
-        <!-- Modal: Daftarkan SKU ke Produk Master (dari Monitor Stok) -->
-        <div id="per-modal-master" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:270; align-items:center; justify-content:center;">
-          <div class="web-panel" style="max-width:420px; width:92%;">
+        <!-- Modal: [+ Master] dari Monitor Stok - Upsert 1 SKU. Smart Paste (stealth): paste teks produk
+             multi-baris / yang mengandung kata "SKU" ke kotak mana pun -> otomatis dipecah ke Nama, SKU, Harga Modal -->
+        <div id="per-modal-master" class="per-modal" role="dialog" aria-modal="true" aria-labelledby="per-master-judul" onmousedown="if(event.target===this) perTutupModalMaster()">
+          <div class="web-panel per-modal-card">
             <div class="web-panel-header" style="display:flex; justify-content:space-between; align-items:center;">
-              <span>+ Daftarkan ke Produk Master</span>
-              <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="perTutupModalMaster()">✕</button>
+              <span id="per-master-judul">+ Daftarkan ke Produk Master</span>
+              <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="perTutupModalMaster()" title="Tutup (Esc)">✕</button>
             </div>
-            <label class="so-label">SKU</label>
-            <input id="per-master-sku" class="web-form-input" readonly style="opacity:0.8;" />
-            <label class="so-label">Nama Produk</label>
-            <input id="per-master-nama" class="web-form-input" placeholder="Nama produk (nama master gudang)" onkeydown="if(event.key==='Enter'){event.preventDefault(); perSimpanMaster();}" />
-            <label class="so-label">Harga Jual <span style="font-weight:400; color:var(--web-text-dim);">(opsional)</span></label>
-            <input id="per-master-harga" class="web-form-input" type="number" min="0" placeholder="0" onkeydown="if(event.key==='Enter'){event.preventDefault(); perSimpanMaster();}" />
-            <button class="web-btn-primary" id="per-master-btn" style="width:100%; margin-top:6px;" onclick="perSimpanMaster()">Simpan ke Produk Master</button>
+            <div id="per-master-info" class="per-master-info"></div>
+            <label class="so-label" for="per-master-nama">Nama Produk</label>
+            <input id="per-master-nama" class="web-form-input per-master-input" autocomplete="off" placeholder="Nama produk (nama master gudang)" />
+            <label class="so-label" for="per-master-sku">SKU</label>
+            <input id="per-master-sku" class="web-form-input per-master-input" autocomplete="off" placeholder="SKU" />
+            <label class="so-label" for="per-master-harga">Harga Modal <span style="font-weight:400; color:var(--web-text-dim);">(opsional)</span></label>
+            <input id="per-master-harga" class="web-form-input per-master-input" inputmode="decimal" autocomplete="off" placeholder="Rp 0" />
+            <div id="per-master-paste-hint" class="per-paste-hint" style="display:none;"></div>
+            <button class="web-btn-primary" id="per-master-btn" style="width:100%; margin-top:8px;" onclick="perSimpanMaster()">Simpan ke Produk Master</button>
             <div class="status-text" id="per-master-status" style="text-align:left; margin-top:6px;"></div>
+            <div class="per-loading-overlay per-loading-overlay-modal" id="per-master-overlay" aria-hidden="true">
+              <div class="per-loading-box"><div class="per-spinner"></div><span>Menyimpan ke Master...</span></div>
+            </div>
           </div>
         </div>
 
@@ -18477,20 +18524,42 @@ let perMonFilter = 'semua';
 let perMonPaginasiState = buatStatePaginasi();
 let perMonCariTimer = null;
 let perMonSedangMuat = false;
+let perMonFlashSku = '';
 
 function perFmtAngka(n) {
   const v = Number(n) || 0;
   return (Math.round(v * 100) / 100).toLocaleString('id-ID');
 }
 
+/* Overlay loading area tabel Monitor Stok - pakai hitungan supaya request yang tumpang tindih
+   (misal muat data + simpan SKU) tidak saling mematikan overlay terlalu cepat. */
+let perMonOverlayHitung = 0;
+function perMonOverlay(tampil, teks) {
+  perMonOverlayHitung = Math.max(0, perMonOverlayHitung + (tampil ? 1 : -1));
+  const ov = el('per-mon-overlay');
+  if (!ov) return;
+  if (tampil && teks) el('per-mon-overlay-teks').textContent = teks;
+  ov.classList.toggle('show', perMonOverlayHitung > 0);
+  ov.setAttribute('aria-hidden', perMonOverlayHitung > 0 ? 'false' : 'true');
+}
+
+function perMonRenderSkeleton() {
+  const lebar = [70, 85, 40, 35, 40, 45, 60];
+  el('per-mon-empty').style.display = 'none';
+  el('per-mon-body').innerHTML = Array.from({ length: 8 }).map((_, i) => `<tr>${lebar.map((w, j) =>
+    `<td${j >= 2 && j <= 5 ? ' class="num"' : ''}><span class="per-skel" style="width:${Math.max(25, w - (i * 7 + j * 3) % 25)}%; ${j >= 2 && j <= 5 ? 'margin-left:auto;' : ''}"></span></td>`).join('')}</tr>`).join('');
+  el('per-mon-paginasi').innerHTML = '';
+}
+
 async function perFetchMonitorStok(segarkan) {
   if (perMonSedangMuat) return;
   if (perMonCache.length === 0) {
     const lokal = ambilCacheLokal('monitor_stok_v2');
-    if (lokal && lokal.daftar) { perMonTerapkanData(lokal); }
-    else el('per-mon-body').innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--web-text-dim);">Menghitung posisi stok...</td></tr>';
+    if (lokal && lokal.daftar) perMonTerapkanData(lokal);
+    else perMonRenderSkeleton();
   }
   perMonSedangMuat = true;
+  perMonOverlay(true, segarkan ? 'Menghitung ulang posisi stok...' : 'Memuat data stok...');
   try {
     const data = await postJson({ aksi: 'lihat_monitor_stok', segarkan: !!segarkan, email: currentUserEmail() }, 45000);
     if (!data.success) {
@@ -18501,7 +18570,7 @@ async function perFetchMonitorStok(segarkan) {
     simpanCacheLokal('monitor_stok_v2', data);
   } catch (err) {
     if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
-  } finally { perMonSedangMuat = false; }
+  } finally { perMonSedangMuat = false; perMonOverlay(false); }
 }
 
 function perMonTerapkanData(data) {
@@ -18578,7 +18647,8 @@ function perMonRender() {
     const opname = p.opnameTerakhir
       ? `<span title="${escapeHtml((p.sumberOpname || '') + ' · qty ' + (p.qtyOpname ?? '-'))}">${escapeHtml(p.opnameTerakhir)}</span>`
       : '<span style="color:var(--web-warning);">Belum pernah</span>';
-    return `<tr>
+    const kelasFlash = perMonFlashSku && String(p.sku).toUpperCase() === perMonFlashSku ? ' class="per-row-flash"' : '';
+    return `<tr data-sku="${escapeHtml(p.sku)}"${kelasFlash}>
       ${kolomSku}
       <td>${escapeHtml(p.nama || (p.terdaftar ? '-' : '(belum ada nama)'))}</td>
       ${perMonSel(p.onHand, 'hand')}
@@ -18589,6 +18659,7 @@ function perMonRender() {
     </tr>`;
   }).join('');
   renderPaginasi('per-mon-paginasi', data.length, perMonPaginasiState, perMonRender);
+  perMonFlashSku = '';
 }
 
 async function perMonJalankanRekon() {
@@ -18597,6 +18668,7 @@ async function perMonJalankanRekon() {
   const btn = el('per-mon-btn-rekon');
   btn.disabled = true;
   setLoadingDots(statusEl, 'Menjalankan rekonsiliasi');
+  perMonOverlay(true, 'Menjalankan rekonsiliasi...');
   try {
     const data = await postJsonTulis({ aksi: 'jalankan_rekonsiliasi_manual', email: currentUserEmail() }, 300000);
     stopLoadingDots(statusEl);
@@ -18608,7 +18680,7 @@ async function perMonJalankanRekon() {
       perFetchMonitorStok(true);
     } else { statusEl.textContent = '✗ ' + (data.error || 'Gagal'); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
-  finally { btn.disabled = false; }
+  finally { btn.disabled = false; perMonOverlay(false); }
 }
 
 async function perMonPasangTrigger() {
@@ -18622,40 +18694,201 @@ async function perMonPasangTrigger() {
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
 
-/* [+ Master] - daftarkan SKU nyasar ke Produk Master (pakai aksi tambah_produk_baru yang sudah ada) */
+/* =====================================================================
+   [+ Master] - Modal input cepat (Nama, SKU, Harga Modal) + UPSERT ke Master Produk
+   lewat aksi khusus Monitor Stok (monitor_upsert_sku_master). Kode Katalog tidak dipakai/diubah.
+   ===================================================================== */
+let perMasterSkuBaris = '';   // SKU baris tabel yang membuka modal
+let perMasterTutupTimer = null;
+let perMasterSedangSimpan = false;
+
 function perBukaModalMaster(sku) {
   const p = perMonCache.find(x => x.sku === sku) || {};
+  perMasterSkuBaris = sku;
   el('per-master-sku').value = sku;
   el('per-master-nama').value = (p.nama && p.nama !== sku) ? p.nama : '';
   el('per-master-harga').value = '';
   el('per-master-status').textContent = '';
-  el('per-modal-master').style.display = 'flex';
-  setTimeout(() => el('per-master-nama').focus(), 50);
+  el('per-master-paste-hint').style.display = 'none';
+  el('per-master-overlay').classList.remove('show');
+  perMasterInfoDefault();
+
+  const modal = el('per-modal-master');
+  clearTimeout(perMasterTutupTimer);
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('show'))); // biar transisi jalan
+  setTimeout(() => el('per-master-nama').focus(), 80);
 }
-function perTutupModalMaster() { el('per-modal-master').style.display = 'none'; }
+
+function perTutupModalMaster() {
+  if (perMasterSedangSimpan) return; // jangan tutup di tengah proses simpan
+  const modal = el('per-modal-master');
+  modal.classList.remove('show');
+  clearTimeout(perMasterTutupTimer);
+  perMasterTutupTimer = setTimeout(() => { modal.style.display = 'none'; }, 240);
+}
+
+function perMasterInfoDefault() {
+  const info = el('per-master-info');
+  info.className = 'per-master-info';
+  info.innerHTML = `SKU <b>${escapeHtml(perMasterSkuBaris)}</b> muncul di mutasi stok tapi belum terdaftar. Kalau SKU ini ternyata sudah ada di Master, data Nama &amp; Harga Modal-nya akan <b>diperbarui</b>.`;
+}
+
+function perMasterCekSkuBeda() {
+  const skuSekarang = el('per-master-sku').value.trim();
+  const info = el('per-master-info');
+  if (skuSekarang && perMasterSkuBaris && skuSekarang.toUpperCase() !== perMasterSkuBaris.toUpperCase()) {
+    info.className = 'per-master-info warn';
+    info.innerHTML = `⚠️ SKU yang akan disimpan (<b>${escapeHtml(skuSekarang)}</b>) <b>berbeda</b> dari SKU baris tabel (<b>${escapeHtml(perMasterSkuBaris)}</b>). Tanda ⚠️ di baris itu tetap ada kecuali SKU-nya sama.`;
+  } else perMasterInfoDefault();
+}
+
+/* ---------- Smart Paste (stealth): parser teks produk dari clipboard ---------- */
+function perParseRupiah(teks) {
+  if (teks === null || teks === undefined) return null;
+  let t = String(teks).toLowerCase().replace(/rp\.?/g, '').replace(/idr/g, '').replace(/\s+/g, '');
+  let pengali = 1;
+  const suf = t.match(/(rb|ribu|k|jt|juta)$/);
+  if (suf) { pengali = (suf[1] === 'jt' || suf[1] === 'juta') ? 1000000 : 1000; t = t.slice(0, -suf[1].length); }
+  t = t.replace(/[^0-9.,]/g, '').replace(/[.,]+$/, '');
+  if (!t) return null;
+  const adaTitik = t.includes('.'), adaKoma = t.includes(',');
+  if (adaTitik && adaKoma) t = t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  else if (adaTitik) { if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, ''); }
+  else if (adaKoma) t = /^\d{1,3}(,\d{3})+$/.test(t) ? t.replace(/,/g, '') : t.replace(',', '.');
+  const n = parseFloat(t);
+  return isNaN(n) ? null : Math.round(n * pengali * 100) / 100;
+}
+
+function perParseTeksProduk(teks) {
+  const baris = String(teks || '').replace(/\u00a0/g, ' ').split(/\r?\n/).map(b => b.trim()).filter(Boolean);
+  const hasil = { nama: '', sku: '', harga: null };
+  if (baris.length === 0) return hasil;
+  const reSku = /\bSKU\b\s*[:：=#\-]?\s*([A-Za-z0-9][A-Za-z0-9._\-\/]*)/i;
+  const reRp = /\bRp\.?\s*([0-9][0-9.,]*\s*(?:rb|ribu|k|jt|juta)?)/gi;
+
+  // SKU: teks setelah kata "SKU" (baris mana pun)
+  for (const b of baris) { const m = b.match(reSku); if (m && !/^rp$/i.test(m[1])) { hasil.sku = m[1]; break; } }
+
+  // Harga: angka setelah "Rp" - utamakan baris yang menyebut modal/HPP/beli/supplier
+  const semuaRp = [];
+  baris.forEach(b => { let m; reRp.lastIndex = 0; while ((m = reRp.exec(b)) !== null) semuaRp.push({ baris: b, angka: m[1] }); });
+  const prioritas = semuaRp.find(x => /modal|hpp|beli|supplier|cost/i.test(x.baris)) || semuaRp[0];
+  if (prioritas) hasil.harga = perParseRupiah(prioritas.angka);
+
+  // Nama: baris pertama (buang label "Nama:", dan potong kalau di baris yang sama ada "SKU"/"Rp")
+  let nama = baris[0];
+  if (/^\s*(sku|harga|rp)\b/i.test(nama) && baris.length > 1) {
+    nama = baris.find(b => !/^\s*(sku|harga|rp|modal|hpp|stok|stock|qty)\b/i.test(b)) || '';
+  }
+  nama = nama.replace(/^\s*(nama(\s*produk)?|produk|product(\s*name)?)\s*[:：=\-]\s*/i, '');
+  nama = nama.split(/\bSKU\b|\bRp\.?\s*\d/i)[0].replace(/[\s|,;:\-–—]+$/, '').trim();
+  hasil.nama = nama;
+  return hasil;
+}
+
+function perMasterOnPaste(e) {
+  const cb = e.clipboardData || window.clipboardData;
+  if (!cb) return;
+  const teks = cb.getData('text/plain') || cb.getData('text') || '';
+  const multiBaris = /\r?\n/.test(teks.trim());
+  const adaKataSku = /\bSKU\b/i.test(teks);
+  if (!multiBaris && !adaKataSku) return; // paste biasa - biarkan normal
+  e.preventDefault();
+
+  const h = perParseTeksProduk(teks);
+  const terisi = [];
+  if (h.nama) { el('per-master-nama').value = h.nama; terisi.push(['per-master-nama', 'Nama']); }
+  if (h.sku) { el('per-master-sku').value = h.sku; terisi.push(['per-master-sku', 'SKU']); }
+  if (h.harga !== null) { el('per-master-harga').value = h.harga; terisi.push(['per-master-harga', 'Harga Modal']); }
+
+  terisi.forEach(([id]) => { const inp = el(id); inp.classList.remove('per-flash-input'); void inp.offsetWidth; inp.classList.add('per-flash-input'); });
+  const hint = el('per-master-paste-hint');
+  if (terisi.length) {
+    hint.className = 'per-paste-hint';
+    hint.innerHTML = `✨ Smart Paste: ${terisi.map(x => x[1]).join(', ')} terisi otomatis${terisi.length < 3 ? ` <span style="font-weight:400;">(${['Nama', 'SKU', 'Harga Modal'].filter(k => !terisi.some(x => x[1] === k)).join(', ')} tidak ditemukan di teks)</span>` : ''}. Periksa lalu Simpan.`;
+  } else {
+    hint.className = 'per-paste-hint warn';
+    hint.textContent = '⚠️ Teks yang di-paste tidak bisa dikenali. Isi manual ya.';
+  }
+  hint.style.display = 'block';
+  perMasterCekSkuBeda();
+  el(terisi.length === 3 || !terisi.length ? 'per-master-btn' : (!h.nama ? 'per-master-nama' : !h.sku ? 'per-master-sku' : 'per-master-harga')).focus();
+}
+
+function perMasterPasangEvent() {
+  ['per-master-nama', 'per-master-sku', 'per-master-harga'].forEach(id => {
+    const inp = el(id);
+    if (!inp || inp.dataset.smartPaste) return;
+    inp.dataset.smartPaste = '1';
+    inp.addEventListener('paste', perMasterOnPaste);
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); perSimpanMaster(); } });
+  });
+  el('per-master-sku').addEventListener('input', perMasterCekSkuBeda);
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && el('per-modal-master').classList.contains('show')) perTutupModalMaster();
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', perMasterPasangEvent);
+else perMasterPasangEvent();
 
 async function perSimpanMaster() {
+  if (perMasterSedangSimpan) return;
   const sku = el('per-master-sku').value.trim();
   const nama = el('per-master-nama').value.trim();
+  const hargaMentah = el('per-master-harga').value.trim();
+  const hargaModal = hargaMentah === '' ? '' : perParseRupiah(hargaMentah);
   const statusEl = el('per-master-status');
   if (!nama) { statusEl.textContent = '✗ Nama produk wajib diisi.'; statusEl.className = 'status-text err'; el('per-master-nama').focus(); return; }
-  const btn = el('per-master-btn');
-  btn.disabled = true;
-  setLoadingDots(statusEl, 'Menyimpan');
+  if (!sku) { statusEl.textContent = '✗ SKU wajib diisi.'; statusEl.className = 'status-text err'; el('per-master-sku').focus(); return; }
+  if (hargaMentah !== '' && hargaModal === null) { statusEl.textContent = '✗ Harga Modal tidak valid.'; statusEl.className = 'status-text err'; el('per-master-harga').focus(); return; }
+
+  perMasterSedangSimpan = true;
+  el('per-master-btn').disabled = true;
+  statusEl.textContent = '';
+  el('per-master-overlay').classList.add('show');
+  perMonOverlay(true, 'Menyimpan SKU ke Master...');
   try {
-    const data = await postJsonTulis({ aksi: 'tambah_produk_baru', sku, namaProduk: nama, harga: parseFloat(el('per-master-harga').value) || 0, email: currentUserEmail() });
-    stopLoadingDots(statusEl);
-    if (data.success) {
-      playBeep();
-      const p = perMonCache.find(x => x.sku === sku);
-      if (p) { p.terdaftar = true; p.nama = nama; }
-      perMonRender();
-      perTutupModalMaster();
-      if (typeof katalogProdukCache !== 'undefined') katalogProdukCache = []; // paksa katalog muat ulang
-      perFetchMonitorStok(true);
-    } else { statusEl.textContent = '✗ ' + (data.error || 'Gagal'); statusEl.className = 'status-text err'; }
-  } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
-  finally { btn.disabled = false; }
+    const data = await postJsonTulis({ aksi: 'monitor_upsert_sku_master', sku, namaProduk: nama, hargaModal, email: currentUserEmail() });
+    if (!data.success) { statusEl.textContent = '✗ ' + (data.error || 'Gagal'); statusEl.className = 'status-text err'; return; }
+    playBeep();
+    perMonTandaiTerdaftar(data.sku || sku, data.namaProduk || nama);
+    perMasterSedangSimpan = false;
+    perTutupModalMaster();
+    const statusMon = el('per-mon-rekon-status');
+    statusMon.textContent = `✓ ${data.sku || sku} ${data.mode === 'update' ? 'diperbarui di' : 'ditambahkan ke'} Produk Master.`;
+    statusMon.className = 'status-text ok';
+  } catch (err) {
+    statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err';
+  } finally {
+    perMasterSedangSimpan = false;
+    el('per-master-btn').disabled = false;
+    el('per-master-overlay').classList.remove('show');
+    perMonOverlay(false);
+  }
+}
+
+// Update tabel secara lokal (tanpa muat ulang data): hilangkan ⚠️ + nama baru + KPI + cache lokal
+function perMonTandaiTerdaftar(sku, nama) {
+  const kunci = String(sku).toUpperCase();
+  let berubah = 0;
+  perMonCache.forEach(p => {
+    if (String(p.sku).toUpperCase() === kunci) { if (!p.terdaftar) berubah++; p.terdaftar = true; p.nama = nama; }
+  });
+  const sisa = perMonCache.filter(p => !p.terdaftar).length;
+  el('per-mon-kpi-master').textContent = sisa;
+  el('per-mon-kpi-master').style.color = sisa ? 'var(--web-warning)' : '';
+  try {
+    const lokal = ambilCacheLokal('monitor_stok_v2');
+    if (lokal && lokal.daftar) {
+      lokal.daftar = perMonCache;
+      if (lokal.ringkasan) lokal.ringkasan.belumMaster = sisa;
+      simpanCacheLokal('monitor_stok_v2', lokal);
+    }
+  } catch (e) { }
+  perMonFlashSku = kunci;
+  perMonRender();
+  return berubah;
 }
 
 /* ===== STOCK OPNAME - Smart Opname by Timestamp (blind count, rekam per SKU) ===== */
