@@ -14522,8 +14522,7 @@ function hargaBarisHtml(p) {
           <a href="#" class="harga-terapkan-semua" data-role="terapkan-semua" data-sku="${s}" title="Terapkan rekomendasi berderet (Default, Shopee, TikTok + Harga Coret) sekaligus">⚡ Terapkan Semua</a>
           <div class="harga-sync-kanal-wrap" data-role="sync-kanal-wrap">
             <a href="#" class="harga-link-sync-kanal" data-kanal="shopee" data-sku="${s}" title="Kirim Harga Coret Shopee ke listing di kolom SKU Terhubung Shopee - HANYA API Shopee">[☁️ Shopee]</a>
-            <a href="#" class="harga-link-sync-kanal" data-kanal="tiktok" data-sku="${s}" title="Kirim Harga Coret TikTok ke listing di kolom SKU Terhubung TikTok - HANYA API TikTok Shop">[☁️ TikTok]</a>
-            <a href="#" class="harga-link-sync-kanal" data-kanal="tokopedia" data-sku="${s}" title="Kirim Harga Coret TikTok & Tokopedia ke listing di kolom SKU Terhubung Tokopedia - HANYA API Tokopedia">[☁️ Tokopedia]</a>
+            <a href="#" class="harga-link-sync-kanal" data-kanal="tiktok" data-sku="${s}" title="Kirim Harga Coret TikTok Shop & Tokopedia ke listing di kolom SKU Terhubung TikTok + Tokopedia - lewat API TikTok Shop (Seller Center gabungan)">[☁️ TikTok &amp; Tokopedia]</a>
           </div>
           <a href="#" class="harga-link-sync-satu harga-link-sku-edit" data-role="sku-edit" data-sku="${s}" title="Atur SKU Terhubung Shopee / TikTok / Tokopedia produk ini (tanpa membuka Google Sheets)">[✎ SKU]</a>
           <div class="harga-aksi-links">
@@ -14751,12 +14750,10 @@ function hargaSelesaiEdit(inp) {
     if (semua) { e.preventDefault(); hargaTerapkanSemuaBaris(semua.dataset.sku); return; }
     const skuEdit = e.target.closest('a.harga-link-sku-edit');
     if (skuEdit) { e.preventDefault(); hargaBukaEditorSku(skuEdit.dataset.sku); return; }
-    const pindah = e.target.closest('a.harga-link-pindah-tokped');
-    if (pindah) { e.preventDefault(); hargaBukaEditorSku(pindah.dataset.sku, { pindahKeTokopedia: String(pindah.dataset.kode || '').split(',').filter(Boolean) }); return; }
     const syncKanal = e.target.closest('a.harga-link-sync-kanal');
     if (syncKanal) {
       e.preventDefault();
-      const f = { shopee: syncShopeeOnly, tiktok: syncTikTokOnly, tokopedia: syncTokopediaOnly }[syncKanal.dataset.kanal];
+      const f = { shopee: syncShopeeOnly, tiktok: syncTikTokOnly }[syncKanal.dataset.kanal];
       if (f) f(syncKanal.dataset.sku);
       return;
     }
@@ -15063,20 +15060,18 @@ function hargaHppDraftValid(sku) {
    tidak dikirim. Nilai Harga Coret di layar ikut dikirim hanya sebagai pembanding - backend membaca ulang
    Produk Master, memetakan kolom "SKU Terhubung Shopee / TikTok / Tokopedia", dan menjalankan fail-safe. */
 /* ---------- SYNC MODULAR: 1 marketplace per klik ----------
-   [☁️ Shopee]    -> syncShopeeOnly(sku)    -> aksi sync_harga_shopee    (HANYA kolom & API Shopee)
-   [☁️ TikTok]    -> syncTikTokOnly(sku)    -> aksi sync_harga_tiktok    (HANYA kolom & API TikTok Shop)
-   [☁️ Tokopedia] -> syncTokopediaOnly(sku) -> aksi sync_harga_tokopedia (HANYA kolom & API Tokopedia)
+   [☁️ Shopee]               -> syncShopeeOnly(sku) -> aksi sync_harga_shopee (HANYA kolom & API Shopee)
+   [☁️ TikTok & Tokopedia]   -> syncTikTokOnly(sku) -> aksi sync_harga_tiktok (kolom TikTok + Tokopedia, HANYA API TikTok Shop -
+                                Tokopedia & TikTok Shop sudah 1 Seller Center; Tokopedia Open API lama dihentikan)
    Yang dikirim = HARGA CORET tersimpan; backend tetap membaca ulang sheet & menjalankan fail-safe. */
 const HARGA_SYNC_KANAL = {
   shopee:    { aksi: 'sync_harga_shopee',    label: 'Shopee',    coretField: 'hargaCoretShopee', finalField: 'hargaShopee' },
-  tiktok:    { aksi: 'sync_harga_tiktok',    label: 'TikTok',    coretField: 'hargaCoretTiktok', finalField: 'hargaTiktok' },
-  tokopedia: { aksi: 'sync_harga_tokopedia', label: 'Tokopedia', coretField: 'hargaCoretTiktok', finalField: 'hargaTiktok' } // kanal harga "TikTok Shop & Tokopedia"
+  tiktok:    { aksi: 'sync_harga_tiktok',    label: 'TikTok & Tokopedia', coretField: 'hargaCoretTiktok', finalField: 'hargaTiktok' } // kanal harga "TikTok Shop & Tokopedia"
 };
-const hargaHasilSync = {}; // sku -> { shopee: {...}, tiktok: {...}, tokopedia: {...} } - hasil terakhir per marketplace
+const hargaHasilSync = {}; // sku -> { shopee: {...}, tiktok: {...} } - hasil terakhir per tombol
 
 function syncShopeeOnly(skuGudang) { return hargaSyncSatuKanal(skuGudang, 'shopee'); }
 function syncTikTokOnly(skuGudang) { return hargaSyncSatuKanal(skuGudang, 'tiktok'); }
-function syncTokopediaOnly(skuGudang) { return hargaSyncSatuKanal(skuGudang, 'tokopedia'); }
 
 async function hargaSyncSatuKanal(sku, kanal) {
   const cfg = HARGA_SYNC_KANAL[kanal];
@@ -15115,10 +15110,9 @@ async function hargaSyncSatuKanal(sku, kanal) {
       const ikon = r.jumlahGagal === 0 ? '✓' : (r.jumlahSukses > 0 ? '⚠️' : '✗');
       teks = `${ikon} ${cfg.label} ${r.jumlahSukses}/${r.jumlahListing}${gagal.length ? ` (gagal: ${gagal.join(', ')})` : ''}${dryRun && r.jumlahSukses ? ' (dry-run)' : ''}`;
       ok = r.jumlahGagal === 0;
-      (r.perListing || []).forEach(l => detail.push(`${cfg.label} #${l.urutan} ${l.skuMarketplace} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : '✗'} ${l.pesan}`));
+      (r.perListing || []).forEach(l => detail.push(`${cfg.label} #${l.urutan} ${l.skuMarketplace}${l.asalKolom && kanal === 'tiktok' ? ' (kolom ' + l.asalKolom + ')' : ''} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : '✗'} ${l.pesan}`));
     }
-    const pindah = kanal === 'tiktok' ? (r.perListing || []).filter(l => !l.success && l.alasanSingkat === 'tidak ada di TikTok Shop').map(l => l.skuMarketplace) : [];
-    hargaSimpanHasilKanal(sku, kanal, { teks, ok, detail, pindah });
+    hargaSimpanHasilKanal(sku, kanal, { teks, ok, detail });
     if (r.jumlahSukses > 0) {
       playBeep();
       if (item) {
@@ -15140,20 +15134,12 @@ async function hargaSyncSatuKanal(sku, kanal) {
 function hargaSimpanHasilKanal(sku, kanal, hasil) {
   hargaHasilSync[sku] = hargaHasilSync[sku] || {};
   hargaHasilSync[sku][kanal] = hasil;
-  const semua = ['shopee', 'tiktok', 'tokopedia'].map(k => hargaHasilSync[sku][k]).filter(Boolean);
+  const semua = ['shopee', 'tiktok'].map(k => hargaHasilSync[sku][k]).filter(Boolean);
   hargaSetStatusBaris(sku, semua.map(h => h.teks).join(' · '), semua.every(h => h.ok) ? 'ok' : 'err');
   const tr = hargaBarisEl(sku);
   const st = tr && tr.querySelector('[data-role="aksi-status"]');
   if (!st) return;
   st.title = semua.map(h => (h.detail || []).join('\n')).join('\n');
-  const pindah = (hargaHasilSync[sku].tiktok && hargaHasilSync[sku].tiktok.pindah) || [];
-  if (pindah.length) { // 1 klik: pindahkan SKU yang ditolak TikTok ke kolom Tokopedia
-    const a = document.createElement('a');
-    a.href = '#'; a.className = 'harga-link-pindah-tokped';
-    a.dataset.sku = sku; a.dataset.kode = pindah.join(',');
-    a.textContent = ` [↪ Pindah ${pindah.join(', ')} ke Tokopedia]`;
-    st.appendChild(a);
-  }
 }
 
 // Susun 1 item sync dari 1 baris (HANYA data SKU itu). Return { item } atau { alasan } kalau tidak layak.
@@ -15165,7 +15151,7 @@ function hargaSimpanHasilKanal(sku, kanal, hasil) {
 const HARGA_SKU_PLATFORM = [
   { kunci: 'shopee', label: 'Shopee', ikon: '🟠' },
   { kunci: 'tiktok', label: 'TikTok Shop', ikon: '⚫' },
-  { kunci: 'tokopedia', label: 'Tokopedia', ikon: '🟢' }
+  { kunci: 'tokopedia', label: 'Tokopedia (dikirim lewat API TikTok Shop)', ikon: '🟢' }
 ];
 let hargaEditorSkuAktif = '';
 
@@ -15184,7 +15170,7 @@ function hargaPastikanModalSku() {
       <div id="harga-sku-produk" class="harga-sku-produk"></div>
       <div id="harga-sku-isi"></div>
       <div id="harga-sku-lama" class="harga-sku-lama" style="display:none;"></div>
-      <div class="harga-sku-hint">Beberapa SKU dipisah koma (spasi otomatis jadi koma). Harga Coret dikirim ke <b>setiap</b> SKU di kotak marketplace-nya.</div>
+      <div class="harga-sku-hint">Beberapa SKU dipisah koma (spasi otomatis jadi koma). Harga Coret dikirim ke <b>setiap</b> SKU. Kotak TikTok &amp; Tokopedia sama-sama dikirim lewat tombol <b>[☁️ TikTok &amp; Tokopedia]</b> (1 API), SKU kembar hanya dikirim sekali.</div>
       <button class="web-btn-primary" id="harga-sku-btn-simpan" style="width:100%; margin:10px 0 0;" onclick="hargaSimpanEditorSku()">💾 Simpan SKU Terhubung</button>
       <div class="status-text" id="harga-sku-status" style="text-align:left; margin-top:6px;"></div>
     </div>`;
@@ -15229,7 +15215,7 @@ async function hargaBukaEditorSku(sku, opsi) {
     });
     if (dipindah.length) {
       el('harga-sku-status').className = 'status-text ok';
-      el('harga-sku-status').textContent = `↪ ${dipindah.join(', ')} sudah dipindah dari TikTok ke Tokopedia di form ini - klik Simpan, lalu klik [☁️ Tokopedia] di baris produk.`;
+      el('harga-sku-status').textContent = `↪ ${dipindah.join(', ')} sudah dipindah dari TikTok ke Tokopedia di form ini - klik Simpan.`;
     }
     // Kode lama yang tidak jelas platformnya -> 1 klik dimasukkan ke kotak yang tepat
     const lama = (data.tanpaPlatform || []).filter(k => !HARGA_SKU_PLATFORM.some(p => isi[p.kunci].some(x => x.toUpperCase() === k.toUpperCase())));
@@ -15275,7 +15261,7 @@ async function hargaSimpanEditorSku() {
     statusEl.className = (data.peringatan && data.peringatan.length) ? 'status-text err' : 'status-text ok';
     statusEl.textContent = '✓ Tersimpan' + (data.peringatan && data.peringatan.length ? ' · ⚠️ ' + data.peringatan.join(' ') : '');
     delete hargaHasilSync[sku]; // hasil sync lama tidak berlaku lagi setelah SKU diubah
-    hargaSetStatusBaris(sku, '✓ SKU Terhubung diperbarui - klik [☁️ Shopee] / [☁️ TikTok] / [☁️ Tokopedia] untuk sync', 'ok');
+    hargaSetStatusBaris(sku, '✓ SKU Terhubung diperbarui - klik [☁️ Shopee] / [☁️ TikTok & Tokopedia] untuk sync', 'ok');
     setTimeout(() => hargaTutupEditorSku(), (data.peringatan && data.peringatan.length) ? 1800 : 500);
   } catch (err) {
     stopLoadingDots(statusEl);
