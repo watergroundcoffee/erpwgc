@@ -1867,6 +1867,23 @@ a.harga-link-terapkan:focus-visible { outline: 2px solid rgba(63,127,201,0.4); o
 .harga-ch-cell .harga-rp-input > span { font-size: 11px; }
 .harga-ch-cell .harga-rp-input > span:first-child { padding-left: 6px; }
 .harga-ch-cell .harga-rp-input > span:last-child { padding-right: 6px; }
+/* ----- Harga: Rekomendasi Baru berderet (mencolok) + fail-safe HPP ----- */
+.harga-rekom-baru { margin-top: 5px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(79,110,247,0.35); background: linear-gradient(135deg, rgba(79,110,247,0.10), rgba(124,92,255,0.08)); text-align: left; }
+.harga-rekom-baru.sesuai { border-color: rgba(47,158,110,0.35); background: rgba(47,158,110,0.07); }
+.harga-rekom-label { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #4f6ef7; }
+.harga-rekom-baru.sesuai .harga-rekom-label { color: var(--web-accent); }
+.harga-rekom-angka { font-size: 15px; font-weight: 800; color: var(--web-text); line-height: 1.25; font-variant-numeric: tabular-nums; }
+.harga-rekom-rantai { font-size: 10px; color: var(--web-text-dim); line-height: 1.35; }
+.harga-rekom-coret { font-size: 10.5px; margin-top: 2px; color: var(--web-text); }
+.harga-rekom-coret s { color: var(--web-danger); font-weight: 700; }
+.harga-rekom-coret span { color: var(--web-text-dim); }
+.harga-rekom-coret.kosong { color: var(--web-warning); font-style: italic; }
+.harga-tag-simulasi { display: inline-block; font-size: 8.5px; font-weight: 800; padding: 0 5px; border-radius: 999px; background: rgba(217,165,58,0.18); color: #8a6212; text-transform: uppercase; vertical-align: middle; }
+.harga-hpp-invalid { font-weight: 800; }
+tr.harga-row-hpp-invalid > td { background: rgba(217,82,79,0.04); }
+tr.harga-row-hpp-invalid .katalog-harga-row-check { cursor: not-allowed; opacity: .4; }
+.harga-terapkan-semua { display: inline-block; margin-bottom: 4px; font-size: 11px; font-weight: 700; color: #4f6ef7; text-decoration: none; white-space: nowrap; }
+.harga-terapkan-semua:hover { text-decoration: underline; }
 .harga-rekom-aksi { text-align: right; font-size: 10.5px; line-height: 1.35; min-height: 14px; }
 /* Tombol utama Sync Harga (rata kanan di baris Aksi Massal) */
 .harga-bulk-spacer { flex: 1 1 0; min-width: 0; }
@@ -5860,7 +5877,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <button type="button" class="web-btn-secondary" onclick="hargaTerapkanMassal('tiktok')">Terapkan ke Harga TikTok Shop &amp; Tokopedia</button>
               <span class="harga-bulk-scope" id="harga-bulk-scope"></span>
               <span class="harga-bulk-spacer"></span>
-              <button type="button" class="web-btn-primary harga-btn-sync-utama" id="harga-btn-sync" onclick="hargaSyncHarga()" title="Kirim Harga Coret (sebagai Harga Normal) Shopee & TikTok Shop yang sudah tersimpan ke marketplace. Tanpa centang = semua produk di halaman ini.">☁️ Sync Harga</button>
+              <button type="button" class="web-btn-primary harga-btn-sync-utama" id="harga-btn-sync" onclick="hargaSyncHarga()" title="Kirim HARGA CORET tersimpan (harga dasar / original_price) ke Shopee & TikTok Shop memakai SKU Marketplace Terhubung. Harga Jual Final tidak dikirim. Tanpa centang = semua produk ber-HPP valid di halaman ini.">☁️ Sync Harga</button>
               <span class="status-text" id="katalog-harga-bulk-status" style="text-align:left; flex-basis:100%;"></span>
             </div>
             <div class="web-toolbar-row" style="margin-bottom:10px;">
@@ -14183,21 +14200,51 @@ function hargaHitungRekomendasiFees(hpp, marginPersen, fees) {
   return { status: 'ok', harga, potongan: biaya.total, rincian: biaya.rincian, profit: harga - hpp - biaya.total };
 }
 
-// Rekomendasi per kolom channel. TikTok & Tokopedia -> ambil yang tertinggi (aman di dua-duanya).
-// r.markup = baris Harga Coret dari grup yang dipakai (untuk auto-fill Harga Coret saat "Klik untuk terapkan").
+/* ---------- KALKULASI BERDERET (Auto-Cascade) ----------
+   Tahap 1  Harga Default     = HPP + Target Margin (True Margin, biaya grup Offline bila ada)
+   Tahap 2  Harga Shopee/TikTok = Harga Default + potongan admin channel itu
+   Tahap 3  Harga Coret       = Harga channel + Markup Coret (grup channel)
+   Potongan admin marketplace dihitung dari HARGA JUAL (bukan dari Harga Default), jadi Tahap 2 memakai
+   "gross-up": Harga Channel = (Default + biaya flat) / (1 - total % biaya). Hasilnya: setelah dipotong
+   marketplace, uang yang diterima = Harga Default persis. (Kalau cuma Default + 6%, toko tekor karena
+   6% dipotong dari angka yang lebih besar.) Biaya diambil dari Tab Parameter; kalau grup channel belum
+   punya biaya sama sekali, dipakai SIMULASI di bawah (ditandai "simulasi" di layar). */
+const HARGA_FEE_SIMULASI = {
+  shopee: [{ nama: 'Simulasi Potongan Admin Shopee', nominal: 6, tipe: '%', maks: null }],
+  tiktok: [{ nama: 'Simulasi Potongan Admin TikTok Shop', nominal: 5, tipe: '%', maks: null }],
+  tokopedia: [{ nama: 'Simulasi Potongan Admin Tokopedia', nominal: 5, tipe: '%', maks: null }]
+};
+const HARGA_MIN_WAJAR = 100; // sama dengan SYNC_HARGA_MIN_WAJAR di Code.gs
+
+function hargaRekomendasiDefault(hpp, marginPersen, p) {
+  const r = hargaHitungRekomendasiFees(hpp, marginPersen, hargaDaftarBiayaGrup('default', p));
+  if (r.status === 'ok') { r.skema = HARGA_GRUP_LABEL.default; r.grup = 'default'; r.markup = null; r.tahap = 1; }
+  return r;
+}
+
 function hargaRekomendasiChannel(chKey, hpp, marginPersen, param) {
   const p = param || hargaParamDipakai();
-  const hitung = (g) => {
-    const r = hargaHitungRekomendasiFees(hpp, marginPersen, hargaDaftarBiayaGrup(g, p));
-    if (r.status === 'ok') { r.skema = HARGA_GRUP_LABEL[g]; r.grup = g; r.markup = hargaMarkupGrup(g, p); }
+  const rDef = hargaRekomendasiDefault(hpp, marginPersen, p);
+  if (chKey === 'default' || rDef.status !== 'ok') return rDef;   // channel ikut gagal kalau Default gagal
+  const naik = (g) => {
+    let fees = hargaDaftarBiayaGrup(g, p).filter(f => Number(f.nominal) > 0);
+    const simulasi = fees.length === 0;
+    if (simulasi) fees = HARGA_FEE_SIMULASI[g] || [];
+    const r = hargaHitungRekomendasiFees(rDef.harga, 0, fees); // dasar = Harga Default, margin sudah di Default
+    if (r.status !== 'ok') return r;
+    r.skema = HARGA_GRUP_LABEL[g]; r.grup = g; r.tahap = 2; r.simulasiFee = simulasi;
+    r.markup = hargaMarkupGrup(g, p);
+    r.dasarDefault = rDef.harga;
+    r.profit = r.harga - hpp - r.potongan;                    // profit bersih vs HPP (bukan vs Default)
+    r.coret = hargaHitungHargaCoret(r.harga, r.markup);      // Tahap 3
     return r;
   };
-  if (chKey !== 'tiktok') return hitung(chKey);
-  const rT = hitung('tiktok');
-  const rK = hitung('tokopedia');
+  if (chKey !== 'tiktok') return naik(chKey);
+  const rT = naik('tiktok');
+  const rK = naik('tokopedia');
   if (rT.status !== 'ok') return rT;
   if (rK.status !== 'ok') return rK;
-  return rK.harga > rT.harga ? rK : rT;
+  return rK.harga > rT.harga ? rK : rT;                      // TikTok & Tokopedia: ambil yang aman di dua-duanya
 }
 
 // Harga Coret = Harga Jual Final + (Harga Jual Final x % Markup)  [tipe %]
@@ -14210,7 +14257,8 @@ function hargaHitungHargaCoret(hargaFinal, markup) {
 }
 
 function hargaTooltipRincian(r) {
-  const baris = [`Skema: ${r.skema}`];
+  const baris = [`Skema: ${r.skema}${r.simulasiFee ? ' (biaya SIMULASI - atur di Tab Parameter)' : ''}`];
+  if (r.dasarDefault) baris.push(`Dasar (Harga Default): ${hargaFmtRp(r.dasarDefault)}`);
   r.rincian.forEach(x => baris.push(`${x.nama}: ${hargaFmtRp(x.nilai)}${x.tipe === '%' ? ` (${hargaFmtPersen(x.nominal)}${x.kenaMaks ? ', kena batas maks' : ''})` : ''}`));
   baris.push(`Total potongan: ${hargaFmtRp(r.potongan)}`);
   baris.push(`Profit bersih: ${hargaFmtRp(r.profit)}`);
@@ -14374,7 +14422,10 @@ function hargaCariBerubah() {
 
 function katalogHargaToggleSemua(checked) {
   const halamanIni = halamanDataPaginasi(hargaDaftarTampil(), katalogHargaPaginasiState);
-  halamanIni.forEach(p => { if (checked) katalogHargaTerpilih.add(p.sku); else katalogHargaTerpilih.delete(p.sku); });
+  halamanIni.forEach(p => {
+    if (checked && !hargaHppDraftValid(p.sku)) { katalogHargaTerpilih.delete(p.sku); return; } // HPP invalid tidak bisa dipilih
+    if (checked) katalogHargaTerpilih.add(p.sku); else katalogHargaTerpilih.delete(p.sku);
+  });
   katalogHargaRenderHalaman();
 }
 
@@ -14452,6 +14503,7 @@ function hargaBarisHtml(p) {
       <td class="harga-col-aksi">
         <div class="harga-aksi">
           ${hargaSyncInfoHtml(p)}
+          <a href="#" class="harga-terapkan-semua" data-role="terapkan-semua" data-sku="${s}" title="Terapkan rekomendasi berderet (Default, Shopee, TikTok + Harga Coret) sekaligus">⚡ Terapkan Semua</a>
           <div class="harga-aksi-links">
             <a href="#" class="harga-link-terapkan harga-link-simpan" data-sku="${s}">Simpan</a>
             <a href="#" class="harga-link-terapkan harga-link-batal" data-sku="${s}">Batal</a>
@@ -14490,12 +14542,20 @@ function hargaHitungBaris(sku) {
   const d = hargaAmbilDraft(sku);
   if (!tr || !d) return;
   const hpp = hargaParseRupiah(d.hpp);
-  const hppValid = hargaAngkaValidPositif(hpp);
+  // FAIL-SAFE lapis 1: HPP <= 0 / kosong / di bawah batas wajar -> TIDAK ada rekomendasi & baris tidak bisa di-Sync
+  const hppValid = hargaAngkaValidPositif(hpp) && hpp >= HARGA_MIN_WAJAR;
   const marginDipakai = hargaMarginDraft(d);
   const pakaiGlobal = hargaParsePersen(d.margin) === null;
 
   // HPP (teks statis)
-  tr.querySelector('[data-role="hpp-teks"]').innerHTML = hppValid ? escapeHtml(hargaFmtRp(hpp)) : '<span class="harga-teks-merah">⚠️ HPP Invalid</span>';
+  tr.querySelector('[data-role="hpp-teks"]').innerHTML = hppValid ? escapeHtml(hargaFmtRp(hpp)) : '<span class="harga-teks-merah harga-hpp-invalid">⚠️ HPP tidak valid! Harap isi modal.</span>';
+  tr.classList.toggle('harga-row-hpp-invalid', !hppValid);
+  const chk = tr.querySelector('.katalog-harga-row-check');
+  if (chk) {
+    chk.disabled = !hppValid;
+    chk.title = hppValid ? '' : 'HPP tidak valid - produk ini tidak bisa dipilih untuk Sync';
+    if (!hppValid && (chk.checked || katalogHargaTerpilih.has(sku))) { chk.checked = false; katalogHargaTerpilih.delete(sku); katalogHargaUpdateBulkCount(); }
+  }
 
   // Target Margin (teks statis, pill berwarna)
   const kelas = hargaKelasMargin(marginDipakai);
@@ -14506,16 +14566,30 @@ function hargaHitungBaris(sku) {
   const param = hargaParamDipakai();
   HARGA_CHANNEL.forEach(ch => {
     const cell = tr.querySelector(`.harga-ch-cell[data-ch="${ch.key}"]`);
-    const r = hargaRekomendasiChannel(ch.key, hpp, marginDipakai, param);
+    const r = hppValid ? hargaRekomendasiChannel(ch.key, hpp, marginDipakai, param) : { status: 'hpp-invalid' };
     const line = cell.querySelector('[data-role="rekom-line"]');
     const aksi = cell.querySelector('[data-role="rekom-aksi"]');
     if (r.status === 'ok') {
-      line.innerHTML = `<span class="harga-nowrap">Rekomendasi Harga:</span> <b>${escapeHtml(hargaFmtRp(r.harga))}</b>`;
+      const finalTersimpan = hargaParseRupiah(d.final[ch.key]);
+      const sudahSesuai = finalTersimpan !== null && Math.round(finalTersimpan) === r.harga;
+      const rantai = r.tahap === 1
+        ? `= HPP + margin ${escapeHtml(hargaFmtPersen(marginDipakai))}`
+        : `= Default ${escapeHtml(hargaFmtRp(r.dasarDefault))} + admin ${escapeHtml(hargaFmtRp(r.potongan))}${r.simulasiFee ? ' <span class="harga-tag-simulasi" title="Grup biaya channel ini belum diisi di Tab Parameter - memakai simulasi">simulasi</span>' : ''}`;
+      const coretHtml = r.tahap === 2
+        ? (r.coret ? `<div class="harga-rekom-coret">Harga Coret: <s>${escapeHtml(hargaFmtRp(r.coret))}</s> <span>(+${r.markup.tipe === '%' ? escapeHtml(hargaFmtPersen(r.markup.nominal)) : escapeHtml(hargaFmtRp(r.markup.nominal))})</span></div>`
+                   : '<div class="harga-rekom-coret kosong">Harga Coret: markup belum diatur di Tab Parameter</div>')
+        : '';
+      line.innerHTML = `<div class="harga-rekom-baru${sudahSesuai ? ' sesuai' : ''}">
+          <div class="harga-rekom-label">${sudahSesuai ? '✓ Sesuai rekomendasi' : '✨ Harga Rekomendasi Baru'}</div>
+          <div class="harga-rekom-angka">${escapeHtml(hargaFmtRp(r.harga))}</div>
+          <div class="harga-rekom-rantai">${rantai}</div>
+          ${coretHtml}
+        </div>`;
       line.title = hargaTooltipRincian(r);
       aksi.innerHTML = `<a href="#" role="button" class="harga-link-terapkan" data-sku="${escapeHtml(sku)}" data-ch="${ch.key}" data-nilai="${r.harga}" data-markup-nominal="${r.markup ? r.markup.nominal : 0}" data-markup-tipe="${r.markup ? r.markup.tipe : '%'}">Klik untuk terapkan</a>`;
     } else {
       // Failsafe: TIDAK ada angka Rp 0 & TIDAK ada hyperlink terapkan
-      const teks = r.status === 'hpp-invalid' ? '⚠️ HPP Invalid' : r.status === 'margin-invalid' ? '⚠️ Margin Invalid' : '⚠️ Biaya + Margin ≥ 100%';
+      const teks = r.status === 'hpp-invalid' ? '⛔ Rekomendasi diblokir (HPP tidak valid)' : r.status === 'margin-invalid' ? '⚠️ Margin Invalid' : '⚠️ Biaya + Margin ≥ 100%';
       line.innerHTML = `<span class="harga-teks-merah">${teks}</span>`;
       line.title = '';
       aksi.innerHTML = '';
@@ -14535,7 +14609,23 @@ function hargaHitungBaris(sku) {
     }
   });
 
+  // Tombol "Terapkan Semua" per baris hanya aktif kalau semua rekomendasi valid
+  const semua = tr.querySelector('[data-role="terapkan-semua"]');
+  if (semua) semua.style.display = hppValid && tr.querySelectorAll('.harga-ch-cell a.harga-link-terapkan').length === HARGA_CHANNEL.length ? '' : 'none';
   hargaUpdateStatusBaris(sku);
+}
+
+// Terapkan rekomendasi berderet (Default -> Shopee -> TikTok, + Harga Coret) sekaligus untuk 1 baris
+function hargaTerapkanSemuaBaris(sku) {
+  const tr = hargaBarisEl(sku);
+  if (!tr) return;
+  const d = hargaAmbilDraft(sku);
+  const hpp = d ? hargaParseRupiah(d.hpp) : null;
+  if (!hargaAngkaValidPositif(hpp) || hpp < HARGA_MIN_WAJAR) return; // fail-safe
+  HARGA_CHANNEL.forEach(ch => {
+    const link = tr.querySelector(`.harga-ch-cell[data-ch="${ch.key}"] a.harga-link-terapkan`);
+    if (link) hargaTerapkanRekomendasi(sku, ch.key, link);
+  });
 }
 
 function hargaUpdateStatusBaris(sku) {
@@ -14633,6 +14723,8 @@ function hargaSelesaiEdit(inp) {
     katalogHargaUpdateBulkCount();
   });
   body.addEventListener('click', (e) => {
+    const semua = e.target.closest('a.harga-terapkan-semua');
+    if (semua) { e.preventDefault(); hargaTerapkanSemuaBaris(semua.dataset.sku); return; }
     const ai = e.target.closest('.harga-btn-ai');
     if (ai) { if (!ai.disabled) katalogUpdateHppDariSupplier(ai.dataset.sku, ai); return; }
     const link = e.target.closest('a.harga-link-terapkan');
@@ -14915,79 +15007,115 @@ function hargaFmtWaktu(tgl) {
 
 function hargaSyncInfoHtml(p) {
   if (p.syncSimulasi) {
-    return `<div class="harga-sync-info simulasi" data-role="sync-info">Terakhir Sync:<b>${escapeHtml(hargaFmtWaktu(p.syncSimulasi))}</b><span class="harga-sync-tag" title="Tombol Sync masih placeholder - belum ada data yang benar-benar terkirim ke marketplace">simulasi</span></div>`;
+    return `<div class="harga-sync-info simulasi" data-role="sync-info">Terakhir Sync:<b>${escapeHtml(hargaFmtWaktu(p.syncSimulasi))}</b><span class="harga-sync-tag" title="Mode DRY-RUN: payload sudah disusun & dicatat di sheet Log Sync Harga, belum dikirim ke marketplace">dry-run</span></div>`;
   }
   if (p.terakhirSync) return `<div class="harga-sync-info" data-role="sync-info">Terakhir Sync:<b>${escapeHtml(p.terakhirSync)}</b></div>`;
   return `<div class="harga-sync-info belum" data-role="sync-info">Terakhir Sync:<b>Belum pernah</b></div>`;
 }
 
-function hargaSyncHarga() {
-  const statusEl = el('katalog-harga-bulk-status');
-  if (hargaSkuSedangSimpan.size > 0) { statusEl.className = 'status-text err'; statusEl.textContent = 'Tunggu proses simpan selesai dulu.'; return; }
+function hargaHppDraftValid(sku) {
+  const d = hargaAmbilDraft(sku);
+  const hpp = d ? hargaParseRupiah(d.hpp) : null;
+  return hargaAngkaValidPositif(hpp) && hpp >= HARGA_MIN_WAJAR;
+}
 
-  // 1) Tentukan target: yang dicentang, atau auto-centang semua produk di halaman ini
+/* ---------- SYNC HARGA -> backend syncPriceToMarketplace() ----------
+   Yang dikirim ke marketplace = HARGA CORET TERSIMPAN (harga dasar / original_price). Harga Jual Final
+   TIDAK dikirim. Nilai Harga Coret di layar ikut dikirim hanya sebagai pembanding - backend membaca
+   ulang Produk Master, memetakan SKU Terhubung, dan menjalankan fail-safe terakhir sebelum UrlFetchApp. */
+async function hargaSyncHarga() {
+  const statusEl = el('katalog-harga-bulk-status');
+  const btn = el('harga-btn-sync');
+  if (hargaSkuSedangSimpan.size > 0 || btn.dataset.proses === '1') { statusEl.className = 'status-text err'; statusEl.textContent = 'Tunggu proses yang sedang berjalan selesai dulu.'; return; }
+
+  // 1) Target: yang dicentang, atau semua produk di halaman ini (produk ber-HPP invalid TIDAK ikut)
   let target = Array.from(katalogHargaTerpilih);
   let autoCentang = false;
   if (target.length === 0) {
-    const halamanIni = halamanDataPaginasi(hargaDaftarTampil(), katalogHargaPaginasiState);
-    if (halamanIni.length === 0) { statusEl.className = 'status-text err'; statusEl.textContent = 'Tidak ada produk untuk di-sync.'; return; }
+    const halamanIni = halamanDataPaginasi(hargaDaftarTampil(), katalogHargaPaginasiState).filter(p => hargaHppDraftValid(p.sku));
+    if (halamanIni.length === 0) { statusEl.className = 'status-text err'; statusEl.textContent = 'Tidak ada produk dengan HPP valid untuk di-sync.'; return; }
     halamanIni.forEach(p => katalogHargaTerpilih.add(p.sku));
-    el('katalog-harga-body').querySelectorAll('.katalog-harga-row-check').forEach(chk => { chk.checked = true; });
-    const cekAll = el('katalog-harga-checkall');
-    if (cekAll) cekAll.checked = true;
+    el('katalog-harga-body').querySelectorAll('.katalog-harga-row-check:not(:disabled)').forEach(chk => { chk.checked = true; });
     katalogHargaUpdateBulkCount();
     target = halamanIni.map(p => p.sku);
     autoCentang = true;
   }
 
-  // 2) Validasi per produk & per channel (failsafe: harga kosong / Rp 0 / belum disimpan TIDAK dikirim)
-  const payload = [], dilewati = [];
+  // 2) Fail-safe di browser (lapis 1) - backend tetap mengecek ulang (lapis 2)
+  const items = [], dilewati = [];
   target.forEach(sku => {
     const item = katalogHargaCache.find(p => p.sku === sku);
     if (!item) return;
+    if (!hargaHppDraftValid(sku) || !(Number(item.hpp) >= HARGA_MIN_WAJAR)) { dilewati.push(`${sku} (HPP tidak valid)`); return; }
     if (hargaPerubahanBaris(sku).jumlah > 0) { dilewati.push(`${sku} (ada perubahan belum disimpan)`); return; }
-    // ====================== PAYLOAD SYNC MARKETPLACE DISIAPKAN DI SINI ======================
-    // Yang dikirim ke Shopee & TikTok Shop HANYA [Harga Coret] (tersimpan) sebagai HARGA NORMAL produk.
-    // [Harga Jual Final] SENGAJA DIABAIKAN - harga setelah diskon diatur terpisah lewat Seller Center.
-    // Failsafe: Harga Coret kosong / Rp 0 TIDAK dikirim (channel itu dilewati).
-    const hargaNormal = {};
+    const kirim = { sku };
+    let adaChannel = false;
     HARGA_CHANNEL.filter(ch => ch.sync).forEach(ch => {
       const coret = Number(item[ch.coretField]) || 0;
-      if (hargaAngkaValidPositif(coret)) hargaNormal[ch.platform] = coret;
+      const final = Number(item[ch.field]) || 0;
+      if (coret >= HARGA_MIN_WAJAR && final >= HARGA_MIN_WAJAR && coret >= final) {
+        kirim[ch.key === 'shopee' ? 'hargaShopee' : 'hargaTiktok'] = coret; // HARGA CORET, bukan harga final
+        adaChannel = true;
+      }
     });
-    if (Object.keys(hargaNormal).length === 0) { dilewati.push(`${sku} (Harga Coret Shopee & TikTok masih kosong)`); return; }
-    payload.push({ sku, hargaNormal }); // contoh: { sku: 'WG-KP-001', hargaNormal: { Shopee: 195424, 'TikTok Shop': 173617 } }
-    // ========================================================================================
+    if (!adaChannel) { dilewati.push(`${sku} (Harga Coret / Harga Jual Shopee & TikTok belum lengkap)`); return; }
+    items.push(kirim);
   });
-
-  if (payload.length === 0) {
+  if (!items.length) {
     statusEl.className = 'status-text err';
     statusEl.textContent = `✗ Tidak ada produk yang bisa di-sync. ${dilewati.slice(0, 3).join(', ')}${dilewati.length > 3 ? ', ...' : ''}`;
     return;
   }
+  if (items.length > 200) { statusEl.className = 'status-text err'; statusEl.textContent = `✗ Maksimal 200 produk per Sync (terpilih ${items.length}).`; return; }
+  if (!confirm(`Sync harga ${items.length} produk ke marketplace?\n\nYang dikirim: HARGA CORET tersimpan sebagai harga dasar (original_price), memakai SKU Marketplace Terhubung.${dilewati.length ? `\n${dilewati.length} produk dilewati.` : ''}`)) return;
 
-  // 3) PLACEHOLDER pengiriman ke API marketplace
-  console.log('[Sync Harga - placeholder] akan mem-push ke API marketplace:', payload);
-  alert(`Syncing... ${payload.length} produk ke marketplace.${dilewati.length ? `\n${dilewati.length} produk dilewati.` : ''}\n\n(Placeholder: koneksi API belum aktif, belum ada data yang benar-benar dikirim.)`);
-
-  // 4) Tandai waktu sync di kolom Status (SIMULASI - hanya di layar, tidak disimpan ke database)
-  const sekarang = new Date();
-  payload.forEach(({ sku }) => {
-    const item = katalogHargaCache.find(p => p.sku === sku);
-    if (!item) return;
-    item.syncSimulasi = sekarang.getTime();
-    const tr = hargaBarisEl(sku);
-    const info = tr && tr.querySelector('[data-role="sync-info"]');
-    if (info) {
-      const tmp = document.createElement('div');
-      tmp.innerHTML = hargaSyncInfoHtml(item);
-      const baru = tmp.firstElementChild;
-      baru.classList.add('baru');
-      info.replaceWith(baru);
-    }
-  });
-  statusEl.className = 'status-text ok';
-  statusEl.textContent = `✓ ${payload.length} produk diproses${autoCentang ? ' (semua produk di halaman ini otomatis dicentang)' : ''}${dilewati.length ? `, ${dilewati.length} dilewati: ${dilewati.slice(0, 3).join(', ')}${dilewati.length > 3 ? ', ...' : ''}` : ''}.`;
+  // 3) Kirim ke backend
+  btn.dataset.proses = '1';
+  btn.disabled = true;
+  setLoadingDots(statusEl, `Sync ${items.length} produk`);
+  items.forEach(it => hargaSetStatusBaris(it.sku, '⏳ Sync...', ''));
+  try {
+    const data = await postJsonTulis({ aksi: 'sync_harga_marketplace', items, email: currentUserEmail() }, 300000);
+    stopLoadingDots(statusEl);
+    if (!data.success) { statusEl.className = 'status-text err'; statusEl.textContent = '✗ ' + (data.error || 'Sync gagal'); items.forEach(it => hargaSetStatusBaris(it.sku, '', '')); return; }
+    const dryRun = data.mode !== 'LIVE';
+    let okProduk = 0, gagalChannel = 0;
+    const sekarang = Date.now();
+    (data.hasil || []).forEach(h => {
+      const bagian = [];
+      let adaOk = false;
+      if (h.gagalTotal) bagian.push('✗ ' + h.pesan);
+      Object.keys(h.channel || {}).forEach(pf => {
+        const c = h.channel[pf];
+        if (c.dilewati) return;
+        const label = pf === 'Shopee' ? 'Shopee' : 'TikTok';
+        if (c.success) { adaOk = true; bagian.push(`✓ ${label}${dryRun ? ' (dry-run)' : ''}`); }
+        else { gagalChannel++; bagian.push(`✗ ${label}: ${c.pesan}`); }
+      });
+      if (adaOk) okProduk++;
+      hargaSetStatusBaris(h.sku, bagian.join(' · '), adaOk && !bagian.some(x => x.startsWith('✗')) ? 'ok' : 'err');
+      // Info "Terakhir Sync": LIVE = waktu nyata (disimpan di sheet), dry-run = tanda simulasi di layar saja
+      const item = katalogHargaCache.find(p => p.sku === h.sku);
+      if (item && adaOk) {
+        if (dryRun) item.syncSimulasi = sekarang; else { item.terakhirSync = hargaFmtWaktu(sekarang); delete item.syncSimulasi; }
+        const tr = hargaBarisEl(h.sku);
+        const info = tr && tr.querySelector('[data-role="sync-info"]');
+        if (info) { const tmp = document.createElement('div'); tmp.innerHTML = hargaSyncInfoHtml(item); const baru = tmp.firstElementChild; baru.classList.add('baru'); info.replaceWith(baru); }
+      }
+    });
+    playBeep();
+    statusEl.className = gagalChannel ? 'status-text err' : 'status-text ok';
+    statusEl.textContent = `${gagalChannel ? '⚠️' : '✓'} ${okProduk}/${items.length} produk ${dryRun ? 'lolos DRY-RUN (payload di-log di sheet "Log Sync Harga", belum dikirim ke marketplace)' : 'ter-sync ke marketplace'}` +
+      `${gagalChannel ? ` · ${gagalChannel} channel gagal (lihat kolom Aksi tiap baris)` : ''}${autoCentang ? ' · produk di halaman ini otomatis dicentang' : ''}${dilewati.length ? ` · ${dilewati.length} dilewati` : ''}.`;
+  } catch (err) {
+    stopLoadingDots(statusEl);
+    statusEl.className = 'status-text err';
+    statusEl.textContent = '✗ Gagal terhubung: ' + err.message + ' - cek sheet "Log Sync Harga" sebelum mengulang.';
+    items.forEach(it => hargaSetStatusBaris(it.sku, '', ''));
+  } finally {
+    delete btn.dataset.proses;
+    btn.disabled = false;
+  }
 }
 
 /* ---------- Pengaturan AI (PLACEHOLDER - popup dibangun nanti) ---------- */
