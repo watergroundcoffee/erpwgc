@@ -15082,18 +15082,32 @@ async function hargaSyncHarga() {
     let okProduk = 0, gagalChannel = 0;
     const sekarang = Date.now();
     (data.hasil || []).forEach(h => {
-      const bagian = [];
-      let adaOk = false;
-      if (h.gagalTotal) bagian.push('✗ ' + h.pesan);
+      const bagian = [], detail = [];
+      let adaOk = false, adaMasalah = false;
+      if (h.gagalTotal) { bagian.push('✗ ' + h.pesan); detail.push(h.pesan); adaMasalah = true; }
       Object.keys(h.channel || {}).forEach(pf => {
         const c = h.channel[pf];
         if (c.dilewati) return;
         const label = pf === 'Shopee' ? 'Shopee' : 'TikTok';
-        if (c.success) { adaOk = true; bagian.push(`✓ ${label}${dryRun ? ' (dry-run)' : ''}`); }
-        else { gagalChannel++; bagian.push(`✗ ${label}: ${c.pesan}`); }
+        if (!c.jumlahListing) { // gagal di tingkat channel (harga / SKU belum terhubung) - tidak ada listing yang ditembak
+          gagalChannel++; adaMasalah = true;
+          bagian.push(`✗ ${label}: ${c.pesan}`); detail.push(`${label}: ${c.pesan}`);
+          return;
+        }
+        // One-to-many: hasil per listing
+        const ikon = c.jumlahGagal === 0 ? '✓' : (c.jumlahSukses > 0 ? '⚠️' : '✗');
+        if (c.jumlahSukses > 0) adaOk = true;
+        if (c.jumlahGagal > 0) { gagalChannel++; adaMasalah = true; }
+        const gagalList = (c.perListing || []).filter(l => !l.success);
+        bagian.push(`${ikon} ${label} ${c.jumlahSukses}/${c.jumlahListing} listing${dryRun && c.jumlahSukses ? ' (dry-run)' : ''}` +
+          (gagalList.length ? ` - gagal: ${gagalList.map(l => l.skuMarketplace).join(', ')}` : ''));
+        (c.perListing || []).forEach(l => detail.push(`${label} #${l.urutan} ${l.skuMarketplace} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : '✗'} ${l.pesan}`));
       });
       if (adaOk) okProduk++;
-      hargaSetStatusBaris(h.sku, bagian.join(' · '), adaOk && !bagian.some(x => x.startsWith('✗')) ? 'ok' : 'err');
+      hargaSetStatusBaris(h.sku, bagian.join(' · '), adaOk && !adaMasalah ? 'ok' : 'err');
+      const trStatus = hargaBarisEl(h.sku);
+      const stEl = trStatus && trStatus.querySelector('[data-role="aksi-status"]');
+      if (stEl) stEl.title = detail.join('\n'); // arahkan kursor = rincian tiap listing
       // Info "Terakhir Sync": LIVE = waktu nyata (disimpan di sheet), dry-run = tanda simulasi di layar saja
       const item = katalogHargaCache.find(p => p.sku === h.sku);
       if (item && adaOk) {
@@ -15105,7 +15119,8 @@ async function hargaSyncHarga() {
     });
     playBeep();
     statusEl.className = gagalChannel ? 'status-text err' : 'status-text ok';
-    statusEl.textContent = `${gagalChannel ? '⚠️' : '✓'} ${okProduk}/${items.length} produk ${dryRun ? 'lolos DRY-RUN (payload di-log di sheet "Log Sync Harga", belum dikirim ke marketplace)' : 'ter-sync ke marketplace'}` +
+    const t = data.total || {};
+    statusEl.textContent = `${gagalChannel ? '⚠️' : '✓'} ${okProduk}/${items.length} produk · ${t.sukses || 0}/${t.listing || 0} listing ${dryRun ? 'lolos DRY-RUN (payload di-log di sheet "Log Sync Harga", belum dikirim ke marketplace)' : 'ter-sync ke marketplace'}` +
       `${gagalChannel ? ` · ${gagalChannel} channel gagal (lihat kolom Aksi tiap baris)` : ''}${autoCentang ? ' · produk di halaman ini otomatis dicentang' : ''}${dilewati.length ? ` · ${dilewati.length} dilewati` : ''}.`;
   } catch (err) {
     stopLoadingDots(statusEl);
