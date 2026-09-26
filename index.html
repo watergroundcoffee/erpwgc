@@ -1882,6 +1882,9 @@ a.harga-link-terapkan:focus-visible { outline: 2px solid rgba(63,127,201,0.4); o
 .harga-hpp-invalid { font-weight: 800; }
 tr.harga-row-hpp-invalid > td { background: rgba(217,82,79,0.04); }
 tr.harga-row-hpp-invalid .katalog-harga-row-check { cursor: not-allowed; opacity: .4; }
+.harga-link-sync-satu { display: block; width: max-content; margin: 0 0 4px; font-size: 11px; font-weight: 700; color: var(--web-info); text-decoration: none; white-space: nowrap; cursor: pointer; }
+.harga-link-sync-satu:hover { text-decoration: underline; }
+.harga-link-sync-satu.proses { color: var(--web-text-dim); cursor: wait; pointer-events: none; text-decoration: none; }
 .harga-terapkan-semua { display: inline-block; margin-bottom: 4px; font-size: 11px; font-weight: 700; color: #4f6ef7; text-decoration: none; white-space: nowrap; }
 .harga-terapkan-semua:hover { text-decoration: underline; }
 .harga-rekom-aksi { text-align: right; font-size: 10.5px; line-height: 1.35; min-height: 14px; }
@@ -14504,6 +14507,7 @@ function hargaBarisHtml(p) {
         <div class="harga-aksi">
           ${hargaSyncInfoHtml(p)}
           <a href="#" class="harga-terapkan-semua" data-role="terapkan-semua" data-sku="${s}" title="Terapkan rekomendasi berderet (Default, Shopee, TikTok + Harga Coret) sekaligus">⚡ Terapkan Semua</a>
+          <a href="#" class="harga-link-sync-satu" data-role="sync-satu" data-sku="${s}" title="Sync harga produk ini saja ke Shopee, TikTok Shop & Tokopedia (tanpa centang)">[☁️ Sync]</a>
           <div class="harga-aksi-links">
             <a href="#" class="harga-link-terapkan harga-link-simpan" data-sku="${s}">Simpan</a>
             <a href="#" class="harga-link-terapkan harga-link-batal" data-sku="${s}">Batal</a>
@@ -14612,6 +14616,8 @@ function hargaHitungBaris(sku) {
   // Tombol "Terapkan Semua" per baris hanya aktif kalau semua rekomendasi valid
   const semua = tr.querySelector('[data-role="terapkan-semua"]');
   if (semua) semua.style.display = hppValid && tr.querySelectorAll('.harga-ch-cell a.harga-link-terapkan').length === HARGA_CHANNEL.length ? '' : 'none';
+  const syncSatu = tr.querySelector('[data-role="sync-satu"]');
+  if (syncSatu) syncSatu.style.display = hppValid ? '' : 'none'; // fail-safe: HPP invalid tidak bisa di-sync
   hargaUpdateStatusBaris(sku);
 }
 
@@ -14725,6 +14731,8 @@ function hargaSelesaiEdit(inp) {
   body.addEventListener('click', (e) => {
     const semua = e.target.closest('a.harga-terapkan-semua');
     if (semua) { e.preventDefault(); hargaTerapkanSemuaBaris(semua.dataset.sku); return; }
+    const syncSatu = e.target.closest('a.harga-link-sync-satu');
+    if (syncSatu) { e.preventDefault(); syncSingleRow(syncSatu.dataset.sku); return; }
     const ai = e.target.closest('.harga-btn-ai');
     if (ai) { if (!ai.disabled) katalogUpdateHppDariSupplier(ai.dataset.sku, ai); return; }
     const link = e.target.closest('a.harga-link-terapkan');
@@ -15023,12 +15031,81 @@ function hargaHppDraftValid(sku) {
    Yang dikirim ke marketplace = HARGA CORET TERSIMPAN (harga dasar / original_price). Harga Jual Final
    TIDAK dikirim. Nilai Harga Coret di layar ikut dikirim hanya sebagai pembanding - backend membaca
    ulang Produk Master, memetakan SKU Terhubung, dan menjalankan fail-safe terakhir sebelum UrlFetchApp. */
+/* ---------- SYNC HARGA (global & per baris) -> backend syncPriceToMarketplace() ----------
+   Yang dikirim ke marketplace = HARGA CORET TERSIMPAN (original_price / new_price). Harga Jual Final
+   tidak dikirim. Nilai Harga Coret di layar ikut dikirim hanya sebagai pembanding - backend membaca ulang
+   Produk Master, memetakan kolom "SKU Terhubung Shopee / TikTok / Tokopedia", dan menjalankan fail-safe. */
+const HARGA_LABEL_PLATFORM = { 'Shopee': 'Shopee', 'TikTok Shop': 'TikTok', 'Tokopedia': 'Tokopedia' };
+
+// Susun 1 item sync dari 1 baris (HANYA data SKU itu). Return { item } atau { alasan } kalau tidak layak.
+function hargaSusunItemSync(sku) {
+  const item = katalogHargaCache.find(p => p.sku === sku);
+  if (!item) return { alasan: `${sku} (data tidak ditemukan)` };
+  if (!hargaHppDraftValid(sku) || !(Number(item.hpp) >= HARGA_MIN_WAJAR)) return { alasan: `${sku} (HPP tidak valid)` };
+  if (hargaPerubahanBaris(sku).jumlah > 0) return { alasan: `${sku} (ada perubahan belum disimpan - klik Simpan dulu)` };
+  const kirim = { sku };
+  let adaChannel = false;
+  const valid = (coret, final) => coret >= HARGA_MIN_WAJAR && final >= HARGA_MIN_WAJAR && coret >= final;
+  const coretS = Number(item.hargaCoretShopee) || 0, finalS = Number(item.hargaShopee) || 0;
+  const coretT = Number(item.hargaCoretTiktok) || 0, finalT = Number(item.hargaTiktok) || 0;
+  if (valid(coretS, finalS)) { kirim.hargaShopee = coretS; adaChannel = true; }
+  // Kanal "TikTok Shop & Tokopedia" memakai harga yang sama -> dikirim ke TikTok DAN Tokopedia
+  if (valid(coretT, finalT)) { kirim.hargaTiktok = coretT; kirim.hargaTokopedia = coretT; adaChannel = true; }
+  if (!adaChannel) return { alasan: `${sku} (Harga Coret / Harga Jual marketplace belum lengkap)` };
+  return { item: kirim };
+}
+
+// Inti pengiriman - dipakai tombol global "Sync Harga" dan link per baris "[☁️ Sync]"
+async function hargaKirimSync(items) {
+  const data = await postJsonTulis({ aksi: 'sync_harga_marketplace', items, email: currentUserEmail() }, 300000);
+  if (!data.success) throw new Error(data.error || 'Sync gagal');
+  const dryRun = data.mode !== 'LIVE';
+  const sekarang = Date.now();
+  let okProduk = 0, gagalChannel = 0;
+  (data.hasil || []).forEach(h => {
+    const bagian = [], detail = [];
+    let adaOk = false, adaMasalah = false;
+    if (h.gagalTotal) { bagian.push('✗ ' + h.pesan); detail.push(h.pesan); adaMasalah = true; }
+    Object.keys(h.channel || {}).forEach(pf => {
+      const c = h.channel[pf];
+      if (c.dilewati) return;
+      const label = HARGA_LABEL_PLATFORM[pf] || pf;
+      if (c.sumberSku) detail.push(`${label} - dibaca dari ${c.sumberSku}: "${c.isiKolom || ''}"`);
+      if (c.dikeluarkan && c.dikeluarkan.length) detail.push(`${label} - dikeluarkan (tercantum di kolom Tokopedia): ${c.dikeluarkan.join(', ')}`);
+      if (!c.jumlahListing) { // gagal tingkat channel (kolom kosong / fail-safe harga) - tidak ada listing ditembak
+        gagalChannel++; adaMasalah = true;
+        bagian.push(`✗ ${label}`);
+        detail.push(`${label}: ${c.pesan}`);
+        return;
+      }
+      const ikon = c.jumlahGagal === 0 ? '✓' : (c.jumlahSukses > 0 ? '⚠️' : '✗');
+      if (c.jumlahSukses > 0) adaOk = true;
+      if (c.jumlahGagal > 0) { gagalChannel++; adaMasalah = true; }
+      const gagalList = (c.perListing || []).filter(l => !l.success).map(l => l.skuMarketplace);
+      bagian.push(`${ikon} ${label} ${c.jumlahSukses}/${c.jumlahListing}${gagalList.length ? ` (gagal: ${gagalList.join(', ')})` : ''}`);
+      (c.perListing || []).forEach(l => detail.push(`${label} #${l.urutan} ${l.skuMarketplace} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : '✗'} ${l.pesan}`));
+    });
+    if (adaOk) okProduk++;
+    // Format: "✓ Shopee 2/2 · ✓ TikTok 1/1 · ✓ Tokopedia 1/1" (+ "(dry-run)" HANYA saat mode DRY-RUN)
+    hargaSetStatusBaris(h.sku, bagian.join(' · ') + (dryRun && adaOk ? ' (dry-run)' : ''), adaOk && !adaMasalah ? 'ok' : 'err');
+    const tr = hargaBarisEl(h.sku);
+    const stEl = tr && tr.querySelector('[data-role="aksi-status"]');
+    if (stEl) stEl.title = detail.join('\n');
+    const item = katalogHargaCache.find(p => p.sku === h.sku);
+    if (item && adaOk) {
+      if (dryRun) item.syncSimulasi = sekarang; else { item.terakhirSync = hargaFmtWaktu(sekarang); delete item.syncSimulasi; }
+      const info = tr && tr.querySelector('[data-role="sync-info"]');
+      if (info) { const tmp = document.createElement('div'); tmp.innerHTML = hargaSyncInfoHtml(item); const b2 = tmp.firstElementChild; b2.classList.add('baru'); info.replaceWith(b2); }
+    }
+  });
+  return { dryRun, okProduk, gagalChannel, total: data.total || {} };
+}
+
 async function hargaSyncHarga() {
   const statusEl = el('katalog-harga-bulk-status');
   const btn = el('harga-btn-sync');
   if (hargaSkuSedangSimpan.size > 0 || btn.dataset.proses === '1') { statusEl.className = 'status-text err'; statusEl.textContent = 'Tunggu proses yang sedang berjalan selesai dulu.'; return; }
 
-  // 1) Target: yang dicentang, atau semua produk di halaman ini (produk ber-HPP invalid TIDAK ikut)
   let target = Array.from(katalogHargaTerpilih);
   let autoCentang = false;
   if (target.length === 0) {
@@ -15040,97 +15117,54 @@ async function hargaSyncHarga() {
     target = halamanIni.map(p => p.sku);
     autoCentang = true;
   }
-
-  // 2) Fail-safe di browser (lapis 1) - backend tetap mengecek ulang (lapis 2)
   const items = [], dilewati = [];
-  target.forEach(sku => {
-    const item = katalogHargaCache.find(p => p.sku === sku);
-    if (!item) return;
-    if (!hargaHppDraftValid(sku) || !(Number(item.hpp) >= HARGA_MIN_WAJAR)) { dilewati.push(`${sku} (HPP tidak valid)`); return; }
-    if (hargaPerubahanBaris(sku).jumlah > 0) { dilewati.push(`${sku} (ada perubahan belum disimpan)`); return; }
-    const kirim = { sku };
-    let adaChannel = false;
-    HARGA_CHANNEL.filter(ch => ch.sync).forEach(ch => {
-      const coret = Number(item[ch.coretField]) || 0;
-      const final = Number(item[ch.field]) || 0;
-      if (coret >= HARGA_MIN_WAJAR && final >= HARGA_MIN_WAJAR && coret >= final) {
-        kirim[ch.key === 'shopee' ? 'hargaShopee' : 'hargaTiktok'] = coret; // HARGA CORET, bukan harga final
-        adaChannel = true;
-      }
-    });
-    if (!adaChannel) { dilewati.push(`${sku} (Harga Coret / Harga Jual Shopee & TikTok belum lengkap)`); return; }
-    items.push(kirim);
-  });
-  if (!items.length) {
-    statusEl.className = 'status-text err';
-    statusEl.textContent = `✗ Tidak ada produk yang bisa di-sync. ${dilewati.slice(0, 3).join(', ')}${dilewati.length > 3 ? ', ...' : ''}`;
-    return;
-  }
+  target.forEach(sku => { const r = hargaSusunItemSync(sku); if (r.item) items.push(r.item); else dilewati.push(r.alasan); });
+  if (!items.length) { statusEl.className = 'status-text err'; statusEl.textContent = `✗ Tidak ada produk yang bisa di-sync. ${dilewati.slice(0, 3).join(', ')}${dilewati.length > 3 ? ', ...' : ''}`; return; }
   if (items.length > 200) { statusEl.className = 'status-text err'; statusEl.textContent = `✗ Maksimal 200 produk per Sync (terpilih ${items.length}).`; return; }
-  if (!confirm(`Sync harga ${items.length} produk ke marketplace?\n\nYang dikirim: HARGA CORET tersimpan sebagai harga dasar (original_price), memakai SKU Marketplace Terhubung.${dilewati.length ? `\n${dilewati.length} produk dilewati.` : ''}`)) return;
+  if (!confirm(`Sync harga ${items.length} produk ke Shopee, TikTok Shop & Tokopedia?\n\nYang dikirim: HARGA CORET tersimpan sebagai harga dasar, memakai kolom SKU Terhubung per marketplace.${dilewati.length ? `\n${dilewati.length} produk dilewati.` : ''}`)) return;
 
-  // 3) Kirim ke backend
   btn.dataset.proses = '1';
   btn.disabled = true;
   setLoadingDots(statusEl, `Sync ${items.length} produk`);
   items.forEach(it => hargaSetStatusBaris(it.sku, '⏳ Sync...', ''));
   try {
-    const data = await postJsonTulis({ aksi: 'sync_harga_marketplace', items, email: currentUserEmail() }, 300000);
+    const r = await hargaKirimSync(items);
     stopLoadingDots(statusEl);
-    if (!data.success) { statusEl.className = 'status-text err'; statusEl.textContent = '✗ ' + (data.error || 'Sync gagal'); items.forEach(it => hargaSetStatusBaris(it.sku, '', '')); return; }
-    const dryRun = data.mode !== 'LIVE';
-    let okProduk = 0, gagalChannel = 0;
-    const sekarang = Date.now();
-    (data.hasil || []).forEach(h => {
-      const bagian = [], detail = [];
-      let adaOk = false, adaMasalah = false;
-      if (h.gagalTotal) { bagian.push('✗ ' + h.pesan); detail.push(h.pesan); adaMasalah = true; }
-      Object.keys(h.channel || {}).forEach(pf => {
-        const c = h.channel[pf];
-        if (c.dilewati) return;
-        const label = pf === 'Shopee' ? 'Shopee' : 'TikTok';
-        if (!c.jumlahListing) { // gagal di tingkat channel (harga / SKU belum terhubung) - tidak ada listing yang ditembak
-          gagalChannel++; adaMasalah = true;
-          bagian.push(`✗ ${label}: ${c.pesan}`); detail.push(`${label}: ${c.pesan}`);
-          return;
-        }
-        // One-to-many: hasil per listing
-        const ikon = c.jumlahGagal === 0 ? '✓' : (c.jumlahSukses > 0 ? '⚠️' : '✗');
-        if (c.jumlahSukses > 0) adaOk = true;
-        if (c.jumlahGagal > 0) { gagalChannel++; adaMasalah = true; }
-        const gagalList = (c.perListing || []).filter(l => !l.success);
-        bagian.push(`${ikon} ${label} ${c.jumlahSukses}/${c.jumlahListing} listing${dryRun && c.jumlahSukses ? ' (dry-run)' : ''}` +
-          (gagalList.length ? ` - gagal: ${gagalList.map(l => l.skuMarketplace).join(', ')}` : ''));
-        if (c.sumberSku) detail.push(`${label} - SKU dibaca dari ${c.sumberSku}`);
-        (c.perListing || []).forEach(l => detail.push(`${label} #${l.urutan} ${l.skuMarketplace} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : '✗'} ${l.pesan}`));
-      });
-      if (adaOk) okProduk++;
-      hargaSetStatusBaris(h.sku, bagian.join(' · '), adaOk && !adaMasalah ? 'ok' : 'err');
-      const trStatus = hargaBarisEl(h.sku);
-      const stEl = trStatus && trStatus.querySelector('[data-role="aksi-status"]');
-      if (stEl) stEl.title = detail.join('\n'); // arahkan kursor = rincian tiap listing
-      // Info "Terakhir Sync": LIVE = waktu nyata (disimpan di sheet), dry-run = tanda simulasi di layar saja
-      const item = katalogHargaCache.find(p => p.sku === h.sku);
-      if (item && adaOk) {
-        if (dryRun) item.syncSimulasi = sekarang; else { item.terakhirSync = hargaFmtWaktu(sekarang); delete item.syncSimulasi; }
-        const tr = hargaBarisEl(h.sku);
-        const info = tr && tr.querySelector('[data-role="sync-info"]');
-        if (info) { const tmp = document.createElement('div'); tmp.innerHTML = hargaSyncInfoHtml(item); const baru = tmp.firstElementChild; baru.classList.add('baru'); info.replaceWith(baru); }
-      }
-    });
     playBeep();
-    statusEl.className = gagalChannel ? 'status-text err' : 'status-text ok';
-    const t = data.total || {};
-    statusEl.textContent = `${gagalChannel ? '⚠️' : '✓'} ${okProduk}/${items.length} produk · ${t.sukses || 0}/${t.listing || 0} listing ${dryRun ? 'lolos DRY-RUN (payload di-log di sheet "Log Sync Harga", belum dikirim ke marketplace)' : 'ter-sync ke marketplace'}` +
-      `${gagalChannel ? ` · ${gagalChannel} channel gagal (lihat kolom Aksi tiap baris)` : ''}${autoCentang ? ' · produk di halaman ini otomatis dicentang' : ''}${dilewati.length ? ` · ${dilewati.length} dilewati` : ''}.`;
+    statusEl.className = r.gagalChannel ? 'status-text err' : 'status-text ok';
+    statusEl.textContent = `${r.gagalChannel ? '⚠️' : '✓'} ${r.okProduk}/${items.length} produk · ${r.total.sukses || 0}/${r.total.listing || 0} listing ${r.dryRun ? 'lolos DRY-RUN (payload di-log di sheet "Log Sync Harga", belum dikirim ke marketplace)' : 'ter-update di marketplace'}` +
+      `${r.gagalChannel ? ` · ${r.gagalChannel} kanal bermasalah (arahkan kursor ke status tiap baris)` : ''}${autoCentang ? ' · produk di halaman ini otomatis dicentang' : ''}${dilewati.length ? ` · ${dilewati.length} dilewati` : ''}.`;
   } catch (err) {
     stopLoadingDots(statusEl);
     statusEl.className = 'status-text err';
-    statusEl.textContent = '✗ Gagal terhubung: ' + err.message + ' - cek sheet "Log Sync Harga" sebelum mengulang.';
+    statusEl.textContent = '✗ ' + err.message + ' - cek sheet "Log Sync Harga" sebelum mengulang.';
     items.forEach(it => hargaSetStatusBaris(it.sku, '', ''));
   } finally {
     delete btn.dataset.proses;
     btn.disabled = false;
+  }
+}
+
+// QoL: sync 1 produk langsung dari barisnya, tanpa centang
+async function syncSingleRow(skuGudang) {
+  const tr = hargaBarisEl(skuGudang);
+  const link = tr && tr.querySelector('[data-role="sync-satu"]');
+  if (!link || link.dataset.proses === '1') return;
+  const r = hargaSusunItemSync(skuGudang);
+  if (!r.item) { hargaSetStatusBaris(skuGudang, '✗ Tidak bisa di-sync: ' + r.alasan.replace(skuGudang + ' ', ''), 'err'); return; }
+  link.dataset.proses = '1';
+  link.classList.add('proses');
+  link.textContent = '[⏳ Proses...]';
+  hargaSetStatusBaris(skuGudang, '', '');
+  try {
+    await hargaKirimSync([r.item]);
+    playBeep();
+  } catch (err) {
+    hargaSetStatusBaris(skuGudang, '✗ ' + err.message, 'err');
+  } finally {
+    delete link.dataset.proses;
+    link.classList.remove('proses');
+    link.textContent = '[☁️ Sync]';
   }
 }
 
