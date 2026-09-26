@@ -2061,6 +2061,15 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 .so-sesi { text-align: center; }
 .so-sesi-angka { font-size: 34px; font-weight: 800; color: var(--web-accent); line-height: 1; }
 .so-sesi-label { font-size: 11.5px; color: var(--web-text-dim); margin-top: 4px; }
+/* ===== KATALOG LEVEL 1: arsip (soft delete) & pengaman harga ===== */
+.kat-toggle-arsip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--web-text-dim); cursor: pointer; padding: 6px 10px; border: 1px dashed var(--web-border); border-radius: 8px; white-space: nowrap; }
+.kat-toggle-arsip input { margin: 0; accent-color: var(--web-accent); }
+.katalog-baris-arsip > td, .katalog-card-produk.katalog-baris-arsip { background: rgba(127,127,127,0.06); }
+.katalog-baris-arsip .tabel-produk-nama, .katalog-baris-arsip .katalog-foto-wrap, .katalog-card-produk.katalog-baris-arsip .katalog-card-img-container { opacity: .55; filter: grayscale(.6); }
+.katalog-tag-arsip { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .03em; padding: 2px 7px; border-radius: 999px; background: rgba(127,127,127,0.16); color: var(--web-text-dim); vertical-align: middle; }
+.katalog-btn-pulihkan { font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--web-accent); background: rgba(47,158,110,0.08); color: var(--web-accent); cursor: pointer; white-space: nowrap; }
+.katalog-btn-pulihkan:hover { background: var(--web-accent); color: #fff; }
+.tp-harga-peringatan { color: var(--web-danger) !important; font-weight: 700; }
 /* ===== KATALOG > PRODUK MASTER v2 ===== */
 /* Foto modal Tambah/Edit: drag-and-drop urutan */
 .tp-foto-box[draggable="true"] { cursor: grab; }
@@ -5408,6 +5417,9 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <option value="nama-asc">Nama A-Z</option>
               <option value="nama-desc">Nama Z-A</option>
             </select>
+            <label class="kat-toggle-arsip" title="Tampilkan juga produk yang sudah diarsipkan (dihapus) - bisa dipulihkan">
+              <input type="checkbox" id="katalog-produk-tampil-arsip" onchange="katalogToggleArsip(this.checked)" /> 🗄️ Tampilkan Arsip
+            </label>
           </div>
 
           <!-- Floating batch action bar - cuma nongol kalau ada yang dicentang -->
@@ -5416,7 +5428,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <div style="flex:1;"></div>
             <button class="web-btn-secondary" style="margin:0; background:#fff;" onclick="katalogBukaModalEditMassal()">✎ Edit Massal</button>
             <button class="web-btn-secondary" style="margin:0; background:#fff;" onclick="katalogBatchBukaModalKategori()">📁 Ubah Kategori</button>
-            <button class="web-btn-danger" style="margin:0;" onclick="katalogBatchHapusProduk()">🗑️ Hapus Terpilih</button>
+            <button class="web-btn-danger" style="margin:0;" onclick="katalogBatchHapusProduk()">🗄️ Arsipkan Terpilih</button>
             <button class="web-btn-secondary" style="margin:0; background:#fff;" onclick="katalogBatchBatalkanSemua()">Batalkan</button>
           </div>
 
@@ -5435,10 +5447,11 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           <!-- Modal Konfirmasi Hapus Massal -->
           <div id="katalog-modal-batch-hapus" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:250; align-items:center; justify-content:center;">
             <div class="web-panel" style="max-width:400px; width:100%;">
-              <div class="web-panel-header"><span>⚠️ Konfirmasi Hapus Produk</span></div>
-              <div style="font-size:13px; margin-bottom:10px;">Hapus <b id="katalog-batch-hapus-jumlah"></b> produk terpilih secara <b>PERMANEN</b> dari Master Produk?</div>
-              <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:14px;">Riwayat transaksi/stock lama TETAP tersimpan (SKU-nya cuma teks, bukan link), tapi produk ini nggak akan muncul lagi di Katalog. Tindakan ini TIDAK BISA dibatalkan.</div>
-              <button class="web-btn-danger" style="width:100%;" onclick="katalogBatchKonfirmasiHapus()">🗑️ Ya, Hapus Permanen</button>
+              <div class="web-panel-header"><span>🗄️ Arsipkan Produk</span></div>
+              <div style="font-size:13px; margin-bottom:10px;">Arsipkan <b id="katalog-batch-hapus-jumlah"></b> produk terpilih?</div>
+              <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:10px;">Produk disembunyikan dari Katalog, Harga, website & pencarian transaksi baru. <b>Datanya TIDAK dihapus</b> dari Sheets, jadi riwayat stok & penjualan tetap utuh. Bisa dipulihkan kapan saja lewat <b>🗄️ Tampilkan Arsip</b>.</div>
+              <input type="text" id="katalog-batch-hapus-alasan" class="web-form-input" placeholder="Alasan (opsional), misal: discontinue supplier" style="margin-bottom:12px;" />
+              <button class="web-btn-danger" style="width:100%;" onclick="katalogBatchKonfirmasiHapus()">🗄️ Ya, Arsipkan</button>
               <button class="web-btn-secondary" style="width:100%; margin-top:6px;" onclick="el('katalog-modal-batch-hapus').style.display='none'">Batal</button>
               <div class="status-text" id="katalog-batch-hapus-status" style="text-align:left; margin-top:6px;"></div>
             </div>
@@ -5728,7 +5741,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               </div>
               <div>
                 <label style="font-size:12px; font-weight:600;">Harga Jual</label>
-                <input id="tp-harga" type="number" class="web-form-input" placeholder="0" />
+                <input id="tp-harga" type="number" class="web-form-input" placeholder="0" oninput="katalogCekHppVsHargaForm()" />
               </div>
             </div>
             <div style="font-size:10.5px; color:var(--web-text-dim); margin-top:-8px; margin-bottom:12px;" id="tp-harga-helper">Dihitung otomatis dari margin default yang kamu set sebelumnya - boleh diubah manual kalau perlu.</div>
@@ -11564,7 +11577,7 @@ async function katalogFetchProduk() {
   }
   try {
     const [dataProduk, dataLink, dataMarket] = await Promise.all([
-      postJson({ aksi: 'lihat_katalog_produk', email: currentUserEmail() }),
+      postJson({ aksi: 'lihat_katalog_produk', denganArsip: katalogTampilArsip, email: currentUserEmail() }),
       postJson({ aksi: 'lihat_sku_supplier_terhubung', email: currentUserEmail() }),
       postJson({ aksi: 'lihat_sku_marketplace_terhubung', email: currentUserEmail() }),
       katalogMuatDaftarKategori() // dipanggil BARENGAN (bukan sesudah render) - biar dropdown Kategori di tiap baris udah siap opsinya pas render pertama, nggak kosong dulu
@@ -11594,7 +11607,8 @@ async function katalogFetchProduk() {
 
     katalogProdukRenderHalaman();
     katalogIsiDropdownFilterKategori();
-    simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
+    // Cache lokal hanya menyimpan daftar TANPA arsip - dipakai juga oleh autocomplete di menu lain
+    if (!katalogTampilArsip) simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
   } catch (err) {
     if (katalogProdukCache.length === 0) el('katalog-produk-body').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
   }
@@ -11725,8 +11739,8 @@ function katalogRenderTabel(halamanIni) {
   el('katalog-produk-tampilan-card').style.display = 'none';
 
   el('katalog-produk-body').innerHTML = halamanIni.map((p) => `
-    <tr data-sku="${escapeHtml(p.sku)}">
-      <td><input type="checkbox" class="katalog-produk-checkbox" data-sku="${escapeHtml(p.sku)}" ${katalogProdukTerpilih.has(p.sku) ? 'checked' : ''} onchange="katalogToggleSelectSatu('${p.sku.replace(/'/g, "\\'")}', this.checked)" /></td>
+    <tr data-sku="${escapeHtml(p.sku)}"${p.arsip ? ' class="katalog-baris-arsip"' : ''}>
+      <td>${p.arsip ? '' : `<input type="checkbox" class="katalog-produk-checkbox" data-sku="${escapeHtml(p.sku)}" ${katalogProdukTerpilih.has(p.sku) ? 'checked' : ''} onchange="katalogToggleSelectSatu('${p.sku.replace(/'/g, "\\'")}', this.checked)" />`}</td>
       <td>
         <div class="katalog-foto-wrap" data-sku="${escapeHtml(p.sku)}">
           ${katalogFotoTabelHtml(p.urlFoto, p.nama)}
@@ -11734,7 +11748,7 @@ function katalogRenderTabel(halamanIni) {
       </td>
       <td>
         <div class="tabel-produk-teks">
-          <div class="tabel-produk-brand">${p.brand ? escapeHtml(p.brand) : '-'}</div>
+          <div class="tabel-produk-brand">${p.arsip ? '<span class="katalog-tag-arsip">🗄️ ARSIP</span> ' : ''}${p.brand ? escapeHtml(p.brand) : '-'}</div>
           <div class="tabel-produk-nama katalog-klik-detail" data-sku="${escapeHtml(p.sku)}">${escapeHtml(p.nama)}</div>
           <div class="tabel-produk-sku">SKU Gudang: <span class="katalog-sku-badge">${escapeHtml(p.sku)}</span></div>
           ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div class="tabel-produk-sku-terhubung"><span class="tabel-sku-terhubung-label">SKU Supplier:</span>${katalogSkuTerhubungMap[p.sku].map(k => `<span class="katalog-sku-badge">${escapeHtml(k)}</span>`).join('')}</div>` : ''}
@@ -11764,6 +11778,7 @@ function katalogRenderTabel(halamanIni) {
           <div style="flex:1; min-width:0;">
             ${(() => {
               const daftarMarket = katalogSkuMarketplaceMap[p.sku] || [];
+              if (daftarMarket.length === 0 && p.arsip) return '<span style="font-size:12.5px; color:var(--web-text-dim);">Belum ada SKU terhubung</span>';
               if (daftarMarket.length === 0) return `<span style="font-size:12.5px; color:var(--web-text-dim);">Belum ada SKU terhubung</span><br><button type="button" class="katalog-btn-hubungkan" data-sku="${escapeHtml(p.sku)}" onclick="event.stopPropagation(); katalogBukaHubungkanSku(this)">🔗 Hubungkan SKU</button>`;
               return daftarMarket.map(m => {
                 const iconB64 = ICON_CHANNEL_MAP[m.platform];
@@ -11776,7 +11791,9 @@ function katalogRenderTabel(halamanIni) {
           </div>
           <div style="display:flex; gap:5px; align-items:center; flex:none;">
             <button class="katalog-btn-pensil katalog-btn-link-sku-supplier" data-sku="${escapeHtml(p.sku)}" title="Hubungkan SKU Supplier">🔗</button>
-            <button class="katalog-btn-pensil" title="Hapus Produk" onclick="katalogHapusSatuProduk('${p.sku.replace(/'/g, "\\'")}')">🗑️</button>
+            ${p.arsip
+              ? `<button class="katalog-btn-pulihkan" title="Pulihkan dari arsip" onclick="katalogPulihkanProduk('${p.sku.replace(/'/g, "\\'")}')">♻️ Pulihkan</button>`
+              : `<button class="katalog-btn-pensil" title="Arsipkan Produk" onclick="katalogHapusSatuProduk('${p.sku.replace(/'/g, "\\'")}')">🗑️</button>`}
           </div>
         </div>
       </td>
@@ -11847,6 +11864,7 @@ let katalogHapusSatuTarget = null; // diisi kalau hapus dari tombol per-baris, b
 
 function katalogHapusSatuProduk(sku) {
   katalogHapusSatuTarget = sku;
+  el('katalog-batch-hapus-alasan').value = '';
   el('katalog-batch-hapus-jumlah').textContent = '1';
   el('katalog-batch-hapus-status').textContent = '';
   el('katalog-modal-batch-hapus').style.display = 'flex';
@@ -11854,6 +11872,7 @@ function katalogHapusSatuProduk(sku) {
 
 function katalogBatchHapusProduk() {
   katalogHapusSatuTarget = null;
+  el('katalog-batch-hapus-alasan').value = '';
   el('katalog-batch-hapus-jumlah').textContent = katalogProdukTerpilih.size;
   el('katalog-batch-hapus-status').textContent = '';
   el('katalog-modal-batch-hapus').style.display = 'flex';
@@ -11862,13 +11881,14 @@ function katalogBatchHapusProduk() {
 async function katalogBatchKonfirmasiHapus() {
   const skuList = katalogHapusSatuTarget ? [katalogHapusSatuTarget] : Array.from(katalogProdukTerpilih);
   const statusEl = el('katalog-batch-hapus-status');
-  setLoadingDots(statusEl, 'Menghapus');
+  setLoadingDots(statusEl, 'Mengarsipkan');
   try {
-    const data = await postJson({ aksi: 'hapus_produk_massal', skuList, toko: currentToko, email: currentUserEmail() });
+    const data = await postJsonTulis({ aksi: 'hapus_produk_massal', skuList, alasan: (el('katalog-batch-hapus-alasan').value || '').trim(), toko: currentToko, email: currentUserEmail() });
     stopLoadingDots(statusEl);
     if (data.success) {
       playBeep();
-      statusEl.textContent = `✓ ${data.jumlahBerhasil} produk dihapus`;
+      statusEl.textContent = `✓ ${data.jumlahBerhasil} produk diarsipkan`;
+      el('katalog-batch-hapus-alasan').value = '';
       statusEl.className = 'status-text ok';
       setTimeout(() => {
         el('katalog-modal-batch-hapus').style.display = 'none';
@@ -11885,13 +11905,14 @@ function katalogRenderCard(halamanIni) {
   el('katalog-produk-tampilan-card').style.display = 'block';
 
   el('katalog-produk-card-grid').innerHTML = halamanIni.map((p) => `
-    <div class="web-panel katalog-card-produk" data-sku="${escapeHtml(p.sku)}" style="padding:10px; cursor:pointer;">
+    <div class="web-panel katalog-card-produk${p.arsip ? ' katalog-baris-arsip' : ''}" data-sku="${escapeHtml(p.sku)}" style="padding:10px; cursor:pointer;">
+      ${p.arsip ? `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;"><span class="katalog-tag-arsip">🗄️ ARSIP</span><button class="katalog-btn-pulihkan" onclick="event.stopPropagation(); katalogPulihkanProduk('${p.sku.replace(/'/g, "\\'")}')">♻️ Pulihkan</button></div>` : ''}
       <div class="katalog-card-img-container">
         ${katalogFotoAtauPlaceholder(p.urlFoto, 28)}
       </div>
       <div class="katalog-card-title">${escapeHtml(p.nama)}</div>
       <div class="katalog-card-sku">SKU Gudang: <span class="katalog-sku-badge">${escapeHtml(p.sku)}</span></div>
-      ${(katalogSkuMarketplaceMap[p.sku] || []).length === 0 ? `<div class="katalog-card-link">Belum ada SKU terhubung<br><button type="button" class="katalog-btn-hubungkan" data-sku="${escapeHtml(p.sku)}" onclick="event.stopPropagation(); katalogBukaHubungkanSku(this)">🔗 Hubungkan SKU</button></div>` : ''}
+      ${(katalogSkuMarketplaceMap[p.sku] || []).length === 0 && !p.arsip ? `<div class="katalog-card-link">Belum ada SKU terhubung<br><button type="button" class="katalog-btn-hubungkan" data-sku="${escapeHtml(p.sku)}" onclick="event.stopPropagation(); katalogBukaHubungkanSku(this)">🔗 Hubungkan SKU</button></div>` : ''}
       <div class="katalog-card-bawah">
         <div class="katalog-card-kategori">
           <select class="web-form-input katalog-select-kategori" data-sku="${escapeHtml(p.sku)}" style="margin:0; padding:3px 5px; font-size:11.5px; max-width:120px;" onclick="event.stopPropagation();">
@@ -12234,12 +12255,16 @@ async function katalogAmbilMarginDefault() {
 // terdekat - sama persis kayak rumus backend hitungHargaDariMargin().
 function katalogHitungHargaJualOtomatis() {
   const hpp = parseFloat(el('tp-harga-supplier').value) || 0;
+  katalogCekHppVsHargaForm();
+  // Mode Edit: harga jual yang SUDAH ADA tidak ditimpa otomatis (dulu diam-diam berubah tiap HPP diketik)
+  if (katalogModalMode === 'edit' && (parseFloat(el('tp-harga').value) || 0) > 0) return;
   if (hpp <= 0 || katalogMarginDefaultCache === null) return;
   const margin = katalogMarginDefaultCache;
   if (margin <= 0 || margin >= 100) { el('tp-harga').value = hpp; return; }
   const hargaJual = Math.round((hpp / (1 - margin / 100)) / 100) * 100;
   el('tp-harga').value = hargaJual;
   el('tp-harga-helper').textContent = `Dihitung otomatis dari margin default ${margin}% yang kamu set sebelumnya - boleh diubah manual kalau perlu.`;
+  katalogCekHppVsHargaForm();
 }
 
 // Set satuan berat + catat sebagai "satuan sebelumnya" - dipanggil tiap kali satuan diisi dari
@@ -12380,6 +12405,7 @@ async function katalogBukaModalTambahProduk() {
   el('tp-judul-modal').textContent = '+ Tambah Produk Baru';
   ['tp-sku','tp-nama','tp-merk','tp-url-supplier','tp-url-foto','tp-tipe','tp-material','tp-volume','tp-warna','tp-deskripsi','tp-berat-angka','tp-dimensi-p','tp-dimensi-l','tp-dimensi-t'].forEach(id => el(id).value = '');
   el('tp-harga').value = ''; el('tp-harga-supplier').value = '';
+  el('tp-harga-helper').classList.remove('tp-harga-peringatan');
   katalogSetBeratSatuan('Gram');
   el('tp-sku').disabled = false;
   el('tp-tampil-website').checked = false;
@@ -12453,6 +12479,7 @@ async function katalogBukaModalEditProdukInti(sku) {
     el('tp-tipe').value = p.tipe || '';
     el('tp-harga').value = p.hargaDefault || '';
     el('tp-harga-supplier').value = p.hargaSupplier || '';
+    katalogCekHppVsHargaForm();
     el('tp-material').value = p.material || '';
     el('tp-volume').value = p.volume || '';
     el('tp-warna').value = p.warna || '';
@@ -12740,11 +12767,16 @@ function katalogRenderFotoGrid() {
       }
       const filesGambar = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
       if (filesGambar.length > 0) { katalogUploadFotoKeKotak(idx, filesGambar); return; }
-      const urlDrop = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').trim();
-      if (/^https?:\/\//i.test(urlDrop)) { katalogSetFotoDiKotak(idx, urlDrop); return; }
+      // Level 1 #3: gambar dari web lain -> data:image diubah jadi file lalu di-upload ke Drive;
+      // blob:/http:/sumber lain DITOLAK (tidak pernah lagi disimpan mentah ke sheet).
       const htmlDrop = e.dataTransfer.getData('text/html');
       const mImg = htmlDrop && htmlDrop.match(/<img[^>]+src="([^"]+)"/i);
-      if (mImg) katalogSetFotoDiKotak(idx, mImg[1]);
+      const urlDrop = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').trim();
+      const sumber = /^https:\/\//i.test(urlDrop) ? urlDrop : (mImg ? mImg[1] : urlDrop);
+      if (!sumber) return;
+      if (/^data:image\//i.test(sumber)) { const f = katalogDataUrlKeFile(sumber); if (f) { katalogUploadFotoKeKotak(idx, [f]); return; } }
+      if (/^https:\/\/[^\s"'<>]+$/i.test(sumber) && sumber.length <= 2000) { katalogSetFotoDiKotak(idx, sumber); return; }
+      katalogPesanFotoDitolak();
     });
     box.addEventListener('paste', (e) => {
       const items = (e.clipboardData || window.clipboardData).items;
@@ -12756,9 +12788,12 @@ function katalogRenderFotoGrid() {
         }
       }
       const teksPaste = ((e.clipboardData || window.clipboardData).getData('text') || '').trim();
-      if (/^https?:\/\//i.test(teksPaste) && teksPaste.length < 500) {
+      if (/^https:\/\//i.test(teksPaste) && teksPaste.length < 500) {
         e.preventDefault(); e.stopPropagation();
         katalogSetFotoDiKotak(idx, teksPaste);
+      } else if (/^(data:|blob:|http:\/\/)/i.test(teksPaste)) {
+        e.preventDefault(); e.stopPropagation();
+        katalogPesanFotoDitolak();
       }
       // Bukan gambar/URL (misal teks dump supplier panjang) - biarkan lolos ke Smart Paste global
     });
@@ -12992,7 +13027,7 @@ async function katalogSimpanProdukBaru() {
     }
     if (!data.success) {
       stopLoadingDots(statusEl);
-      statusEl.textContent = '✗ Gagal: ' + (data.error || '');
+      statusEl.textContent = katalogTeksGagal(data.error);
       statusEl.className = 'status-text err';
       btn.disabled = false;
       return;
@@ -15288,6 +15323,93 @@ function katalogBukaBiayaPenjualan(channel) {
 }
 
 /* =====================================================================
+   KATALOG LEVEL 1 (frontend): arsip / pulihkan, hapus kategori, foto aman, pengaman harga
+   ===================================================================== */
+let katalogTampilArsip = false;
+
+function katalogToggleArsip(aktif) {
+  katalogTampilArsip = !!aktif;
+  katalogProdukTerpilih.clear();
+  katalogProdukPaginasiState.page = 1;
+  katalogProdukCache = [];
+  katalogFetchProduk();
+}
+
+async function katalogPulihkanProduk(sku) {
+  if (!confirm(`Pulihkan produk "${sku}" dari arsip?\nProduk akan tampil lagi di Katalog, Harga, website & pencarian transaksi.`)) return;
+  try {
+    const data = await postJsonTulis({ aksi: 'pulihkan_produk_arsip', skuList: [sku], toko: currentToko, email: currentUserEmail() });
+    if (!data.success) { alert(katalogTeksGagal(data.error)); return; }
+    playBeep();
+    const p = katalogProdukCache.find(x => x.sku === sku);
+    if (p) p.arsip = false;
+    katalogProdukRenderHalaman();
+    if (typeof katToast === 'function') katToast(`♻️ <b>${escapeHtml(sku)}</b> dipulihkan dari arsip.`);
+  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+}
+
+async function katalogHapusKategori(idx, kategori) {
+  const jml = kategori.jumlahProduk || 0;
+  if (!confirm(`Hapus kategori "${kategori.nama}"?\n\n${jml ? `${jml} produk di dalamnya akan menjadi "Tanpa Kategori" (produknya TIDAK dihapus).` : 'Tidak ada produk di kategori ini.'}`)) return;
+  const statusEl = document.querySelector(`.katalog-status-nama-kategori[data-idx="${idx}"]`);
+  if (statusEl) setLoadingDots(statusEl, 'Menghapus');
+  try {
+    const data = await postJsonTulis({ aksi: 'hapus_kategori', nama: kategori.nama, toko: currentToko, email: currentUserEmail() });
+    if (statusEl) stopLoadingDots(statusEl);
+    if (!data.success) { if (statusEl) { statusEl.textContent = katalogTeksGagal(data.error); statusEl.className = 'status-text err katalog-status-nama-kategori'; } return; }
+    playBeep();
+    katalogDaftarKategoriCache = katalogDaftarKategoriCache.filter(k => k !== kategori.nama);
+    hapusCacheTTL('daftar_kategori');
+    katalogProdukCache.forEach(p => { if (p.kategori === kategori.nama) p.kategori = ''; });
+    if (!katalogTampilArsip) simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
+    katalogHargaCache = [];
+    katalogFetchKategori();
+  } catch (err) { if (statusEl) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; } }
+}
+
+// "✗ Gagal: ..." tanpa dobel kata "Gagal" (pesan pengaman harga dari server sudah diawali "Gagal:")
+function katalogTeksGagal(pesan) {
+  const t = String(pesan || '').replace(/^Error:\s*/, '');
+  return '✗ ' + (/^gagal\b/i.test(t) ? t : 'Gagal: ' + t);
+}
+
+// data:image/... (gambar yang di-drag dari halaman web) -> File, supaya bisa di-upload ke Drive
+function katalogDataUrlKeFile(dataUrl) {
+  try {
+    const m = String(dataUrl).match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
+    if (!m) return null;
+    const biner = atob(m[2]);
+    const bytes = new Uint8Array(biner.length);
+    for (let i = 0; i < biner.length; i++) bytes[i] = biner.charCodeAt(i);
+    const ext = (m[1].split('/')[1] || 'png').replace('jpeg', 'jpg');
+    return new File([bytes], 'foto-web-' + Date.now() + '.' + ext, { type: m[1] });
+  } catch (e) { return null; }
+}
+
+function katalogPesanFotoDitolak() {
+  const st = el('tp-foto-batas-status');
+  if (st) { st.className = 'status-text err'; st.textContent = '✗ Harap upload file, bukan drag-and-drop dari web lain. (Simpan gambarnya dulu ke perangkat, lalu klik/tarik file-nya ke kotak foto.)'; }
+}
+
+// Aturan sama persis dengan backend (katPesanHppMelebihiHarga_): HPP >= Harga Jual -> ditolak.
+// Harga Jual 0 = "belum diset" -> tidak ditolak (mengikuti KAT_TOLAK_HPP_JIKA_HARGA_KOSONG = false).
+function katalogPesanHppMelebihiHarga(sku, hpp, hargaJual) {
+  const h = Number(hpp) || 0, j = Number(hargaJual) || 0;
+  if (h <= 0 || j <= 0 || h < j) return null;
+  const rp = n => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+  return `Gagal: Harga Modal [${rp(h)}] lebih besar/sama dengan Harga Jual [${rp(j)}] untuk SKU ${sku}. Sesuaikan harga jual terlebih dahulu.`;
+}
+
+function katalogCekHppVsHargaForm() {
+  const helper = el('tp-harga-helper');
+  if (!helper) return;
+  const pesan = katalogPesanHppMelebihiHarga(el('tp-sku').value.trim() || '(baru)', parseFloat(el('tp-harga-supplier').value) || 0, parseFloat(el('tp-harga').value) || 0);
+  helper.classList.toggle('tp-harga-peringatan', !!pesan);
+  if (pesan) helper.textContent = '⚠️ ' + pesan.replace(/^Gagal:\s*/, '') + ' Simpan akan ditolak.';
+  else if (helper.textContent.startsWith('⚠️')) helper.textContent = 'Harga Jual di atas Harga Modal ✓';
+}
+
+/* =====================================================================
    KATALOG > PRODUK MASTER v2
    1) Anti-spasi input SKU  2) (foto drag: lihat katalogRenderFotoGrid)  3) Omni-Search
    4) Edit Produk Massal     5) Popover Hubungkan SKU                    6) Sapu Bersih / auto-merge
@@ -15376,7 +15498,7 @@ function bulkBarisBerubah(b) {
 async function katalogBukaModalEditMassal() {
   let skuList = Array.from(katalogProdukTerpilih);
   if (!skuList.length) {
-    skuList = katalogFilterSortProduk().map(p => p.sku);
+    skuList = katalogFilterSortProduk().filter(p => !p.arsip).map(p => p.sku);
     if (!skuList.length) { alert('Tidak ada produk di tampilan saat ini.'); return; }
     if (skuList.length > 1000) { alert(`Hasil filter berisi ${skuList.length} produk (maks 1000 per edit massal).\nPersempit dengan pencarian/filter, atau centang produk yang mau diedit.`); return; }
     if (!confirm(`Belum ada produk yang dicentang.\n\nEdit massal ${skuList.length} produk dari hasil pencarian/filter saat ini?`)) return;
@@ -15433,6 +15555,8 @@ async function bulkSimpanEditMassal() {
     if (!String(b.nama || '').trim()) { salah.push('Nama Produk wajib diisi'); kolom.push('nama'); }
     if (isNaN(bulkParseAngka(b.hpp))) { salah.push('HPP harus angka'); kolom.push('hpp'); }
     if (isNaN(bulkParseAngka(b.hargaDefault))) { salah.push('Harga Default harus angka'); kolom.push('hargaDefault'); }
+    const pesanHarga = katalogPesanHppMelebihiHarga(b.sku, bulkParseAngka(b.hpp), bulkParseAngka(b.hargaDefault));
+    if (pesanHarga) { salah.push(pesanHarga); kolom.push('hpp', 'hargaDefault'); }
     ['skuSupplier', 'skuMarketplace'].forEach(k => katNormalListKode(b[k]).forEach(kode => {
       const pemakai = pemakaiKode[k + '|' + kode] || [];
       if (pemakai.length > 1) { salah.push(`"${kode}" dipakai juga oleh ${pemakai.filter(x => x !== b.sku).join(', ')}`); if (!kolom.includes(k)) kolom.push(k); }
@@ -15460,7 +15584,7 @@ async function bulkSimpanEditMassal() {
     const data = await postJsonTulis({ aksi: 'katalog_simpan_edit_massal', items, email: currentUserEmail() }, 120000);
     stopLoadingDots(status);
     if (!data || !data.success) {
-      (data && data.errorPerBaris || []).forEach(er => { const b = berubah[er.baris - 1]; if (b) { b.error = er.pesan; b.errorKolom = []; } });
+      (data && data.errorPerBaris || []).forEach(er => { const b = berubah[er.baris - 1]; if (b) { b.error = er.pesan; b.errorKolom = /Harga Modal/.test(er.pesan) ? ['hpp', 'hargaDefault'] : []; } });
       bulkRender();
       status.className = 'status-text err';
       status.textContent = '✗ ' + ((data && data.error) || 'Gagal menyimpan');
@@ -15585,7 +15709,7 @@ function katalogRenderHubungkanList(hanyaSorot) {
   const qLow = q.toLowerCase();
   const kata = qLow.split(/\s+/).filter(Boolean);
   if (!hanyaSorot) {
-    katHubHasil = katalogProdukCache.filter(p => p.sku !== katHubSku && (!kata.length || kata.every(k => (p.sku + ' ' + (p.nama || '')).toLowerCase().includes(k))));
+    katHubHasil = katalogProdukCache.filter(p => p.sku !== katHubSku && !p.arsip && (!kata.length || kata.every(k => (p.sku + ' ' + (p.nama || '')).toLowerCase().includes(k))));
     const skor = p => { const s = p.sku.toLowerCase(); return s === qLow ? 0 : s.startsWith(qLow) ? 1 : s.includes(qLow) ? 2 : 3; };
     katHubHasil.sort((a, b) => skor(a) - skor(b) || a.sku.localeCompare(b.sku));
     katHubHasil = katHubHasil.slice(0, 60);
@@ -16277,6 +16401,7 @@ async function katalogFetchKategori() {
             <div class="katalog-kategori-nama-tampil" id="katalog-kategori-nama-${idx}" style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:6px;">
               <span>${escapeHtml(k.nama)}</span>
               <button class="katalog-kategori-btn-edit-nama" data-idx="${idx}" title="Ubah nama kategori" style="background:none; border:none; cursor:pointer; font-size:12px; padding:2px 4px; opacity:0.6;">✏️</button>
+              <button class="katalog-kategori-btn-hapus" data-idx="${idx}" title="Hapus kategori (produknya jadi Tanpa Kategori)" style="background:none; border:none; cursor:pointer; font-size:12px; padding:2px 4px; opacity:0.6;">🗑️</button>
             </div>
             <div class="katalog-kategori-nama-edit" id="katalog-kategori-edit-${idx}" style="display:none; gap:6px; align-items:center; margin-bottom:2px;">
               <input type="text" class="web-form-input katalog-input-nama-kategori" data-idx="${idx}" value="${escapeHtml(k.nama)}" style="margin:0; flex:1; font-size:13px; padding:6px 8px;" />
@@ -16331,6 +16456,9 @@ async function katalogFetchKategori() {
     });
     el('katalog-kategori-list').querySelectorAll('.katalog-btn-simpan-nama-kategori').forEach(btn => {
       btn.addEventListener('click', () => katalogUbahNamaKategori(btn.dataset.idx, daftarKategori[btn.dataset.idx].nama));
+    });
+    el('katalog-kategori-list').querySelectorAll('.katalog-kategori-btn-hapus').forEach(btn => {
+      btn.addEventListener('click', () => katalogHapusKategori(btn.dataset.idx, daftarKategori[btn.dataset.idx]));
     });
   } catch (err) {
     el('katalog-kategori-list').innerHTML = `<div style="color:var(--web-danger); font-size:12px;">Gagal terhubung: ${escapeHtml(err.message)}</div>`;
