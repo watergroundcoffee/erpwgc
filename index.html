@@ -1397,6 +1397,16 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   }
   .login-web-shell { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; min-height: 100vh; }
   /* Footer legal (nama badan usaha sesuai NIB) - wajib terlihat di halaman publik untuk review TikTok Shop */
+  /* Beranda cepat: status data & skeleton */
+  .ov-periode-baris { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 6px 0 14px; }
+  .ov-status-data { font-size: 11.5px; color: var(--web-text-dim); display: flex; align-items: center; gap: 8px; }
+  .ov-status-data.info::before { content: ''; width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: ovPutar .8s linear infinite; }
+  .ov-status-data.err { color: #dc2626; }
+  .ov-btn-perbarui { font: inherit; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--web-border); background: transparent; color: inherit; cursor: pointer; }
+  .ov-btn-perbarui:hover { border-color: #2f9e6e; color: #2f9e6e; }
+  @keyframes ovPutar { to { transform: rotate(360deg); } }
+  .web-kpi-grid.ov-memuat .web-kpi-value { color: transparent !important; background: linear-gradient(90deg, var(--web-border) 25%, transparent 50%, var(--web-border) 75%); background-size: 200% 100%; animation: ovKilap 1.2s linear infinite; border-radius: 6px; }
+  @keyframes ovKilap { to { background-position: -200% 0; } }
   /* Beranda: kontribusi per channel */
   .ov-kanal-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0 4px; }
   .ov-kanal-strip:empty { display: none; }
@@ -3763,7 +3773,10 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <input id="ov-custom-akhir" type="date" class="web-form-input" style="max-width:180px; margin-bottom:0;" />
             <button class="web-btn-primary" style="flex:none;" onclick="ovTerapkanRentangCustom()">Terapkan</button>
           </div>
-          <div style="font-size:11.5px; color:var(--web-text-dim); margin:6px 0 14px;">Menampilkan data periode: <b id="ov-periode-label">-</b></div>
+          <div class="ov-periode-baris">
+            <div style="font-size:11.5px; color:var(--web-text-dim);">Menampilkan data periode: <b id="ov-periode-label">-</b></div>
+            <div class="ov-status-data" id="ov-status-data" aria-live="polite"></div>
+          </div>
 
           <!-- KPI PERIODE (bisa dikustomisasi user) -->
           <div class="web-toolbar-row" style="margin-bottom:6px;">
@@ -7998,7 +8011,7 @@ function ovGantiRentang(rentang) {
   else if (rentang === '30hari') mulai.setDate(mulai.getDate() - 29);
   ovTanggalMulaiAktif = ovTglLokal(mulai);
   ovTanggalAkhirAktif = ovTglLokal(akhir);
-  fetchDashboardWeb();
+  ovTerapkanRentangAktif();
 }
 
 // yyyy-MM-dd menurut jam LOKAL perangkat. toISOString() memakai UTC -> sebelum jam 07:00 WIB
@@ -8012,9 +8025,10 @@ function ovTerapkanRentangCustom() {
   const mulai = el('ov-custom-mulai').value;
   const akhir = el('ov-custom-akhir').value;
   if (!mulai || !akhir) { alert('Isi kedua tanggal dulu.'); return; }
+  if (mulai > akhir) { alert('Tanggal awal harus sebelum tanggal akhir.'); return; }
   ovTanggalMulaiAktif = mulai;
   ovTanggalAkhirAktif = akhir;
-  fetchDashboardWeb();
+  ovTerapkanRentangAktif();
 }
 
 function ovGantiTrenJenis(jenis) {
@@ -8123,6 +8137,171 @@ function ovRenderTugasHarian() {
 
 let ovDataOverviewCache = null;
 
+/* ===== BERANDA CEPAT =====
+   Server mengirim REKAP HARIAN (~120 hari) sekali saja (aksi dashboard_rekap). Semua klik rentang
+   (Hari Ini/Kemarin/7/30 hari/custom) dihitung DI BROWSER dari rekap itu -> instan, tanpa request.
+   Rekap juga disimpan di localStorage: Beranda langsung tampil saat dibuka, lalu diperbarui di belakang. */
+let ovRekap = null;              // payload dashboard_rekap terakhir
+let ovRekapMemuat = false;       // request rekap sedang berjalan
+let ovRekapPromise = null;
+let ovStokTerakhirKey = '';      // hindari render ulang chart stok kalau datanya sama
+
+function ovRekapKunciLokal() { return 'ov_rekap_v1:' + (currentUserEmail() || '') + ':' + (currentToko || ''); }
+
+function ovRekapMuatLokal() {
+  try {
+    const x = JSON.parse(localStorage.getItem(ovRekapKunciLokal()) || 'null');
+    if (x && x.hari && x.hariIni) return x;
+  } catch (e) { }
+  return null;
+}
+function ovRekapSimpanLokal(d) {
+  try { localStorage.setItem(ovRekapKunciLokal(), JSON.stringify(d)); } catch (e) { /* penuh - abaikan */ }
+}
+
+function ovSetStatusData(teks, kelas, bisaPerbarui) {
+  const s = el('ov-status-data');
+  if (!s) return;
+  s.className = 'ov-status-data ' + (kelas || '');
+  s.innerHTML = escapeHtml(teks || '') + (bisaPerbarui ? ' <button type="button" class="ov-btn-perbarui" onclick="ovPerbaruiRekap(true)">↻ Perbarui</button>' : '');
+}
+
+function ovTeksUmur(d) {
+  if (!d || !d.diperbarui) return '';
+  const menit = Math.max(0, Math.floor((Date.now() - d.diperbarui) / 60000));
+  const jam = new Date(d.diperbarui);
+  const hh = String(jam.getHours()).padStart(2, '0') + ':' + String(jam.getMinutes()).padStart(2, '0');
+  return 'Data per ' + hh + (menit >= 1 ? ` (${menit < 60 ? menit + ' menit' : Math.floor(menit / 60) + ' jam'} lalu)` : ' (baru saja)');
+}
+
+// Hitung semua metrik untuk rentang [mulai, akhir] (yyyy-MM-dd) dari rekap - bentuk sama dengan output lama
+function ovHitungRentang(rek, mulai, akhir) {
+  const kanalUrut = rek.kanal || OV_KANAL_URUT;
+  const perChannel = {};
+  kanalUrut.forEach(k => { perChannel[k] = { total: 0, jumlah: 0 }; });
+  let total = 0, jumlah = 0, batal = 0, nilaiBatal = 0, resi = 0, item = 0;
+  const pel = new Set();
+  const perHari = {};
+  (rek.hari || []).forEach(h => {
+    if (h.t < mulai || h.t > akhir) return;
+    let pj = 0;
+    const pc = {};
+    Object.keys(h.k || {}).forEach(kn => {
+      const v = h.k[kn];
+      if (!perChannel[kn]) perChannel[kn] = { total: 0, jumlah: 0 };
+      perChannel[kn].total += v[0]; perChannel[kn].jumlah += v[1];
+      total += v[0]; jumlah += v[1]; batal += v[2]; nilaiBatal += v[3];
+      pj += v[0]; pc[kn] = v[0];
+    });
+    resi += h.r || 0; item += h.i || 0;
+    if (h.p) h.p.split(',').forEach(x => { if (x) pel.add(x); });
+    perHari[h.t] = { resi: h.r || 0, penjualan: pj, perChannel: pc };
+  });
+  // Tren: isi setiap tanggal di rentang (hari tanpa transaksi = 0)
+  const tren = [];
+  const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const [ya, ma, da] = mulai.split('-').map(Number);
+  const cur = new Date(ya, ma - 1, da, 12);
+  for (let n = 0; n < 367; n++) {
+    const s = ovTglLokal(cur);
+    if (s > akhir) break;
+    const h = perHari[s] || { resi: 0, penjualan: 0, perChannel: {} };
+    tren.push({ tanggal: String(cur.getDate()).padStart(2, '0') + ' ' + BLN[cur.getMonth()], resi: h.resi, penjualan: h.penjualan, perChannel: h.perChannel });
+    cur.setDate(cur.getDate() + 1);
+  }
+  const qty = {};
+  Object.keys(rek.produk || {}).forEach(t => {
+    if (t < mulai || t > akhir) return;
+    const p = rek.produk[t];
+    Object.keys(p).forEach(sku => { qty[sku] = (qty[sku] || 0) + p[sku]; });
+  });
+  const produkTerlaris = Object.keys(qty).filter(s => qty[s] > 0).sort((a, b) => qty[b] - qty[a]).slice(0, 5)
+    .map(s => ({ sku: s, nama: (rek.nama || {})[s] || s, qty: qty[s] }));
+  const snap = rek.snapshot || {};
+  return {
+    success: true,
+    totalPenjualanRentang: total, jumlahPesananRentang: jumlah, rataRataNilaiPesanan: jumlah ? total / jumlah : 0,
+    resiRentang: resi, jumlahPelangganAktif: pel.size, totalItemTerjual: item,
+    jumlahPesananBatal: batal, totalNilaiPesananBatal: nilaiBatal,
+    perChannelRentang: perChannel, trenHarian: tren, produkTerlaris,
+    penjualanTersedia: rek.izinPenjualan !== false, penjualanCatatan: rek.penjualanCatatan || '',
+    stockRendah: snap.stockRendah || [], selisihInvoice: snap.selisihInvoice || 0, resiPending: snap.resiPending || 0,
+    pesananAktifSaatIni: snap.pesananAktif, totalNilaiAktifSaatIni: snap.nilaiAktif
+  };
+}
+
+// Render dari rekap yang ada di memori untuk rentang aktif (SINKRON - dipanggil tiap klik rentang)
+function ovRenderDariRekap() {
+  if (!ovRekap) return false;
+  const mulai = ovTanggalMulaiAktif, akhir = ovTanggalAkhirAktif;
+  // Rentang di luar data yang dimiliki browser -> perlu ambil dari server
+  // (tanggal setelah "sampai" = belum ada transaksi -> tetap dihitung 0, tidak perlu ke server)
+  if (mulai < ovRekap.dari) return false;
+  const d = ovHitungRentang(ovRekap, mulai, akhir);
+  ovDataOverviewCache = d;
+  ovRenderKpiGrid(d);
+  ovRenderKanalStrip(d);
+  ovTrenDataCache = d.trenHarian;
+  renderWebChartLine(ovTrenDataCache);
+  const kunciStok = JSON.stringify(d.stockRendah);
+  if (kunciStok !== ovStokTerakhirKey) {
+    ovStokTerakhirKey = kunciStok;
+    webDataStockRendahCache = d.stockRendah;
+    renderWebChartOverview();
+  }
+  const daftarTerlaris = d.produkTerlaris || [];
+  el('ov-produk-terlaris-empty').style.display = daftarTerlaris.length === 0 ? 'block' : 'none';
+  el('ov-produk-terlaris-body').innerHTML = daftarTerlaris.map(p => `
+    <tr><td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.nama)}</td><td style="font-weight:700;">${Number(p.qty).toLocaleString('id-ID')}</td></tr>
+  `).join('');
+  el('ov-kpi-grid-utama').classList.remove('ov-memuat');
+  return true;
+}
+
+// Ambil rekap dari server. opsi.dari/sampai untuk rentang custom di luar 120 hari.
+async function ovAmbilRekap(opsi) {
+  opsi = opsi || {};
+  if (ovRekapMemuat && !opsi.dari) return ovRekapPromise;
+  ovRekapMemuat = true;
+  ovRekapPromise = (async () => {
+    try {
+      const body = { aksi: opsi.perbarui ? 'dashboard_rekap_perbarui' : 'dashboard_rekap', email: currentUserEmail() };
+      if (opsi.dari) { body.dari = opsi.dari; body.sampai = opsi.sampai; }
+      const d = await postJson(body, opsi.perbarui ? 120000 : 60000, true);
+      if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat rekap');
+      if (opsi.dari) {
+        // Gabungkan rentang lama di luar 120 hari dengan rekap yang sudah ada
+        const base = ovRekap || d;
+        const petaHari = {};
+        (base.hari || []).concat(d.hari || []).forEach(h => { petaHari[h.t] = h; });
+        ovRekap = Object.assign({}, base, {
+          dari: d.dari < base.dari ? d.dari : base.dari, sampai: d.sampai > base.sampai ? d.sampai : base.sampai,
+          hari: Object.keys(petaHari).sort().map(k => petaHari[k]),
+          produk: Object.assign({}, base.produk, d.produk), nama: Object.assign({}, base.nama, d.nama)
+        });
+      } else {
+        ovRekap = d;
+        ovRekapSimpanLokal(d);
+      }
+      return ovRekap;
+    } finally {
+      ovRekapMemuat = false;
+    }
+  })();
+  return ovRekapPromise;
+}
+
+async function ovPerbaruiRekap(manual) {
+  ovSetStatusData(manual ? 'Menghitung ulang data terbaru...' : (ovTeksUmur(ovRekap) + ' · memperbarui di belakang layar...'), 'info');
+  try {
+    await ovAmbilRekap({ perbarui: true });
+    ovRenderDariRekap();
+    ovSetStatusData(ovTeksUmur(ovRekap), 'ok', true);
+  } catch (err) {
+    ovSetStatusData('Gagal memperbarui: ' + err.message + (ovRekap ? ' · menampilkan ' + ovTeksUmur(ovRekap).toLowerCase() : ''), 'err', true);
+  }
+}
+
 async function fetchDashboardWeb() {
   if (!ovTanggalMulaiAktif) {
     ovTanggalMulaiAktif = ovTglLokal();
@@ -8131,29 +8310,44 @@ async function fetchDashboardWeb() {
   el('ov-periode-label').textContent = ovTanggalMulaiAktif === ovTanggalAkhirAktif ? ovTanggalMulaiAktif : (ovTanggalMulaiAktif + ' s/d ' + ovTanggalAkhirAktif);
   ovRenderTugasHarian();
 
+  // 1) Tampil INSTAN dari memori / localStorage (kalau rekap lokal masih hari yang sama)
+  if (!ovRekap) {
+    const lokal = ovRekapMuatLokal();
+    if (lokal && lokal.hariIni === ovTglLokal()) ovRekap = lokal;
+  }
+  const sudahTampil = ovRenderDariRekap();
+  if (!sudahTampil) { if (!el('ov-kpi-grid-utama').children.length) ovRenderKpiGrid(null); el('ov-kpi-grid-utama').classList.add('ov-memuat'); ovSetStatusData('Memuat data Beranda...', 'info'); }
+  else ovSetStatusData(ovTeksUmur(ovRekap) + ' · menyegarkan...', 'info');
+
+  // 2) Segarkan dari server (ringan: cuma baca sheet rekap)
   try {
-    const dataOverview = await postJson({ aksi: 'dashboard_overview', tanggalMulai: ovTanggalMulaiAktif, tanggalAkhir: ovTanggalAkhirAktif, email: currentUserEmail() });
-
-    if (dataOverview.success) {
-      ovDataOverviewCache = dataOverview;
-      ovRenderKpiGrid(dataOverview);
-      ovRenderKanalStrip(dataOverview);
-
-      ovTrenDataCache = dataOverview.trenHarian;
-      renderWebChartLine(ovTrenDataCache);
-      webDataStockRendahCache = dataOverview.stockRendah;
-      renderWebChartOverview();
-
-      const daftarTerlaris = dataOverview.produkTerlaris || [];
-      el('ov-produk-terlaris-empty').style.display = daftarTerlaris.length === 0 ? 'block' : 'none';
-      el('ov-produk-terlaris-body').innerHTML = daftarTerlaris.map(p => `
-        <tr><td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.nama)}</td><td style="font-weight:700;">${p.qty}</td></tr>
-      `).join('');
-    }
-
-    tampilkanSaranAIUntukHalamanIni();
+    await ovAmbilRekap();
+    ovRenderDariRekap();
+    ovSetStatusData(ovTeksUmur(ovRekap), 'ok', true);
+    // 3) Rekap basi (trigger belum jalan) -> perbarui diam-diam, tampilan tetap bisa dipakai
+    if (ovRekap && ovRekap.umurMenit >= (ovRekap.basiMenit || 15)) ovPerbaruiRekap(false);
   } catch (err) {
-    el('web-insight-list').innerHTML = '<div class="web-insight-card danger">Gagal memuat data: ' + escapeHtml(err.message) + '</div>';
+    ovSetStatusData('Gagal memuat: ' + err.message, 'err', true);
+    if (!ovRekap) el('ov-kpi-grid-utama').classList.remove('ov-memuat');
+  }
+  tampilkanSaranAIUntukHalamanIni();
+}
+
+// Dipanggil setiap klik rentang - TANPA request selama rentang ada di rekap browser
+async function ovTerapkanRentangAktif() {
+  el('ov-periode-label').textContent = ovTanggalMulaiAktif === ovTanggalAkhirAktif ? ovTanggalMulaiAktif : (ovTanggalMulaiAktif + ' s/d ' + ovTanggalAkhirAktif);
+  if (ovRenderDariRekap()) return;
+  if (!ovRekap) { fetchDashboardWeb(); return; }
+  // Rentang lebih lama dari data di browser -> ambil potongan itu saja
+  el('ov-kpi-grid-utama').classList.add('ov-memuat');
+  ovSetStatusData('Mengambil data periode lama...', 'info');
+  try {
+    await ovAmbilRekap({ dari: ovTanggalMulaiAktif, sampai: ovRekap.dari < ovTanggalAkhirAktif ? ovRekap.dari : ovTanggalAkhirAktif });
+    ovRenderDariRekap();
+    ovSetStatusData(ovTeksUmur(ovRekap), 'ok', true);
+  } catch (err) {
+    el('ov-kpi-grid-utama').classList.remove('ov-memuat');
+    ovSetStatusData('Gagal memuat periode ini: ' + err.message, 'err', true);
   }
 }
 
