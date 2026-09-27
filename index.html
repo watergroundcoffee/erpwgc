@@ -1397,6 +1397,18 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   }
   .login-web-shell { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; min-height: 100vh; }
   /* Footer legal (nama badan usaha sesuai NIB) - wajib terlihat di halaman publik untuk review TikTok Shop */
+  /* Beranda: kontribusi per channel */
+  .ov-kanal-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0 4px; }
+  .ov-kanal-strip:empty { display: none; }
+  .ov-kanal-chip { border: 1px solid var(--web-border); border-radius: 10px; padding: 8px 10px; background: var(--web-panel, #fff); min-width: 0; }
+  .ov-kanal-chip .nm { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs, 12px); color: var(--web-text-dim); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ov-kanal-chip .nm i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .ov-kanal-chip .nl { font-size: var(--fs-md, 14px); font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .ov-kanal-chip .sb { font-size: 11.5px; color: var(--web-text-dim); }
+  .ov-kanal-chip .bar { height: 3px; border-radius: 3px; background: var(--web-border); margin-top: 6px; overflow: hidden; }
+  .ov-kanal-chip .bar b { display: block; height: 100%; }
+  .ov-kanal-chip.nol { opacity: .55; }
+  .ov-kanal-info { grid-column: 1 / -1; font-size: 12px; color: var(--web-text-dim); padding: 8px 10px; border: 1px dashed var(--web-border); border-radius: 10px; }
   .login-legal-footer { text-align: center; font-size: 12px; line-height: 1.5; color: #8a97a5; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .login-legal-footer strong { color: #5b6b7c; font-weight: 700; letter-spacing: .3px; }
   .login-web-shell > .login-legal-footer { grid-column: 1 / -1; border-top: 1px solid #eef1f4; background: #fff; }
@@ -3759,6 +3771,8 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <button class="web-chart-toggle-btn" onclick="ovBukaKustomisasiMetrik()">⚙️ Sesuaikan Metrik</button>
           </div>
           <div class="web-kpi-grid" id="ov-kpi-grid-utama"></div>
+          <!-- KONTRIBUSI PER CHANNEL (semua channel, periode yang sama dengan KPI) -->
+          <div class="ov-kanal-strip" id="ov-kanal-strip"></div>
 
           <!-- PANEL PILIH METRIK (tersembunyi default) -->
           <div class="web-panel" id="ov-kustomisasi-panel" style="display:none; margin-top:10px;">
@@ -3771,9 +3785,10 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           <div class="web-panel-row">
             <div class="web-panel" style="flex:2;">
               <div class="web-panel-header">
-                <span id="ov-tren-judul">Tren Penjualan</span>
+                <span id="ov-tren-judul">Tren Penjualan · Semua Channel</span>
                 <div class="web-chart-toggle">
                   <button class="web-chart-toggle-btn active" id="ov-tren-penjualan" onclick="ovGantiTrenJenis('penjualan')">Penjualan</button>
+                  <button class="web-chart-toggle-btn" id="ov-tren-channel" onclick="ovGantiTrenJenis('channel')">Per Channel</button>
                   <button class="web-chart-toggle-btn" id="ov-tren-resi" onclick="ovGantiTrenJenis('resi')">Resi</button>
                 </div>
               </div>
@@ -3792,7 +3807,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           </div>
 
           <div class="web-panel" style="margin-top:14px;">
-            <div class="web-panel-header"><span>🏆 Produk Terlaris (periode ini)</span></div>
+            <div class="web-panel-header"><span>🏆 Produk Terlaris (periode ini · semua channel)</span></div>
             <div class="web-table-wrap">
               <table class="web-table">
                 <thead><tr><th>SKU</th><th>Nama Produk</th><th>Qty Terjual</th></tr></thead>
@@ -7981,9 +7996,16 @@ function ovGantiRentang(rentang) {
   if (rentang === 'kemarin') { mulai.setDate(mulai.getDate() - 1); akhir.setDate(akhir.getDate() - 1); }
   else if (rentang === '7hari') mulai.setDate(mulai.getDate() - 6);
   else if (rentang === '30hari') mulai.setDate(mulai.getDate() - 29);
-  ovTanggalMulaiAktif = mulai.toISOString().split('T')[0];
-  ovTanggalAkhirAktif = akhir.toISOString().split('T')[0];
+  ovTanggalMulaiAktif = ovTglLokal(mulai);
+  ovTanggalAkhirAktif = ovTglLokal(akhir);
   fetchDashboardWeb();
+}
+
+// yyyy-MM-dd menurut jam LOKAL perangkat. toISOString() memakai UTC -> sebelum jam 07:00 WIB
+// "Hari Ini" dulu terbaca sebagai kemarin.
+function ovTglLokal(d) {
+  const x = d || new Date();
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
 }
 
 function ovTerapkanRentangCustom() {
@@ -7999,17 +8021,18 @@ function ovGantiTrenJenis(jenis) {
   ovTrenJenisAktif = jenis;
   el('ov-tren-penjualan').classList.toggle('active', jenis === 'penjualan');
   el('ov-tren-resi').classList.toggle('active', jenis === 'resi');
+  if (el('ov-tren-channel')) el('ov-tren-channel').classList.toggle('active', jenis === 'channel');
   renderWebChartLine(ovTrenDataCache);
 }
 
 const OV_METRIK_POOL = {
-  penjualan: { label: 'Total Penjualan', getValue: d => 'Rp ' + Number(d.totalPenjualanRentang).toLocaleString('id-ID') },
-  jumlah_pesanan: { label: 'Jumlah Pesanan', getValue: d => d.jumlahPesananRentang },
-  aov: { label: 'Rata-rata Nilai Pesanan', getValue: d => 'Rp ' + Math.round(d.rataRataNilaiPesanan).toLocaleString('id-ID') },
+  penjualan: { penjualan: true, label: 'Total Penjualan', getValue: d => 'Rp ' + Number(d.totalPenjualanRentang).toLocaleString('id-ID') },
+  jumlah_pesanan: { penjualan: true, label: 'Jumlah Pesanan', getValue: d => d.jumlahPesananRentang },
+  aov: { penjualan: true, label: 'Rata-rata Nilai Pesanan', getValue: d => 'Rp ' + Math.round(d.rataRataNilaiPesanan).toLocaleString('id-ID') },
   resi: { label: 'Resi Terkirim', getValue: d => d.resiRentang, clickable: "ovBukaLihatResi('keluar')" },
-  pelanggan_aktif: { label: 'Pelanggan Aktif', getValue: d => d.jumlahPelangganAktif },
+  pelanggan_aktif: { penjualan: true, label: 'Pelanggan Aktif', getValue: d => d.jumlahPelangganAktif },
   item_terjual: { label: 'Total Item Terjual', getValue: d => d.totalItemTerjual },
-  pesanan_batal: { label: 'Pesanan Batal', getValue: d => `${d.jumlahPesananBatal || 0} (Rp ${Number(d.totalNilaiPesananBatal || 0).toLocaleString('id-ID')})` }
+  pesanan_batal: { penjualan: true, label: 'Pesanan Batal', getValue: d => `${d.jumlahPesananBatal || 0} (Rp ${Number(d.totalNilaiPesananBatal || 0).toLocaleString('id-ID')})` }
 };
 const OV_METRIK_DEFAULT = ['penjualan', 'jumlah_pesanan', 'aov', 'resi'];
 
@@ -8026,7 +8049,7 @@ function ovRenderKpiGrid(dataOverview) {
   el('ov-kpi-grid-utama').innerHTML = terpilih.map(key => {
     const m = OV_METRIK_POOL[key];
     if (!m) return '';
-    const nilai = dataOverview ? m.getValue(dataOverview) : '-';
+    const nilai = !dataOverview ? '-' : (m.penjualan && dataOverview.penjualanTersedia === false ? '—' : m.getValue(dataOverview));
     return `<div class="web-kpi-card ${m.clickable ? 'web-kpi-clickable' : ''}" ${m.clickable ? `onclick="${m.clickable}"` : ''}><div class="web-kpi-label">${escapeHtml(m.label)}</div><div class="web-kpi-value">${nilai}</div></div>`;
   }).join('');
 }
@@ -8102,9 +8125,8 @@ let ovDataOverviewCache = null;
 
 async function fetchDashboardWeb() {
   if (!ovTanggalMulaiAktif) {
-    const sekarang = new Date();
-    ovTanggalMulaiAktif = sekarang.toISOString().split('T')[0];
-    ovTanggalAkhirAktif = sekarang.toISOString().split('T')[0];
+    ovTanggalMulaiAktif = ovTglLokal();
+    ovTanggalAkhirAktif = ovTglLokal();
   }
   el('ov-periode-label').textContent = ovTanggalMulaiAktif === ovTanggalAkhirAktif ? ovTanggalMulaiAktif : (ovTanggalMulaiAktif + ' s/d ' + ovTanggalAkhirAktif);
   ovRenderTugasHarian();
@@ -8115,6 +8137,7 @@ async function fetchDashboardWeb() {
     if (dataOverview.success) {
       ovDataOverviewCache = dataOverview;
       ovRenderKpiGrid(dataOverview);
+      ovRenderKanalStrip(dataOverview);
 
       ovTrenDataCache = dataOverview.trenHarian;
       renderWebChartLine(ovTrenDataCache);
@@ -8134,8 +8157,58 @@ async function fetchDashboardWeb() {
   }
 }
 
+const OV_KANAL_WARNA = { 'TikTok Shop': '#111827', 'Tokopedia': '#16a34a', 'Shopee': '#ee4d2d', 'Website': '#3f7fc9', 'PO Sales': '#c9822f', 'Conner Hardware': '#7c5cd9' };
+const OV_KANAL_URUT = ['TikTok Shop', 'Tokopedia', 'Shopee', 'Website', 'PO Sales', 'Conner Hardware'];
+
+function ovRenderKanalStrip(d) {
+  const wrap = el('ov-kanal-strip');
+  if (!wrap) return;
+  if (!d || d.penjualanTersedia === false) {
+    wrap.innerHTML = d && d.penjualanCatatan ? `<div class="ov-kanal-info">${escapeHtml(d.penjualanCatatan)}</div>` : '';
+    return;
+  }
+  const per = d.perChannelRentang || {};
+  const total = Number(d.totalPenjualanRentang) || 0;
+  const kanal = OV_KANAL_URUT.concat(Object.keys(per).filter(k => !OV_KANAL_URUT.includes(k)));
+  wrap.innerHTML = kanal.map(k => {
+    const c = per[k] || { total: 0, jumlah: 0 };
+    const pct = total > 0 ? (c.total / total * 100) : 0;
+    const w = OV_KANAL_WARNA[k] || '#64748b';
+    return `<div class="ov-kanal-chip ${c.jumlah ? '' : 'nol'}" title="${escapeHtml(k)}: ${c.jumlah} pesanan">
+      <div class="nm"><i style="background:${w}"></i>${escapeHtml(k)}</div>
+      <div class="nl">Rp ${Math.round(c.total).toLocaleString('id-ID')}</div>
+      <div class="sb">${c.jumlah} pesanan · ${pct.toFixed(pct >= 10 || pct === 0 ? 0 : 1)}%</div>
+      <div class="bar"><b style="width:${Math.min(100, pct).toFixed(1)}%;background:${w}"></b></div>
+    </div>`;
+  }).join('');
+}
+
 function renderWebChartLine(tren) {
-  const label = ovTrenJenisAktif === 'penjualan' ? 'Penjualan (Rp)' : 'Resi Terkirim';
+  tren = tren || [];
+  if (ovTrenJenisAktif === 'channel') {
+    const ctxC = el('web-chart-line').getContext('2d');
+    if (webChartLine) webChartLine.destroy();
+    const adaData = OV_KANAL_URUT.filter(k => tren.some(t => t.perChannel && t.perChannel[k]));
+    const daftarK = adaData.length ? adaData : OV_KANAL_URUT;
+    webChartLine = new Chart(ctxC, {
+      type: 'line',
+      data: {
+        labels: tren.map(t => t.tanggal),
+        datasets: daftarK.map(k => ({
+          label: k, data: tren.map(t => (t.perChannel && t.perChannel[k]) || 0),
+          borderColor: OV_KANAL_WARNA[k] || '#64748b', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, borderWidth: 2
+        }))
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': Rp ' + Math.round(c.parsed.y).toLocaleString('id-ID') } } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+    return;
+  }
+  const label = ovTrenJenisAktif === 'penjualan' ? 'Penjualan (Rp, semua channel)' : 'Resi Terkirim';
   const dataValues = tren.map(t => ovTrenJenisAktif === 'penjualan' ? t.penjualan : t.resi);
   const ctx = el('web-chart-line').getContext('2d');
   if (webChartLine) webChartLine.destroy();
