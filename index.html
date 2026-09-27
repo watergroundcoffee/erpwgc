@@ -1459,6 +1459,35 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
     .drp-latar[hidden] { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .drp { animation: none; } }
+  /* ===== Pengiriman: tautkan resi <-> invoice ===== */
+  .pgr-btn-lengkapi { font: inherit; font-size: 11.5px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(198, 40, 40, .35);
+    background: rgba(198, 40, 40, .06); color: #c62828; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .pgr-btn-lengkapi[hidden] { display: none; }
+  .pgr-btn-lengkapi.sibuk { color: #2f9e6e; border-color: rgba(47, 158, 110, .35); background: rgba(47, 158, 110, .08); cursor: progress; }
+  .pgr-btn-lengkapi .putar { width: 11px; height: 11px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: wpPutar .7s linear infinite; display: none; }
+  .pgr-btn-lengkapi.sibuk .putar { display: inline-block; }
+  .pgr-inv-baru { animation: wpSorot 2.4s ease-out; border-radius: 6px; }
+  .pgr-tautan-latar { position: fixed; inset: 0; z-index: 2500; background: rgba(15, 23, 42, .38); display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px 16px; }
+  .pgr-tautan-latar[hidden] { display: none; }
+  .pgr-tautan { width: 100%; max-width: 620px; max-height: 80vh; display: flex; flex-direction: column; background: var(--web-panel); color: var(--web-text);
+    border: 1px solid var(--web-border); border-radius: 16px; box-shadow: 0 24px 60px rgba(15, 23, 42, .22); overflow: hidden; }
+  .pgr-tautan-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--web-border); }
+  .pgr-tautan-head h3 { margin: 0 0 4px; font-size: 15px; }
+  .pgr-tautan-head p { margin: 0 0 10px; font-size: 12px; color: var(--web-text-dim); }
+  .pgr-tautan-head .pgr-mono { font-weight: 700; color: var(--web-text); }
+  .pgr-tautan-cari { width: 100%; box-sizing: border-box; font: inherit; font-size: 13.5px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--web-border); background: var(--web-bg); color: inherit; }
+  .pgr-tautan-cari:focus { outline: none; border-color: #2f9e6e; box-shadow: 0 0 0 3px rgba(47, 158, 110, .15); }
+  .pgr-tautan-list { overflow-y: auto; padding: 6px 8px 10px; min-height: 120px; }
+  .pgr-tautan-info { font-size: 12px; color: var(--web-text-dim); padding: 14px 10px; text-align: center; }
+  .pgr-tautan-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; }
+  .pgr-tautan-item:hover { background: var(--web-bg); }
+  .pgr-tautan-item .isi { flex: 1; min-width: 0; }
+  .pgr-tautan-item .no { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .pgr-tautan-item .meta { font-size: 11.5px; color: var(--web-text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pgr-tautan-item .kanal { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--web-bg); border: 1px solid var(--web-border); margin-right: 6px; }
+  .pgr-tautan-item button { font: inherit; font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 8px; border: 0; background: #2f9e6e; color: #fff; cursor: pointer; flex: none; }
+  .pgr-tautan-item button:disabled { opacity: .5; cursor: progress; }
+  .pgr-tautan-foot { display: flex; justify-content: flex-end; padding: 10px 14px; border-top: 1px solid var(--web-border); }
   /* ===== Transaksi Penjualan: indikator sinkron, skeleton & loader layar penuh ===== */
   .wp-sync-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #2f9e6e; background: rgba(47, 158, 110, .1);
     border: 1px solid rgba(47, 158, 110, .25); padding: 4px 10px 4px 8px; border-radius: 999px; white-space: nowrap; }
@@ -11192,6 +11221,9 @@ async function pengirimanBukaSub(sub) {
     if (wpPengirimanAktifCache === null) await wpMuatAktifPengiriman();
   }
   wpRenderPengirimanTab();
+  // Ada resi "Belum Terhubung" -> coba hubungkan otomatis di belakang layar (server membatasi 1x/10 menit)
+  pgrUpdateTombolLengkapi();
+  if (sub !== 'resi-masuk' && pgrResiBelumTerhubung().length) pgrLengkapiOtomatis(false);
 }
 
 // Data aktif dimuat BERTAHAP: awalnya cuma 200 resi aktif terbaru (biar instan & nggak timeout),
@@ -11385,6 +11417,7 @@ async function pgrMuatUlangAktif() {
   if (btn) { btn.disabled = false; btn.textContent = '↻ Muat Ulang'; }
   pgrTerpilih.clear();
   wpRenderPengirimanTab();
+  pgrUpdateTombolLengkapi();
 }
 
 // Satu listener buat seluruh tab Pengiriman (event delegation) - nggak perlu pasang
@@ -11463,12 +11496,158 @@ function pgrJalankanAksiMassal(aksi, daftarResi) {
   pgrToast(`"${label}" untuk ${daftarResi.length} resi - fitur ini segera hadir.`);
 }
 
-// KERANGKA tautkan manual resi "Belum Terhubung" ke invoice - dialognya menyusul.
-// Sementara: No Resi otomatis disalin biar gampang dicari manual di Penjualan.
-async function pgrTautkanManual(noResi) {
-  const berhasil = await pgrSalinTeks(noResi, null, true);
-  pgrToast(`${berhasil ? 'No Resi ' + noResi + ' disalin. ' : ''}Fitur tautkan manual ke invoice segera hadir.`);
+// ===== TAUTKAN RESI "Belum Terhubung" =====
+// Otomatis: backend melengkapi resi kosong dari API (TikTok/Conner/Shopee, pesanan terbaru dulu) lalu
+// mencocokkan ulang. Manual: dialog cari pesanan lintas semua channel -> simpan ke "Tautan Resi Tambahan"
+// (data marketplace tidak diubah).
+let pgrLengkapiBerjalan = false;
+
+function pgrResiBelumTerhubung() {
+  return (wpPengirimanAktifCache || []).filter(d => !d.noInvoice).map(d => String(d.noResiScan || '')).filter(Boolean);
 }
+
+function pgrUpdateTombolLengkapi() {
+  let btn = el('pgr-btn-lengkapi');
+  if (!btn) {
+    const bar = el('pgr-control-bar');
+    if (!bar) return;
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'pgr-btn-lengkapi';
+    btn.className = 'pgr-btn-lengkapi';
+    btn.title = 'Tarik resi terbaru dari marketplace lalu cocokkan ulang resi yang belum terhubung';
+    btn.addEventListener('click', () => pgrLengkapiOtomatis(true));
+    bar.insertBefore(btn, el('pgr-info-jumlah'));
+  }
+  const n = pgrResiBelumTerhubung().length;
+  btn.hidden = n === 0 && !pgrLengkapiBerjalan;
+  btn.classList.toggle('sibuk', pgrLengkapiBerjalan);
+  btn.disabled = pgrLengkapiBerjalan;
+  btn.innerHTML = '<span class="putar" aria-hidden="true"></span>' + (pgrLengkapiBerjalan ? 'Mencari invoice...' : `🔗 Hubungkan ${n} resi`);
+}
+
+async function pgrLengkapiOtomatis(paksa) {
+  const resi = pgrResiBelumTerhubung();
+  if (!resi.length || pgrLengkapiBerjalan) { pgrUpdateTombolLengkapi(); return; }
+  pgrLengkapiBerjalan = true;
+  pgrUpdateTombolLengkapi();
+  try {
+    const d = await postJson({ aksi: 'lengkapi_resi_belum_terhubung', resi, paksa: !!paksa, email: currentUserEmail() }, 120000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    const terhubung = Object.keys(d.terhubung || {}).length;
+    if (terhubung || d.resiTerisi) {
+      await wpMuatAktifPengiriman(); // muat ulang agar kategori & status ikut benar
+      hapusCacheTTL('log_resi_riwayat'); wpPengirimanRiwayatCache = null;
+      wpRenderPengirimanTab();
+      Object.keys(d.terhubung || {}).forEach(r => {
+        const tr = document.querySelector(`#web-tab-pengiriman tr[data-resi="${CSS.escape(r)}"] .pgr-inv`);
+        if (tr) tr.classList.add('pgr-inv-baru');
+      });
+    }
+    const sisa = pgrResiBelumTerhubung().length;
+    if (paksa || terhubung) {
+      pgrToast(terhubung ? `${terhubung} resi berhasil terhubung ke invoice.${sisa ? ' ' + sisa + ' masih perlu ditautkan manual (🔗).' : ''}`
+        : (d.dilewati ? 'Pencarian otomatis baru saja dijalankan - coba lagi beberapa menit lagi atau tautkan manual (🔗).' : `Belum ditemukan di marketplace. Tautkan manual lewat tombol 🔗.`));
+    }
+  } catch (err) {
+    if (paksa) pgrToast('Gagal mencari invoice: ' + err.message);
+  } finally {
+    pgrLengkapiBerjalan = false;
+    pgrUpdateTombolLengkapi();
+  }
+}
+
+// Dialog tautkan manual
+let pgrTautan = { resi: '', timer: null, seq: 0 };
+function pgrTautanDom() {
+  let latar = el('pgr-tautan-latar');
+  if (latar) return latar;
+  latar = document.createElement('div');
+  latar.id = 'pgr-tautan-latar';
+  latar.className = 'pgr-tautan-latar';
+  latar.hidden = true;
+  latar.innerHTML = `<div class="pgr-tautan" role="dialog" aria-modal="true" aria-labelledby="pgr-tautan-judul">
+    <div class="pgr-tautan-head">
+      <h3 id="pgr-tautan-judul">Tautkan resi ke pesanan</h3>
+      <p>Resi <span class="pgr-mono" id="pgr-tautan-resi"></span> - cari pesanannya lalu pilih <b>Tautkan</b>.</p>
+      <input type="search" class="pgr-tautan-cari" id="pgr-tautan-cari" placeholder="No pesanan / invoice, nama pembeli, atau No HP..." autocomplete="off" />
+    </div>
+    <div class="pgr-tautan-list" id="pgr-tautan-list" aria-live="polite"></div>
+    <div class="pgr-tautan-foot"><button type="button" class="web-btn-secondary" id="pgr-tautan-tutup">Tutup</button></div>
+  </div>`;
+  document.body.appendChild(latar);
+  latar.addEventListener('mousedown', e => { if (e.target === latar) pgrTautanTutup(); });
+  latar.addEventListener('keydown', e => { if (e.key === 'Escape') pgrTautanTutup(); });
+  el('pgr-tautan-tutup').addEventListener('click', pgrTautanTutup);
+  el('pgr-tautan-cari').addEventListener('input', () => { clearTimeout(pgrTautan.timer); pgrTautan.timer = setTimeout(pgrTautanCari, 350); });
+  el('pgr-tautan-list').addEventListener('click', e => {
+    const b = e.target.closest('button[data-no]');
+    if (b) pgrTautanSimpan(b);
+  });
+  return latar;
+}
+
+function pgrTautanTutup() { const l = el('pgr-tautan-latar'); if (l) l.hidden = true; }
+
+async function pgrTautkanManual(noResi) {
+  pgrTautanDom().hidden = false;
+  pgrTautan.resi = noResi;
+  el('pgr-tautan-resi').textContent = noResi;
+  el('pgr-tautan-cari').value = '';
+  el('pgr-tautan-cari').focus();
+  pgrTautanCari();
+}
+
+async function pgrTautanCari() {
+  const q = el('pgr-tautan-cari').value.trim();
+  const list = el('pgr-tautan-list');
+  const seq = ++pgrTautan.seq;
+  list.innerHTML = `<div class="pgr-tautan-info"><span class="wp-sync-chip"><span class="putar"></span>${q ? 'Mencari pesanan...' : 'Memuat pesanan terbaru yang resinya masih kosong...'}</span></div>`;
+  try {
+    const d = await postJson({ aksi: 'cari_pesanan_untuk_tautan', q, email: currentUserEmail() }, 30000, true);
+    if (seq !== pgrTautan.seq) return; // hasil pencarian lama - abaikan
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal mencari');
+    const daftar = d.daftar || [];
+    if (!daftar.length) { list.innerHTML = `<div class="pgr-tautan-info">${q ? 'Tidak ada pesanan yang cocok.' : 'Tidak ada pesanan tanpa resi. Ketik No pesanan / nama pembeli.'}</div>`; return; }
+    list.innerHTML = (q ? '' : '<div class="pgr-tautan-info" style="padding:6px 10px; text-align:left;">Saran: pesanan terbaru yang resinya masih kosong</div>') +
+      daftar.map(p => `<div class="pgr-tautan-item">
+        <div class="isi">
+          <div class="no"><span class="kanal">${escapeHtml(p.sumber)}</span>${escapeHtml(p.noInvoice)}</div>
+          <div class="meta">${escapeHtml(p.pembeli || '-')} · ${escapeHtml(p.tanggal || '-')} · ${escapeHtml(p.status || '-')}${p.resi ? ' · resi: ' + escapeHtml(p.resi) : ''}</div>
+        </div>
+        <button type="button" data-no="${pgrAttr(p.noInvoice)}" data-sumber="${pgrAttr(p.sumber)}">Tautkan</button>
+      </div>`).join('');
+  } catch (err) {
+    if (seq === pgrTautan.seq) list.innerHTML = `<div class="pgr-tautan-info" style="color:var(--web-danger);">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function pgrTautanSimpan(btn) {
+  const noInvoice = btn.dataset.no, sumber = btn.dataset.sumber, resi = pgrTautan.resi;
+  if (!confirm(`Tautkan resi ${resi} ke pesanan ${noInvoice} (${sumber})?`)) return;
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  try {
+    const d = await postJsonTulis({ aksi: 'tautkan_resi_manual', noResi: resi, noInvoice, sumber, email: currentUserEmail() }, 30000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal menyimpan');
+    const h = d.hasil || { noInvoice, sumber };
+    [wpPengirimanAktifCache, wpPengirimanRiwayatCache].forEach(arr => (arr || []).forEach(x => {
+      if (resiSama(x.noResiScan, resi)) { x.noInvoice = h.noInvoice; x.pembeli = h.pembeli; x.sumber = h.sumber; if (h.statusPesanan) x.statusPesanan = h.statusPesanan; }
+    }));
+    hapusCacheTTL('log_resi_riwayat');
+    pgrTautanTutup();
+    wpRenderPengirimanTab();
+    const sel = document.querySelector(`#web-tab-pengiriman tr[data-resi="${CSS.escape(resi)}"] .pgr-inv`);
+    if (sel) sel.classList.add('pgr-inv-baru');
+    pgrUpdateTombolLengkapi();
+    pgrToast(`Resi ${resi} terhubung ke ${h.noInvoice}.`);
+    // Muat ulang di belakang agar kategori (Belum Selesai / Perlu Dicek) ikut menyesuaikan status pesanan
+    wpMuatAktifPengiriman().then(() => { wpRenderPengirimanTab(); pgrUpdateTombolLengkapi(); });
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Tautkan';
+    alert('Gagal menautkan: ' + err.message);
+  }
+}
+
 
 async function pgrSalinTeks(teks, tombol, diam) {
   if (!teks) return false;
