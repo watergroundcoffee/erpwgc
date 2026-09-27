@@ -1468,6 +1468,13 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   body.tema-gelap .pgr-inv-reservasi { color: #c4b5fd; }
   .pgr-inv-sub { display: block; font-size: 10.5px; font-weight: 600; color: var(--web-text-dim); margin-top: 1px; }
   tr.tgs-baris td:first-child { box-shadow: inset 3px 0 0 #7c3aed; }
+  .pgr-inv-kosong { font-size: 11.5px; font-weight: 700; color: #b45309; }
+  .tgs-oto { border: 1px solid rgba(124, 58, 237, .3); background: rgba(124, 58, 237, .04); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+  .tgs-oto-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: 13px; }
+  .tgs-oto-head span:last-child { flex-basis: 100%; font-size: 11.5px; color: var(--web-text-dim); }
+  .tgs-oto-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px dashed rgba(124, 58, 237, .2); font-size: 12.5px; }
+  .tgs-oto-item .meta { flex: 1; font-size: 11.5px; color: var(--web-text-dim); }
+  .tgs-oto-item button { font: inherit; font-size: 11.5px; font-weight: 700; padding: 5px 10px; border-radius: 8px; border: 0; background: #7c3aed; color: #fff; cursor: pointer; }
   .tgs-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .tgs-ringkas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
   .tgs-kartu { border: 1px solid var(--web-border); border-radius: 12px; padding: 12px 14px; background: var(--web-panel); }
@@ -4787,6 +4794,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <button type="button" class="web-btn-secondary" onclick="tgsMuat()" style="font-size:11.5px; padding:6px 12px;">↻ Muat Ulang</button>
           </div>
           <div class="tgs-ringkas" id="tgs-ringkas"></div>
+          <div id="tgs-otomatis"></div>
           <div class="web-table-wrap">
             <table class="web-table">
               <thead><tr><th>No Reservasi</th><th>Tanggal</th><th>Gudang Tujuan</th><th>No Resi</th><th>Isi</th><th>Status</th><th>Aksi</th></tr></thead>
@@ -11420,7 +11428,9 @@ function pgrPillStatus(status) {
 function pgrHtmlBaris(d) {
   const resi = String(d.noResiScan || '');
   const dipilih = pgrTerpilih.has(resi);
-  const kolomInvoice = d.noInvoice
+  const kolomInvoice = (d.jenis === 'transfer' && !d.noInvoice)
+    ? `<span class="pgr-sel-copy"><span class="pgr-inv-kosong">No Reservasi belum diisi</span><button type="button" class="pgr-btn-ikon pgr-btn-link" data-pgr-tautkan="${pgrAttr(resi)}" data-pgr-kilat="1" title="Isi No Reservasi Pengiriman Kilat">✏️</button></span>`
+    : d.noInvoice
     ? `<span class="pgr-sel-copy"><span class="pgr-inv">${escapeHtml(d.noInvoice)}</span><button type="button" class="pgr-btn-ikon" data-pgr-copy="${pgrAttr(d.noInvoice)}" title="Salin No Invoice">📋</button></span>`
     : `<span class="pgr-sel-copy"><span class="pgr-inv-error">Belum Terhubung</span><button type="button" class="pgr-btn-ikon pgr-btn-link" data-pgr-tautkan="${pgrAttr(resi)}" title="Tautkan resi ini ke invoice secara manual">🔗</button></span>`;
   return `
@@ -11502,7 +11512,7 @@ function pgrPasangDelegasi() {
     const btnCopy = e.target.closest('[data-pgr-copy]');
     if (btnCopy) { e.preventDefault(); pgrSalinTeks(btnCopy.dataset.pgrCopy, btnCopy); return; }
     const btnLink = e.target.closest('[data-pgr-tautkan]');
-    if (btnLink) { e.preventDefault(); pgrTautkanManual(btnLink.dataset.pgrTautkan); }
+    if (btnLink) { e.preventDefault(); pgrTautkanManual(btnLink.dataset.pgrTautkan, btnLink.dataset.pgrKilat === '1'); }
   });
   root.addEventListener('change', e => {
     const t = e.target;
@@ -11574,13 +11584,14 @@ let tgsData = { daftar: [], stok: [], memuat: false };
 let tgsForm = { item: [], edit: '' };
 
 function tgsBadgeHtml(statusTransfer) {
-  const label = { Draft: 'Menunggu dikirim', Dikirim: 'In-transit ke Gudang Shopee', Diterima: 'Diterima Gudang Shopee', Batal: 'Dibatalkan' }[statusTransfer] || '';
+  const label = { Draft: 'Menunggu dikirim', Dikirim: 'In-transit ke Gudang Shopee', Diterima: 'Diterima Gudang Shopee', Batal: 'Dibatalkan', Otomatis: 'Terdeteksi otomatis' }[statusTransfer] || '';
   return `<span class="tgs-badge" title="Pengiriman Kilat = transfer stok ke Gudang Shopee (bukan pesanan pembeli, bukan omzet)">⚡ Pengiriman Kilat</span>${label ? `<span class="tgs-badge-sub">${escapeHtml(label)}</span>` : ''}`;
 }
 
 // Kolom No Invoice sederhana (tab lama / semua log)
 function pgrInvoiceSederhana(d, teksKosong) {
   // Pengiriman Kilat: kolom No Invoice berisi Nomor Reservasi (tampilan sama seperti invoice biasa)
+  if (d.jenis === 'transfer' && !d.noInvoice) return '<span class="pgr-inv-kosong">No Reservasi belum diisi</span>';
   return d.noInvoice ? escapeHtml(d.noInvoice) : teksKosong;
 }
 
@@ -11594,6 +11605,7 @@ async function tgsMuat() {
     if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat');
     tgsData.daftar = d.daftar || [];
     tgsData.stok = d.stok || [];
+    tgsData.otomatis = d.otomatis || [];
     tgsRender();
   } catch (err) {
     wrap.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(err.message)}</td></tr>`;
@@ -11609,6 +11621,13 @@ function tgsRender() {
     <div class="tgs-kartu"><small>Menunggu dikirim (Draft)</small><b>${tgsData.daftar.filter(t => t.status === 'Draft').length}</b></div>
     <div class="tgs-kartu ungu"><small>Unit in-transit</small><b>${inTransit.toLocaleString('id-ID')}</b></div>
     <div class="tgs-kartu"><small>Unit di Gudang Shopee (terkirim)</small><b>${diGudang.toLocaleString('id-ID')}</b></div>`;
+  const oto = tgsData.otomatis || [];
+  el('tgs-otomatis').innerHTML = oto.length ? `<div class="tgs-oto">
+    <div class="tgs-oto-head">${tgsBadgeHtml('')} <b>${oto.length} resi terdeteksi otomatis</b>
+      <span>Resi Shopee Express yang discan keluar tapi bukan milik pesanan pembeli mana pun. Isi No Reservasi & produknya supaya stok Gudang Utama ikut dipindah.</span></div>
+    ${oto.slice(0, 50).map(o => `<div class="tgs-oto-item"><span class="pgr-mono">${escapeHtml(o.noResi)}</span><span class="meta">${escapeHtml(o.kurir || '-')} · discan ${escapeHtml(o.waktuScan)}</span>
+      <button type="button" onclick="pgrTautkanManual('${pgrAttr(o.noResi)}', true)">Isi No Reservasi</button></div>`).join('')}
+  </div>` : '';
   el('tgs-empty').style.display = daftar.length ? 'none' : 'block';
   el('tgs-body').innerHTML = daftar.map(t => {
     const aksi = [];
@@ -11785,7 +11804,8 @@ function tgsBukaTerima(t) {
 let pgrLengkapiBerjalan = false;
 
 function pgrResiBelumTerhubung() {
-  return (wpPengirimanAktifCache || []).filter(d => !d.noInvoice).map(d => String(d.noResiScan || '')).filter(Boolean);
+  // Pengiriman Kilat (termasuk yang terdeteksi otomatis) BUKAN "Belum Terhubung"
+  return (wpPengirimanAktifCache || []).filter(d => !d.noInvoice && d.jenis !== 'transfer').map(d => String(d.noResiScan || '')).filter(Boolean);
 }
 
 function pgrUpdateTombolLengkapi() {
@@ -11879,13 +11899,14 @@ function pgrTautanDom() {
 
 function pgrTautanTutup() { const l = el('pgr-tautan-latar'); if (l) l.hidden = true; }
 
-async function pgrTautkanManual(noResi) {
+async function pgrTautkanManual(noResi, modeKilat) {
   pgrTautanDom().hidden = false;
   pgrTautan.resi = noResi;
   el('pgr-tautan-resi').textContent = noResi;
   el('pgr-tautan-cari').value = '';
   el('pgr-kilat-no').value = '';
-  el('pgr-tautan-cari').focus();
+  el('pgr-tautan-judul').textContent = modeKilat ? '⚡ Lengkapi Pengiriman Kilat' : 'Tautkan resi ke pesanan';
+  (modeKilat ? el('pgr-kilat-no') : el('pgr-tautan-cari')).focus();
   pgrTautanCari();
 }
 
@@ -11903,6 +11924,7 @@ async function pgrTandaiKilat() {
       if (resiSama(x.noResiScan, noResi)) { x.noInvoice = noReservasi; x.jenis = 'transfer'; x.statusTransfer = d.status; x.sumber = 'Transfer Gudang Shopee'; }
     }));
     tgsData.daftar = []; // menu Pengiriman Kilat dimuat ulang saat dibuka
+    if (wpPengirimanSubAktif === 'transfer-gudang') tgsMuat();
     hapusCacheTTL('log_resi_riwayat');
     pgrTautanTutup();
     wpRenderPengirimanTab();
