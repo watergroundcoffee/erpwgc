@@ -4791,6 +4791,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <input type="search" id="tgs-cari" class="pgr-search-input" placeholder="Cari No Reservasi / Resi / SKU..." oninput="tgsRender()" style="max-width:280px;" />
             <div style="flex:1;"></div>
             <span style="font-size:11.5px; color:var(--web-text-dim);">Transfer stok ke Gudang Shopee (FBS) - <b>tidak</b> dihitung sebagai penjualan/omzet. Resi terdeteksi otomatis saat discan.</span>
+            <button type="button" class="web-btn-secondary" onclick="sbsDiagnostik()" style="font-size:11.5px; padding:6px 12px;" title="Cek otomatis data apa saja yang tersedia dari API Gudang Shopee (SBS)">🔍 Cek Data Gudang Shopee</button>
             <button type="button" class="web-btn-secondary" onclick="tgsMuat()" style="font-size:11.5px; padding:6px 12px;">↻ Muat Ulang</button>
           </div>
           <div class="tgs-ringkas" id="tgs-ringkas"></div>
@@ -11795,6 +11796,45 @@ function tgsBukaTerima(t) {
     document.querySelectorAll('#tgs-isi input[data-terima]').forEach(i => { qty[i.dataset.terima] = Math.max(0, parseInt(i.value, 10) || 0); });
     tgsUbahStatus(t.noReservasi, 'diterima', qty);
   };
+}
+
+// ===== DIAGNOSTIK SBS (Gudang Shopee) - satu klik, tanpa API Test Tool =====
+let sbsHasilTerakhir = null;
+async function sbsDiagnostik() {
+  const idL = omniLoader.tampil({
+    judul: 'Memeriksa API Gudang Shopee',
+    pesan: ['Menghubungi Shopee...', 'Mencari gudang yang terhubung...', 'Membaca stok di Gudang Shopee...', 'Membaca riwayat pergerakan stok...', 'Mencari data inbound / reservasi...', 'Menyusun ringkasan...'],
+    jedaPesanMs: 2600, sabarSetelahDetik: 20, bisaLatar: false
+  });
+  try {
+    const d = await postJsonTulis({ aksi: 'diagnostik_sbs_shopee', email: currentUserEmail() }, 120000);
+    omniLoader.selesai(idL);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    sbsHasilTerakhir = d;
+    tgsModalDom().hidden = false;
+    el('tgs-judul').textContent = '🔍 Hasil Cek API Gudang Shopee (SBS)';
+    el('tgs-subjudul').textContent = d.kesimpulan || '';
+    el('tgs-isi').innerHTML = `<div style="padding:12px 18px; display:flex; flex-direction:column; gap:10px;">
+      ${(d.hasil || []).filter(Boolean).map(h => `<div class="tgs-kartu" style="padding:10px 12px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span class="tgs-status tgs-st-${h.berhasil ? 'Diterima' : 'Batal'}">${h.berhasil ? '✓ Berhasil' : '✕ Gagal'}</span>
+          <b class="pgr-mono" style="font-size:12.5px;">${escapeHtml(h.endpoint)}</b>
+          ${h.berhasil ? `<span style="font-size:11.5px; color:var(--web-text-dim);">${h.ringkas.jumlah} data${h.ringkas.jalurData ? ' di ' + escapeHtml(h.ringkas.jalurData) : ''}</span>` : `<span style="font-size:11.5px; color:#b91c1c;">${escapeHtml(h.error)} ${escapeHtml(h.pesan)}</span>`}
+        </div>
+        ${h.berhasil && h.ringkas.fieldInbound.length ? `<div style="font-size:11.5px; margin-top:6px; color:#6d28d9;"><b>Field terkait inbound/tipe:</b> ${h.ringkas.fieldInbound.map(escapeHtml).join(', ')}</div>` : ''}
+        ${h.berhasil && h.ringkas.contoh ? `<details style="margin-top:6px;"><summary style="font-size:11.5px; cursor:pointer;">Lihat contoh data</summary><pre style="font-size:11px; white-space:pre-wrap; word-break:break-all; background:var(--web-bg); padding:8px; border-radius:8px; max-height:220px; overflow:auto;">${escapeHtml(JSON.stringify(h.ringkas.contoh, null, 2))}</pre></details>` : ''}
+      </div>`).join('')}
+      <div class="tgs-info-alur">Semua respons mentah tersimpan di sheet <b>Log SBS Shopee</b>. Tekan <b>Salin Hasil</b> lalu tempel ke developer untuk dibuatkan sinkron otomatisnya.</div>
+    </div>`;
+    el('tgs-simpan').textContent = '📋 Salin Hasil';
+    el('tgs-simpan').onclick = async () => {
+      const ok = await pgrSalinTeks(JSON.stringify({ kesimpulan: d.kesimpulan, whsId: d.whsId, hasil: d.hasil }, null, 1), null, true);
+      pgrToast(ok ? 'Hasil disalin - tempel ke developer.' : 'Gagal menyalin - ambil dari sheet Log SBS Shopee.');
+    };
+  } catch (err) {
+    omniLoader.selesai(idL);
+    alert('Cek API Gudang Shopee gagal: ' + err.message);
+  }
 }
 
 // ===== TAUTKAN RESI "Belum Terhubung" =====
