@@ -4831,6 +4831,8 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <input type="search" id="tgs-cari" class="pgr-search-input" placeholder="Cari No Reservasi / Resi / SKU..." oninput="tgsRender()" style="max-width:280px;" />
             <div style="flex:1;"></div>
             <span style="font-size:11.5px; color:var(--web-text-dim);">Transfer stok ke Gudang Shopee (FBS) - <b>tidak</b> dihitung sebagai penjualan/omzet. Resi terdeteksi otomatis saat discan.</span>
+            <button type="button" class="web-btn-secondary" id="tgs-btn-booking" onclick="tgsSinkronBooking()" style="font-size:11.5px; padding:6px 12px;" title="Ambil Booking SN (No Reservasi), resi & produk Pengiriman Kilat langsung dari Shopee">🔄 Sinkron Booking Shopee</button>
+            <span id="tgs-booking-info" style="font-size:11px; color:var(--web-text-dim);"></span>
             <button type="button" class="web-btn-secondary" onclick="sbsDiagnostik()" style="font-size:11.5px; padding:6px 12px;" title="Cek otomatis data apa saja yang tersedia dari API Gudang Shopee (SBS)">🔍 Cek Data Gudang Shopee</button>
             <button type="button" class="web-btn-secondary" onclick="tgsMuat()" style="font-size:11.5px; padding:6px 12px;">↻ Muat Ulang</button>
           </div>
@@ -11653,6 +11655,7 @@ async function tgsMuat() {
     tgsData.daftar = d.daftar || [];
     tgsData.stok = d.stok || [];
     tgsData.otomatis = d.otomatis || [];
+    if (el('tgs-booking-info')) el('tgs-booking-info').textContent = d.bookingSyncTerakhir ? 'Sinkron terakhir ' + d.bookingSyncTerakhir : 'Belum pernah sinkron';
     tgsRender();
   } catch (err) {
     wrap.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(err.message)}</td></tr>`;
@@ -11688,7 +11691,7 @@ function tgsRender() {
     return `<tr class="tgs-baris">
       <td><span class="pgr-inv">${escapeHtml(t.noReservasi)}</span><span style="display:block; margin-top:4px;">${tgsBadgeHtml('')}</span></td>
       <td style="font-size:11px; color:var(--web-text-dim); white-space:nowrap;">${escapeHtml(t.tanggal)}${t.tanggalKirim ? '<br>Kirim: ' + escapeHtml(t.tanggalKirim) : ''}${t.tanggalDiterima ? '<br>Terima: ' + escapeHtml(t.tanggalDiterima) : ''}</td>
-      <td style="font-size:12px;">${escapeHtml(t.gudang || '-')}</td>
+      <td style="font-size:12px;">${escapeHtml(t.gudang || '-')}${t.oleh === 'Sinkron Shopee' ? '<span class="pgr-inv-sub" style="color:#6d28d9;">↻ dari Shopee</span>' : ''}${t.orderPembeli ? `<span class="pgr-inv-sub">Order pembeli: ${escapeHtml(t.orderPembeli)}</span>` : ''}</td>
       <td><span class="pgr-mono" style="font-size:11.5px;">${escapeHtml(t.noResi || '-')}</span>${t.kurir ? `<span class="pgr-inv-sub">${escapeHtml(t.kurir)}</span>` : ''}</td>
       <td style="font-size:11.5px; max-width:260px;">${t.item.length ? `<b>${t.totalQty}</b> unit<span class="pgr-inv-sub" style="white-space:normal;">${ringkasItem}</span>` : '<span style="color:#b45309; font-weight:700;">⚠️ Isi daftar produk</span><span class="pgr-inv-sub" style="white-space:normal;">Stok baru dipindah setelah produk diisi</span>'}</td>
       <td><span class="tgs-status tgs-st-${escapeHtml(t.status)}">${escapeHtml(t.status === 'Dikirim' ? 'In-Transit' : t.status)}</span></td>
@@ -11842,6 +11845,23 @@ function tgsBukaTerima(t) {
     document.querySelectorAll('#tgs-isi input[data-terima]').forEach(i => { qty[i.dataset.terima] = Math.max(0, parseInt(i.value, 10) || 0); });
     tgsUbahStatus(t.noReservasi, 'diterima', qty);
   };
+}
+
+// ===== SINKRON BOOKING SHOPEE (No Reservasi = Booking SN) =====
+async function tgsSinkronBooking() {
+  const btn = el('tgs-btn-booking');
+  memoTombolSibuk(btn, true, 'Menyinkron...');
+  try {
+    const d = await postJsonTulis({ aksi: 'sinkron_booking_shopee', email: currentUserEmail() }, 150000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    playBeep();
+    pgrToast(`Booking Shopee: ${d.jumlahBooking} ditemukan · ${d.baru} baru · ${d.diperbarui} diperbarui${d.langsungDikirim ? ' · ' + d.langsungDikirim + ' langsung in-transit' : ''}.`
+      + (d.skuTidakDikenal && d.skuTidakDikenal.length ? ` ⚠️ SKU belum dikenal di Produk Master: ${d.skuTidakDikenal.slice(0, 5).join(', ')}` : ''));
+    if (d.jumlahBooking && !d.produkTerisi && !d.baru && d.contohMentah) console.log('Contoh booking mentah:', d.contohMentah);
+    await tgsMuat();
+    wpPengirimanAktifCache = null; hapusCacheTTL('log_resi_riwayat'); wpPengirimanRiwayatCache = null;
+  } catch (err) { alert('Sinkron Booking Shopee gagal: ' + err.message); }
+  finally { memoTombolSibuk(btn, false); }
 }
 
 // ===== DIAGNOSTIK SBS (Gudang Shopee) - satu klik, tanpa API Test Tool =====
