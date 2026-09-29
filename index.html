@@ -2358,6 +2358,20 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
    hover = pop-over gambar + highlight baris varian itu di tabel (beda warna dari hover kursor
    biasa), klik = pindah ke halaman Detail varian itu. */
 .katalog-varian-chip-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 150px; }
+/* Pencarian multi-SKU (textarea yang tumbuh) */
+.katalog-cari-wrap { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 240px; max-width: 380px; }
+#app-web textarea.katalog-cari-multi { margin: 0; width: 100%; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.45; font-family: inherit; display: block; }
+.katalog-cari-info { font-size: 11px; color: #1f6f96; background: #e9f3fb; border: 1px solid #c6def0; border-radius: 8px; padding: 3px 8px; line-height: 1.4; }
+.katalog-cari-info.ada-kosong { color: #7a5210; background: #fdf8ee; border-color: #f1dcb6; }
+/* Klik SKU Marketplace = salin */
+.katalog-salin-sku { font: inherit; background: none; border: 0; padding: 2px 4px; margin: -2px -4px; border-radius: 6px; color: inherit; cursor: copy; text-align: left; display: inline-flex; align-items: center; }
+.katalog-salin-sku .teks { font-size: 13px; }
+.katalog-salin-sku:hover { background: rgba(63, 127, 201, .09); }
+.katalog-salin-sku:hover .teks { text-decoration: underline dotted; }
+.katalog-salin-sku.tersalin .teks { color: #1f7a53; font-weight: 700; text-decoration: none; }
+.katalog-salin-sku.gagal .teks { color: #9a6412; }
+/* Baris yang baru diperbarui setelah Simpan Edit */
+.web-table tr.katalog-baris-tersimpan td { animation: wpSorot 2.4s ease-out; }
 /* Kolom Varian: 1 blok per jenis varian -> baris 1 NAMA VARIAN, baris 2 kapsul (dilipat ke bawah, tidak dipotong) */
 .katalog-varian-kolom { display: flex; flex-direction: column; gap: 7px; max-width: 170px; }
 .katalog-varian-grup { display: flex; flex-direction: column; gap: 4px; }
@@ -6405,7 +6419,10 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           </div>
 
           <div class="web-toolbar-row" style="margin-top:8px;">
-            <input type="text" id="katalog-produk-cari" class="web-search-input" placeholder="🔍 Cari apa saja: nama, SKU, kategori, SKU supplier / marketplace..." title="Omni-Search: mencari di semua data produk. Beberapa kata = semuanya harus cocok." style="max-width:360px; min-width:240px; flex:1; margin:0;" oninput="katalogProdukPaginasiState.page=1; katalogProdukRenderHalaman();" />
+            <div class="katalog-cari-wrap">
+              <textarea id="katalog-produk-cari" class="web-search-input katalog-cari-multi" rows="1" spellcheck="false" placeholder="🔍 Cari apa saja · Multi-SKU: pisahkan dengan spasi / Enter" title="Omni-Search: mencari di semua data produk. Beberapa kata biasa = semuanya harus cocok. Beberapa SKU (dipisah spasi atau Enter / tempel 1 kolom dari Excel) = tampilkan semua produk yang cocok dengan salah satu SKU." oninput="katalogCariBerubah(this)"></textarea>
+              <div id="katalog-cari-info" class="katalog-cari-info" aria-live="polite" hidden></div>
+            </div>
             <select id="katalog-produk-filter-kategori" class="web-form-input" style="max-width:170px; margin-bottom:0;" onchange="katalogProdukPaginasiState.page=1; katalogProdukRenderHalaman();">
               <option value="">Semua Kategori</option>
             </select>
@@ -15380,18 +15397,83 @@ let katalogProdukTerpilih = new Set();
 let katalogSkuTerhubungMap = {}; // skuJual -> [daftar SKU Supplier yang terhubung ke situ]
 let katalogSkuMarketplaceMap = {}; // skuJual -> [{skuMarketplace, platform}] - dari SKU Marketplace Terhubung
 
+/* ===== PENCARIAN MULTI-SKU =====
+   Beberapa SKU dipisah spasi atau Enter (atau tempel satu kolom dari Excel) -> mode OR: tampilkan semua
+   produk yang cocok dengan SALAH SATU SKU (SKU Gudang, SKU Supplier, atau SKU Marketplace).
+   Mode multi-SKU aktif kalau: ada baris baru (Enter), ATAU semua kata "berbentuk SKU" (mengandung angka
+   atau - _ . /) atau persis sama dengan SKU yang ada. Kata biasa ("kopi arabika") tetap Omni-Search AND. */
+let katalogCariTimer = null;
+function katalogCariBerubah(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; // tumbuh sampai ~5 baris lalu scroll
+  clearTimeout(katalogCariTimer);
+  katalogCariTimer = setTimeout(() => { katalogProdukPaginasiState.page = 1; katalogProdukRenderHalaman(); }, 120);
+}
+function katalogIndeksSku() {
+  const idx = new Map(); // sku (huruf kecil) -> Set(SKU Gudang)
+  const tambah = (kode, skuGudang) => {
+    const k = String(kode || '').trim().toLowerCase();
+    if (!k) return;
+    if (!idx.has(k)) idx.set(k, new Set());
+    idx.get(k).add(skuGudang);
+  };
+  katalogProdukCache.forEach(p => {
+    tambah(p.sku, p.sku);
+    (katalogSkuTerhubungMap[p.sku] || []).forEach(k => tambah(k, p.sku));
+    (katalogSkuMarketplaceMap[p.sku] || []).forEach(m => tambah(m.skuMarketplace, p.sku));
+  });
+  return idx;
+}
+function katalogDeteksiMultiSku(mentah, kata) {
+  if (kata.length < 2) return null;
+  const idx = katalogIndeksSku();
+  const adaBarisBaru = /\n/.test(mentah.trim());
+  const bentukSku = k => /[0-9\-_./]/.test(k) || idx.has(k);
+  if (!adaBarisBaru && !kata.every(bentukSku)) return null; // kalimat biasa -> Omni-Search AND
+  const cocok = new Set(), tidakKetemu = [];
+  const unik = [...new Set(kata)];
+  unik.forEach(k => {
+    let hit = idx.get(k);
+    if (!hit && k.length >= 3) { // tidak ada yang persis sama -> cari yang MENGANDUNG kode ini
+      hit = new Set();
+      idx.forEach((set, kode) => { if (kode.includes(k)) set.forEach(s => hit.add(s)); });
+    }
+    if (hit && hit.size) hit.forEach(s => cocok.add(s)); else tidakKetemu.push(k);
+  });
+  return { cocok, tidakKetemu, jumlahKata: unik.length };
+}
+function katalogTampilInfoCari(multi) {
+  const info = el('katalog-cari-info');
+  if (!info) return;
+  if (!multi) { info.hidden = true; info.textContent = ''; return; }
+  const ketemu = multi.jumlahKata - multi.tidakKetemu.length;
+  info.hidden = false;
+  info.classList.toggle('ada-kosong', multi.tidakKetemu.length > 0);
+  info.textContent = `Multi-SKU: ${ketemu}/${multi.jumlahKata} SKU ditemukan · ${multi.cocok.size} produk`
+    + (multi.tidakKetemu.length ? ` · tidak ditemukan: ${multi.tidakKetemu.slice(0, 8).join(', ')}${multi.tidakKetemu.length > 8 ? ', ...' : ''}` : '');
+}
+
 function katalogFilterSortProduk() {
-  const cari = (el('katalog-produk-cari')?.value || '').toLowerCase().trim();
+  const cariMentah = el('katalog-produk-cari')?.value || '';
+  const cari = cariMentah.toLowerCase().trim();
   const filterKategori = el('katalog-produk-filter-kategori')?.value || '';
   const filterChannel = el('katalog-produk-filter-channel')?.value || '';
   const sortBy = el('katalog-produk-sort')?.value || 'terbaru';
 
   let daftar = katalogProdukCache;
+  let multi = null;
   if (cari) {
-    // Omni-Search: semua kata harus cocok (AND), dicari di SELURUH data produk + SKU Terhubung
     const kata = cari.split(/\s+/).filter(Boolean);
-    daftar = daftar.filter(p => { const teks = katalogTeksCariProduk(p); return kata.every(k => teks.includes(k)); });
+    multi = katalogDeteksiMultiSku(cariMentah.toLowerCase(), kata);
+    if (multi) {
+      // Multi-SKU: OR - produk cocok dengan SALAH SATU SKU
+      daftar = daftar.filter(p => multi.cocok.has(p.sku));
+    } else {
+      // Omni-Search: semua kata harus cocok (AND), dicari di SELURUH data produk + SKU Terhubung
+      daftar = daftar.filter(p => { const teks = katalogTeksCariProduk(p); return kata.every(k => teks.includes(k)); });
+    }
   }
+  katalogTampilInfoCari(multi);
   if (filterKategori) daftar = daftar.filter(p => p.kategori === filterKategori);
   if (filterChannel === '__belum_tampil__') daftar = daftar.filter(p => !p.channel || p.channel.length === 0);
   else if (filterChannel) daftar = daftar.filter(p => p.channel && p.channel.includes(filterChannel));
@@ -15431,11 +15513,33 @@ function katalogKelompokkanVarian(daftar) {
   return hasil;
 }
 
+/* ===== CACHE LOKAL KATALOG =====
+   IndexedDB menyimpan daftar LENGKAP (termasuk field detail: deskripsi, spesifikasi, galeri, harga) supaya
+   halaman Detail & modal Edit bisa dirender tanpa request. localStorage 'katalog_produk' tetap diisi versi
+   RAMPING (tanpa field berat) untuk autocomplete di menu lain - supaya tidak kena batas 5 MB. */
+const katalogCacheIdb = buatCacheIdb('katalog_v2');
+let katalogSkuSupplierDetailMap = {}; // skuJual -> [{ sku, namaSupplier }] (untuk modal Edit & kartu SKU Mapping)
+let katalogPemetaanLokalSiap = false;  // true setelah peta SKU Supplier/Marketplace pernah dimuat lengkap
+function katalogSimpanCacheLokal() {
+  if (katalogTampilArsip) return; // cache hanya daftar TANPA arsip
+  katalogCacheIdb.simpanNanti({ daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuSupplierDetailMap: katalogSkuSupplierDetailMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
+  const ramping = katalogProdukCache.map(({ deskripsi, spesifikasiTambahan, galeriFotoTambahan, ...sisa }) => sisa);
+  simpanCacheLokal('katalog_produk', { daftar: ramping, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
+}
+function katalogTerapkanCacheLokal(isi) {
+  katalogProdukCache = isi.daftar || [];
+  katalogSkuTerhubungMap = isi.skuTerhubungMap || {};
+  katalogSkuMarketplaceMap = isi.skuMarketplaceMap || {};
+  if (isi.skuSupplierDetailMap) { katalogSkuSupplierDetailMap = isi.skuSupplierDetailMap; katalogPemetaanLokalSiap = true; }
+}
+
 async function katalogFetchProduk(opsi) {
   opsi = opsi || {};
   if (katalogProdukCache.length === 0) {
-    const dataLokal = ambilCacheLokal('katalog_produk');
-    if (dataLokal) { katalogProdukCache = dataLokal.daftar || []; katalogSkuTerhubungMap = dataLokal.skuTerhubungMap || {}; katalogSkuMarketplaceMap = dataLokal.skuMarketplaceMap || {}; katalogProdukRenderHalaman(); }
+    let isiIdb = null;
+    try { const r = await katalogCacheIdb.ambil(); isiIdb = r && r.daftar; } catch (e) { }
+    const dataLokal = (isiIdb && isiIdb.daftar && isiIdb.daftar.length) ? isiIdb : ambilCacheLokal('katalog_produk');
+    if (dataLokal) { katalogTerapkanCacheLokal(dataLokal); katalogProdukRenderHalaman(); }
     else tampilkanMemuatTabel('katalog-produk-body', 6);
   }
   try {
@@ -15450,7 +15554,10 @@ async function katalogFetchProduk(opsi) {
 
     katalogSkuTerhubungMap = {};
     if (dataLink.success) {
+      katalogSkuSupplierDetailMap = {};
       (dataLink.daftar || []).forEach(d => {
+        if (!katalogSkuSupplierDetailMap[d.skuJual]) katalogSkuSupplierDetailMap[d.skuJual] = [];
+        katalogSkuSupplierDetailMap[d.skuJual].push({ sku: d.skuSupplier, namaSupplier: d.namaSupplier || '' });
         if (!katalogSkuTerhubungMap[d.skuJual]) katalogSkuTerhubungMap[d.skuJual] = [];
         // 1 baris bisa berisi beberapa kode dipisah spasi/koma (misal dari input Sheets langsung)
         String(d.skuSupplier).split(/[\s,]+/).map(s => s.trim()).filter(s => s).forEach(kode => katalogSkuTerhubungMap[d.skuJual].push(kode));
@@ -15468,10 +15575,11 @@ async function katalogFetchProduk(opsi) {
       });
     }
 
+    if (dataLink.success && dataMarket.success) katalogPemetaanLokalSiap = true;
     katalogProdukRenderHalaman();
     katalogIsiDropdownFilterKategori();
     // Cache lokal hanya menyimpan daftar TANPA arsip - dipakai juga oleh autocomplete di menu lain
-    if (!katalogTampilArsip) simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap });
+    katalogSimpanCacheLokal();
     return true;
   } catch (err) {
     if (katalogProdukCache.length === 0) el('katalog-produk-body').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
@@ -15649,8 +15757,8 @@ function katalogRenderTabel(halamanIni) {
                 const iconB64 = ICON_CHANNEL_MAP[m.platform];
                 const urlCari = URL_CARI_MARKETPLACE[m.platform] ? URL_CARI_MARKETPLACE[m.platform](p.nama) : null;
                 const ikon = iconB64 ? `<img src="data:image/png;base64,${iconB64}" style="width:20px; height:20px; border-radius:4px; margin-right:6px; vertical-align:middle; object-fit:contain;" />` : '';
-                const isi = `${ikon}<span style="font-size:13px; vertical-align:middle;">${escapeHtml(m.skuMarketplace)}</span>`;
-                return `<div style="margin-bottom:6px;">${urlCari ? `<a href="${urlCari}" target="_blank" rel="noopener" title="Cari di ${escapeHtml(m.platform)}" style="text-decoration:none; color:inherit;">${isi}</a>` : isi}</div>`;
+                // Klik = SALIN SKU ke clipboard (dulu membuka tab pencarian marketplace)
+                return `<div style="margin-bottom:6px;"><button type="button" class="katalog-salin-sku" data-salin="${escapeHtml(m.skuMarketplace)}" title="Klik untuk menyalin SKU ${escapeHtml(m.platform)}">${ikon}<span class="teks">${escapeHtml(m.skuMarketplace)}</span></button></div>`;
               }).join('');
             })()}
           </div>
@@ -15847,6 +15955,29 @@ function katalogPasangHandlerChipVarian(container) {
       katalogBukaDetailProduk(chip.dataset.sku);
     });
   });
+}
+
+// Klik SKU Marketplace (tabel/card Katalog) = SALIN ke clipboard. Capture phase supaya klik ini tidak ikut
+// membuka halaman Detail produk (handler klik baris).
+document.addEventListener('click', (e) => {
+  const b = e.target.closest ? e.target.closest('.katalog-salin-sku') : null;
+  if (!b) return;
+  e.preventDefault();
+  e.stopPropagation();
+  katalogSalinSkuMarketplace(b);
+}, true);
+async function katalogSalinSkuMarketplace(b) {
+  const teks = b.dataset.salin || '';
+  const span = b.querySelector('.teks');
+  if (!span || !teks) return;
+  let berhasil = false;
+  try { await navigator.clipboard.writeText(teks); berhasil = true; }
+  catch (err) { berhasil = await pgrSalinTeks(teks, null, true); } // cadangan kalau Clipboard API ditolak (iframe Apps Script)
+  clearTimeout(b._timerSalin);
+  b.classList.remove('tersalin', 'gagal');
+  b.classList.add(berhasil ? 'tersalin' : 'gagal');
+  span.textContent = berhasil ? '✓ Disalin!' : 'Gagal menyalin';
+  b._timerSalin = setTimeout(() => { span.textContent = teks; b.classList.remove('tersalin', 'gagal'); }, 1500);
 }
 
 // Escape nilai buat dipakai di dalam attribute selector CSS (querySelector) - SKU/nama produk
@@ -16293,82 +16424,103 @@ async function katalogBukaModalTambahProduk() {
 }
 
 async function katalogBukaModalEditProduk(sku) {
+  // Data lokal lengkap -> modal langsung terisi, tanpa status loading
+  if (katalogPunyaDetailLokal(katalogProdukLokal(sku))) return katalogBukaModalEditProdukInti(sku);
   katalogModalProdukLoading(true);
   try { await katalogBukaModalEditProdukInti(sku); }
   finally { katalogModalProdukLoading(false); }
+}
+
+// Isi form Tambah/Edit dari objek produk (lokal atau hasil lihat_detail_produk)
+function katalogIsiFormEdit(p) {
+  el('tp-sku').value = p.sku; el('tp-sku').disabled = false;
+  el('tp-nama').value = p.nama || '';
+  el('tp-merk').value = p.brand || '';
+  katalogIsiOpsiKategoriModal(p.kategori || '');
+  el('tp-url-supplier').value = p.urlSupplier || '';
+  el('tp-tipe').value = p.tipe || '';
+  el('tp-harga').value = p.hargaDefault || '';
+  el('tp-harga-supplier').value = p.hargaSupplier || '';
+  katalogCekHppVsHargaForm();
+  el('tp-material').value = p.material || '';
+  el('tp-volume').value = p.volume || '';
+  el('tp-warna').value = p.warna || '';
+  // Parse "29 kg" / "500 gram" jadi angka + satuan terpisah
+  const matchBerat = String(p.berat || '').match(/([\d.,]+)\s*(kg|gram|g)?/i);
+  if (matchBerat && matchBerat[1]) {
+    el('tp-berat-angka').value = matchBerat[1].replace(',', '.');
+    katalogSetBeratSatuan(/kg/i.test(matchBerat[2] || '') ? 'Kg' : 'Gram');
+  } else { el('tp-berat-angka').value = ''; katalogSetBeratSatuan('Gram'); }
+  // Parse "68 x 49 x 52 cm" jadi Panjang/Lebar/Tinggi terpisah
+  const matchDimensi = String(p.dimensi || '').match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
+  if (matchDimensi) {
+    el('tp-dimensi-p').value = matchDimensi[1]; el('tp-dimensi-l').value = matchDimensi[2]; el('tp-dimensi-t').value = matchDimensi[3];
+  } else { el('tp-dimensi-p').value = ''; el('tp-dimensi-l').value = ''; el('tp-dimensi-t').value = ''; }
+  (p.spesifikasiTambahan || []).forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
+  el('tp-deskripsi').value = p.deskripsi || '';
+  el('tp-tampil-website').checked = !!p.tampilWebsite;
+  // Channel: list lokal = array nama platform; hasil lihat_detail_produk lama = array objek {nama}
+  const channel = (p.channel || []).map(c => typeof c === 'string' ? c : c && c.nama).filter(Boolean);
+  el('tp-channel-badges').innerHTML = channel.length > 0 ? katalogBadgeChannel(channel, p.nama) : 'Belum Tampil di marketplace manapun.';
+  katalogMuatFotoGrid(p.urlFoto, p.galeriFotoTambahan);
+  el('tp-status').textContent = '';
 }
 
 async function katalogBukaModalEditProdukInti(sku) {
   katalogModalMode = 'edit';
   katalogModalSkuLama = sku;
   el('tp-judul-modal').textContent = '✏️ Edit Produk';
-  el('tp-status').textContent = 'Memuat data produk...';
   el('tp-paste-status').textContent = '';
-  el('tp-btn-simpan').disabled = true;
   el('tp-btn-simpan').textContent = '💾 Simpan Perubahan';
   katalogKosongkanSpesifikasiDinamis();
-  katalogKosongkanFotoGrid(); // bersihkan dulu - cegah foto dari sesi Tambah/Edit sebelumnya kelihatan sekilas sebelum data produk ini kemuat
-  el('katalog-modal-tambah-produk').style.display = 'flex';
+  katalogKosongkanFotoGrid(); // bersihkan dulu - cegah foto dari sesi Tambah/Edit sebelumnya kelihatan sekilas
   katalogAmbilMarginDefault();
 
-  if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
-  katalogIsiOpsiKategoriModal('');
-  if (katalogDaftarSupplierCache.length === 0) await katalogMuatDaftarSupplier();
+  const lokal = katalogProdukLokal(sku);
+  const pakaiLokal = katalogPunyaDetailLokal(lokal);
 
-  // C1: muat SKU Supplier & SKU Marketplace yang sudah terhubung ke produk ini - state
-  // TERPISAH dari katalogBarisSupplier/katalogBarisMarketplace milik kartu "SKU Mapping" di
-  // halaman Detail (biar nggak saling ganggu kalau dua-duanya lagi kebuka).
+  // Kategori & supplier: pakai cache yang ada; kalau kosong dimuat DIAM-DIAM tanpa menahan modal
+  katalogIsiOpsiKategoriModal(lokal ? lokal.kategori || '' : '');
+  if (katalogDaftarKategoriCache.length === 0) {
+    katalogMuatDaftarKategori().then(() => { if (katalogModalSkuLama === sku) katalogIsiOpsiKategoriModal(el('tp-kategori').value || (lokal && lokal.kategori) || ''); });
+  }
+  if (katalogDaftarSupplierCache.length === 0) katalogMuatDaftarSupplier().then(() => { if (katalogModalSkuLama === sku) tpRenderBarisSupplier(); });
+
+  // SKU Supplier & Marketplace terhubung (state TERPISAH dari kartu SKU Mapping di halaman Detail)
   tpBarisSupplier = [];
   tpBarisMarketplace = [];
-  try {
-    const [dataSupp, dataMarket] = await Promise.all([
-      postJson({ aksi: 'lihat_sku_supplier_terhubung', skuJual: sku, email: currentUserEmail() }),
-      postJson({ aksi: 'lihat_sku_marketplace_terhubung', skuJual: sku, email: currentUserEmail() })
-    ]);
-    if (dataSupp.success) tpBarisSupplier = (dataSupp.daftar || []).map(d => ({ sku: d.skuSupplier, namaSupplier: d.namaSupplier || '' }));
-    if (dataMarket.success) tpBarisMarketplace = (dataMarket.daftar || []).map(d => ({ platform: d.platform, sku: d.skuMarketplace }));
-  } catch (err) { /* biarin kosong kalau gagal - staff masih bisa isi manual */ }
-  tpRenderBarisSupplier();
-  tpRenderBarisMarketplace();
+  if (katalogPemetaanLokalSiap) {
+    tpBarisSupplier = (katalogSkuSupplierDetailMap[sku] || []).map(d => ({ sku: d.sku, namaSupplier: d.namaSupplier || '' }));
+    tpBarisMarketplace = (katalogSkuMarketplaceMap[sku] || []).map(d => ({ platform: d.platform, sku: d.skuMarketplace }));
+  }
 
+  if (pakaiLokal) {
+    // INSTAN: 0 request ke server
+    el('tp-btn-simpan').disabled = false;
+    el('katalog-modal-tambah-produk').style.display = 'flex';
+    tpRenderBarisSupplier();
+    tpRenderBarisMarketplace();
+    katalogIsiFormEdit(lokal);
+    return;
+  }
+
+  // Cadangan: produk tidak ada di cache lokal / cache versi lama
+  el('tp-status').textContent = 'Memuat data produk...';
+  el('tp-btn-simpan').disabled = true;
+  el('katalog-modal-tambah-produk').style.display = 'flex';
   try {
-    const data = await postJson({ aksi: 'lihat_detail_produk', sku, toko: currentToko, email: currentUserEmail() });
+    const tugas = [postJson({ aksi: 'lihat_detail_produk', sku, toko: currentToko, email: currentUserEmail() })];
+    if (!katalogPemetaanLokalSiap) tugas.push(
+      postJson({ aksi: 'lihat_sku_supplier_terhubung', skuJual: sku, email: currentUserEmail() }),
+      postJson({ aksi: 'lihat_sku_marketplace_terhubung', skuJual: sku, email: currentUserEmail() }));
+    const [data, dataSupp, dataMarket] = await Promise.all(tugas);
+    if (dataSupp && dataSupp.success) tpBarisSupplier = (dataSupp.daftar || []).map(d => ({ sku: d.skuSupplier, namaSupplier: d.namaSupplier || '' }));
+    if (dataMarket && dataMarket.success) tpBarisMarketplace = (dataMarket.daftar || []).map(d => ({ platform: d.platform, sku: d.skuMarketplace }));
+    tpRenderBarisSupplier();
+    tpRenderBarisMarketplace();
     el('tp-btn-simpan').disabled = false;
     if (!data.success) { el('tp-status').textContent = '✗ Gagal muat: ' + (data.error || ''); el('tp-status').className = 'status-text err'; return; }
-    const p = data.produk;
-    el('tp-sku').value = p.sku; el('tp-sku').disabled = false;
-    el('tp-nama').value = p.nama || '';
-    el('tp-merk').value = p.brand || '';
-    katalogIsiOpsiKategoriModal(p.kategori || '');
-    el('tp-url-supplier').value = p.urlSupplier || '';
-    el('tp-tipe').value = p.tipe || '';
-    el('tp-harga').value = p.hargaDefault || '';
-    el('tp-harga-supplier').value = p.hargaSupplier || '';
-    katalogCekHppVsHargaForm();
-    el('tp-material').value = p.material || '';
-    el('tp-volume').value = p.volume || '';
-    el('tp-warna').value = p.warna || '';
-
-    // Parse "29 kg" / "500 gram" jadi angka + satuan terpisah
-    const matchBerat = String(p.berat || '').match(/([\d.,]+)\s*(kg|gram|g)?/i);
-    if (matchBerat && matchBerat[1]) {
-      el('tp-berat-angka').value = matchBerat[1].replace(',', '.');
-      katalogSetBeratSatuan(/kg/i.test(matchBerat[2] || '') ? 'Kg' : 'Gram');
-    } else { el('tp-berat-angka').value = ''; katalogSetBeratSatuan('Gram'); }
-
-    // Parse "68 x 49 x 52 cm" jadi Panjang/Lebar/Tinggi terpisah
-    const matchDimensi = String(p.dimensi || '').match(/([\d.,]+)\s*x\s*([\d.,]+)\s*x\s*([\d.,]+)/i);
-    if (matchDimensi) {
-      el('tp-dimensi-p').value = matchDimensi[1]; el('tp-dimensi-l').value = matchDimensi[2]; el('tp-dimensi-t').value = matchDimensi[3];
-    } else { el('tp-dimensi-p').value = ''; el('tp-dimensi-l').value = ''; el('tp-dimensi-t').value = ''; }
-
-    (p.spesifikasiTambahan || []).forEach(s => katalogTambahBarisSpesifikasi(s.nama, s.nilai));
-
-    el('tp-deskripsi').value = p.deskripsi || '';
-    el('tp-tampil-website').checked = !!p.tampilWebsite;
-    el('tp-channel-badges').innerHTML = (p.channel && p.channel.length > 0) ? katalogBadgeChannel(p.channel, p.nama) : 'Belum Tampil di marketplace manapun.';
-    katalogMuatFotoGrid(p.urlFoto, p.galeriFotoTambahan);
-    el('tp-status').textContent = '';
+    katalogIsiFormEdit(data.produk);
   } catch (err) {
     el('tp-btn-simpan').disabled = false;
     el('tp-status').textContent = '✗ Gagal terhubung: ' + err.message; el('tp-status').className = 'status-text err';
@@ -16886,11 +17038,12 @@ async function katalogSimpanProdukBaru() {
   katalogOverlaySegar(true, katalogModalMode === 'edit' ? 'Menyimpan perubahan...' : 'Menyimpan produk baru...');
   try {
     let data;
+    // postJsonTulis: aksi MENULIS dikirim sekali saja (tanpa retry otomatis yang bisa menulis dobel)
     if (katalogModalMode === 'edit') {
       payload.skuLama = katalogModalSkuLama;
-      data = await postJson({ aksi: 'edit_produk_master_lengkap', ...payload });
+      data = await postJsonTulis({ aksi: 'edit_produk_master_lengkap', ...payload });
     } else {
-      data = await postJson({ aksi: 'tambah_produk_baru', ...payload });
+      data = await postJsonTulis({ aksi: 'tambah_produk_baru', ...payload });
     }
     if (!data.success) {
       stopLoadingDots(statusEl);
@@ -16906,7 +17059,7 @@ async function katalogSimpanProdukBaru() {
     const daftarSkuSupplier = tpBarisSupplier.filter(r => r.sku.trim()).map(r => ({ sku: r.sku.trim(), namaSupplier: (r.namaSupplier || '').trim() }));
     const daftarMarketplace = tpBarisMarketplace.filter(r => r.sku.trim()).map(r => ({ platform: r.platform, sku: r.sku.trim() }));
     try {
-      await postJson({ aksi: 'simpan_pemetaan_sku', skuJual: payload.sku, daftarSkuSupplier, daftarMarketplace, email: currentUserEmail() }, 30000);
+      await postJsonTulis({ aksi: 'simpan_pemetaan_sku', skuJual: payload.sku, daftarSkuSupplier, daftarMarketplace, email: currentUserEmail() }, 30000);
     } catch (errPemetaan) { /* produk utama sudah kesimpan - pemetaan SKU gagal jangan gagalkan seluruh proses, cukup lanjut */ }
 
     stopLoadingDots(statusEl);
@@ -16919,14 +17072,23 @@ async function katalogSimpanProdukBaru() {
     const skuDetailSaatIni = katalogSkuDetailAktif;
     // Update maps LIST (badge SKU Terhubung/Marketplace di tabel/card) sesuai pemetaan final
     // yang barusan disimpan - persis lho, karena simpan_pemetaan_sku sifatnya REPLACE-ALL.
+    if (skuLamaUntukBaris && skuLamaUntukBaris !== payload.sku) { // SKU diganti -> pindahkan kunci peta
+      delete katalogSkuTerhubungMap[skuLamaUntukBaris]; delete katalogSkuMarketplaceMap[skuLamaUntukBaris]; delete katalogSkuSupplierDetailMap[skuLamaUntukBaris];
+    }
     katalogSkuTerhubungMap[payload.sku] = daftarSkuSupplier.map(r => r.sku);
     katalogSkuMarketplaceMap[payload.sku] = daftarMarketplace.map(r => ({ skuMarketplace: r.sku, platform: r.platform }));
-    // Tutup modal LANGSUNG (tanpa jeda), overlay tetap menutupi tabel sampai data terbaru selesai
-    // diambil dari server (tanpa cache) DAN tabel selesai digambar ulang.
+    katalogSkuSupplierDetailMap[payload.sku] = daftarSkuSupplier.map(r => ({ sku: r.sku, namaSupplier: r.namaSupplier }));
     katalogTutupModalTambahProduk();
-    katalogSegarkanSetelahSimpan(modeSaatSimpan === 'edit' ? 'Memuat data produk terbaru...' : 'Memuat produk baru...').then(ok => {
-      if (modeSaatSimpan === 'edit' && skuDetailSaatIni === skuLamaUntukBaris) katalogMuatPemetaanSku();
-      pgrToast(ok ? '✓ Tersimpan - tabel sudah menampilkan data terbaru.' : 'Tersimpan, tapi gagal memuat ulang tabel. Klik ↻ untuk memuat ulang.');
+    // REFRESH OTOMATIS PASCA-EDIT: data yang BARU SAJA disimpan server langsung diterapkan ke cache lokal,
+    // lalu tabel & halaman Detail dirender ulang lokal -> tampilan langsung benar, tanpa reload halaman.
+    katalogTerapkanSimpanLokal(payload, modeSaatSimpan === 'edit' ? skuLamaUntukBaris : null, daftarMarketplace, skuDetailSaatIni);
+    pgrToast(modeSaatSimpan === 'edit' ? '✓ Perubahan tersimpan' : '✓ Produk baru tersimpan');
+    // Penyelarasan DIAM-DIAM dengan server (kolom yang dihitung server, urutan, channel) - tanpa overlay
+    katalogFetchProduk({ segar: true }).then(ok => {
+      if (ok && katalogSkuDetailAktif === payload.sku && el('katalog-view-detail-produk').style.display !== 'none') {
+        const p = katalogProdukLokal(payload.sku);
+        if (katalogPunyaDetailLokal(p)) katalogRenderDetail(katalogDetailDariLokal(p));
+      }
     });
   } catch (err) {
     stopLoadingDots(statusEl);
@@ -16936,6 +17098,39 @@ async function katalogSimpanProdukBaru() {
     katalogOverlaySegar(false);
   } finally {
     katalogModalProdukLoading(false);
+  }
+}
+
+// Terapkan hasil Simpan (Tambah/Edit) ke cache lokal + render ulang lokal (tabel, card, halaman Detail)
+function katalogTerapkanSimpanLokal(payload, skuLama, daftarMarketplace, skuDetailSaatIni) {
+  let p = skuLama ? katalogProdukLokal(skuLama) : null;
+  if (!p) {
+    p = { arsip: false, channel: [], idVarian: '', labelVarian: '', tipe1: '', nilai1: '', tipe2: '', nilai2: '', noBaris: katalogProdukCache.length };
+    katalogProdukCache.push(p); // produk baru = baris paling bawah sheet = "terbaru"
+  }
+  const angka = v => { const n = parseFloat(String(v === undefined || v === null ? '' : v).replace(/[^\d.-]/g, '')); return isNaN(n) ? 0 : n; };
+  Object.assign(p, {
+    sku: payload.sku, nama: payload.namaProduk, brand: payload.merk, kategori: payload.kategori === KATALOG_OPSI_TAMBAH_KATEGORI ? '' : payload.kategori,
+    urlSupplier: payload.urlSupplier, urlFoto: payload.urlFoto, galeriFotoTambahan: payload.galeriFotoTambahan || [],
+    tipe: payload.tipe, hargaDefault: angka(payload.harga), hargaSupplier: angka(payload.hargaSupplier),
+    material: payload.material, volume: payload.volume, warna: payload.warna, berat: payload.berat, dimensi: payload.dimensi,
+    spesifikasiTambahan: payload.spesifikasiTambahan || [], deskripsi: payload.deskripsi, tampilWebsite: !!payload.tampilWebsite
+  });
+  const platform = [...new Set((daftarMarketplace || []).map(r => r.platform).filter(Boolean))];
+  if ((p.channel || []).includes('TikTok Shop') && !platform.includes('TikTok Shop')) platform.push('TikTok Shop'); // dari tabel Produk TikTok
+  p.channel = platform;
+  katalogSimpanCacheLokal();
+  katalogProdukRenderHalaman();
+  // Kilatan hijau di baris yang barusan diperbarui
+  const tr = document.querySelector(`#katalog-produk-body tr[data-sku="${cssEscapeAtribut(p.sku)}"]`);
+  if (tr) { tr.classList.add('katalog-baris-tersimpan'); setTimeout(() => tr.classList.remove('katalog-baris-tersimpan'), 2600); }
+  // Halaman Detail produk ini sedang terbuka -> render ulang dari data lokal terbaru
+  if (skuLama && skuDetailSaatIni === skuLama) {
+    katalogSkuDetailAktif = p.sku;
+    if (skuLama !== p.sku) simpanLokasiTerakhir('katalog', 'produk', p.sku);
+    katalogRenderDetail(katalogDetailDariLokal(p));
+    katalogMuatPemetaanSku();
+    katalogIsiStokDetail(p.sku);
   }
 }
 
@@ -17435,66 +17630,111 @@ async function katalogUploadFoto(sku, event) {
 
 let katalogSkuDetailAktif = null;
 
+/* ===== DETAIL PRODUK & MODAL EDIT DARI DATA LOKAL =====
+   Dulu tiap klik produk / Edit: request lihat_detail_produk (yang di server menghitung ulang SELURUH
+   stok ledger) + 2 request SKU mapping + daftar kategori/supplier secara berurutan -> 3-10 detik.
+   Sekarang: semua field detail sudah ikut di list Katalog (memori/IndexedDB), jadi halaman & modal
+   dirender INSTAN tanpa request. Satu-satunya data yang diambil terpisah adalah angka stok fisik
+   (sifatnya live) - dimuat diam-diam di latar & dipakai ulang 5 menit untuk semua produk. */
+function katalogProdukLokal(sku) { return katalogProdukCache.find(x => x.sku === sku) || null; }
+function katalogPunyaDetailLokal(p) { return !!p && ('hargaDefault' in p) && ('deskripsi' in p); }
+function katalogDetailDariLokal(p) {
+  const stok = katalogStokPeta.peta && katalogStokPeta.peta[p.sku];
+  return Object.assign({}, p, {
+    daftarVarian: p.idVarian ? katalogProdukCache.filter(s => s.idVarian === p.idVarian && s.sku !== p.sku)
+      .map(s => ({ sku: s.sku, nama: s.nama, urlFoto: s.urlFoto, labelVarian: s.labelVarian || '' })) : [],
+    stockFisik: stok ? stok.stockSaatIni : undefined,
+    opnameTerakhir: stok ? (stok.opnameTerakhir || 'Belum pernah') : undefined
+  });
+}
+
+// Stok fisik: 1 request untuk SEMUA SKU, dipakai ulang 5 menit (pindah antar produk = 0 request)
+const katalogStokPeta = { peta: null, waktu: 0, jalan: null };
+function katalogIsiStokDetail(sku) {
+  const tulis = () => {
+    if (katalogSkuDetailAktif !== sku) return;
+    const st = katalogStokPeta.peta && katalogStokPeta.peta[sku];
+    el('katalog-detail-stock').textContent = st ? st.stockSaatIni : 0;
+    el('katalog-detail-opname').textContent = st ? (st.opnameTerakhir || 'Belum pernah') : 'Belum pernah';
+  };
+  if (katalogStokPeta.peta && Date.now() - katalogStokPeta.waktu < 300000) { tulis(); return; }
+  if (!katalogStokPeta.jalan) {
+    katalogStokPeta.jalan = postJson({ aksi: 'lihat_stok_banyak_sku', email: currentUserEmail() }, 45000, true)
+      .then(d => { if (d && d.success) { katalogStokPeta.peta = d.peta || {}; katalogStokPeta.waktu = Date.now(); } })
+      .catch(() => { })
+      .finally(() => { katalogStokPeta.jalan = null; });
+  }
+  katalogStokPeta.jalan.then(tulis);
+}
+
+function katalogRenderDetail(p) {
+  katalogRenderDetailFotoUtama(p.urlFoto);
+  katalogRenderDetailGaleriGrid(p.galeriFotoTambahan || []);
+  el('katalog-detail-kategori-badge').innerHTML = p.kategori ? `<span class="web-status-pill aktif detail-kategori-badge">${escapeHtml(p.kategori)}</span>` : '';
+  el('katalog-detail-nama').textContent = p.nama;
+  el('katalog-detail-sku').textContent = p.sku;
+  el('katalog-detail-preview-sku').textContent = p.sku;
+  el('katalog-detail-preview-nama').textContent = p.nama;
+  try {
+    el('katalog-detail-qrcode').innerHTML = '';
+    new QRCode(el('katalog-detail-qrcode'), { text: p.sku, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
+  } catch (eBarcode) { el('katalog-detail-qrcode').innerHTML = ''; }
+  el('katalog-detail-harga-default').textContent = 'Rp ' + Number(p.hargaDefault || 0).toLocaleString('id-ID');
+  el('katalog-detail-hpp').textContent = 'Rp ' + Number(p.hargaSupplier || 0).toLocaleString('id-ID');
+  // Stok: kalau belum ada angkanya, sel ini saja yang menunggu (terisi otomatis) - bukan seluruh halaman
+  el('katalog-detail-stock').textContent = p.stockFisik !== undefined ? p.stockFisik : '…';
+  el('katalog-detail-opname').textContent = p.opnameTerakhir !== undefined ? p.opnameTerakhir : '…';
+  el('katalog-detail-deskripsi').textContent = (p.deskripsi && p.deskripsi.trim()) ? p.deskripsi : 'Belum ada deskripsi.';
+  el('katalog-detail-brand').textContent = p.brand || '-';
+  el('katalog-detail-tipe').textContent = p.tipe || '-';
+  el('katalog-detail-material').textContent = p.material || '-';
+  el('katalog-detail-volume').textContent = p.volume || '-';
+  el('katalog-detail-warna').textContent = p.warna || '-';
+  katalogVarianDataAktif = p; // simpan buat referensi hover-preview (foto asli produk ini)
+  katalogRenderVarianStrip(p);
+  katalogVarianIsiFormDariData(p);
+  el('katalog-detail-url-supplier-input').value = p.urlSupplier || '';
+  katalogUrlSupplierTersimpan = p.urlSupplier || '';
+  katalogUrlSupplierRender();
+  el('katalog-url-supplier-status').textContent = '';
+  el('katalog-detail-tampil-website').checked = !!p.tampilWebsite;
+  el('katalog-detail-tampil-website-status').textContent = '';
+}
+
 async function katalogBukaDetailProduk(sku) {
   katalogSkuDetailAktif = sku;
   simpanLokasiTerakhir('katalog', 'produk', sku); // biar refresh (F5) balik ke detail produk ini, bukan ke list
-  // Dibutuhkan buat fitur Search & Pick di form Varian Produk (butuh daftar semua produk buat
-  // dicari) - kalau user masuk detail langsung (deep link) tanpa lewat list dulu, cache ini
-  // masih kosong. Fire-and-forget, nggak perlu ditunggu biar nggak nunda render detail-nya sendiri.
-  if (katalogProdukCache.length === 0) katalogFetchProduk();
-  katalogMuatPemetaanSku();
   ['produk', 'harga', 'promosi', 'kategori', 'laporan'].forEach(s => { el('katalog-view-' + s).style.display = 'none'; });
   el('katalog-view-detail-produk').style.display = 'block';
   setPageTitle('DETAIL PRODUK MASTER', true);
+  katalogDetailGaleriSlotAktif = null;
 
+  // Deep link / F5 langsung ke detail: isi daftar dari IndexedDB (atau server sekali) dulu
+  let p = katalogProdukLokal(sku);
+  if (!p && katalogProdukCache.length === 0) { await katalogFetchProduk(); p = katalogProdukLokal(sku); }
+  if (katalogSkuDetailAktif !== sku) return; // user sudah pindah produk lain
+
+  if (katalogPunyaDetailLokal(p)) {
+    katalogRenderDetail(katalogDetailDariLokal(p)); // INSTAN - 0 request
+    katalogMuatPemetaanSku();
+    katalogIsiStokDetail(sku);
+    return;
+  }
+
+  // Cadangan (produk arsip yang tidak ada di list, atau cache versi lama tanpa field detail)
   el('katalog-detail-nama').textContent = 'Memuat...';
-  // Bersihkan SEMUA sisa tampilan produk sebelumnya - biar nggak ada foto/nama lama yang
-  // "menumpang" kelihatan sekilas sebelum data produk baru ini selesai dimuat.
   el('katalog-detail-sku').textContent = '';
   el('katalog-detail-kategori-badge').innerHTML = '';
   el('katalog-detail-foto-wrap').innerHTML = '<span style="font-size:11px; color:var(--web-text-dim);">Memuat...</span>';
   el('katalog-detail-galeri-grid').innerHTML = '';
-  katalogDetailGaleriSlotAktif = null;
-  showPageLoader('katalog-detail-konten');
+  katalogMuatPemetaanSku();
   try {
     const data = await postJson({ aksi: 'lihat_detail_produk', sku, email: currentUserEmail() });
+    if (katalogSkuDetailAktif !== sku) return;
     if (!data.success) { el('katalog-detail-nama').textContent = 'Gagal: ' + (data.error || ''); return; }
-    const p = data.produk;
-
-    katalogRenderDetailFotoUtama(p.urlFoto);
-    katalogRenderDetailGaleriGrid(p.galeriFotoTambahan || []);
-    el('katalog-detail-kategori-badge').innerHTML = p.kategori ? `<span class="web-status-pill aktif detail-kategori-badge">${escapeHtml(p.kategori)}</span>` : '';
-    el('katalog-detail-nama').textContent = p.nama;
-    el('katalog-detail-sku').textContent = p.sku;
-    el('katalog-detail-preview-sku').textContent = p.sku;
-    el('katalog-detail-preview-nama').textContent = p.nama;
-    try {
-      el('katalog-detail-qrcode').innerHTML = '';
-      new QRCode(el('katalog-detail-qrcode'), { text: p.sku, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
-    } catch (eBarcode) { el('katalog-detail-qrcode').innerHTML = ''; }
-    el('katalog-detail-harga-default').textContent = 'Rp ' + Number(p.hargaDefault).toLocaleString('id-ID');
-    el('katalog-detail-hpp').textContent = 'Rp ' + Number(p.hargaSupplier).toLocaleString('id-ID');
-    el('katalog-detail-stock').textContent = p.stockFisik;
-    el('katalog-detail-opname').textContent = p.opnameTerakhir;
-    el('katalog-detail-deskripsi').textContent = (p.deskripsi && p.deskripsi.trim()) ? p.deskripsi : 'Belum ada deskripsi.';
-    el('katalog-detail-brand').textContent = p.brand || '-';
-    el('katalog-detail-tipe').textContent = p.tipe || '-';
-    el('katalog-detail-material').textContent = p.material || '-';
-    el('katalog-detail-volume').textContent = p.volume || '-';
-    el('katalog-detail-warna').textContent = p.warna || '-';
-    katalogVarianDataAktif = p; // simpan buat referensi hover-preview (foto asli produk ini)
-    katalogRenderVarianStrip(p);
-    katalogVarianIsiFormDariData(p);
-    el('katalog-detail-url-supplier-input').value = p.urlSupplier || '';
-    katalogUrlSupplierTersimpan = p.urlSupplier || '';
-    katalogUrlSupplierRender();
-    el('katalog-url-supplier-status').textContent = '';
-    el('katalog-detail-tampil-website').checked = !!p.tampilWebsite;
-    el('katalog-detail-tampil-website-status').textContent = '';
+    katalogRenderDetail(data.produk);
   } catch (err) {
     el('katalog-detail-nama').textContent = 'Gagal terhubung: ' + err.message;
-  } finally {
-    hidePageLoader('katalog-detail-konten');
   }
 }
 
@@ -17620,6 +17860,18 @@ function katalogOpsiSupplierHtml(supplierTerpilih) {
 }
 
 async function katalogMuatPemetaanSku() {
+  // Data lokal (dari list Katalog) -> render instan tanpa request & tanpa loader kotak
+  if (katalogPemetaanLokalSiap) {
+    const sku = katalogSkuDetailAktif;
+    katalogBarisSupplier = (katalogSkuSupplierDetailMap[sku] || []).map(d => ({ sku: d.sku, namaSupplier: d.namaSupplier || '' }));
+    katalogBarisMarketplace = (katalogSkuMarketplaceMap[sku] || []).map(d => ({ id: 'm' + (katalogMirrorCounter++), platform: d.platform, sku: d.skuMarketplace, mirrorGroup: null }));
+    katalogRenderBarisSupplier();
+    katalogRenderBarisMarketplace();
+    el('katalog-pemetaan-status').textContent = '';
+    // Daftar nama supplier untuk dropdown: kalau belum ada, dimuat diam-diam lalu baris dirender ulang
+    if (katalogDaftarSupplierCache.length === 0) katalogMuatDaftarSupplier().then(() => { if (katalogSkuDetailAktif === sku) katalogRenderBarisSupplier(); });
+    return;
+  }
   katalogBarisSupplier = [];
   katalogBarisMarketplace = [];
   el('katalog-baris-sku-supplier').innerHTML = '';
