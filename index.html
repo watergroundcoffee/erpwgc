@@ -2370,6 +2370,30 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 .katalog-salin-sku:hover .teks { text-decoration: underline dotted; }
 .katalog-salin-sku.tersalin .teks { color: #1f7a53; font-weight: 700; text-decoration: none; }
 .katalog-salin-sku.gagal .teks { color: #9a6412; }
+/* Log Tindakan (kanan bawah) */
+.log-tindakan { position: fixed; right: 18px; bottom: 18px; z-index: 2900; width: min(340px, calc(100vw - 36px)); background: var(--web-panel, #fff); color: var(--web-text, #1a1d23);
+  border: 1px solid var(--web-border, #e2e5ea); border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, .14); font-size: 12.5px; overflow: hidden; }
+.log-tindakan[hidden] { display: none; }
+.log-tindakan-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--web-border, #e2e5ea); background: var(--web-bg, #f5f6f8); font-size: 12px; }
+.log-tindakan-ringkas { color: var(--web-text-dim, #6b7280); font-size: 11px; }
+.log-tindakan-isi { max-height: 240px; overflow-y: auto; }
+.log-item { display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px 9px 12px; border-bottom: 1px solid var(--web-border, #e2e5ea); transition: opacity .25s, transform .25s; }
+.log-item:last-child { border-bottom: 0; }
+.log-item.keluar { opacity: 0; transform: translateX(10px); }
+.log-ikon { flex: none; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; margin-top: 1px; }
+.log-item.antre .log-ikon { background: var(--web-bg, #f5f6f8); }
+.log-item.proses .log-ikon { border: 2px solid rgba(47, 158, 110, .25); border-top-color: #2f9e6e; animation: wpPutar .8s linear infinite; }
+.log-item.ok .log-ikon { background: #e8f6ec; color: #24613f; }
+.log-item.gagal .log-ikon { background: #fdf1dc; color: #9a6412; }
+.log-teks { flex: 1; min-width: 0; line-height: 1.35; }
+.log-teks b { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-teks small { display: block; font-size: 11.5px; color: var(--web-text-dim, #6b7280); }
+.log-item.gagal .log-teks small { color: #7a5210; }
+.log-aksi { display: flex; flex-direction: column; gap: 4px; }
+.log-aksi button { font: inherit; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--web-border, #e2e5ea); background: var(--web-panel, #fff); color: var(--web-text, #1a1d23); cursor: pointer; white-space: nowrap; }
+.log-aksi button:hover { border-color: #2f9e6e; color: #1f7a53; }
+.log-tutup { flex: none; border: 0; background: none; color: var(--web-text-dim, #6b7280); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
+@media (prefers-reduced-motion: reduce) { .log-item.proses .log-ikon { animation-duration: 3s; } .log-item { transition: none; } }
 /* Baris yang baru diperbarui setelah Simpan Edit */
 .web-table tr.katalog-baris-tersimpan td { animation: wpSorot 2.4s ease-out; }
 /* Kolom Varian: 1 blok per jenis varian -> baris 1 NAMA VARIAN, baris 2 kapsul (dilipat ke bawah, tidak dipotong) */
@@ -6419,10 +6443,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           </div>
 
           <div class="web-toolbar-row" style="margin-top:8px;">
-            <div class="katalog-cari-wrap">
-              <textarea id="katalog-produk-cari" class="web-search-input katalog-cari-multi" rows="1" spellcheck="false" placeholder="🔍 Cari apa saja · Multi-SKU: pisahkan dengan spasi / Enter" title="Omni-Search: mencari di semua data produk. Beberapa kata biasa = semuanya harus cocok. Beberapa SKU (dipisah spasi atau Enter / tempel 1 kolom dari Excel) = tampilkan semua produk yang cocok dengan salah satu SKU." oninput="katalogCariBerubah(this)"></textarea>
-              <div id="katalog-cari-info" class="katalog-cari-info" aria-live="polite" hidden></div>
-            </div>
+            <input type="text" id="katalog-produk-cari" class="web-search-input" placeholder="🔍 Cari apa saja: nama, SKU, kategori, SKU supplier / marketplace..." style="max-width:360px; min-width:240px; flex:1; margin:0;" oninput="katalogCariBerubah(this)" onkeydown="katalogCariTombol(event, this)" onpaste="katalogCariTempel(event, this)" />
             <select id="katalog-produk-filter-kategori" class="web-form-input" style="max-width:170px; margin-bottom:0;" onchange="katalogProdukPaginasiState.page=1; katalogProdukRenderHalaman();">
               <option value="">Semua Kategori</option>
             </select>
@@ -6746,7 +6767,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 
             <!-- 4. Kategori & Tipe/Model -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
-              <div>
+              <div id="tp-kategori-wrap">
                 <label style="font-size:12px; font-weight:600;">Kategori</label>
                 <select id="tp-kategori" class="web-form-input" onchange="katalogTpKategoriBerubah(this)">
                   <option value="">- Pilih Kategori (opsional) -</option>
@@ -15403,11 +15424,29 @@ let katalogSkuMarketplaceMap = {}; // skuJual -> [{skuMarketplace, platform}] - 
    Mode multi-SKU aktif kalau: ada baris baru (Enter), ATAU semua kata "berbentuk SKU" (mengandung angka
    atau - _ . /) atau persis sama dengan SKU yang ada. Kata biasa ("kopi arabika") tetap Omni-Search AND. */
 let katalogCariTimer = null;
-function katalogCariBerubah(ta) {
-  ta.style.height = 'auto';
-  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; // tumbuh sampai ~5 baris lalu scroll
+function katalogCariJalankan() { clearTimeout(katalogCariTimer); katalogProdukPaginasiState.page = 1; katalogProdukRenderHalaman(); }
+function katalogCariBerubah(inp) {
+  if (!inp.value.trim()) delete inp.dataset.multi; // kotak dikosongkan -> penanda tempel-banyak-baris ikut hilang
   clearTimeout(katalogCariTimer);
-  katalogCariTimer = setTimeout(() => { katalogProdukPaginasiState.page = 1; katalogProdukRenderHalaman(); }, 120);
+  katalogCariTimer = setTimeout(katalogCariJalankan, 120);
+}
+// Enter = langsung cari (kotak tetap 1 baris biasa)
+function katalogCariTombol(e, inp) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  katalogCariJalankan();
+}
+// Tempel dari Excel/Sheets (1 kolom, banyak baris): baris baru diganti spasi secara diam-diam, dan
+// ditandai sebagai daftar SKU supaya dicari sebagai multi-SKU walaupun kodenya tidak "berbentuk SKU".
+function katalogCariTempel(e, inp) {
+  const teks = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+  if (!/[\r\n]/.test(teks.trim())) return; // tempel biasa
+  e.preventDefault();
+  const rapi = teks.split(/[\r\n\t]+/).map(t => t.trim()).filter(Boolean).join(' ');
+  const awal = inp.selectionStart ?? inp.value.length, akhir = inp.selectionEnd ?? inp.value.length;
+  inp.setRangeText(rapi, awal, akhir, 'end');
+  inp.dataset.multi = '1';
+  katalogCariJalankan();
 }
 function katalogIndeksSku() {
   const idx = new Map(); // sku (huruf kecil) -> Set(SKU Gudang)
@@ -15427,7 +15466,7 @@ function katalogIndeksSku() {
 function katalogDeteksiMultiSku(mentah, kata) {
   if (kata.length < 2) return null;
   const idx = katalogIndeksSku();
-  const adaBarisBaru = /\n/.test(mentah.trim());
+  const adaBarisBaru = /\n/.test(mentah.trim()) || el('katalog-produk-cari')?.dataset.multi === '1'; // hasil tempel banyak baris
   const bentukSku = k => /[0-9\-_./]/.test(k) || idx.has(k);
   if (!adaBarisBaru && !kata.every(bentukSku)) return null; // kalimat biasa -> Omni-Search AND
   const cocok = new Set(), tidakKetemu = [];
@@ -15443,6 +15482,7 @@ function katalogDeteksiMultiSku(mentah, kata) {
   return { cocok, tidakKetemu, jumlahKata: unik.length };
 }
 function katalogTampilInfoCari(multi) {
+  return; // multi-SKU bekerja di belakang layar - tidak ada info tambahan untuk pengguna
   const info = el('katalog-cari-info');
   if (!info) return;
   if (!multi) { info.hidden = true; info.textContent = ''; return; }
@@ -16342,11 +16382,12 @@ let tpBarisMarketplace = []; // [{ platform, sku }]
 function tpRenderBarisSupplier() {
   const wrap = el('tp-baris-sku-supplier');
   if (!wrap) return;
+  const denganNamaSupplier = katalogModalMode !== 'edit'; // modal Edit: tanpa dropdown nama supplier
   wrap.innerHTML = tpBarisSupplier.map((r, idx) => `
     <div style="display:flex; gap:6px; align-items:center;">
-      <select class="web-form-input" style="margin:0; flex:none; width:120px; padding:8px 4px; font-size:11px;" onchange="tpBarisSupplier[${idx}].namaSupplier = this.value">
+      ${denganNamaSupplier ? `<select class="web-form-input" style="margin:0; flex:none; width:120px; padding:8px 4px; font-size:11px;" onchange="tpBarisSupplier[${idx}].namaSupplier = this.value">
         ${katalogOpsiSupplierHtml(r.namaSupplier)}
-      </select>
+      </select>` : ''}
       <input class="web-form-input kat-input-sku" style="margin:0; flex:1; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU Supplier" oninput="tpBarisSupplier[${idx}].sku = this.value" />
       <button type="button" class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="tpHapusBarisSupplier(${idx})">❌</button>
     </div>
@@ -16413,6 +16454,7 @@ async function katalogBukaModalTambahProduk() {
   el('tp-btn-simpan').disabled = false;
   el('tp-btn-simpan').textContent = '💾 Simpan';
   katalogAmbilMarginDefault();
+  el('tp-kategori-wrap').style.display = ''; // Tambah Produk: kategori tetap dipilih di sini
   if (katalogDaftarKategoriCache.length === 0) await katalogMuatDaftarKategori();
   katalogIsiOpsiKategoriModal('');
   if (katalogDaftarSupplierCache.length === 0) await katalogMuatDaftarSupplier();
@@ -16479,12 +16521,10 @@ async function katalogBukaModalEditProdukInti(sku) {
   const lokal = katalogProdukLokal(sku);
   const pakaiLokal = katalogPunyaDetailLokal(lokal);
 
-  // Kategori & supplier: pakai cache yang ada; kalau kosong dimuat DIAM-DIAM tanpa menahan modal
+  // Modal EDIT tanpa kolom Kategori & tanpa dropdown nama Supplier (tidak memuat daftar apa pun).
+  // Nilai kategori & nama supplier yang sudah ada tetap dipertahankan saat disimpan.
+  el('tp-kategori-wrap').style.display = 'none';
   katalogIsiOpsiKategoriModal(lokal ? lokal.kategori || '' : '');
-  if (katalogDaftarKategoriCache.length === 0) {
-    katalogMuatDaftarKategori().then(() => { if (katalogModalSkuLama === sku) katalogIsiOpsiKategoriModal(el('tp-kategori').value || (lokal && lokal.kategori) || ''); });
-  }
-  if (katalogDaftarSupplierCache.length === 0) katalogMuatDaftarSupplier().then(() => { if (katalogModalSkuLama === sku) tpRenderBarisSupplier(); });
 
   // SKU Supplier & Marketplace terhubung (state TERPISAH dari kartu SKU Mapping di halaman Detail)
   tpBarisSupplier = [];
@@ -17031,6 +17071,21 @@ async function katalogSimpanProdukBaru() {
     return;
   }
 
+  // EDIT: tidak perlu menunggu - modal langsung ditutup, proses simpan jalan di latar & dipantau lewat
+  // panel "Log Tindakan" di kanan bawah (hilang sendiri setelah selesai).
+  if (katalogModalMode === 'edit') {
+    payload.skuLama = katalogModalSkuLama;
+    katalogSimpanEditLatar({
+      payload,
+      skuLama: katalogModalSkuLama,
+      daftarSkuSupplier: tpBarisSupplier.filter(r => r.sku.trim()).map(r => ({ sku: r.sku.trim(), namaSupplier: (r.namaSupplier || '').trim() })),
+      daftarMarketplace: tpBarisMarketplace.filter(r => r.sku.trim()).map(r => ({ platform: r.platform, sku: r.sku.trim() }))
+    });
+    statusEl.textContent = '';
+    katalogTutupModalTambahProduk();
+    return;
+  }
+
   btn.disabled = true;
   setLoadingDots(statusEl, 'Menyimpan');
   katalogModalProdukLoading(true);
@@ -17099,6 +17154,181 @@ async function katalogSimpanProdukBaru() {
   } finally {
     katalogModalProdukLoading(false);
   }
+}
+
+/* ============================================================
+   LOG TINDAKAN - panel kecil di kanan bawah untuk pekerjaan latar (tidak memblokir apa pun)
+   logTindakan.tambah(judul) -> id ; logTindakan.ubah(id, status, teks, aksi)
+   status: 'antre' | 'proses' | 'ok' | 'gagal'. Entri sukses hilang sendiri; panel hilang saat kosong.
+   Entri gagal tetap tampil (dengan tombol aksi) sampai ditutup.
+   ============================================================ */
+const logTindakan = (() => {
+  let wadah = null, nomor = 0;
+  const IKON = { antre: '⏳', ok: '✓', gagal: '!' };
+  function dom() {
+    if (wadah) return wadah;
+    wadah = document.createElement('div');
+    wadah.className = 'log-tindakan';
+    wadah.setAttribute('role', 'status');
+    wadah.setAttribute('aria-live', 'polite');
+    wadah.hidden = true;
+    wadah.innerHTML = '<div class="log-tindakan-head"><b>Log Tindakan</b><span class="log-tindakan-ringkas"></span></div><div class="log-tindakan-isi"></div>';
+    (el('app-web') || document.body).appendChild(wadah); // di dalam #app-web supaya warna tema berlaku
+    return wadah;
+  }
+  function ringkas() {
+    const w = dom();
+    const semua = w.querySelectorAll('.log-item');
+    const jalan = w.querySelectorAll('.log-item.proses, .log-item.antre').length;
+    w.querySelector('.log-tindakan-ringkas').textContent = jalan ? `${jalan} berjalan` : '';
+    if (!semua.length) w.hidden = true;
+  }
+  function tambah(judul) {
+    const w = dom();
+    const id = 'log-' + (++nomor);
+    const item = document.createElement('div');
+    item.className = 'log-item antre';
+    item.id = id;
+    item.innerHTML = `<span class="log-ikon" aria-hidden="true"></span><div class="log-teks"><b></b><small></small></div><div class="log-aksi"></div><button type="button" class="log-tutup" aria-label="Tutup">×</button>`;
+    item.querySelector('b').textContent = judul;
+    item.querySelector('.log-tutup').onclick = () => { item.remove(); ringkas(); };
+    w.querySelector('.log-tindakan-isi').appendChild(item);
+    w.hidden = false;
+    ubah(id, 'antre', 'Menunggu antrean...');
+    return id;
+  }
+  function ubah(id, status, teks, aksi) {
+    const item = document.getElementById(id);
+    if (!item) return;
+    clearTimeout(item._timer);
+    item.className = 'log-item ' + status;
+    item.querySelector('.log-ikon').textContent = IKON[status] || '';
+    item.querySelector('small').textContent = teks || '';
+    const wAksi = item.querySelector('.log-aksi');
+    wAksi.innerHTML = '';
+    (aksi || []).forEach(a => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = a.label;
+      b.onclick = () => { a.fn(); };
+      wAksi.appendChild(b);
+    });
+    if (status === 'ok') item._timer = setTimeout(() => { item.classList.add('keluar'); setTimeout(() => { item.remove(); ringkas(); }, 250); }, 3500);
+    ringkas();
+  }
+  return { tambah, ubah };
+})();
+
+/* ===== SIMPAN EDIT PRODUK DI LATAR =====
+   1. Klik Simpan -> modal ditutup, perubahan LANGSUNG tampil di tabel/halaman Detail (optimistis).
+   2. Penyimpanan ke server berjalan di antrean (satu per satu, urutan terjaga) & dipantau di Log Tindakan.
+   3. Gagal -> tampilan dikembalikan ke data sebelumnya + tombol "Coba lagi" / "Perbaiki" di log.
+   4. Setelah antrean kosong, daftar diselaraskan diam-diam dengan server. */
+let katalogAntreSimpan = Promise.resolve();
+let katalogJumlahSimpanBerjalan = 0;
+function katalogSimpanEditLatar(job) {
+  const { payload, skuLama } = job;
+  if (!job.logId) job.logId = logTindakan.tambah(`Edit produk ${payload.sku}${skuLama && skuLama !== payload.sku ? ' (dari ' + skuLama + ')' : ''}`);
+  else logTindakan.ubah(job.logId, 'antre', 'Menunggu antrean...');
+  // Simpan kondisi SEBELUM perubahan (untuk dikembalikan kalau server menolak)
+  const obj = katalogProdukLokal(skuLama);
+  job.cadangan = {
+    obj, isiLama: obj ? JSON.parse(JSON.stringify(obj)) : null,
+    terhubung: katalogSkuTerhubungMap[skuLama], market: katalogSkuMarketplaceMap[skuLama], suppDetail: katalogSkuSupplierDetailMap[skuLama]
+  };
+  katalogTerapkanPetaSku(payload.sku, skuLama, job.daftarSkuSupplier, job.daftarMarketplace);
+  katalogTerapkanSimpanLokal(payload, skuLama, job.daftarMarketplace, katalogSkuDetailAktif); // tampil langsung
+  katalogJumlahSimpanBerjalan++;
+  katalogAntreSimpan = katalogAntreSimpan.then(() => katalogJalankanSimpanEdit(job)).catch(() => { });
+}
+
+function katalogTerapkanPetaSku(sku, skuLama, daftarSkuSupplier, daftarMarketplace) {
+  if (skuLama && skuLama !== sku) {
+    delete katalogSkuTerhubungMap[skuLama]; delete katalogSkuMarketplaceMap[skuLama]; delete katalogSkuSupplierDetailMap[skuLama];
+  }
+  katalogSkuTerhubungMap[sku] = daftarSkuSupplier.map(r => r.sku);
+  katalogSkuMarketplaceMap[sku] = daftarMarketplace.map(r => ({ skuMarketplace: r.sku, platform: r.platform }));
+  katalogSkuSupplierDetailMap[sku] = daftarSkuSupplier.map(r => ({ sku: r.sku, namaSupplier: r.namaSupplier }));
+}
+
+async function katalogJalankanSimpanEdit(job) {
+  const { payload, skuLama, logId } = job;
+  let pesanGagal = '';
+  try {
+    logTindakan.ubah(logId, 'proses', 'Menyimpan data produk...');
+    const data = await postJsonTulis({ aksi: 'edit_produk_master_lengkap', ...payload });
+    if (!data || !data.success) pesanGagal = katalogTeksGagal(data && data.error);
+    else {
+      logTindakan.ubah(logId, 'proses', 'Menyimpan SKU Supplier & Marketplace...');
+      try {
+        await postJsonTulis({ aksi: 'simpan_pemetaan_sku', skuJual: payload.sku, daftarSkuSupplier: job.daftarSkuSupplier, daftarMarketplace: job.daftarMarketplace, email: currentUserEmail() }, 30000);
+      } catch (errPemetaan) { /* produk utama sudah tersimpan - pemetaan gagal tidak menggagalkan proses */ }
+    }
+  } catch (err) {
+    pesanGagal = 'Gagal terhubung: ' + err.message;
+  }
+  katalogJumlahSimpanBerjalan = Math.max(0, katalogJumlahSimpanBerjalan - 1);
+
+  if (pesanGagal) {
+    katalogKembalikanSimpan(job);
+    logTindakan.ubah(logId, 'gagal', pesanGagal + ' - perubahan dibatalkan di layar.', [
+      { label: 'Coba lagi', fn: () => katalogSimpanEditLatar(job) },
+      { label: 'Perbaiki', fn: () => katalogPerbaikiDariLog(job) }
+    ]);
+    return;
+  }
+  hapusCacheTTL('daftar_kategori');
+  logTindakan.ubah(logId, 'ok', 'Tersimpan');
+  if (job.daftarSkuSupplier.length || job.daftarMarketplace.length) setTimeout(() => katalogSapuBersihLatar(), 1600); // auto-merge SKU tak bertuan
+  // Antrean kosong -> selaraskan diam-diam dengan server (tidak dilakukan saat masih ada perubahan menunggu,
+  // supaya data lama server tidak menimpa perubahan yang belum terkirim)
+  if (katalogJumlahSimpanBerjalan === 0) {
+    katalogFetchProduk({ segar: true }).then(ok => {
+      if (!ok || katalogJumlahSimpanBerjalan > 0) return;
+      const sku = katalogSkuDetailAktif;
+      const p = sku && katalogProdukLokal(sku);
+      if (katalogPunyaDetailLokal(p) && el('katalog-view-detail-produk').style.display !== 'none') katalogRenderDetail(katalogDetailDariLokal(p));
+    });
+  }
+}
+
+// Server menolak -> kembalikan tampilan ke data sebelum diedit
+function katalogKembalikanSimpan(job) {
+  const c = job.cadangan || {};
+  const skuBaru = job.payload.sku, skuLama = job.skuLama;
+  if (c.obj && c.isiLama) Object.assign(c.obj, c.isiLama);
+  else { const i = katalogProdukCache.findIndex(x => x.sku === skuBaru); if (i >= 0) katalogProdukCache.splice(i, 1); } // baris sementara
+  if (skuLama !== skuBaru) { delete katalogSkuTerhubungMap[skuBaru]; delete katalogSkuMarketplaceMap[skuBaru]; delete katalogSkuSupplierDetailMap[skuBaru]; }
+  const pulihkan = (peta, nilai) => { if (nilai === undefined) delete peta[skuLama]; else peta[skuLama] = nilai; };
+  pulihkan(katalogSkuTerhubungMap, c.terhubung); pulihkan(katalogSkuMarketplaceMap, c.market); pulihkan(katalogSkuSupplierDetailMap, c.suppDetail);
+  katalogSimpanCacheLokal();
+  katalogProdukRenderHalaman();
+  if (katalogSkuDetailAktif === skuBaru || katalogSkuDetailAktif === skuLama) {
+    katalogSkuDetailAktif = skuLama;
+    const p = katalogProdukLokal(skuLama);
+    if (katalogPunyaDetailLokal(p)) { katalogRenderDetail(katalogDetailDariLokal(p)); katalogMuatPemetaanSku(); }
+  }
+}
+
+// "Perbaiki": buka lagi modal Edit berisi isian yang tadi gagal disimpan
+function katalogPerbaikiDariLog(job) {
+  const p = job.payload;
+  katalogBukaModalEditProdukInti(job.skuLama).then(() => {
+    katalogKosongkanSpesifikasiDinamis();
+    katalogIsiFormEdit({
+      sku: p.sku, nama: p.namaProduk, brand: p.merk, kategori: p.kategori, urlSupplier: p.urlSupplier, urlFoto: p.urlFoto,
+      galeriFotoTambahan: p.galeriFotoTambahan, tipe: p.tipe, hargaDefault: p.harga, hargaSupplier: p.hargaSupplier,
+      material: p.material, volume: p.volume, warna: p.warna, berat: p.berat, dimensi: p.dimensi,
+      spesifikasiTambahan: p.spesifikasiTambahan, deskripsi: p.deskripsi, tampilWebsite: p.tampilWebsite,
+      channel: [...new Set(job.daftarMarketplace.map(r => r.platform))]
+    });
+    tpBarisSupplier = job.daftarSkuSupplier.map(r => ({ sku: r.sku, namaSupplier: r.namaSupplier }));
+    tpBarisMarketplace = job.daftarMarketplace.map(r => ({ platform: r.platform, sku: r.sku }));
+    tpRenderBarisSupplier();
+    tpRenderBarisMarketplace();
+    const item = document.getElementById(job.logId);
+    if (item) item.remove();
+  });
 }
 
 // Terapkan hasil Simpan (Tambah/Edit) ke cache lokal + render ulang lokal (tabel, card, halaman Detail)
@@ -17868,8 +18098,6 @@ async function katalogMuatPemetaanSku() {
     katalogRenderBarisSupplier();
     katalogRenderBarisMarketplace();
     el('katalog-pemetaan-status').textContent = '';
-    // Daftar nama supplier untuk dropdown: kalau belum ada, dimuat diam-diam lalu baris dirender ulang
-    if (katalogDaftarSupplierCache.length === 0) katalogMuatDaftarSupplier().then(() => { if (katalogSkuDetailAktif === sku) katalogRenderBarisSupplier(); });
     return;
   }
   katalogBarisSupplier = [];
@@ -17881,8 +18109,7 @@ async function katalogMuatPemetaanSku() {
   try {
     const [dataSupp, dataMarket] = await Promise.all([
       postJson({ aksi: 'lihat_sku_supplier_terhubung', skuJual: katalogSkuDetailAktif, email: currentUserEmail() }),
-      postJson({ aksi: 'lihat_sku_marketplace_terhubung', skuJual: katalogSkuDetailAktif, email: currentUserEmail() }),
-      katalogDaftarSupplierCache.length === 0 ? katalogMuatDaftarSupplier() : Promise.resolve()
+      postJson({ aksi: 'lihat_sku_marketplace_terhubung', skuJual: katalogSkuDetailAktif, email: currentUserEmail() })
     ]);
     if (dataSupp.success) katalogBarisSupplier = (dataSupp.daftar || []).map(d => ({ sku: d.skuSupplier, namaSupplier: d.namaSupplier || '' }));
     if (dataMarket.success) katalogBarisMarketplace = (dataMarket.daftar || []).map(d => ({ id: 'm' + (katalogMirrorCounter++), platform: d.platform, sku: d.skuMarketplace, mirrorGroup: null }));
@@ -17897,11 +18124,9 @@ async function katalogMuatPemetaanSku() {
 /* ---- Kelola Supplier: Kode SKU + Nama Supplier (dropdown, sama pola sama UI Marketplace) ---- */
 function katalogRenderBarisSupplier() {
   const wrap = el('katalog-baris-sku-supplier');
+  // Halaman Detail: tanpa dropdown nama supplier (nama supplier lama tetap ikut tersimpan)
   wrap.innerHTML = katalogBarisSupplier.map((r, idx) => `
     <div style="display:flex; gap:6px; align-items:center;">
-      <select class="web-form-input" style="margin:0; flex:none; width:120px; padding:8px 4px; font-size:11px;" onchange="katalogBarisSupplier[${idx}].namaSupplier = this.value">
-        ${katalogOpsiSupplierHtml(r.namaSupplier)}
-      </select>
       <input class="web-form-input kat-input-sku" style="margin:0; flex:1; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU Supplier" oninput="katalogBarisSupplier[${idx}].sku = this.value" />
       <button class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="katalogHapusBarisSupplier(${idx})">❌</button>
     </div>
