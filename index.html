@@ -736,6 +736,10 @@
     @page tt-page { margin: 3mm; } /* sengaja TANPA "size" - biar ikut 100% apa pun kertas yang dipilih di dialog print, nggak dipaksa ukuran tertentu */
     .tt-sheet { page: tt-page; }
     #print-invoice-pages, #print-label-pages { display: block !important; }
+    /* Cetak hanya dokumen yang dipilih (tombol Cetak di samping dokumen masing-masing) */
+    body.cetak-hanya-invoice #print-label-pages, body.cetak-hanya-label #print-invoice-pages { display: none !important; }
+    /* Pratinjau ramping di layar tidak ikut tercetak */
+    .pm-doc-baris, #screen-invoice-preview .title, #screen-invoice-preview .pm-subjudul, .mob-back, .pm-btn-sekunder { display: none !important; }
     header, .back-btn, .print-btn, .save-img-btn, .print-action-row,
     #screen-menu, .toolbar-row, .mode-badge, .tt-no-print-zone { display: none !important; }
     body, #app { background: #fff !important; max-width: none !important; }
@@ -2444,6 +2448,77 @@
   .wp-b-rk-sub { font-size: 11.5px; color: var(--web-text-dim, #6b7280); }
   .wp-b-rk-item { font-size: 12px; }
   .wp-b-rk-btn { align-self: flex-start; margin-top: 4px; }
+
+  /* ===== No Surat Jalan: tombol kamera tahan versi kecil ===== */
+  #mgm-sj-wrap .mgm-input-baris input { flex: 1; min-width: 0; text-align: left; font-size: 16px; }
+  .mgm-kamera-tahan.mgm-kamera-kecil { width: 46px; height: 46px; border-radius: 12px; }
+
+  /* ===== Detail Pesanan (mobile) - gaya disamakan dengan menu lain ===== */
+  #screen-pesanan-detail .section-box {
+    width: 100%; box-sizing: border-box; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  #screen-pesanan-detail .section-header { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: var(--text-dim); }
+  #screen-pesanan-detail .ubah-btn {
+    border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 700; background: transparent;
+    border: 1px solid var(--panel-border); color: var(--text);
+  }
+  #screen-pesanan-detail .detail-action-btn {
+    width: 100%; padding: 13px 16px; border-radius: 11px; font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: none;
+  }
+  #screen-pesanan-detail .btn-cetak { background: var(--keluar); color: #fff; border: none; }
+  #screen-pesanan-detail .btn-kirim-full { background: transparent; color: var(--text); border: 1.5px solid var(--panel-border); }
+  #screen-pesanan-detail .detail-status-line { width: 100%; display: flex; justify-content: center; }
+  .pm-detail-skel { width: 100%; display: none; flex-direction: column; gap: 6px; }
+  #screen-pesanan-detail.pm-memuat .section-box, #screen-pesanan-detail.pm-memuat .detail-action-btn,
+  #screen-pesanan-detail.pm-memuat #detail-kirim-batal-wrap, #screen-pesanan-detail.pm-memuat .detail-status-line { display: none !important; }
+
+  /* ===== Pratinjau Invoice & Label: dokumen ramping + tombol di kanan ===== */
+  .pm-doc-baris { width: 100%; display: flex; gap: 10px; align-items: flex-start; }
+  .pm-doc-kiri { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .pm-doc-label { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: var(--text-dim); text-transform: uppercase; }
+  .pm-doc-thumb {
+    position: relative; width: 100%; overflow: hidden; border-radius: 10px; background: #fff;
+    border: 1px solid var(--panel-border); box-shadow: 0 6px 18px rgba(0,0,0,0.18); min-height: 60px;
+  }
+  .pm-doc-skala { transform-origin: top left; pointer-events: none; }
+  .pm-doc-skala .print-sheet { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; min-height: 0 !important; }
+  .pm-doc-jumlah {
+    position: absolute; right: 6px; bottom: 6px; padding: 2px 7px; border-radius: 99px;
+    background: rgba(0,0,0,0.65); color: #fff; font-size: 10px; font-weight: 700;
+  }
+  .pm-doc-aksi { flex: 0 0 84px; display: flex; flex-direction: column; gap: 6px; padding-top: 18px; }
+  .pm-doc-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--panel-border); background: var(--panel); color: var(--text); font-family: inherit; font-size: 12px; font-weight: 700;
+  }
+  .pm-doc-btn span { font-size: 17px; line-height: 1; }
+  .pm-doc-btn:active { transform: scale(0.97); }
+  .pm-doc-btn-copy { background: var(--keluar); border-color: var(--keluar); color: #fff; }
+  .pm-doc-btn:disabled { opacity: 0.6; }
+  .pm-btn-sekunder {
+    width: 100%; padding: 12px 16px; border-radius: 11px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700;
+    color: var(--text); background: transparent; border: 1.5px dashed var(--panel-border);
+  }
+
+  /* ===== WEB form Buat Pesanan: saran pembeli + panel riwayat kanan ===== */
+  .wp-b-nama-wrap { position: relative; }
+  .wp-b-saran {
+    position: absolute; left: 0; right: 0; top: calc(100% - 6px); z-index: 50; max-height: 320px; overflow-y: auto;
+    background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e5e7eb); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,0.14);
+  }
+  .wp-b-saran-judul { padding: 8px 12px 4px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--web-text-dim, #6b7280); }
+  .wp-b-saran-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-top: 1px solid var(--web-border, #f1f1f1); }
+  .wp-b-saran-item span { color: var(--web-text-dim, #6b7280); font-size: 12px; }
+  .wp-b-saran-item:hover, .wp-b-saran-item.aktif { background: rgba(47,158,110,0.10); }
+  .wp-b-saran-alamat { font-size: 11.5px; color: var(--web-text-dim, #6b7280); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wp-b-riwayat-panel { flex: 0 0 300px !important; max-width: 300px; }
+  .wp-b-riwayat-panel .web-panel-header { display: flex; align-items: center; justify-content: space-between; }
+  button.wp-b-riwayat-kartu { text-align: left; background: var(--web-panel, #fff); color: inherit; font-family: inherit; cursor: pointer; width: 100%; }
+  button.wp-b-riwayat-kartu:hover:not(:disabled) { border-color: #2f9e6e; box-shadow: 0 0 0 3px rgba(47,158,110,0.12); }
+  button.wp-b-riwayat-kartu:disabled { cursor: default; }
+  .wp-b-rk-cta { align-self: flex-start; margin-top: 4px; font-size: 11.5px; font-weight: 800; color: #2f9e6e; }
+  @media (max-width: 1100px) { .wp-b-riwayat-panel { flex-basis: 100% !important; max-width: none; } }
 
   /* ===== Panel "Input Stock tanpa QR" (bottom sheet) ===== */
   body.mgm-tqr-terbuka { overflow: hidden; }
@@ -4228,21 +4303,35 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
     <!-- LAYAR PREVIEW & PRINT -->
     <div id="screen-invoice-preview" class="pm-screen" style="display:none;">
       <button type="button" class="mob-back" onclick="tutupPesananManual()" title="Kembali ke Menu"><svg class="mob-back-ikon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg><span>Kembali</span></button>
-      <div class="mode-badge" style="background:#3fa66b; color:#08150e;">✓ INVOICE DIBUAT</div>
+      <div class="title">Invoice &amp; Label</div>
+      <div class="pm-subjudul" id="pm-preview-subjudul"></div>
 
-      <div id="invoice-print-section" style="width:100%; display:flex; flex-direction:column; align-items:center; gap:10px;">
-        <div class="print-action-row">
-          <button class="print-btn" onclick="printElement('print-invoice-pages')">🖨️ Print</button>
-          <button class="save-img-btn" onclick="simpanSebagaiGambar('print-invoice-pages', 'Invoice')">💾 Simpan Gambar</button>
+      <!-- Dokumen ditampilkan ramping; tombol Cetak / Simpan / Copy di sebelah kanan dokumen -->
+      <div id="invoice-print-section" class="pm-doc-baris">
+        <div class="pm-doc-kiri">
+          <div class="pm-doc-label">Invoice</div>
+          <div class="pm-doc-thumb" id="pm-doc-thumb-invoice"></div>
+        </div>
+        <div class="pm-doc-aksi">
+          <button type="button" class="pm-doc-btn" onclick="printElement('print-invoice-pages')"><span aria-hidden="true">🖨️</span>Cetak</button>
+          <button type="button" class="pm-doc-btn" onclick="simpanSebagaiGambar('print-invoice-pages', 'Invoice')"><span aria-hidden="true">💾</span>Simpan</button>
+          <button type="button" class="pm-doc-btn pm-doc-btn-copy" onclick="pmCopyDokumen('print-invoice-pages', this)"><span aria-hidden="true">📋</span>Copy</button>
         </div>
       </div>
 
-      <div class="print-action-row">
-        <button class="print-btn" onclick="printElement('print-label-pages')">🖨️ Print</button>
-        <button class="save-img-btn" onclick="simpanSebagaiGambar('print-label-pages', 'Label')">💾 Simpan Gambar</button>
+      <div class="pm-doc-baris" id="label-print-section">
+        <div class="pm-doc-kiri">
+          <div class="pm-doc-label">Label Pengiriman</div>
+          <div class="pm-doc-thumb" id="pm-doc-thumb-label"></div>
+        </div>
+        <div class="pm-doc-aksi">
+          <button type="button" class="pm-doc-btn" onclick="printElement('print-label-pages')"><span aria-hidden="true">🖨️</span>Cetak</button>
+          <button type="button" class="pm-doc-btn" onclick="simpanSebagaiGambar('print-label-pages', 'Label')"><span aria-hidden="true">💾</span>Simpan</button>
+          <button type="button" class="pm-doc-btn pm-doc-btn-copy" onclick="pmCopyDokumen('print-label-pages', this)"><span aria-hidden="true">📋</span>Copy</button>
+        </div>
       </div>
 
-      <button class="back-btn" onclick="pesananBaruLagi()">➕ Buat Pesanan Baru</button>
+      <button type="button" class="pm-btn-sekunder" onclick="pesananBaruLagi()">+ Buat Pesanan Baru</button>
     </div>
 
     <!-- Daftar Pesanan pindah ke tab 2 layar Pesanan Manual. Placeholder ini dibiarkan untuk hideAllScreens(). -->
@@ -4251,8 +4340,10 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
     <!-- LAYAR DETAIL / EDIT PESANAN -->
     <div id="screen-pesanan-detail" class="pm-screen" style="display:none;">
       <button type="button" class="mob-back" onclick="kembaliKeDaftarPesanan()" title="Kembali ke Daftar"><svg class="mob-back-ikon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg><span>Kembali</span></button>
-      <div class="mode-badge" style="background:#e0a72e; color:#1a1204;" id="detail-invoice-badge"></div>
+      <div class="title">Detail Pesanan</div>
+      <div class="pm-subjudul" id="detail-invoice-badge"></div>
       <div class="detail-status-line" id="detail-status-line"></div>
+      <div class="pm-detail-skel" id="pm-detail-skel" aria-hidden="true"></div>
 
       <!-- ===== DATA PEMBELI (ringkas + tombol Ubah) ===== -->
       <div class="section-box">
@@ -4322,38 +4413,45 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 
       <div id="detail-kirim-batal-wrap" style="width:100%; display:flex; flex-direction:column; gap:8px;">
         <button class="detail-action-btn btn-kirim-full" id="btn-kirim-detail" onclick="bukaKirimPesanan()">🚚 Input Nomor Resi</button>
-        <button class="detail-action-btn btn-batal-full" id="btn-batal-detail" onclick="batalDariDetail()">✕ Batalkan</button>
+        <span id="btn-batal-detail" hidden></span><!-- tombol Batalkan dihapus: batal lewat geser kiri di Daftar Pesanan -->
       </div>
 
     </div>
 
-    <!-- LAYAR KIRIM: SCAN / INPUT RESI -->
-    <div id="screen-pesanan-kirim" style="display:none;">
-      <div class="mode-badge" style="background:#3fa66b; color:#08150e;">SCAN RESI PENGIRIMAN</div>
+    <!-- LAYAR KIRIM: INPUT NO RESI (kamera tahan, sama dengan menu lain) -->
+    <div id="screen-pesanan-kirim" class="pm-screen" style="display:none;">
+      <button type="button" class="mob-back" onclick="tutupKirimPesanan()" title="Kembali ke Detail Pesanan"><svg class="mob-back-ikon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg><span>Kembali</span></button>
+      <div class="title">Input No Resi</div>
+      <div class="pm-subjudul" id="kirim-subjudul"></div>
 
-      <div class="input-toggle" style="width:100%;">
-        <button class="toggle-btn active" id="toggle-manual-kirim" onclick="setKirimInputMode('manual')">⌨️ Alat/Ketik</button>
-        <button class="toggle-btn" id="toggle-camera-kirim" onclick="setKirimInputMode('camera')">📷 Kamera</button>
+      <div class="text-input-wrap mgm-input-kotak" id="kirim-input-wrap">
+        <div class="hint-text">Scan barcode resi pengiriman, atau ketik manual lalu Enter</div>
+        <div class="mgm-input-baris">
+          <input id="kirim-resi-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="No Resi" onkeydown="if(event.key==='Enter'){event.preventDefault(); konfirmasiKirim();}" />
+          <button type="button" class="mgm-kamera-tahan" id="kirim-kamera-tahan" aria-label="Tahan untuk scan resi pakai kamera" title="Tahan untuk scan pakai kamera"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.3" r="3.4"/></svg></button>
+        </div>
+        <div class="mgm-kamera-opsi">
+          <span class="mgm-kamera-petunjuk">Tahan 📷 untuk scan · lepas untuk menutup</span>
+          <button type="button" class="mgm-flash-toggle" role="switch" aria-checked="false" onclick="mgmToggleFlash()" title="Nyalakan flash otomatis tiap kamera dibuka">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
+            <span>Flash</span>
+            <span class="mgm-switch" aria-hidden="true"></span>
+          </button>
+        </div>
       </div>
 
-      <div class="text-input-wrap" id="kirim-input-wrap">
-        <div class="hint-text">Scan barcode/QR resi pengiriman, atau ketik manual</div>
-        <input id="kirim-resi-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="No Resi" />
-      </div>
-
-      <div class="cam-wrap" id="kirim-camera-wrap">
+      <div class="cam-wrap mgm-kamera-melayang" id="kirim-camera-wrap" style="display:none;" aria-live="polite">
         <div class="cam-frame">
           <video id="kirim-camera-video" playsinline autoplay muted></video>
           <div class="cam-guideline"></div>
           <button class="torch-btn" id="kirim-torch-btn" onclick="toggleKirimTorch()" style="display:none;">🔦</button>
-          <div class="cam-caption">Luruskan barcode dengan garis merah</div>
+          <div class="cam-caption">Arahkan ke barcode resi · lepas tombol untuk menutup</div>
         </div>
         <div class="cam-error" id="kirim-camera-error"></div>
       </div>
 
-      <button class="scan-action-btn" onclick="konfirmasiKirim()">✓ Konfirmasi Kirim</button>
+      <button type="button" class="mgm-btn-scan" onclick="konfirmasiKirim()">✓ Konfirmasi Kirim</button>
       <div class="status-text" id="kirim-status"></div>
-      <button class="back-btn" onclick="tutupKirimPesanan()">← Batal</button>
     </div>
 
     <!-- LAYAR TANDA TERIMA KURIR -->
@@ -4559,7 +4657,19 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 
       <div id="mgm-sj-wrap" class="text-input-wrap" style="display:none; width:100%; margin-top:4px;">
         <div class="hint-text">No Surat Jalan / Invoice Pembawaan (opsional)</div>
+        <div class="mgm-input-baris">
         <input id="mgm-no-sj" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: SJ-00123 / INV-SUP-889" oninput="try{localStorage.setItem('mgm_no_sj', this.value)}catch(e){}" />
+          <button type="button" class="mgm-kamera-tahan mgm-kamera-kecil" id="mgm-sj-kamera-tahan" aria-label="Tahan untuk scan No Surat Jalan pakai kamera" title="Tahan untuk scan pakai kamera"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.3" r="3.4"/></svg></button>
+        </div>
+        <div class="mgm-kamera-petunjuk" style="text-align:left;">Tahan 📷 untuk scan barcode surat jalan · flash ikut switch Flash di atas</div>
+      </div>
+      <div class="cam-wrap mgm-kamera-melayang" id="mgm-sj-camera-wrap" style="display:none;" aria-live="polite">
+        <div class="cam-frame">
+          <video id="mgm-sj-camera-video" playsinline autoplay muted></video>
+          <div class="cam-guideline"></div>
+          <div class="cam-caption">Arahkan ke barcode surat jalan · lepas tombol untuk menutup</div>
+        </div>
+        <div class="cam-error" id="mgm-sj-camera-error"></div>
       </div>
       <button class="back-btn" id="mgm-btn-submit" style="width:100%; background:#2f9e6e; color:#fff; border-color:#2f9e6e; margin-top:6px;" onclick="mgmSubmit()">Kirim Memo</button>
       <div class="status-text" id="mgm-status"></div>
@@ -5473,9 +5583,14 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           <div class="web-panel-row" style="margin-top:14px; align-items:flex-start;">
             <div class="web-panel" style="flex:1;">
               <div class="web-panel-header"><span>Data Pembeli</span></div>
-              <input id="wp-b-cari-pembeli" class="web-form-input" placeholder="🔍 Cari pembeli terdaftar (nama/HP)..." oninput="wpCariPembeli()" />
-              <div id="wp-b-hasil-cari" style="margin-bottom:8px;"></div>
-              <input id="wp-b-nama-pembeli" class="web-form-input" placeholder="Nama pembeli" />
+              <!-- Nama pembeli = kolom pencarian: klik -> saran pembeli sebelumnya, ketik -> cari nama / No HP -->
+              <input id="wp-b-cari-pembeli" type="hidden" />
+              <div id="wp-b-hasil-cari" style="display:none;"></div>
+              <div class="wp-b-nama-wrap">
+                <input id="wp-b-nama-pembeli" class="web-form-input" placeholder="Nama pembeli (klik untuk lihat pembeli sebelumnya)" autocomplete="off"
+                  onfocus="wpSaranPembeli()" oninput="wpSaranPembeli()" onkeydown="wpSaranKeydown(event)" onblur="setTimeout(wpTutupSaranPembeli, 180)" />
+                <div class="wp-b-saran" id="wp-b-saran-pembeli" role="listbox" style="display:none;"></div>
+              </div>
               <label style="font-size:12px; font-weight:600;">Toko</label>
               <select id="wp-b-toko" class="web-form-input">
                 <option value="Waterground">Waterground</option>
@@ -5510,14 +5625,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               </div>
             </div>
             <div class="web-panel" style="flex:1;">
-              <div class="wp-b-subtabs" role="tablist">
-                <button type="button" class="wp-b-subtab active" id="wp-b-subtab-produk" role="tab" onclick="wpBGantiSubtab('produk')">Produk</button>
-                <button type="button" class="wp-b-subtab" id="wp-b-subtab-riwayat" role="tab" onclick="wpBGantiSubtab('riwayat')">Daftar Pesanan Pembeli <span class="wp-b-badge" id="wp-b-riwayat-badge"></span></button>
-              </div>
-              <div id="wp-b-riwayat-wrap" style="display:none;">
-                <div class="wp-b-riwayat-ket" id="wp-b-riwayat-ket">Pilih / isi pembeli dulu untuk melihat pesanan sebelumnya.</div>
-                <div id="wp-b-riwayat-list" class="wp-b-riwayat-list"></div>
-              </div>
+              <div class="web-panel-header"><span>Produk</span></div>
               <div id="wp-b-produk-wrap">
               <div class="web-form-row">
                 <input id="wp-b-sku-input" class="web-form-input" placeholder="Ketik/scan SKU atau nama produk..." oninput="wpCariProdukLive()" onkeydown="if(event.key==='Enter'){event.preventDefault();wpTambahItemCart();}" style="margin-bottom:0;" />
@@ -5531,6 +5639,12 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               </table>
               <div class="web-detail-total" id="wp-b-total">Total: Rp 0</div>
               </div>
+            </div>
+            <!-- Riwayat Pembelian pembeli terpilih: klik kartu = Repeat Order (isi sama persis, tetap bisa diedit) -->
+            <div class="web-panel wp-b-riwayat-panel" id="wp-b-riwayat-panel" style="display:none;">
+              <div class="web-panel-header"><span>Riwayat Pembelian</span><span class="wp-b-badge" id="wp-b-riwayat-badge"></span></div>
+              <div class="wp-b-riwayat-ket" id="wp-b-riwayat-ket"></div>
+              <div id="wp-b-riwayat-list" class="wp-b-riwayat-list"></div>
             </div>
           </div>
           <button class="web-btn-primary" style="width:100%; margin-top:14px;" id="wp-btn-simpan-pesanan" onclick="wpSimpanPesananBaru()">💾 Simpan Pesanan</button>
@@ -14348,48 +14462,120 @@ async function wpMuatLaporan() {
   }
 }
 
-/* ===== WEB: tab "Daftar Pesanan Pembeli" di form Buat Pesanan (Repeat Order) ===== */
+/* ===== WEB: saran pembeli + panel Riwayat Pembelian (Repeat Order) di form Buat Pesanan ===== */
 let wpBRiwayat = [], wpBRiwayatKunci = '';
-function wpBGantiSubtab(tab) {
-  ['produk', 'riwayat'].forEach(t => el('wp-b-subtab-' + t).classList.toggle('active', t === tab));
-  el('wp-b-produk-wrap').style.display = tab === 'produk' ? 'block' : 'none';
-  el('wp-b-riwayat-wrap').style.display = tab === 'riwayat' ? 'block' : 'none';
-  if (tab === 'riwayat') wpBMuatRiwayat();
+let wpSaranData = [], wpSaranIdx = -1, wpSaranTimer = null, wpSaranSeq = 0;
+function wpBGantiSubtab() { /* tab lama (sudah diganti panel kanan) - dibiarkan agar pemanggil lama aman */ }
+
+// Pembeli terakhir dari daftar pesanan (tanpa request tambahan kalau sudah ada di cache)
+function wpPembeliTerakhir() {
+  const sumber = (wpListCache && wpListCache.length) ? wpListCache : (pmSnapBaca('daftar|' + currentUserEmail()) || []);
+  const sudah = new Set(), hasil = [];
+  pmUrutkanItems(sumber).forEach(it => {
+    const nama = String(it.namaPembeli || it.namaPenerima || '').trim();
+    if (!nama || it.status === 'Dibatalkan') return;
+    const k = nama.toLowerCase() + '|' + String(it.hpPembeli || it.hp || '');
+    if (sudah.has(k)) return;
+    sudah.add(k);
+    hasil.push({ nama, noHp: String(it.hpPembeli || it.hp || ''), alamat: String(it.alamat || ''), terakhir: it.tanggal });
+  });
+  return hasil.slice(0, 8);
 }
+
+function wpSaranPembeli() {
+  clearTimeout(wpSaranTimer);
+  const q = el('wp-b-nama-pembeli').value.trim();
+  if (!q) {
+    let daftar = wpPembeliTerakhir();
+    if (!daftar.length && !wpListCache.length) {
+      // Belum ada cache: ambil daftar pesanan sekali di latar, lalu tampilkan
+      wpRenderSaran(null, 'Memuat pembeli sebelumnya…');
+      postJson({ aksi: 'lihat_pesanan', email: currentUserEmail() }).then(d => {
+        if (d && d.success) { wpListCache = d.items || []; pmSnapSimpan('daftar|' + currentUserEmail(), wpListCache); }
+        if (!el('wp-b-nama-pembeli').value.trim() && document.activeElement === el('wp-b-nama-pembeli')) wpRenderSaran(wpPembeliTerakhir(), 'Pembeli terakhir');
+      }).catch(() => {});
+      return;
+    }
+    wpRenderSaran(daftar, 'Pembeli terakhir');
+    return;
+  }
+  if (q.length < 2) { wpRenderSaran(wpPembeliTerakhir().filter(p => p.nama.toLowerCase().includes(q.toLowerCase())), 'Cocok dengan "' + q + '"'); return; }
+  const seq = ++wpSaranSeq;
+  wpSaranTimer = setTimeout(async () => {
+    try {
+      const data = await postJson({ aksi: 'cari_pembeli', query: q, email: currentUserEmail() });
+      if (seq !== wpSaranSeq) return;
+      wpRenderSaran(data.success ? (data.hasil || []) : [], 'Hasil pencarian "' + q + '"');
+    } catch (err) {}
+  }, 250);
+}
+
+function wpRenderSaran(daftar, judul) {
+  const box = el('wp-b-saran-pembeli');
+  if (daftar === null) { box.innerHTML = `<div class="wp-b-saran-judul">${escapeHtml(judul)}</div>`; box.style.display = 'block'; return; }
+  wpSaranData = daftar || [];
+  wpSaranIdx = -1;
+  if (!wpSaranData.length) { box.style.display = 'none'; return; }
+  box.innerHTML = `<div class="wp-b-saran-judul">${escapeHtml(judul)}</div>` + wpSaranData.map((p, i) => `
+    <div class="wp-b-saran-item" role="option" data-i="${i}" onmousedown="event.preventDefault(); wpPilihSaran(${i})">
+      <b>${escapeHtml(p.nama)}</b>${p.noHp ? ` <span>· ${escapeHtml(p.noHp)}</span>` : ''}
+      ${p.alamat ? `<div class="wp-b-saran-alamat">${escapeHtml(p.alamat)}</div>` : ''}
+    </div>`).join('');
+  box.style.display = 'block';
+}
+function wpTutupSaranPembeli() { const b = el('wp-b-saran-pembeli'); if (b) b.style.display = 'none'; }
+function wpPilihSaran(i) {
+  const p = wpSaranData[i];
+  if (!p) return;
+  wpTutupSaranPembeli();
+  wpPilihPembeli(p.nama, p.alamat || '', p.noHp || '');
+}
+function wpSaranKeydown(e) {
+  const box = el('wp-b-saran-pembeli');
+  if (box.style.display === 'none' || !wpSaranData.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    wpSaranIdx = (wpSaranIdx + (e.key === 'ArrowDown' ? 1 : -1) + wpSaranData.length) % wpSaranData.length;
+    box.querySelectorAll('.wp-b-saran-item').forEach((x, i) => x.classList.toggle('aktif', i === wpSaranIdx));
+  } else if (e.key === 'Enter' && wpSaranIdx >= 0) { e.preventDefault(); wpPilihSaran(wpSaranIdx); }
+  else if (e.key === 'Escape') wpTutupSaranPembeli();
+}
+
 async function wpBMuatRiwayat() {
   const nama = el('wp-b-nama-pembeli').value.trim(), noHp = el('wp-b-nohp-pembeli').value.trim();
-  const ket = el('wp-b-riwayat-ket'), list = el('wp-b-riwayat-list');
-  if (!nama && !noHp) { wpBRiwayat = []; wpBRiwayatKunci = ''; el('wp-b-riwayat-badge').textContent = ''; list.innerHTML = ''; ket.textContent = 'Pilih / isi pembeli dulu untuk melihat pesanan sebelumnya.'; ket.style.display = 'block'; return; }
+  const panel = el('wp-b-riwayat-panel'), ket = el('wp-b-riwayat-ket'), list = el('wp-b-riwayat-list');
+  if (!nama && !noHp) { panel.style.display = 'none'; wpBRiwayat = []; wpBRiwayatKunci = ''; return; }
+  panel.style.display = 'block';
   const kunci = noHp + '|' + nama.toLowerCase();
   if (kunci === wpBRiwayatKunci) { wpBRenderRiwayat(); return; }
   wpBRiwayatKunci = kunci;
   const snap = pmSnapBaca('riwayat|' + kunci);
   if (snap) { wpBRiwayat = pmUrutkanItems(snap); wpBRenderRiwayat(); }
-  else { ket.style.display = 'none'; pmSkeleton(list, 3, 'Memuat pesanan sebelumnya…'); }
+  else { ket.style.display = 'none'; pmSkeleton(list, 3, 'Memuat riwayat pembelian…'); }
   try {
     const data = await postJson({ aksi: 'riwayat_pesanan_pembeli', noHp, nama, email: currentUserEmail() });
     if (kunci !== wpBRiwayatKunci) return;
     if (data.success) { wpBRiwayat = pmUrutkanItems(data.items); pmSnapSimpan('riwayat|' + kunci, wpBRiwayat); }
-    else if (!snap) { wpBRiwayat = []; }
+    else if (!snap) wpBRiwayat = [];
   } catch (e) { if (!snap) wpBRiwayat = []; }
   if (kunci !== wpBRiwayatKunci) return;
-  list.classList.remove('rl-skel');
   wpBRenderRiwayat();
 }
 function wpBRenderRiwayat() {
   const ket = el('wp-b-riwayat-ket'), list = el('wp-b-riwayat-list');
   list.classList.remove('rl-skel'); list.style.display = '';
   el('wp-b-riwayat-badge').textContent = wpBRiwayat.length || '';
-  if (!wpBRiwayat.length) { list.innerHTML = ''; ket.textContent = 'Belum ada pesanan sebelumnya dari pembeli ini.'; ket.style.display = 'block'; return; }
-  ket.style.display = 'none';
+  if (!wpBRiwayat.length) { list.innerHTML = ''; ket.textContent = 'Belum ada pembelian sebelumnya - pembeli baru.'; ket.style.display = 'block'; return; }
+  ket.textContent = 'Klik salah satu pesanan untuk Repeat Order (produk, kurir & ongkir terisi sama persis, tetap bisa diubah).';
+  ket.style.display = 'block';
   const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
   list.innerHTML = wpBRiwayat.map((o, i) => `
-    <div class="wp-b-riwayat-kartu${o.status === 'Dibatalkan' ? ' wp-lap-batal' : ''}">
+    <button type="button" class="wp-b-riwayat-kartu${o.status === 'Dibatalkan' ? ' wp-lap-batal' : ''}" onclick="wpBRepeatOrder(${i})" ${o.items.length ? '' : 'disabled'} title="Repeat Order ${pgrAttr(o.noInvoice)}">
       <div class="wp-b-rk-baris"><b>${escapeHtml(o.noInvoice)}</b><span>${rp(o.total)}</span></div>
       <div class="wp-b-rk-sub">${escapeHtml(o.tanggal)}${o.kurir ? ' · ' + escapeHtml(o.kurir) : ''}${o.ongkosKirim ? ' · ongkir ' + rp(o.ongkosKirim) : ''} · ${escapeHtml(o.status)}</div>
       <div class="wp-b-rk-item">${o.items.map(it => `${it.qty}× ${escapeHtml(it.nama || it.sku)}`).join(', ') || '<i>Tanpa rincian produk</i>'}</div>
-      ${o.items.length ? `<button type="button" class="web-btn-secondary wp-b-rk-btn" onclick="wpBRepeatOrder(${i})">🔁 Repeat Order</button>` : ''}
-    </div>`).join('');
+      ${o.items.length ? '<span class="wp-b-rk-cta">🔁 Repeat Order</span>' : ''}
+    </button>`).join('');
 }
 function wpBRepeatOrder(i) {
   const o = wpBRiwayat[i];
@@ -14400,7 +14586,7 @@ function wpBRepeatOrder(i) {
   if (o.kurir) el('wp-b-kurir').value = opsi.includes(o.kurir) ? o.kurir : 'Lainnya';
   el('wp-b-ongkir').value = o.ongkosKirim || '';
   el('wp-b-biaya').value = o.biayaLainnya || '';
-  wpBGantiSubtab('produk');
+  if (o.alamat && !el('wp-b-alamat').value.trim()) el('wp-b-alamat').value = o.alamat;
   wpRenderCart();
   playBeep();
   el('wp-b-sku-status').textContent = '✓ Repeat Order dari ' + o.noInvoice + ' - produk & ongkir disalin, masih bisa diubah.';
@@ -14411,7 +14597,9 @@ function wpBukaFormBaru() {
   wpBRiwayat = []; wpBRiwayatKunci = '';
   el('wp-b-riwayat-badge').textContent = '';
   el('wp-b-riwayat-list').innerHTML = '';
-  wpBGantiSubtab('produk');
+  el('wp-b-riwayat-panel').style.display = 'none';
+  wpTutupSaranPembeli();
+  setTimeout(() => { if (el('wp-view-buat').style.display !== 'none') el('wp-b-nama-pembeli').focus(); }, 80);
   el('wp-b-cari-pembeli').value = '';
   el('wp-b-hasil-cari').innerHTML = '';
   el('wp-b-nama-pembeli').value = '';
@@ -29613,7 +29801,7 @@ function setInputMode(mode) {
   if (!kameraTahanScan) {
     kameraTahanScan = buatKameraTahan({
       btnId: 'scan-kamera-tahan', wrapId: 'camera-wrap', videoId: 'camera-video', errorId: 'camera-error',
-      onHasil: teks => { if (teks) scanMasukAntrean(teks); el('scan-input').focus(); }
+      onHasil: teks => { if (teks) scanMasukAntrean(teks); scanTutupKeyboard(); }
     });
     kameraTahanScan.pasang();
   }
@@ -29621,7 +29809,8 @@ function setInputMode(mode) {
   el('scan-input-wrap').style.display = 'flex';
   el('camera-wrap').style.display = 'none';
   el('scan-action-btn').style.display = 'flex';
-  el('scan-input').focus();
+  scanModeKetik = false;
+  scanFokus();
 }
 
 /* ============================================================
@@ -29842,7 +30031,7 @@ function handleScanBtn() {
   if (inputMode === 'manual') {
     const val = el('scan-input').value.trim();
     if (val) { scanMasukAntrean(val); el('scan-input').value = ''; }
-    el('scan-input').focus();
+    scanTutupKeyboard();
   } else {
     stopCamera();
     startCamera();
@@ -29852,7 +30041,7 @@ function handleScanBtn() {
 el('scan-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const val = el('scan-input').value.trim();
-    if (val) { scanMasukAntrean(val); el('scan-input').value = ''; }
+    if (val) { scanMasukAntrean(val); el('scan-input').value = ''; scanTutupKeyboard(); }
     e.preventDefault();
   }
 });
@@ -31058,14 +31247,45 @@ function stopLoadingDots(elemen) {
   }
 }
 
+/* ===== Scan Resi: fokus TANPA keyboard =====
+   Kolom scan selalu siap menerima scanner (fokus), tapi keyboard HP tidak muncul (inputmode="none"),
+   supaya daftar resi yang sedang diupload tidak tertutup. Keyboard baru muncul kalau staff sengaja
+   TAP kolom input untuk mengetik manual; setelah resi dikirim, keyboard otomatis ditutup lagi. */
+let scanModeKetik = false;
+function scanFokus() {
+  const inp = el('scan-input');
+  if (!inp) return;
+  if (!scanModeKetik) inp.setAttribute('inputmode', 'none');
+  if (document.activeElement !== inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }
+}
+function scanTutupKeyboard() {
+  const inp = el('scan-input');
+  if (!inp) return;
+  scanModeKetik = false;
+  inp.setAttribute('inputmode', 'none');
+  inp.blur();
+  setTimeout(() => { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }, 60);
+}
+(function () {
+  const inp = el('scan-input');
+  if (!inp) return;
+  inp.setAttribute('inputmode', 'none');
+  inp.addEventListener('pointerdown', () => {
+    if (scanModeKetik) return;
+    scanModeKetik = true; // staff mau mengetik manual -> izinkan keyboard
+    inp.setAttribute('inputmode', 'text');
+    if (document.activeElement === inp) { inp.blur(); setTimeout(() => inp.focus(), 0); }
+  });
+})();
+
 document.addEventListener('click', () => {
   if (el('app').style.display === 'none') return; // lagi di mode web, bukan mobile - jangan ganggu
-  if (el('screen-scan').style.display === 'flex' && inputMode === 'manual') el('scan-input').focus();
+  if (el('screen-scan').style.display === 'flex' && inputMode === 'manual') scanFokus();
 });
 setInterval(() => {
   if (el('app').style.display === 'none') return; // lagi di mode web, bukan mobile - jangan ganggu
   if (el('screen-scan').style.display === 'flex' && inputMode === 'manual' && document.activeElement !== el('scan-input')) {
-    el('scan-input').focus();
+    scanFokus();
   }
 }, 1500);
 
@@ -31347,6 +31567,19 @@ function bukaMemoGudangMobile() {
   hideAllScreens();
   el('screen-memo-gudang').style.display = 'flex';
   mgmPasangTombolKameraTahan();
+  if (!kameraTahanSj) {
+    kameraTahanSj = buatKameraTahan({
+      btnId: 'mgm-sj-kamera-tahan', wrapId: 'mgm-sj-camera-wrap', videoId: 'mgm-sj-camera-video', errorId: 'mgm-sj-camera-error',
+      onHasil: teks => {
+        if (!teks) return;
+        el('mgm-no-sj').value = teks;
+        try { localStorage.setItem('mgm_no_sj', teks); } catch (e) {}
+        playBeep();
+        pgrToast('No Surat Jalan terisi: ' + teks);
+      }
+    });
+    kameraTahanSj.pasang();
+  }
   mgmRenderFlashToggle();
   mgmGantiTab('mintastock');
   // Siapkan data di latar SEKALI saat layar dibuka - scan pertama nggak perlu nunggu server
@@ -31357,6 +31590,7 @@ function bukaMemoGudangMobile() {
 // Katalog dimuat SEKALI & dipakai bersama. Dulu tiap ketikan di input memanggil katalogFetchProduk()
 // (4 request berat) kalau katalog masih kosong -> puluhan request paralel antre & semuanya jadi lambat.
 let mgmKatalogJanji = null;
+let kameraTahanSj = null;
 function mgmPastikanKatalog() {
   if (katalogProdukCache.length) return Promise.resolve();
   if (!mgmKatalogJanji) {
@@ -33566,9 +33800,86 @@ function buatLogoKurir(kurir) {
 
 // Panggil ini setiap kali mau nampilin layar preview invoice/label di MOBILE -
 // perlu eksplisit nampilin dulu, karena default-nya disembunyikan (biar nggak bocor ke tampilan web)
+// Dokumen asli (#print-invoice-pages / #print-label-pages) tetap tersembunyi - dipakai untuk Cetak/Simpan/Copy.
+// Yang tampil di layar adalah pratinjau ramping (salinan diperkecil) di samping tombol aksi.
 function tampilkanKontenPrintMobile() {
-  el('print-invoice-pages').style.display = 'block';
-  el('print-label-pages').style.display = 'block';
+  el('print-invoice-pages').style.display = 'none';
+  el('print-label-pages').style.display = 'none';
+  const info = pmPreviewInfo || {};
+  el('pm-preview-subjudul').textContent = info.noInvoice ? (info.noInvoice + ' · ' + (info.nama || '') + (info.total !== undefined ? ' · ' + pmRpKoma(info.total) : '')) : '';
+  pmRenderThumbDokumen('print-invoice-pages', 'pm-doc-thumb-invoice', 'invoice-print-section');
+  pmRenderThumbDokumen('print-label-pages', 'pm-doc-thumb-label', 'label-print-section');
+}
+
+const PM_DOC_LEBAR_ASLI = 400; // px - lebar render dokumen sebelum diperkecil ke kolom pratinjau
+let pmPreviewInfo = null;
+const INFO_TRANSFER_PM = 'BCA 5490556020 an ANY'; // rekening yang ditulis saat tombol Copy ditekan
+
+function pmRpKoma(n) { return 'Rp. ' + Math.round(Number(n) || 0).toLocaleString('en-US') + ',-'; }
+
+function pmRenderThumbDokumen(sumberId, thumbId, barisId) {
+  const sumber = el(sumberId), thumb = el(thumbId), baris = el(barisId);
+  const lembar = sumber ? sumber.querySelectorAll('.print-sheet') : [];
+  if (!lembar.length) { if (baris) baris.style.display = 'none'; return; }
+  baris.style.display = 'flex';
+  thumb.innerHTML = `<div class="pm-doc-skala" style="width:${PM_DOC_LEBAR_ASLI}px">${sumber.innerHTML}</div>` +
+    (lembar.length > 1 ? `<span class="pm-doc-jumlah">${lembar.length} lembar</span>` : '');
+  requestAnimationFrame(() => {
+    const skala = thumb.querySelector('.pm-doc-skala');
+    if (!skala) return;
+    const k = thumb.clientWidth / PM_DOC_LEBAR_ASLI;
+    skala.style.transform = `scale(${k})`;
+    thumb.style.height = Math.ceil(skala.offsetHeight * k) + 'px';
+  });
+  thumb.onclick = null;
+}
+
+// Gambar dokumen asli (dirender sementara di luar layar, lebar tetap) -> canvas
+async function pmKanvasDokumen(sumberId) {
+  if (!window.html2canvas) throw new Error('Library gambar gagal dimuat - cek koneksi internet.');
+  const sumber = el(sumberId);
+  const gaya = { display: sumber.style.display, position: sumber.style.position, left: sumber.style.left, top: sumber.style.top, width: sumber.style.width };
+  Object.assign(sumber.style, { display: 'block', position: 'absolute', left: '-10000px', top: '0px', width: PM_DOC_LEBAR_ASLI + 'px' });
+  try {
+    return await html2canvas(sumber, { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0, windowWidth: PM_DOC_LEBAR_ASLI + 40 });
+  } finally {
+    Object.assign(sumber.style, gaya);
+  }
+}
+
+// Tombol Copy: salin GAMBAR dokumen + teks tagihan sekaligus ke clipboard
+async function pmCopyDokumen(sumberId, btn) {
+  const info = pmPreviewInfo || dapatkanInfoOrderUntukFile() || {};
+  const nama = String(info.nama || info.namaPenerima || '').trim().toUpperCase();
+  const teks = `No ${info.noInvoice || ''} ${nama} Total ${pmRpKoma(info.total)} Silahkan ditransfer ke ${INFO_TRANSFER_PM}`.replace(/\s+/g, ' ').trim();
+  const labelAwal = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span aria-hidden="true">⏳</span>Menyalin'; }
+  const selesai = (ok, pesan) => {
+    if (btn) { btn.disabled = false; btn.innerHTML = ok ? '<span aria-hidden="true">✓</span>Tersalin' : labelAwal; if (ok) setTimeout(() => { btn.innerHTML = labelAwal; }, 1800); }
+    pgrToast(pesan);
+    if (ok) playBeep();
+  };
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      // Promise langsung dimasukkan ke ClipboardItem (wajib di Safari/iPhone agar masih dihitung "gesture" user)
+      const blobGambar = pmKanvasDokumen(sumberId).then(c => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('Gagal membuat gambar')), 'image/png')));
+      await navigator.clipboard.write([new ClipboardItem({
+        'image/png': blobGambar,
+        'text/plain': new Blob([teks], { type: 'text/plain' })
+      })]);
+      selesai(true, 'Gambar + teks tagihan disalin. Tempel di WhatsApp / chat.');
+      return;
+    }
+    throw new Error('Browser belum mendukung salin gambar');
+  } catch (err) {
+    // Cadangan: salin teksnya saja
+    try {
+      await navigator.clipboard.writeText(teks);
+      selesai(true, 'Teks tagihan disalin (salin gambar tidak didukung browser ini - pakai Simpan untuk gambarnya).');
+    } catch (e2) {
+      selesai(false, 'Gagal menyalin: ' + (err.message || e2.message));
+    }
+  }
 }
 
 function tampilkanPreviewInvoice(data) {
@@ -33616,6 +33927,7 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
   const diskon = order.diskon || 0;
   const pajak = order.pajak || 0;
   const totalAkhir = order.total || (subtotalProduk + ongkir + biayaLain - diskon + pajak);
+  pmPreviewInfo = { noInvoice: order.noInvoice, nama: order.namaPembeli || order.namaPenerima, namaPenerima: order.namaPenerima, total: totalAkhir };
   const kurir = order.kurir || '-';
   const noResi = order.noResi || '';
 
@@ -33835,12 +34147,17 @@ function printElement(elementId) {
   } else {
     invoiceEl.style.display = 'none';
   }
+  document.body.classList.remove('cetak-hanya-invoice', 'cetak-hanya-label');
+  document.body.classList.add(elementId === 'print-invoice-pages' ? 'cetak-hanya-invoice' : 'cetak-hanya-label');
 
   window.print();
 
   window.onafterprint = () => {
-    invoiceEl.style.display = '';
-    labelEl.style.display = '';
+    // Di layar pratinjau mobile dokumen asli memang tersembunyi (yang tampil salinan ramping)
+    const diPratinjau = el('screen-invoice-preview') && el('screen-invoice-preview').style.display === 'flex';
+    invoiceEl.style.display = diPratinjau ? 'none' : '';
+    labelEl.style.display = diPratinjau ? 'none' : '';
+    document.body.classList.remove('cetak-hanya-invoice', 'cetak-hanya-label');
     window.onafterprint = null;
   };
 }
@@ -34523,14 +34840,16 @@ async function bukaDetailPesanan(row) {
     isiFormDetail(cache);
     el('screen-pesanan-detail').classList.add('pm-memperbarui');
   } else {
-    el('detail-invoice-badge').textContent = dariList ? dariList.noInvoice + ' — memuat…' : 'Memuat…';
+    el('detail-invoice-badge').textContent = dariList ? dariList.noInvoice + ' · memuat…' : 'Memuat…';
     el('screen-pesanan-detail').classList.add('pm-memuat');
+    pmSkeleton(el('pm-detail-skel'), 3, 'Memuat detail pesanan…');
   }
 
   try {
     const data = await postJson({ aksi: 'detail_pesanan', row: row, email: currentUserEmail() });
     if (currentDetailRow !== row) return;
     el('screen-pesanan-detail').classList.remove('pm-memperbarui', 'pm-memuat');
+    pmSkeletonTutup(el('pm-detail-skel'));
     if (!data.success) {
       if (cache) return;
       alert('Gagal memuat detail: ' + (data.error || 'error tidak diketahui'));
@@ -34542,6 +34861,7 @@ async function bukaDetailPesanan(row) {
     isiFormDetail(data.order);
   } catch (err) {
     el('screen-pesanan-detail').classList.remove('pm-memperbarui', 'pm-memuat');
+    pmSkeletonTutup(el('pm-detail-skel'));
     if (cache) return;
     alert('Gagal terhubung: ' + err.message);
     kembaliKeDaftarPesanan();
@@ -35004,64 +35324,28 @@ function cetakTandaTerima() {
   playBeep();
 }
 
+// Tab Kamera dihapus: input No Resi = Alat/Ketik + tombol kamera TAHAN (sama dengan menu lain)
+let kameraTahanKirim = null;
 function setKirimInputMode(mode) {
-  kirimInputMode = mode;
-  el('toggle-manual-kirim').classList.toggle('active', mode === 'manual');
-  el('toggle-camera-kirim').classList.toggle('active', mode === 'camera');
-  if (mode === 'manual') {
-    stopKirimCamera();
-    el('kirim-input-wrap').style.display = 'flex';
-    el('kirim-camera-wrap').style.display = 'none';
-    el('kirim-resi-input').focus();
-  } else {
-    el('kirim-input-wrap').style.display = 'none';
-    el('kirim-camera-wrap').style.display = 'flex';
-    startKirimCamera();
+  kirimInputMode = 'manual';
+  if (!kameraTahanKirim) {
+    kameraTahanKirim = buatKameraTahan({
+      btnId: 'kirim-kamera-tahan', wrapId: 'kirim-camera-wrap', videoId: 'kirim-camera-video', errorId: 'kirim-camera-error',
+      onHasil: teks => { if (!teks) return; el('kirim-resi-input').value = teks; playBeep(); }
+    });
+    kameraTahanKirim.pasang();
   }
+  kameraTahanKirim.lepas(false);
+  mgmRenderFlashToggle();
+  const o = currentDetailOrder;
+  el('kirim-subjudul').textContent = o ? (o.noInvoice + ' · ' + (o.namaPenerima || '') + (o.kurir ? ' · ' + o.kurir : '')) : '';
+  el('kirim-resi-input').focus();
 }
 
-async function startKirimCamera() {
-  el('kirim-camera-error').textContent = '';
-  el('kirim-torch-btn').style.display = 'none';
-  kirimTorchOn = false;
-  if (!window.ZXing) { el('kirim-camera-error').textContent = '⚠️ Library kamera gagal dimuat.'; return; }
-  try {
-    kirimZxingReader = new ZXing.BrowserMultiFormatReader();
-    const videoEl = el('kirim-camera-video');
-    await kirimZxingReader.decodeFromConstraints(
-      { video: { facingMode: 'environment' } },
-      videoEl,
-      (result) => {
-        if (result) {
-          el('kirim-resi-input').value = result.getText();
-          playBeep();
-          if (navigator.vibrate) navigator.vibrate(80);
-          setKirimInputMode('manual');
-        }
-      }
-    );
-    try {
-      const stream = videoEl.srcObject;
-      kirimCurrentTrack = stream.getVideoTracks()[0];
-      const caps = kirimCurrentTrack.getCapabilities ? kirimCurrentTrack.getCapabilities() : {};
-      if (caps.torch) el('kirim-torch-btn').style.display = 'flex';
-    } catch (capErr) {}
-  } catch (err) {
-    el('kirim-camera-error').textContent = '⚠️ Tidak bisa akses kamera: ' + err.message;
-  }
-}
-
-async function toggleKirimTorch() {
-  if (!kirimCurrentTrack) return;
-  try {
-    kirimTorchOn = !kirimTorchOn;
-    await kirimCurrentTrack.applyConstraints({ advanced: [{ torch: kirimTorchOn }] });
-    el('kirim-torch-btn').classList.toggle('active', kirimTorchOn);
-  } catch (e) {}
-}
+function toggleKirimTorch() { mgmToggleFlash(); }
 
 function stopKirimCamera() {
-  if (kirimZxingReader) { try { kirimZxingReader.reset(); } catch (e) {} kirimZxingReader = null; }
+  if (kameraTahanKirim) kameraTahanKirim.lepas(false);
   kirimCurrentTrack = null;
   kirimTorchOn = false;
 }
