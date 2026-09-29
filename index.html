@@ -3101,6 +3101,21 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 .per-kartu-grid .sub { font-size: 10.5px; color: var(--web-text-dim); margin-top: 2px; }
 .so-wrap { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 340px); gap: 14px; align-items: start; }
 .so-panel { padding: 16px 18px !important; }
+.so-cart-sku { display: flex; align-items: center; gap: 8px; }
+.so-cart-sku img, .so-cart-sku .per-foto-kosong { width: 34px; height: 34px; border-radius: 7px; object-fit: cover; flex: none; }
+.so-jam { font-size: 10.5px; color: var(--web-text-dim); margin-top: 3px; white-space: nowrap; }
+.so-cart-table input.so-qty { width: 100%; max-width: 130px; font-size: 15px; font-weight: 700; }
+.so-cart-table tr.so-flash td { animation: wpSorot 1.6s ease-out; }
+.so-cart-table tr.so-row-gagal td { background: #fffaf1; }
+.so-hasil-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; max-height: 320px; overflow-y: auto; }
+.so-hasil-baris { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--web-border); }
+.so-hasil-baris small { display: block; font-size: 10.5px; color: var(--web-text-dim); font-weight: 500; }
+.so-hasil-baris .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.so-hasil-baris .num small { display: inline; }
+/* Foto kecil di Monitor Stok */
+.per-col-foto { width: 46px; }
+.per-foto .tabel-thumb { width: 34px; height: 34px; }
+.per-foto-kosong { width: 34px; height: 34px; border-radius: 7px; background: var(--web-bg); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; opacity: .6; }
 .so-cara { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
 .so-cara-step { flex: 1; min-width: 130px; font-size: 11.5px; color: var(--web-text-dim); background: var(--web-bg); border-radius: 8px; padding: 7px 9px; display: flex; align-items: center; gap: 7px; }
 .so-cara-step span { flex: none; width: 19px; height: 19px; border-radius: 50%; background: var(--web-accent); color: #fff; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
@@ -7088,7 +7103,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
                 <button class="per-chip" data-permonf="minus" onclick="perMonSetFilter('minus')">Minus</button>
                 <button class="per-chip" data-permonf="reserve" onclick="perMonSetFilter('reserve')">Ada Reserve</button>
                 <button class="per-chip" data-permonf="order" onclick="perMonSetFilter('order')">Ada On Order</button>
-                <button class="per-chip" data-permonf="master" onclick="perMonSetFilter('master')">⚠️ Belum Master</button>
+                <button class="per-chip" data-permonf="master" onclick="perMonSetFilter('master')" title="Kode dari supplier/marketplace yang BELUM terhubung ke SKU Gudang mana pun - daftarkan / hubungkan supaya stoknya ikut ke SKU Gudang">⚠️ Kode Belum Terhubung</button>
               </div>
               <button class="web-btn-secondary per-btn-kecil per-btn-bulk" id="per-mon-btn-bulk" onclick="perMonToggleBulk()" title="Tampilkan kotak centang untuk mendaftarkan banyak SKU ⚠️ sekaligus">☑️ Pilih Massal</button>
               <button class="web-btn-secondary per-btn-kecil" onclick="perFetchMonitorStok(true)">↻ Muat Ulang</button>
@@ -7099,7 +7114,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <table class="web-table per-pilar-table" id="per-mon-table">
                 <thead><tr>
                   <th class="bulk-col"><input type="checkbox" id="per-mon-cb-all" class="bulk-cb-all" title="Pilih semua SKU ⚠️ (sesuai filter & pencarian aktif)" onchange="perMonPilihSemua(this.checked)" /></th>
-                  <th>SKU</th><th>Nama Produk</th>
+                  <th>SKU Gudang</th><th class="per-col-foto">Foto</th><th>Nama Produk</th>
                   <th class="num" title="Fisik riil di gudang (Qty Opname + Masuk - Keluar sejak detik opname)">On Hand</th>
                   <th class="num" title="Invoice pembelian belum divalidasi + sisa Purchase Order">On Order</th>
                   <th class="num" title="Pesanan masuk yang resinya BELUM discan keluar">On Reserve</th>
@@ -7245,7 +7260,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <button class="web-chart-toggle-btn active" id="mg-tab-mintastock" onclick="mgGantiTab('mintastock')">Minta Stock</button>
             <button class="web-chart-toggle-btn" id="mg-tab-barangmasuk" onclick="mgGantiTab('barangmasuk')">Catat Barang Masuk</button>
             <button class="web-chart-toggle-btn" id="mg-tab-hilangrusak" onclick="mgGantiTab('hilangrusak')">Lapor Hilang/Rusak</button>
-            <button class="web-chart-toggle-btn" id="mg-tab-stockopname" onclick="mgGantiTab('stockopname')">Stock Opname</button>
+            <button class="web-chart-toggle-btn" id="mg-tab-stockopname" onclick="mgGantiTab('stockopname')">Riwayat Stock Opname</button>
           </div>
 
           <!-- ===== TAB: MINTA STOCK ===== -->
@@ -7567,31 +7582,36 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 
           <div class="so-wrap">
             <div class="web-panel so-panel">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div style="font-size:13px; font-weight:700;">Keranjang Stock Opname</div>
+                <div style="font-size:11.5px; color:var(--web-text-dim);"><span id="so-cart-jumlah">0</span> SKU</div>
+              </div>
               <div class="so-cara">
-                <div class="so-cara-step"><span>1</span>Scan / ketik SKU</div>
-                <div class="so-cara-step"><span>2</span>Hitung fisik di rak</div>
-                <div class="so-cara-step"><span>3</span>Rekam — sistem kunci detiknya</div>
+                <div class="so-cara-step"><span>1</span>Scan / ketik SKU → masuk keranjang</div>
+                <div class="so-cara-step"><span>2</span>Hitung fisik, isi Qty — jam hitung terkunci</div>
+                <div class="so-cara-step"><span>3</span>Rekam Semua sekaligus</div>
               </div>
-
-              <label class="so-label" for="so-input-sku">SKU</label>
-              <div style="position:relative;">
-                <input id="so-input-sku" class="web-form-input so-input" autocomplete="off" placeholder="Scan barcode / ketik SKU atau nama produk..."
+              <div class="mg-input-row">
+                <input id="so-input-sku" class="web-form-input" autocomplete="off" style="margin:0;" placeholder="Scan barcode / ketik SKU atau nama produk, lalu Enter..."
                   oninput="soCariProdukLive()" onkeydown="soSkuKeydown(event)" />
-                <div id="so-saran" class="mg-saran-produk" style="display:none;"></div>
+                <button class="mg-btn-kamera" onclick="mgBukaKamera('opname')" title="Scan pakai kamera">📷 Kamera</button>
               </div>
-              <div id="so-produk-terpilih" class="so-produk" style="display:none;"></div>
+              <div id="so-saran" class="mg-saran-produk" style="display:none;"></div>
 
-              <label class="so-label" for="so-input-qty">Qty Fisik Aktual</label>
-              <input id="so-input-qty" class="web-form-input so-input so-input-qty" type="number" inputmode="numeric" min="0" step="any" placeholder="0"
-                onkeydown="if(event.key==='Enter'){event.preventDefault(); soRekam();}" />
+              <div class="web-table-wrap" style="margin-top:12px; max-height:460px;">
+                <table class="web-table mg-cart-table so-cart-table">
+                  <thead><tr><th>SKU Gudang</th><th style="width:160px;">Qty Fisik</th><th>Catatan</th><th></th></tr></thead>
+                  <tbody id="so-cart-body"></tbody>
+                </table>
+              </div>
+              <div class="web-placeholder" id="so-cart-empty">Keranjang masih kosong - scan/ketik SKU di atas buat mulai.</div>
 
-              <label class="so-label" for="so-input-catatan">Catatan <span style="font-weight:400; color:var(--web-text-dim);">(opsional)</span></label>
-              <input id="so-input-catatan" class="web-form-input so-input" maxlength="300" placeholder="Misal: rak B2, 2 dus belum dibuka"
-                onkeydown="if(event.key==='Enter'){event.preventDefault(); soRekam();}" />
-
-              <button class="web-btn-primary so-btn-rekam" id="so-btn-rekam" onclick="soRekam()">⏱ Rekam Opname Sekarang</button>
+              <div style="display:flex; gap:8px; margin-top:14px;">
+                <button class="web-btn-primary so-btn-rekam" id="so-btn-rekam" style="flex:1; margin:0;" onclick="soRekamSemua()">⏱ Rekam Semua Opname</button>
+                <button class="web-btn-secondary" id="so-btn-kosongkan" style="margin:0;" onclick="soKosongkanKeranjang()">Kosongkan</button>
+              </div>
               <div class="status-text" id="so-status" style="text-align:left; margin-top:8px;"></div>
-              <div class="so-hint">Rekam <b>per SKU begitu selesai dihitung</b> — jangan ditumpuk di akhir. Resi yang discan &amp; barang yang masuk <b>setelah</b> detik rekam akan dihitung otomatis oleh Rekonsiliasi Malam (02:00).</div>
+              <div class="so-hint">Isi <b>Qty Fisik tepat setelah menghitung</b> tiap SKU - jam pengisian qty itulah yang jadi detik opname SKU tersebut (bukan jam klik Rekam). Resi yang discan &amp; barang yang masuk <b>setelah</b> detik itu dihitung otomatis oleh Rekonsiliasi Malam (02:00). Keranjang tersimpan otomatis di perangkat ini.</div>
             </div>
 
             <div class="so-side">
@@ -24624,7 +24644,7 @@ function mgBukaKamera(target) {
     await kameraTerapkanZoomFokus(videoEl);
     if (!isFoto) {
       // ON CLICK: barcode produk baru dimasukkan saat tombol 📸 SCAN ditekan
-      const penangkap = buatPenangkapBarcode(videoEl, teks => { mgTutupKamera(); mgTambahItemKeCart(mgTabAktif, teks); });
+      const penangkap = buatPenangkapBarcode(videoEl, teks => { const keOpname = mgKameraTarget === 'opname'; mgTutupKamera(); if (keOpname) soTambahItem(teks); else mgTambahItemKeCart(mgTabAktif, teks); });
       kameraPasangKontrol(videoEl, { onScan: () => penangkap.tangkap() });
       mgZxingReader = new ZXing.BrowserMultiFormatReader();
       mgZxingReader.decodeFromVideoElement(videoEl, (result) => { if (result) penangkap.terima(result.getText()); });
@@ -25218,10 +25238,10 @@ function perMonOverlay(tampil, teks) {
 }
 
 function perMonRenderSkeleton() {
-  const lebar = [70, 85, 40, 35, 40, 45, 60];
+  const lebar = [70, 30, 85, 40, 35, 40, 45, 60];
   el('per-mon-empty').style.display = 'none';
   el('per-mon-body').innerHTML = Array.from({ length: 8 }).map((_, i) => `<tr><td class="bulk-col"></td>${lebar.map((w, j) =>
-    `<td${j >= 2 && j <= 5 ? ' class="num"' : ''}><span class="per-skel" style="width:${Math.max(25, w - (i * 7 + j * 3) % 25)}%; ${j >= 2 && j <= 5 ? 'margin-left:auto;' : ''}"></span></td>`).join('')}</tr>`).join('');
+    `<td${j >= 3 && j <= 6 ? ' class="num"' : ''}><span class="per-skel" style="width:${Math.max(25, w - (i * 7 + j * 3) % 25)}%; ${j >= 3 && j <= 6 ? 'margin-left:auto;' : ''}"></span></td>`).join('')}</tr>`).join('');
   el('per-mon-paginasi').innerHTML = '';
 }
 
@@ -25237,13 +25257,13 @@ async function perFetchMonitorStok(segarkan) {
   try {
     const data = await postJson({ aksi: 'lihat_monitor_stok', segarkan: !!segarkan, email: currentUserEmail() }, 45000);
     if (!data.success) {
-      if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error || '')}</td></tr>`;
+      if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error || '')}</td></tr>`;
       return;
     }
     perMonTerapkanData(data);
     simpanCacheLokal('monitor_stok_v2', data);
   } catch (err) {
-    if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
+    if (perMonCache.length === 0) el('per-mon-body').innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
   } finally { perMonSedangMuat = false; perMonOverlay(false); }
 }
 
@@ -25254,7 +25274,7 @@ function perMonTerapkanData(data) {
     [...perMonTerpilih].forEach(k => { if (!masihValid.has(k)) perMonTerpilih.delete(k); });
   }
   const r = data.ringkasan || {};
-  el('per-mon-kpi-total').textContent = r.totalSku ?? '-';
+  el('per-mon-kpi-total').textContent = perMonCache.filter(p => p.terdaftar).length; // hanya SKU Gudang
   el('per-mon-kpi-hand-minus').textContent = r.onHandMinus ?? '-';
   el('per-mon-kpi-avail-minus').textContent = r.availableMinus ?? '-';
   el('per-mon-kpi-master').textContent = r.belumMaster ?? '-';
@@ -25288,9 +25308,14 @@ function perMonCariDebounce() {
   perMonCariTimer = setTimeout(() => { perMonPaginasiState.page = 1; perMonRender(); }, 180);
 }
 
+// ACUAN = SKU GUDANG. Stok masuk lewat SKU Supplier Terhubung & stok keluar lewat SKU Marketplace Terhubung
+// sudah digabung server ke SKU Gudang pemiliknya, jadi tabel hanya menampilkan SKU Gudang (Produk Master).
+// Kode yang belum terhubung ke SKU Gudang mana pun HANYA tampil di filter "⚠️ Kode Belum Terhubung".
 function perMonDataTersaring() {
   const kata = (el('per-mon-cari').value || '').toLowerCase().trim();
   return perMonCache.filter(p => {
+    if (perMonFilter === 'master') { if (p.terdaftar) return false; }
+    else if (!p.terdaftar) return false;
     if (kata && !(String(p.sku).toLowerCase().includes(kata) || String(p.nama || '').toLowerCase().includes(kata))) return false;
     if (perMonFilter === 'minus') return p.onHand < 0 || p.onAvailable < 0;
     if (perMonFilter === 'reserve') return p.onReserve > 0;
@@ -25312,7 +25337,25 @@ function perMonSel(nilai, opsi) {
   return `<td class="num" style="${v === 0 ? 'color:var(--web-text-dim);' : ''}">${perFmtAngka(v)}</td>`;
 }
 
+// Foto utama kecil dari Produk Master (data Katalog lokal - tanpa request tambahan)
+function perMonPetaFoto() {
+  if (perMonPetaFoto._sumber === katalogProdukCache && perMonPetaFoto._peta) return perMonPetaFoto._peta;
+  const peta = new Map(katalogProdukCache.map(p => [String(p.sku).toUpperCase(), p.urlFoto || '']));
+  perMonPetaFoto._sumber = katalogProdukCache; perMonPetaFoto._peta = peta;
+  return peta;
+}
+function perMonFotoHtml(p) {
+  const url = p.terdaftar ? perMonPetaFoto().get(String(p.sku).toUpperCase()) : '';
+  if (!url) return '<td class="per-col-foto"><div class="per-foto-kosong" aria-hidden="true">🖼️</div></td>';
+  const src = escapeHtml(url), alt = escapeHtml(p.nama || p.sku);
+  return `<td class="per-col-foto"><div class="tabel-img-wrapper per-foto"><img src="${src}" class="tabel-thumb" alt="${alt}" loading="lazy"><img src="${src}" class="tabel-img-zoom" alt="${alt}" loading="lazy"></div></td>`;
+}
+
 function perMonRender() {
+  if (!katalogProdukCache.length && !perMonRender._muatKatalog) {
+    perMonRender._muatKatalog = true;
+    katalogFetchProduk().then(() => { if (el('per-mon-body')) perMonRender(); }); // untuk foto (cache lokal dulu)
+  }
   const data = perMonDataTersaring();
   el('per-mon-empty').style.display = data.length === 0 ? 'block' : 'none';
   const halamanIni = halamanDataPaginasi(data, perMonPaginasiState);
@@ -25334,6 +25377,7 @@ function perMonRender() {
     return `<tr data-sku="${escapeHtml(p.sku)}"${kelas ? ` class="${kelas}"` : ''}${p.terdaftar ? '' : ' data-bisa-pilih="1"'}>
       ${kolomCb}
       ${kolomSku}
+      ${perMonFotoHtml(p)}
       <td>${escapeHtml(p.nama || (p.terdaftar ? '-' : '(belum ada nama)'))}</td>
       ${perMonSel(p.onHand, 'hand')}
       ${perMonSel(p.onOrder)}
@@ -25780,8 +25824,154 @@ let soSkuTerpilih = null;
 let soJumlahSesi = 0;
 let soSedangKirim = false;
 
+/* ===== STOCK OPNAME MODEL KERANJANG (pola sama dengan Minta Stock / Catat Barang Masuk) =====
+   - Scan / ketik SKU -> masuk keranjang (SKU sama discan lagi -> kolom qty-nya disorot, tidak dobel)
+   - Qty Fisik diisi setelah dihitung -> JAM PENGISIAN dikunci per baris (itulah detik opname SKU itu)
+   - Rekam Semua -> 1 request (smart_opname_simpan_massal), progres & hasil di Log Tindakan
+   - Keranjang disimpan di perangkat (localStorage) supaya aman kalau halaman tertutup */
+const SO_KUNCI_DRAFT = 'so_keranjang_v1';
+let soKeranjang = (() => { try { return JSON.parse(localStorage.getItem(SO_KUNCI_DRAFT) || '[]') || []; } catch (e) { return []; } })();
+function soSimpanDraft() { try { localStorage.setItem(SO_KUNCI_DRAFT, JSON.stringify(soKeranjang)); } catch (e) { } }
+function soFmtJam(ms) { return ms ? new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''; }
+
+function soTambahItem(skuMasuk) {
+  const nilai = String(skuMasuk || '').trim();
+  if (!nilai) return;
+  const pr = katalogProdukCache.find(x => String(x.sku).toLowerCase() === nilai.toLowerCase())
+    // kode SKU Supplier / Marketplace terhubung -> dipetakan ke SKU Gudang pemiliknya
+    || katalogProdukCache.find(x => (katalogSkuTerhubungMap[x.sku] || []).some(k => String(k).toLowerCase() === nilai.toLowerCase())
+      || (katalogSkuMarketplaceMap[x.sku] || []).some(m => String(m.skuMarketplace).toLowerCase() === nilai.toLowerCase()));
+  const sku = pr ? pr.sku : nilai;
+  const idx = soKeranjang.findIndex(it => it.sku.toLowerCase() === sku.toLowerCase());
+  if (idx === -1) soKeranjang.unshift({ sku, nama: pr ? pr.nama || '' : '', terdaftar: !!pr, qty: '', catatan: '', waktuHitungMs: 0 });
+  soSimpanDraft();
+  soRenderKeranjang();
+  el('so-input-sku').value = '';
+  el('so-saran').style.display = 'none';
+  const i = idx === -1 ? 0 : idx;
+  const inp = el('so-cart-body').querySelector(`input.so-qty[data-idx="${idx === -1 ? 0 : soKeranjang.findIndex(it => it.sku.toLowerCase() === sku.toLowerCase())}"]`);
+  if (inp) {
+    inp.focus(); inp.select();
+    const tr = inp.closest('tr');
+    if (tr) { tr.classList.remove('so-flash'); void tr.offsetWidth; tr.classList.add('so-flash'); }
+  }
+  if (navigator.vibrate) navigator.vibrate(40);
+}
+
+function soRenderKeranjang() {
+  const body = el('so-cart-body');
+  if (!body) return;
+  el('so-cart-empty').style.display = soKeranjang.length ? 'none' : 'block';
+  el('so-cart-jumlah').textContent = soKeranjang.length;
+  const foto = perMonPetaFoto();
+  body.innerHTML = soKeranjang.map((it, idx) => {
+    const url = foto.get(String(it.sku).toUpperCase());
+    return `<tr class="${it.gagal ? 'so-row-gagal' : ''}">
+      <td data-label="SKU Gudang"><div class="so-cart-sku">
+        ${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy">` : '<span class="per-foto-kosong">🖼️</span>'}
+        <div><b>${escapeHtml(it.sku)}</b>${it.terdaftar ? '' : ' <span title="Belum terdaftar di Produk Master">⚠️</span>'}
+          <div style="font-size:10.5px; color:var(--web-text-dim);">${escapeHtml(it.nama || (it.terdaftar ? '' : 'Belum terdaftar di Produk Master'))}</div>
+          ${it.gagal ? `<div style="font-size:10.5px; color:#9a6412;">${escapeHtml(it.gagal)}</div>` : ''}</div></div></td>
+      <td data-label="Qty Fisik">
+        <input class="mg-qty-input so-qty" type="number" inputmode="numeric" min="0" step="any" data-idx="${idx}" value="${escapeHtml(it.qty)}" placeholder="Hitung..."
+          oninput="soUbahQty(${idx}, this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault(); el('so-input-sku').focus();}" />
+        <div class="so-jam" id="so-jam-${idx}">${it.waktuHitungMs ? '⏱ ' + soFmtJam(it.waktuHitungMs) : '<span style="color:var(--web-warning);">belum dihitung</span>'}</div>
+      </td>
+      <td data-label="Catatan"><input class="mg-catatan-input" value="${escapeHtml(it.catatan)}" placeholder="Opsional (mis. rak B2)" onchange="soUbahCatatan(${idx}, this.value)" /></td>
+      <td data-label=""><button class="mg-hapus-btn" onclick="soHapusItem(${idx})">✕ Hapus</button></td>
+    </tr>`;
+  }).join('');
+}
+function soUbahQty(idx, nilai) {
+  const it = soKeranjang[idx];
+  if (!it) return;
+  it.qty = String(nilai).trim();
+  it.waktuHitungMs = it.qty === '' ? 0 : Date.now(); // detik opname = saat qty terakhir diisi
+  delete it.gagal;
+  soSimpanDraft();
+  const jam = el('so-jam-' + idx);
+  if (jam) jam.innerHTML = it.waktuHitungMs ? '⏱ ' + soFmtJam(it.waktuHitungMs) : '<span style="color:var(--web-warning);">belum dihitung</span>';
+}
+function soUbahCatatan(idx, nilai) { if (soKeranjang[idx]) { soKeranjang[idx].catatan = String(nilai || '').trim(); soSimpanDraft(); } }
+function soHapusItem(idx) { soKeranjang.splice(idx, 1); soSimpanDraft(); soRenderKeranjang(); }
+function soKosongkanKeranjang() {
+  if (!soKeranjang.length || !confirm(`Kosongkan ${soKeranjang.length} SKU dari keranjang opname?`)) return;
+  soKeranjang = []; soSimpanDraft(); soRenderKeranjang();
+  el('so-status').textContent = '';
+}
+
+async function soRekamSemua() {
+  const statusEl = el('so-status');
+  if (!soKeranjang.length) { statusEl.textContent = '✗ Keranjang masih kosong.'; statusEl.className = 'status-text err'; el('so-input-sku').focus(); return; }
+  const belum = soKeranjang.filter(it => it.qty === '' || isNaN(Number(it.qty)) || Number(it.qty) < 0);
+  if (belum.length) {
+    statusEl.textContent = `✗ ${belum.length} SKU belum diisi Qty Fisik: ${belum.slice(0, 5).map(it => it.sku).join(', ')}${belum.length > 5 ? ', ...' : ''}`;
+    statusEl.className = 'status-text err';
+    const idx = soKeranjang.indexOf(belum[0]);
+    const inp = el('so-cart-body').querySelector(`input.so-qty[data-idx="${idx}"]`);
+    if (inp) inp.focus();
+    return;
+  }
+  // Kirim di LATAR: keranjang langsung kosong untuk sesi hitung berikutnya; hasil & progres di Log Tindakan
+  const kiriman = soKeranjang.map(it => Object.assign({}, it));
+  soKeranjang = []; soSimpanDraft(); soRenderKeranjang();
+  statusEl.textContent = '';
+  const logId = logTindakan.tambah(`Rekam opname ${kiriman.length} SKU`);
+  const jalankan = async () => {
+    logTindakan.ubah(logId, 'proses', `Merekam ${kiriman.length} SKU...`);
+    try {
+      const d = await postJsonTulis({
+        aksi: 'smart_opname_simpan_massal', waktuKirimMs: Date.now(), email: currentUserEmail(),
+        items: kiriman.map(it => ({ sku: it.sku, qtyFisik: it.qty, catatan: it.catatan, waktuHitungMs: it.waktuHitungMs }))
+      }, 120000);
+      const gagal = (d && d.gagal) || [];
+      if (!d || !d.success) throw Object.assign(new Error((d && d.error) || 'Gagal merekam'), { gagal });
+      playBeep();
+      soJumlahSesi += (d.hasil || []).length;
+      el('so-sesi-jumlah').textContent = soJumlahSesi;
+      soTampilkanHasilMassal(d.hasil || []);
+      perMonCache = []; // Monitor Stok dihitung ulang saat dibuka
+      if (gagal.length) {
+        soKembalikanKeKeranjang(gagal.map(g => Object.assign({}, kiriman[g.idx], { gagal: g.error })));
+        logTindakan.ubah(logId, 'gagal', `${(d.hasil || []).length} terekam · ${gagal.length} dikembalikan ke keranjang (${gagal[0].sku}: ${gagal[0].error})`);
+      } else {
+        const selisih = (d.hasil || []).filter(h => Number(h.selisih) !== 0).length;
+        logTindakan.ubah(logId, 'ok', `${(d.hasil || []).length} SKU terekam${selisih ? ` · ${selisih} ada selisih` : ' · semua cocok'}`);
+      }
+    } catch (err) {
+      soKembalikanKeKeranjang(kiriman);
+      logTindakan.ubah(logId, 'gagal', `${err.message} - keranjang dikembalikan.`, [{ label: 'Coba lagi', fn: () => soRekamSemua() }]);
+    }
+  };
+  jalankan();
+}
+// Item yang gagal dikembalikan ke keranjang (tanpa menimpa item baru yang sudah diisi di sesi berikutnya)
+function soKembalikanKeKeranjang(items) {
+  items.forEach(it => { if (!soKeranjang.some(x => x.sku.toLowerCase() === it.sku.toLowerCase())) soKeranjang.push(it); });
+  soSimpanDraft();
+  soRenderKeranjang();
+}
+
+function soTampilkanHasilMassal(hasil) {
+  const box = el('so-hasil');
+  if (!box) return;
+  const cocok = hasil.filter(h => Number(h.selisih) === 0).length;
+  box.innerHTML = `
+    <div class="so-hasil-head">✓ Terekam · <span>${hasil.length} SKU</span> <span style="font-weight:600; color:var(--web-text-dim);">(${cocok} cocok, ${hasil.length - cocok} selisih)</span></div>
+    <div class="so-hasil-list">${hasil.map(h => {
+      const sel = Number(h.selisih) || 0;
+      const kelas = sel === 0 ? 'ok' : (sel < 0 ? 'minus' : 'plus');
+      return `<div class="so-hasil-baris"><div><b>${escapeHtml(h.sku)}</b>${h.terdaftar ? '' : ' ⚠️'}<small>${escapeHtml(h.nama || '')} · ⏱ ${escapeHtml(h.timestampTampil || '')}</small></div>
+        <div class="num">${perFmtAngka(h.qtyFisik)} <small>fisik</small></div><div class="num">${perFmtAngka(h.qtySistem)} <small>sistem</small></div>
+        <div class="num so-selisih ${kelas}">${sel > 0 ? '+' : ''}${perFmtAngka(sel)}</div></div>`;
+    }).join('')}</div>
+    <div class="so-hasil-note">Angka fisik jadi titik nol baru tiap SKU. Mutasi setelah detik hitungnya dihitung otomatis.</div>`;
+  box.style.display = 'block';
+}
+
 function soBuka() {
-  if (katalogProdukCache.length === 0) katalogFetchProduk();
+  if (katalogProdukCache.length === 0) katalogFetchProduk().then(soRenderKeranjang);
+  soRenderKeranjang();
   setTimeout(() => { const i = el('so-input-sku'); if (i && !i.value) i.focus(); }, 60);
 }
 
@@ -25792,12 +25982,15 @@ function soCariProdukLive() {
   el('so-produk-terpilih').style.display = 'none';
   if (kata.length < 2) { saranEl.style.display = 'none'; return; }
   const hasil = katalogProdukCache.filter(pr => String(pr.sku).toLowerCase().includes(kata) || String(pr.nama || '').toLowerCase().includes(kata)).slice(0, 8);
-  if (hasil.length === 0) { saranEl.innerHTML = '<div class="mg-saran-item" style="color:var(--web-text-dim);">Tidak ada di Produk Master — tetap bisa direkam apa adanya.</div>'; saranEl.style.display = 'block'; return; }
+  if (hasil.length === 0) { saranEl.innerHTML = '<div class="mg-saran-item" style="color:var(--web-text-dim);">Tidak ada di Produk Master — tekan Enter untuk tetap memasukkan kode ini.</div>'; saranEl.style.display = 'block'; return; }
   saranEl.innerHTML = hasil.map(pr => `<div class="mg-saran-item" onmousedown="event.preventDefault(); soPilihProduk('${String(pr.sku).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')"><b>${escapeHtml(pr.sku)}</b>${escapeHtml(pr.nama || '')}</div>`).join('');
   saranEl.style.display = 'block';
 }
 
 function soPilihProduk(sku) {
+  soTambahItem(sku); // model keranjang
+}
+function soPilihProdukLama_(sku) {
   const pr = katalogProdukCache.find(x => String(x.sku).toLowerCase() === String(sku).toLowerCase());
   soSkuTerpilih = pr ? pr.sku : sku;
   el('so-input-sku').value = soSkuTerpilih;
