@@ -1706,7 +1706,8 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   .wp-kapsul.aktif { background: var(--wl, #e8f6ec); border-color: var(--wg, #c2e5cd); color: var(--w, #2e7d4f); box-shadow: 0 1px 2px rgba(15, 23, 42, .06); }
   .wp-kapsul.aktif i { background: var(--w, #2e7d4f); }
   .wp-kapsul.aktif .n { background: rgba(255, 255, 255, .75); color: var(--w, #2e7d4f); }
-  .wp-tt-refresh.sibuk { opacity: .55; cursor: progress; }
+  .wp-tt-refresh.sibuk { opacity: .7; cursor: progress; display: inline-block; animation: wpPutar 1s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .wp-tt-refresh.sibuk { animation-duration: 3s; } }
 
   /* ===== Panel sinkron penuh (status & resi) ===== */
   .wp-sinkron { border: 1px solid var(--web-border); border-radius: 14px; background: var(--web-panel); padding: 14px 16px 12px; margin: 2px 0 12px;
@@ -1822,6 +1823,8 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   }
   @keyframes wpSorot { 0%, 30% { background: rgba(47, 158, 110, .18); } 100% { background: transparent; } }
 
+  /* UI SENYAP: indikator yang menutupi halaman/area tidak boleh tampil (lihat omniLoader, perMonOverlay) */
+  #web-loading-bar, #web-content-loader, .per-loading-overlay, .kat-segar-overlay, .omni-loader { display: none !important; }
   .omni-loader { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 24px;
     background: color-mix(in srgb, var(--web-bg, #f5f6f8) 88%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     opacity: 0; transition: opacity .2s ease; font-family: 'Inter', system-ui, sans-serif; }
@@ -9435,10 +9438,12 @@ function wpGabunganSubTab(sub) {
 
   if (sub === 'pantauan') { wpHentikanAutoRefreshGabungan(); wpFetchPantauan(); }
   else if (sub === 'pesanan') {
-    // Render instan dari cache, lalu sinkron penuh (status & resi semua pesanan) dengan panel progres
-    wpSinkronPenuh({ otomatis: true }).catch(() => { }).then(() => {
-      if (wpGabSubAktif === 'pesanan' && tabWebAktif === 'pesanan') wpMulaiAutoRefreshGabungan();
-    });
+    // NAVIGASI = RENDER LOKAL SAJA. Dulu setiap kali menu ini dibuka, sistem menjalankan sinkron penuh
+    // (3 eksekusi Apps Script ke API marketplace + tarik daftar) dengan panel progres. Sekarang: tampil
+    // instan dari memori/IndexedDB tanpa request. Sinkron marketplace tetap berjalan di trigger server
+    // tiap 5 menit; tabel ikut segar lewat polling 15 menit atau tombol 🔄.
+    wpGabBukaDariCacheLokal();
+    wpMulaiAutoRefreshGabungan();
   } else if (sub === 'retur') { wpHentikanAutoRefreshGabungan(); wpFetchRetur(); }
   else if (sub === 'pelanggan') { wpHentikanAutoRefreshGabungan(); wpFetchPelanggan(); }
 }
@@ -10042,86 +10047,25 @@ let wpGabunganKunciTerlihat = new Set(); // kunci unik pesanan yang udah pernah 
    omniLoader.tampil({ judul, pesan: [...], sabarSetelahDetik, bisaLatar }) -> id
    omniLoader.selesai(id)  |  omniLoader.sembunyikan()
    ============================================================ */
+// UI SENYAP: loader layar penuh DIHAPUS (dulu menutupi seluruh halaman dengan blur). API tetap sama
+// supaya pemanggil lama aman, tapi indikatornya sekarang LOKAL: tombol yang diklik berubah jadi
+// "<judul>..." + spinner kecil (memoTombolSibuk), halaman tetap bisa dipakai.
 const omniLoader = (() => {
-  let elRoot = null, idAktif = 0, timerPesan = null, timerDetik = null, mulai = 0, idxPesan = 0, pesanList = [], progres = 0, disembunyikan = false;
-  function pastikanDom() {
-    if (elRoot) return;
-    elRoot = document.createElement('div');
-    elRoot.className = 'omni-loader';
-    elRoot.hidden = true;
-    elRoot.setAttribute('role', 'status');
-    elRoot.setAttribute('aria-live', 'polite');
-    elRoot.innerHTML = `<div class="omni-loader-kartu">
-      <div class="omni-loader-cincin" aria-hidden="true"></div>
-      <div class="omni-loader-judul" id="omni-loader-judul"></div>
-      <div class="omni-loader-pesan" id="omni-loader-pesan"></div>
-      <div class="omni-loader-progres" aria-hidden="true"><b id="omni-loader-bar"></b></div>
-      <div class="omni-loader-langkah" id="omni-loader-langkah" aria-hidden="true"></div>
-      <div class="omni-loader-meta" id="omni-loader-meta"></div>
-      <div class="omni-loader-sabar" id="omni-loader-sabar" hidden></div>
-      <button type="button" class="omni-loader-latar" id="omni-loader-latar" hidden>Lanjutkan di latar belakang</button>
-    </div>`;
-    document.body.appendChild(elRoot);
-    elRoot.querySelector('#omni-loader-latar').addEventListener('click', () => { disembunyikan = true; tutupVisual(); });
-  }
-  function renderLangkah() {
-    elRoot.querySelector('#omni-loader-langkah').innerHTML = pesanList.map((_, i) => `<i class="${i < idxPesan ? 'lewat' : (i === idxPesan ? 'kini' : '')}"></i>`).join('');
-  }
-  function gantiPesan(teks) {
-    const p = elRoot.querySelector('#omni-loader-pesan');
-    p.classList.add('ganti');
-    setTimeout(() => { p.textContent = teks; p.classList.remove('ganti'); }, 220);
-  }
-  function tutupVisual() {
-    if (!elRoot) return;
-    elRoot.classList.remove('tampil');
-    setTimeout(() => { if (!elRoot.classList.contains('tampil')) elRoot.hidden = true; }, 220);
-  }
+  let idAktif = 0;
+  const tombolPerId = new Map();
   function tampil(opsi) {
-    pastikanDom();
-    clearInterval(timerPesan); clearInterval(timerDetik);
-    idAktif++;
-    const id = idAktif;
-    disembunyikan = false;
-    pesanList = opsi.pesan && opsi.pesan.length ? opsi.pesan : ['Memuat...'];
-    idxPesan = 0; progres = 6; mulai = Date.now();
-    elRoot.querySelector('#omni-loader-judul').textContent = opsi.judul || 'Memuat';
-    elRoot.querySelector('#omni-loader-pesan').textContent = pesanList[0];
-    elRoot.querySelector('#omni-loader-bar').style.width = progres + '%';
-    elRoot.querySelector('#omni-loader-meta').textContent = '';
-    const sabar = elRoot.querySelector('#omni-loader-sabar');
-    sabar.hidden = true;
-    sabar.textContent = opsi.teksSabar || 'Masih bekerja - proses ini kadang butuh hingga 1 menit. Aplikasi tidak hang.';
-    const btnLatar = elRoot.querySelector('#omni-loader-latar');
-    btnLatar.hidden = true;
-    renderLangkah();
-    elRoot.hidden = false;
-    requestAnimationFrame(() => elRoot.classList.add('tampil'));
-    const jedaPesan = opsi.jedaPesanMs || 2400;
-    timerPesan = setInterval(() => {
-      if (idxPesan < pesanList.length - 1) { idxPesan++; gantiPesan(pesanList[idxPesan]); renderLangkah(); }
-    }, jedaPesan);
-    timerDetik = setInterval(() => {
-      const det = Math.floor((Date.now() - mulai) / 1000);
-      // Progres semu: mendekati 92% secara melambat, 100% hanya saat benar-benar selesai
-      progres = Math.min(92, progres + (92 - progres) * 0.08);
-      elRoot.querySelector('#omni-loader-bar').style.width = progres.toFixed(1) + '%';
-      if (det >= 3) elRoot.querySelector('#omni-loader-meta').textContent = det + ' detik berjalan';
-      if (det >= (opsi.sabarSetelahDetik || 15)) sabar.hidden = false;
-      if (opsi.bisaLatar !== false && det >= 4) btnLatar.hidden = false;
-    }, 500);
+    opsi = opsi || {};
+    const id = ++idAktif;
+    const btn = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+    if (btn) { memoTombolSibuk(btn, true, (opsi.judul || 'Memproses') + '...'); tombolPerId.set(id, btn); }
     return id;
   }
-  function selesai(id, teksAkhir) {
-    if (!elRoot || (id && id !== idAktif)) return;
-    clearInterval(timerPesan); clearInterval(timerDetik);
-    if (disembunyikan || elRoot.hidden) { tutupVisual(); return; }
-    elRoot.querySelector('#omni-loader-bar').style.width = '100%';
-    idxPesan = pesanList.length; renderLangkah();
-    if (teksAkhir) gantiPesan(teksAkhir);
-    setTimeout(tutupVisual, teksAkhir ? 650 : 280);
+  function selesai(id) {
+    const btn = tombolPerId.get(id);
+    if (btn) { memoTombolSibuk(btn, false); tombolPerId.delete(id); }
   }
-  return { tampil, selesai, sembunyikan: tutupVisual };
+  function sembunyikan() { tombolPerId.forEach(btn => memoTombolSibuk(btn, false)); tombolPerId.clear(); }
+  return { tampil, selesai, sembunyikan };
 })();
 
 /* ============================================================
@@ -10328,8 +10272,8 @@ async function wpFetchSemuaGabungan(opsi) {
       return h;
     } catch (err) {
       wpGabSinkron.gagal = err.message;
-      if (!wpGabunganCache.length) el('wp-gabungan-body').innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--web-danger);">Gagal memuat: ${escapeHtml(err.message)} - tekan 🔄 untuk mencoba lagi.</td></tr>`;
-      wpGabSetIndikator(false, 'Gagal memuat - data terakhir ditampilkan', true);
+      if (!wpGabunganCache.length) el('wp-gabungan-body').innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--web-text-dim);">Data belum bisa dimuat - tekan 🔄 untuk mencoba lagi.</td></tr>`;
+      if (!opsi.diam) wpGabSetIndikator(false, 'Gagal memuat - data terakhir ditampilkan', true); // proses otomatis: gagal pun senyap
       return { gagal: err.message, baru: 0, berubah: 0, total: wpGabunganCache.length };
     } finally {
       wpGabSinkron.jalan = null;
@@ -10338,24 +10282,39 @@ async function wpFetchSemuaGabungan(opsi) {
   return wpGabSinkron.jalan;
 }
 
+// Buka tab Pesanan: render dari memori -> IndexedDB. Request ke server HANYA kalau perangkat ini belum
+// pernah punya data sama sekali (cold start), dan itupun senyap (kerangka tabel saja, tanpa chip/panel).
+async function wpGabBukaDariCacheLokal() {
+  if (wpGabunganCache.length) { wpGabRenderPertahankan([]); return; }
+  const ada = await wpGabMuatCacheLokal(); // sudah merender sendiri kalau ada
+  if (ada) return;
+  wpGabPollTerakhirMs = Date.now();
+  await wpFetchSemuaGabungan({ diam: true });
+}
+
 // Pemeriksaan latar tiap 15 menit: baca Sheets saja (pesanan baru dari trigger 5 menit ikut masuk)
-// OPTIMASI: dilewati saat ada proses SIMPAN berjalan (tidak berebut slot eksekusi), dan kalau gagal
-// beruntun, 1-3 jadwal berikutnya dilewati (jeda maks ~1 jam) sampai server pulih.
+// SENYAP TOTAL: tanpa chip, spinner, atau panel. Tabel hanya berubah kalau memang ada data yang berubah.
+// Dilewati saat ada proses SIMPAN berjalan, dan kalau gagal beruntun 1-3 jadwal dilewati (maks ~1 jam).
 let wpGabPollGagal = 0, wpGabPollLewati = 0, wpGabPollTerakhirMs = Date.now();
 async function wpCekPesananBaruGabungan() {
   if (document.hidden || wpGabSinkron.jalan || wpSinkron.jalan) return;
   if (webAppTulisAktif > 0 || wpBulkSibuk) return;
-  if (wpGabPollLewati > 0) { wpGabPollLewati--; return; }
+  if (wpGabPollLewati > 0) { wpGabPollLewati--; wpGabPollTerakhirMs = Date.now(); return; }
   wpGabPollTerakhirMs = Date.now();
-  const h = await wpFetchSemuaGabungan({ teks: 'Memeriksa pesanan baru...' });
+  const h = await webAppDenganDataSegar(() => wpFetchSemuaGabungan({ diam: true }));
   if (h && h.gagal) { wpGabPollGagal++; wpGabPollLewati = Math.min(3, Math.pow(2, wpGabPollGagal) - 1); }
   else { wpGabPollGagal = 0; wpGabPollLewati = 0; }
   return h;
 }
-// Tab browser kembali dibuka setelah > 15 menit tersembunyi -> cek sekali (jadwal yang terlewat saat tersembunyi)
+// Pemicu 3: tab browser aktif lagi setelah TERSEMBUNYI >= 15 menit -> cek sekali, senyap
+let wpTabTersembunyiSejak = document.hidden ? Date.now() : 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden || !wpGabunganAutoRefreshInterval) return;
-  if (Date.now() - wpGabPollTerakhirMs >= WP_INTERVAL_POLLING_MS) wpCekPesananBaruGabungan();
+  if (document.hidden) { wpTabTersembunyiSejak = Date.now(); return; }
+  const lamaTersembunyi = wpTabTersembunyiSejak ? Date.now() - wpTabTersembunyiSejak : 0;
+  wpTabTersembunyiSejak = 0;
+  if (lamaTersembunyi < WP_INTERVAL_POLLING_MS) return;
+  webAppCacheBaca.forEach(c => { c.t = 0; }); // cache menu lain dianggap basi -> diperbarui diam-diam saat dibuka
+  if (wpGabunganAutoRefreshInterval) wpCekPesananBaruGabungan();
 });
 
 /* ----- SINKRON PENUH + panel progres interaktif ----- */
@@ -10444,7 +10403,9 @@ function wpSinkronMulaiPanel() {
   wpSinkron.mulai = Date.now();
   wpSinkron.idxTip = 0;
   p.classList.remove('selesai', 'ada-gagal', 'keluar');
-  p.hidden = false;
+  // UI SENYAP: panel progres besar TIDAK ditampilkan (indikator cukup di tombol 🔄 yang berputar).
+  // Panel tetap dibangun di belakang layar supaya status per kanal tetap tercatat.
+  p.hidden = true;
   clearInterval(wpSinkron.timer); clearInterval(wpSinkron.timerTip);
   wpSinkron.timer = setInterval(() => {
     const d = Math.floor((Date.now() - wpSinkron.mulai) / 1000);
@@ -10471,7 +10432,8 @@ function wpSinkronAkhiriPanel(judul, ringkas, adaGagal) {
   if (j) j.textContent = judul;
   if (t) { t.classList.remove('ganti'); t.textContent = ringkas; }
   if (b) b.style.width = '100%';
-  if (!adaGagal) wpSinkron.timerTutup = setTimeout(wpSinkronSembunyikan, 7000);
+  // Ringkasan hasil lewat notifikasi kecil di pojok (tidak menutupi tabel), bukan panel
+  wpToastLatar(adaGagal ? 'gagal' : 'ok', (adaGagal ? '' : '✓ ') + ringkas);
 }
 
 function wpSinkronSembunyikan() {
@@ -10496,8 +10458,7 @@ async function wpSinkronPenuh(opsi) {
   wpSinkron.jalan = (async () => {
     const tot = { dicek: 0, statusBerubah: 0, resiBaru: 0, resiDiperbarui: 0, pesananBaru: 0, sisa: 0 };
     let adaGagal = false, semuaLewat = true;
-    wpSinkronMulaiPanel();
-    wpGabSetIndikator(true, 'Menyelaraskan status & resi...');
+    wpSinkronMulaiPanel(); // (tersembunyi) - satu-satunya indikator: tombol 🔄 berputar
     try {
       // Tabel tampil dulu dari cache; perangkat baru -> muat daftar dari Sheets dulu (tanpa menunggu marketplace)
       const adaCache = await wpGabMuatCacheLokal();
@@ -10557,7 +10518,7 @@ async function wpGabunganRefreshPesanan() {
     if (wpSinkron.jalan && wpSinkron.modeOtomatis) { try { await wpSinkron.jalan; } catch (e) { } }
     await wpSinkronPenuh({ otomatis: false });
   } catch (err) {
-    wpGabSetIndikator(false, 'Sinkron gagal: ' + err.message, true);
+    wpToastLatar('gagal', 'Sinkron gagal: ' + err.message);
   } finally {
     btn.disabled = false; btn.classList.remove('sibuk');
   }
@@ -11260,14 +11221,20 @@ let wpGabunganAutoRefreshInterval = null;
 // Data baru tetap bisa ditarik kapan saja lewat tombol 🔄.
 const WP_INTERVAL_POLLING_MS = 900000;
 
+// Penjadwal polling SATU untuk seluruh sesi, dimulai saat tab Pesanan pertama kali dibuka.
+// Tidak di-reset oleh pindah menu (dulu interval dibuat ulang tiap membuka menu, sehingga user yang
+// sering pindah menu tidak pernah kena jadwal - atau sebaliknya jadwal jadi tidak teratur).
+// Timer lokal ini cek tiap 1 menit TANPA request; request hanya saat 15 menit sejak tarikan terakhir.
 function wpMulaiAutoRefreshGabungan() {
-  wpHentikanAutoRefreshGabungan();
-  wpGabunganAutoRefreshInterval = setInterval(wpCekPesananBaruGabungan, WP_INTERVAL_POLLING_MS); // tiap 15 menit (baca Sheets saja, tanpa API marketplace)
+  if (wpGabunganAutoRefreshInterval) return;
+  wpGabunganAutoRefreshInterval = setInterval(() => {
+    if (Date.now() - wpGabPollTerakhirMs >= WP_INTERVAL_POLLING_MS) wpCekPesananBaruGabungan();
+  }, 60000);
 }
 
-function wpHentikanAutoRefreshGabungan() {
-  if (wpGabunganAutoRefreshInterval) { clearInterval(wpGabunganAutoRefreshInterval); wpGabunganAutoRefreshInterval = null; }
-}
+// Dipanggil saat pindah menu - SENGAJA tidak menghentikan jadwal (polling 15 menit tetap berjalan senyap
+// supaya data sudah segar saat user kembali ke Penjualan). Dipertahankan agar pemanggil lama tetap aman.
+function wpHentikanAutoRefreshGabungan() { }
 
 // TikTok Shop tab juga nyakup Tokopedia (satu jalur sync yang sama). Order Manual nyakup
 // PO Sales (order offline manual) dan Website (toko online sendiri) - keduanya BUKAN marketplace.
@@ -11838,7 +11805,6 @@ async function wpBulkPembeliKirimLatar(paket) {
     wpGabBarisGagal.delete(k);
     wpGabPerbaruiBarisDiTempat(k, false);
   });
-  wpToastLatar('proses', `Menyimpan data pembeli ${daftar.length} pesanan di latar belakang...`);
 
   let data = null, pesanGagal = '';
   try {
@@ -11876,7 +11842,7 @@ async function wpBulkPembeliKirimLatar(paket) {
     wpCache.simpanNanti(wpGabunganCache); // IndexedDB ikut diperbarui; _sig baru diambil otomatis di sinkron delta berikutnya
     const gagalSebagian = daftarOrder.length - jumlahBerhasil;
     if (gagalSebagian > 0) wpToastLatar('gagal', `${jumlahBerhasil} tersimpan, ${gagalSebagian} pesanan tidak ditemukan di sheet (ditandai "!" di tabel).`);
-    else { playBeep(); wpToastLatar('ok', `✓ Data pembeli ${jumlahBerhasil} pesanan tersimpan`); }
+    else playBeep(); // sukses cukup ditandai kilatan di baris yang berubah - tanpa notifikasi tambahan
   } else {
     wpToastLatar('gagal', `Data pembeli ${daftar.length} pesanan gagal disimpan: ${pesanGagal}`, () => wpBulkPembeliKirimLatar(paket));
   }
@@ -13072,7 +13038,11 @@ async function wpFinalisasiPengiriman(noInvoice, statusBaru) {
 
 async function wpFetchLaporanPenjualan() {
   try {
-    const data = await postJson({ aksi: 'lihat_semua_pesanan_gabungan', email: currentUserEmail() });
+    // Navigasi = data lokal: pakai daftar pesanan yang sudah ada di memori/IndexedDB (tanpa request).
+    // Server hanya dihubungi kalau perangkat ini belum pernah memuat daftar pesanan sama sekali.
+    let data;
+    if (wpGabunganCache.length || await wpGabMuatCacheLokal()) data = { success: true, daftar: wpGabunganCache };
+    else data = await postJson({ aksi: 'lihat_semua_pesanan_gabungan', email: currentUserEmail() });
     if (!data.success) return;
     const tigaPuluhHariLalu = new Date(); tigaPuluhHariLalu.setDate(tigaPuluhHariLalu.getDate() - 30);
     const daftar = (data.daftar || []).filter(o => {
@@ -13107,7 +13077,7 @@ function wpMulaiAutoRefreshTikTok() {
   wpTiktokAutoRefreshInterval = setInterval(() => {
     if (document.hidden || webAppTulisAktif > 0) return; // tab tersembunyi / sedang simpan -> jangan tembak server
     if (tabWebAktif === 'pesanan' && document.querySelector('.web-nav-sub[data-wpsub="tiktok"]')?.classList.contains('active')) {
-      wpFetchPesananTikTok();
+      webAppDenganDataSegar(() => wpFetchPesananTikTok());
     }
   }, WP_INTERVAL_POLLING_MS); // refresh tampilan tiap 15 menit
 }
@@ -16938,6 +16908,7 @@ async function katalogSimpanProdukBaru() {
    Muncul SEKETIKA saat Simpan diklik, dan baru hilang setelah data terbaru dari Code.gs
    (lihat_katalog_produk, segar:true = tanpa cache) selesai diambil DAN tabel selesai digambar ulang. */
 function katalogOverlaySegar(aktif, teks, sub) {
+  aktif = false; // UI SENYAP: overlay/peredupan tabel dinonaktifkan - indikator cukup di tombol Simpan
   const wadah = el('katalog-view-produk');
   if (!wadah) return;
   let ov = el('kat-segar-overlay');
@@ -16962,7 +16933,7 @@ function katalogOverlaySegar(aktif, teks, sub) {
 // Tunggu browser benar-benar selesai menggambar (2 frame) sebelum overlay dilepas
 function katalogTungguRender() { return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); }
 async function katalogSegarkanSetelahSimpan(teks) {
-  katalogOverlaySegar(true, teks || 'Memuat data terbaru...', 'Tabel diperbarui setelah data dari server selesai diambil');
+  // UI SENYAP: tanpa overlay yang menutupi tabel - tabel diganti sendiri begitu data server tiba
   let ok = false;
   try { ok = await katalogFetchProduk({ segar: true }); }
   finally {
@@ -23989,8 +23960,11 @@ function perMonOverlay(tampil, teks) {
   const ov = el('per-mon-overlay');
   if (!ov) return;
   if (tampil && teks) el('per-mon-overlay-teks').textContent = teks;
-  ov.classList.toggle('show', perMonOverlayHitung > 0);
-  ov.setAttribute('aria-hidden', perMonOverlayHitung > 0 ? 'false' : 'true');
+  // UI SENYAP: overlay yang menutupi tabel tidak lagi ditampilkan; hanya ditandai aria-busy untuk aksesibilitas
+  ov.classList.remove('show');
+  ov.setAttribute('aria-hidden', 'true');
+  const tabel = el('per-mon-body');
+  if (tabel) tabel.setAttribute('aria-busy', perMonOverlayHitung > 0 ? 'true' : 'false');
 }
 
 function perMonRenderSkeleton() {
@@ -24505,9 +24479,8 @@ async function perSimpanMaster() {
   if (hargaMentah !== '' && hargaModal === null) { statusEl.textContent = '✗ Harga Modal tidak valid.'; statusEl.className = 'status-text err'; el('per-master-harga').focus(); return; }
 
   perMasterSedangSimpan = true;
-  el('per-master-btn').disabled = true;
+  memoTombolSibuk(el('per-master-btn'), true, 'Menyimpan...'); // indikator lokal di tombol, tanpa overlay modal
   statusEl.textContent = '';
-  el('per-master-overlay').classList.add('show');
   perMonOverlay(true, 'Menyimpan SKU ke Master...');
   try {
     const data = await postJsonTulis({ aksi: 'monitor_upsert_sku_master', sku, namaProduk: nama, hargaModal, email: currentUserEmail() });
@@ -24523,8 +24496,7 @@ async function perSimpanMaster() {
     statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err';
   } finally {
     perMasterSedangSimpan = false;
-    el('per-master-btn').disabled = false;
-    el('per-master-overlay').classList.remove('show');
+    memoTombolSibuk(el('per-master-btn'), false);
     perMonOverlay(false);
   }
 }
@@ -26352,15 +26324,107 @@ async function postJsonTulis(body, timeoutMs) {
   try {
     const data = await kirimKeWebApp(body, timeoutMs || 90000);
     if (data && data.success === false && data.errorDetail) console.error(`[Backend error] aksi=${body.aksi}`, data.errorDetail);
+    if (data && data.success !== false) webAppBuangCacheBaca(); // setelah menyimpan, menu lain memuat data segar sekali
     return data;
   } finally {
     webAppTulisAktif = Math.max(0, webAppTulisAktif - 1);
   }
 }
 
+/* ============================================================
+   CACHE BACA NAVIGASI - pindah menu TIDAK menembak server
+   Semua request BACA (lihat_*, detail_*, ...) disimpan di memori tab. Selama umurnya < 15 menit,
+   request yang sama (mis. karena user bolak-balik menu Gudang <-> Penjualan) dijawab dari cache
+   TANPA request ke Apps Script. Server hanya dihubungi kalau:
+     1) data di cache sudah >= 15 menit (jadwal polling 15 menit terpenuhi),
+     2) user menekan tombol refresh/sinkron manual (lihat webAppTandaiAksiManual), atau
+     3) tab browser aktif lagi setelah tersembunyi >= 15 menit (visibilitychange).
+   Pengecualian yang tak terhindarkan: data yang BELUM PERNAH dimuat di sesi ini (cache kosong)
+   diambil sekali, dan setelah user MENYIMPAN sesuatu cache dibuang supaya layar tidak basi.
+   ============================================================ */
+const WEBAPP_CACHE_BACA_UMUR_MS = 900000; // 15 menit, sama dengan interval polling
+const WEBAPP_CACHE_BACA_MAKS = 60;       // batas jumlah entri (hemat memori)
+const webAppCacheBaca = new Map();        // kunci request -> { t, data }
+// Aksi baca yang boleh dilayani dari cache. Dikecualikan: jalur polling/sinkron Penjualan (punya cache
+// IndexedDB sendiri & hanya dipanggil oleh 3 pemicu yang diizinkan) dan pengecekan yang harus selalu live.
+const WEBAPP_AKSI_BACA_RE = /^(lihat_|detail_|ringkasan_|riwayat_|semua_saran_ai$|vm_lihat_|reminder_repeat_order$|analisa_performa_staff$)/;
+const WEBAPP_AKSI_BACA_LIVE = new Set(['lihat_semua_pesanan_gabungan', 'lihat_pesanan_gabungan_ringan', 'lihat_pesanan_gabungan_detail', 'lihat_stok_banyak_sku']);
+// Aksi "baca-ish" yang tidak di-cache tapi juga bukan penulisan (tidak membuang cache)
+const WEBAPP_AKSI_NETRAL_RE = /^(lihat_|detail_|ringkasan_|riwayat_|cari_|cek_|semua_|hitung_|simulasi_|ambil_|analisa_|rangkum_|katalog_ambil_|vm_lihat_|reminder_|login$|buat_auth_url)/;
+let webAppPaksaSegarHitung = 0;   // > 0 selama pemicu yang diizinkan (polling/visibility) sedang berjalan
+let webAppPaksaSegarSampai = 0;   // jendela singkat setelah klik tombol refresh/sinkron manual
+
+function webAppAksiBolehCache(aksi) { return WEBAPP_AKSI_BACA_RE.test(aksi || '') && !WEBAPP_AKSI_BACA_LIVE.has(aksi); }
+function webAppKunciCache(body) {
+  const salin = Object.assign({}, body);
+  delete salin.segar;
+  return JSON.stringify(salin);
+}
+function webAppSedangPaksaSegar() { return webAppPaksaSegarHitung > 0 || Date.now() < webAppPaksaSegarSampai; }
+function webAppBuangCacheBaca() { webAppCacheBaca.clear(); }
+// Jalankan fn() sebagai pemicu yang diizinkan (polling 15 menit / tab aktif lagi): request baca di dalamnya
+// selalu ke server dan hasilnya memperbarui cache.
+async function webAppDenganDataSegar(fn) {
+  webAppPaksaSegarHitung++;
+  try { return await fn(); } finally { webAppPaksaSegarHitung = Math.max(0, webAppPaksaSegarHitung - 1); }
+}
+function webAppSalin(data) {
+  try { return typeof structuredClone === 'function' ? structuredClone(data) : JSON.parse(JSON.stringify(data)); } catch (e) { return data; }
+}
+// Klik tombol refresh/sinkron manual (🔄, "Refresh", "Muat ulang", "Sinkron", "Sync") -> request baca
+// yang dipicu klik itu melewati cache. Dideteksi otomatis supaya semua tombol refresh lama ikut patuh.
+function webAppTandaiAksiManual(e) {
+  const btn = e.target && e.target.closest ? e.target.closest('button, [role="button"], a') : null;
+  if (!btn) return;
+  const teks = ((btn.textContent || '') + ' ' + (btn.title || '') + ' ' + (btn.getAttribute('aria-label') || '')).toLowerCase();
+  if (/🔄|↻|refresh|muat ulang|segarkan|sinkron|sync|perbarui data/.test(teks)) webAppPaksaSegarSampai = Date.now() + 2500;
+}
+document.addEventListener('click', webAppTandaiAksiManual, true);
+
 async function postJson(body, timeoutMs, silent) {
   timeoutMs = timeoutMs || 20000;
   if (body.toko === undefined) body.toko = currentToko; // otomatis kirim toko yang lagi aktif, kecuali udah diisi manual
+
+  const bolehCache = webAppAksiBolehCache(body.aksi);
+  const kunciCache = bolehCache ? webAppKunciCache(body) : '';
+  if (bolehCache && !body.segar && !webAppSedangPaksaSegar()) {
+    const c = webAppCacheBaca.get(kunciCache);
+    if (c) {
+      // Navigasi SELALU dijawab dari cache (instan, tanpa loading). Kalau umurnya sudah >= 15 menit
+      // (jadwal polling terpenuhi), cache diperbarui DIAM-DIAM di latar untuk kunjungan berikutnya -
+      // tampilan yang sedang dilihat user tidak diubah.
+      if (Date.now() - c.t >= WEBAPP_CACHE_BACA_UMUR_MS) webAppPerbaruiCacheLatar_(body, kunciCache, timeoutMs);
+      return webAppSalin(c.data); // 0 request yang ditunggu user
+    }
+  }
+  const data = await postJsonKeServer_(body, timeoutMs, silent);
+  webAppSimpanHasilBaca_(body, kunciCache, bolehCache, data);
+  return data;
+}
+
+function webAppSimpanHasilBaca_(body, kunciCache, bolehCache, data) {
+  if (!data || data.success === false) return;
+  if (bolehCache) {
+    webAppCacheBaca.delete(kunciCache);
+    webAppCacheBaca.set(kunciCache, { t: Date.now(), data: webAppSalin(data) });
+    while (webAppCacheBaca.size > WEBAPP_CACHE_BACA_MAKS) webAppCacheBaca.delete(webAppCacheBaca.keys().next().value);
+  } else if (!WEBAPP_AKSI_NETRAL_RE.test(body.aksi || '')) {
+    webAppBuangCacheBaca(); // aksi TULIS lewat postJson berhasil -> data baca bisa berubah
+  }
+}
+
+const webAppCacheSedangDiperbarui = new Set();
+function webAppPerbaruiCacheLatar_(body, kunciCache, timeoutMs) {
+  if (webAppCacheSedangDiperbarui.has(kunciCache) || document.hidden || webAppTulisAktif > 0) return;
+  webAppCacheSedangDiperbarui.add(kunciCache);
+  const salinBody = Object.assign({}, body);
+  postJsonKeServer_(salinBody, timeoutMs, true)
+    .then(d => webAppSimpanHasilBaca_(salinBody, kunciCache, true, d))
+    .catch(() => { /* senyap: cache lama tetap dipakai */ })
+    .finally(() => webAppCacheSedangDiperbarui.delete(kunciCache));
+}
+
+async function postJsonKeServer_(body, timeoutMs, silent) {
 
   async function coba(waktuTunggu) {
     await webAppAmbilSlotBaca(); // timer timeout baru mulai SETELAH dapat slot
