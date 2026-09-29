@@ -7948,7 +7948,7 @@ function initApp() {
 }
 
 function tampilkanLayarLogin() {
-  const modeWeb = !modeMobileDipilih(); // bukan lagi berdasarkan lebar jendela
+  const modeWeb = !modeMobileDipilih(); // berdasarkan jenis perangkat / pilihan manual, bukan lebar jendela
   el('app').style.display = modeWeb ? 'none' : 'block';
   el('app-web').style.display = 'none';
   el('screen-login').style.display = modeWeb ? 'none' : 'flex';
@@ -8155,8 +8155,8 @@ function terapkanTampilanLogin() {
   refreshMenuCounts();
   muatProfilPerusahaan(); // sinkron TOKO_INFO dari Company Profile - biar cetak invoice/label ikut yang terbaru
 
-  // Tampilan WEB selalu jadi default (berapa pun lebar jendelanya). Tampilan mobile HANYA dipakai kalau
-  // pengguna sendiri menekan "Buka Versi Mobile" - pilihan itu diingat di perangkat ini.
+  // HP -> tampilan mobile; tablet, laptop & PC -> tampilan web (berapa pun lebar jendelanya).
+  // Pilihan manual lewat "Buka Versi Mobile" / "Buka Versi Web" diingat di perangkat ini & selalu menang.
   if (!paksaModeMobile) {
     switchKeTampilanWeb();
   } else {
@@ -8164,8 +8164,31 @@ function terapkanTampilanLogin() {
   }
 }
 
-// Pilihan tampilan diingat per perangkat: 'mobile' hanya setelah klik "Buka Versi Mobile"
-function modeMobileDipilih() { try { return localStorage.getItem('omni_tampilan') === 'mobile'; } catch (e) { return false; } }
+// Deteksi JENIS PERANGKAT (bukan lebar jendela): true hanya untuk HP.
+// Tablet (iPad, tablet Android), laptop & PC -> false (tampilan web), walaupun jendelanya diperkecil.
+function perangkatAdalahHP() {
+  try {
+    // Chromium modern: userAgentData.mobile = true untuk HP, false untuk tablet & desktop
+    if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') return navigator.userAgentData.mobile;
+    const ua = navigator.userAgent || '';
+    if (/iPad|Tablet|PlayBook|Silk/i.test(ua)) return false;                       // tablet
+    if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return false;      // iPadOS (mengaku Mac)
+    if (/iPhone|iPod|Windows Phone|BlackBerry|Opera Mini|IEMobile|Android.+Mobile|Mobi/i.test(ua)) return true; // HP
+    // Cadangan: layar sentuh sebagai input utama + sisi layar terpendek < 600px = HP
+    const sisiPendek = Math.min(screen.width || 0, screen.height || 0);
+    return !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && sisiPendek > 0 && sisiPendek < 600);
+  } catch (e) { return false; }
+}
+// Urutan penentu tampilan: pilihan manual pengguna (diingat per perangkat) -> jenis perangkat.
+// HP = mobile, selain HP = web. Tombol "Buka Versi Mobile" / "Buka Versi Web" selalu bisa menimpa.
+function modeMobileDipilih() {
+  try {
+    const pilihan = localStorage.getItem('omni_tampilan');
+    if (pilihan === 'mobile') return true;
+    if (pilihan === 'web') return false;
+  } catch (e) { }
+  return perangkatAdalahHP();
+}
 function simpanPilihanTampilan(mode) { try { localStorage.setItem('omni_tampilan', mode); } catch (e) { } }
 let paksaModeMobile = modeMobileDipilih();
 
