@@ -1698,13 +1698,14 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   .wp-kapsul { font: inherit; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none;
     padding: 6px 8px 6px 12px; border-radius: 999px; border: 1px solid var(--web-border); background: var(--web-panel); color: var(--web-text-dim);
     cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
-  .wp-kapsul:hover { border-color: var(--w, #2f9e6e); color: var(--web-text); }
+  .wp-kapsul:hover { border-color: var(--wg, #cfd8e3); color: var(--web-text); }
   .wp-kapsul:focus-visible { outline: 2px solid var(--w, #2f9e6e); outline-offset: 2px; }
   .wp-kapsul i { width: 8px; height: 8px; border-radius: 50%; background: var(--w, #2f9e6e); flex: none; }
   .wp-kapsul .n { font-size: 11px; font-weight: 700; min-width: 18px; text-align: center; padding: 1px 7px; border-radius: 999px; background: var(--web-bg); color: inherit; font-variant-numeric: tabular-nums; }
-  .wp-kapsul.aktif { background: var(--w, #2f9e6e); border-color: var(--w, #2f9e6e); color: #fff; }
-  .wp-kapsul.aktif i { background: #fff; }
-  .wp-kapsul.aktif .n { background: rgba(255, 255, 255, .22); }
+  /* Aktif: latar pastel + teks warna tua senada (kontras teks >= 4.5:1), bukan blok warna penuh */
+  .wp-kapsul.aktif { background: var(--wl, #e8f6ec); border-color: var(--wg, #c2e5cd); color: var(--w, #2e7d4f); box-shadow: 0 1px 2px rgba(15, 23, 42, .06); }
+  .wp-kapsul.aktif i { background: var(--w, #2e7d4f); }
+  .wp-kapsul.aktif .n { background: rgba(255, 255, 255, .75); color: var(--w, #2e7d4f); }
   .wp-tt-refresh.sibuk { opacity: .55; cursor: progress; }
 
   /* ===== Panel sinkron penuh (status & resi) ===== */
@@ -1767,6 +1768,20 @@ const LOGO_OMI_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
   .wp-sel-putar { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #2f9e6e; border-right-color: transparent;
     animation: wpPutar .7s linear infinite; vertical-align: -1px; margin-left: 6px; }
   .wp-tabel-penjualan tr.wp-row-tersimpan td { animation: wpSorot 2.4s ease-out; }
+  .wp-sel-gagal { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 6px; border-radius: 50%;
+    background: #fdf1dc; color: #9a6412; font-size: 10px; font-weight: 800; vertical-align: 0; cursor: help; }
+  .wp-toast-latar { position: fixed; right: 18px; bottom: 18px; z-index: 9999; max-width: min(420px, calc(100vw - 36px)); display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.4; background: #fff; color: #334155;
+    border: 1px solid #dbe3ec; box-shadow: 0 8px 24px rgba(15, 23, 42, .12); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+  .wp-toast-latar.tampil { opacity: 1; transform: none; pointer-events: auto; }
+  .wp-toast-latar.ok { border-color: #c2e5cd; background: #f3faf5; color: #24613f; }
+  .wp-toast-latar.gagal { border-color: #f1dcb6; background: #fdf8ee; color: #7a5210; }
+  .wp-toast-latar .isi { flex: 1; }
+  .wp-toast-latar .wp-sel-putar { margin-left: 0; }
+  .wp-toast-latar button { font: inherit; font-size: 12.5px; cursor: pointer; border: 0; background: none; color: inherit; }
+  .wp-toast-latar .ulang { font-weight: 700; text-decoration: underline; }
+  .wp-toast-latar .tutup { font-size: 18px; line-height: 1; opacity: .6; padding: 0 2px; }
+  @media (prefers-reduced-motion: reduce) { .wp-toast-latar { transition: none; } }
 
   /* ===== Modal Input Data Pembeli Massal: kunci saat menyimpan ===== */
   #wp-bulk-pembeli-panel { position: relative; }
@@ -10323,19 +10338,25 @@ async function wpFetchSemuaGabungan(opsi) {
   return wpGabSinkron.jalan;
 }
 
-// Pemeriksaan latar tiap 60 detik: baca Sheets saja (pesanan baru dari trigger 5 menit ikut masuk)
+// Pemeriksaan latar tiap 15 menit: baca Sheets saja (pesanan baru dari trigger 5 menit ikut masuk)
 // OPTIMASI: dilewati saat ada proses SIMPAN berjalan (tidak berebut slot eksekusi), dan kalau gagal
-// beruntun, jeda polling dinaikkan bertahap (1, 3, 7 menit - maks 8) sampai server pulih.
-let wpGabPollGagal = 0, wpGabPollLewati = 0;
+// beruntun, 1-3 jadwal berikutnya dilewati (jeda maks ~1 jam) sampai server pulih.
+let wpGabPollGagal = 0, wpGabPollLewati = 0, wpGabPollTerakhirMs = Date.now();
 async function wpCekPesananBaruGabungan() {
   if (document.hidden || wpGabSinkron.jalan || wpSinkron.jalan) return;
   if (webAppTulisAktif > 0 || wpBulkSibuk) return;
   if (wpGabPollLewati > 0) { wpGabPollLewati--; return; }
+  wpGabPollTerakhirMs = Date.now();
   const h = await wpFetchSemuaGabungan({ teks: 'Memeriksa pesanan baru...' });
-  if (h && h.gagal) { wpGabPollGagal++; wpGabPollLewati = Math.min(8, Math.pow(2, wpGabPollGagal) - 1); }
+  if (h && h.gagal) { wpGabPollGagal++; wpGabPollLewati = Math.min(3, Math.pow(2, wpGabPollGagal) - 1); }
   else { wpGabPollGagal = 0; wpGabPollLewati = 0; }
   return h;
 }
+// Tab browser kembali dibuka setelah > 15 menit tersembunyi -> cek sekali (jadwal yang terlewat saat tersembunyi)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !wpGabunganAutoRefreshInterval) return;
+  if (Date.now() - wpGabPollTerakhirMs >= WP_INTERVAL_POLLING_MS) wpCekPesananBaruGabungan();
+});
 
 /* ----- SINKRON PENUH + panel progres interaktif ----- */
 const WP_SINKRON_LANGKAH = [
@@ -11235,10 +11256,13 @@ async function updateAISuggestionStatus(taskId, status) {
 let wpGabunganSegmenAktif = 'Semua';
 
 let wpGabunganAutoRefreshInterval = null;
+// Interval penarikan data otomatis (Penjualan). 15 menit = hemat kuota eksekusi Apps Script.
+// Data baru tetap bisa ditarik kapan saja lewat tombol 🔄.
+const WP_INTERVAL_POLLING_MS = 900000;
 
 function wpMulaiAutoRefreshGabungan() {
   wpHentikanAutoRefreshGabungan();
-  wpGabunganAutoRefreshInterval = setInterval(wpCekPesananBaruGabungan, 60000); // tiap 60 detik (baca Sheets saja, tanpa API marketplace)
+  wpGabunganAutoRefreshInterval = setInterval(wpCekPesananBaruGabungan, WP_INTERVAL_POLLING_MS); // tiap 15 menit (baca Sheets saja, tanpa API marketplace)
 }
 
 function wpHentikanAutoRefreshGabungan() {
@@ -11260,12 +11284,14 @@ function wpCocokSegmen(o, segmenAktif) {
 
 // Filter channel = KAPSUL di atas tabel (filter LOKAL, tanpa fetch ulang). Conner Hardware ikut
 // kapsul TikTok Shop & Tokopedia - tokonya sudah dibedakan lewat kolom Toko.
+// Palet lembut (tanpa merah/oranye mencolok yang terkesan error/peringatan):
+// warna = teks & titik, latar = isi kapsul saat aktif, garis = border saat aktif
 const WP_KAPSUL_KANAL = [
-  { k: '', label: 'Semua', warna: '#475569' },
-  { k: 'tiktok', label: 'TikTok Shop & Tokopedia', warna: '#fe2c55' },
-  { k: 'shopee', label: 'Shopee', warna: '#ee4d2d' },
-  { k: 'manual', label: 'Manual Order', warna: '#8b5cf6' },
-  { k: 'website', label: 'Website', warna: '#3b82f6' }
+  { k: '', label: 'Semua', warna: '#475569', latar: '#eef2f7', garis: '#cfd8e3' },                        // slate lembut (netral)
+  { k: 'tiktok', label: 'TikTok Shop & Tokopedia', warna: '#0f766e', latar: '#e3f5f2', garis: '#b5e2da' }, // teal
+  { k: 'shopee', label: 'Shopee', warna: '#2e7d4f', latar: '#e8f6ec', garis: '#c2e5cd' },                  // hijau pastel
+  { k: 'manual', label: 'Manual Order', warna: '#5b47b0', latar: '#efebfb', garis: '#d5ccf2' },            // lavender lembut
+  { k: 'website', label: 'Website', warna: '#2f63b5', latar: '#e9f1fc', garis: '#c6d9f4' }                 // biru lembut
 ];
 let wpGabKanalAktif = '';
 function wpGrupKanal(o) {
@@ -11284,7 +11310,7 @@ function wpGabRenderKapsul(jumlah) {
   const wadah = el('wp-gab-kapsul');
   if (!wadah) return;
   wadah.innerHTML = WP_KAPSUL_KANAL.map(c => `
-    <button type="button" class="wp-kapsul ${wpGabKanalAktif === c.k ? 'aktif' : ''}" style="--w:${c.warna}" role="tab" aria-selected="${wpGabKanalAktif === c.k}" onclick="wpGabPilihKanal('${c.k}')">
+    <button type="button" class="wp-kapsul ${wpGabKanalAktif === c.k ? 'aktif' : ''}" style="--w:${c.warna};--wl:${c.latar};--wg:${c.garis}" role="tab" aria-selected="${wpGabKanalAktif === c.k}" onclick="wpGabPilihKanal('${c.k}')">
       ${c.k ? '<i aria-hidden="true"></i>' : ''}${escapeHtml(c.label)}<span class="n">${(jumlah[c.k] || 0).toLocaleString('id-ID')}</span>
     </button>`).join('');
 }
@@ -11597,13 +11623,13 @@ function wpGabunganRenderHalaman(idBaruMasuk) {
     const iniBaru = idBaruMasuk.includes(kunci);
     const kat = wpKategoriStatus(o.status);
     return `
-    <tr class="${[iniBaru ? 'wp-row-baru-masuk' : '', wpGabBarisMemuat.has(kunci) ? 'wp-row-memuat' : '', wpGabBarisTersimpan.has(kunci) ? 'wp-row-tersimpan' : ''].join(' ').trim()}" ${wpGabBarisMemuat.has(kunci) ? 'aria-busy="true"' : ''} data-kunci="${escapeHtml(kunci)}" data-idx="${idx}">
+    <tr class="${[iniBaru ? 'wp-row-baru-masuk' : '', wpGabBarisTersimpan.has(kunci) ? 'wp-row-tersimpan' : ''].join(' ').trim()}" ${wpGabBarisMemuat.has(kunci) ? 'aria-busy="true"' : ''} data-kunci="${escapeHtml(kunci)}" data-idx="${idx}">
       <td><input type="checkbox" class="wp-gab-row-check" data-idx="${idx}" ${wpGabunganTerpilih.has(kunci) ? 'checked' : ''} /></td>
       <td><span class="web-status-pill ${o.toko === 'Conner' ? 'selisih' : 'aktif'}">${escapeHtml(o.toko || 'Waterground')}</span></td>
       <td><span class="web-status-pill aktif">${escapeHtml(o.sumber)}</span></td>
       <td class="wp-dim" style="white-space:nowrap;">${escapeHtml(o.tanggal)}</td>
       <td>${escapeHtml(o.noReferensi)}${iniBaru ? ' <span class="wp-badge-baru">BARU</span>' : ''}</td>
-      <td>${escapeHtml(o.pembeli)}${wpGabBarisMemuat.has(kunci) ? '<span class="wp-sel-putar" title="Memperbarui..."></span>' : ''}</td>
+      <td>${wpGabSelPembeliHtml(o, kunci)}</td>
       <td class="num">Rp ${Number(o.total || 0).toLocaleString('id-ID')}</td>
       <td><span class="web-status-pill wp-st-${kat}">${escapeHtml(o.status)}</span></td>
       <td class="wp-mono">${escapeHtml(wpResiStr(o.noResi))}</td>
@@ -11757,7 +11783,6 @@ function wpBulkSetSibuk(sibuk, teks) {
 
 async function wpSimpanBulkPembeli() {
   if (wpBulkSibuk || !wpBulkPembeliData.length) return;
-  const statusEl = el('wp-bulk-pembeli-status');
   const daftarOrder = wpBulkPembeliData.slice();
   const nilai = (kls, idx) => { const x = document.querySelector(`.${kls}[data-idx="${idx}"]`); return x ? x.value.trim() : ''; };
   const daftar = daftarOrder.map((o, idx) => ({
@@ -11765,58 +11790,116 @@ async function wpSimpanBulkPembeli() {
     usernameManual: nilai('bulk-pembeli-username', idx), namaManual: nilai('bulk-pembeli-nama', idx),
     hpManual: nilai('bulk-pembeli-hp', idx), alamatManual: nilai('bulk-pembeli-alamat', idx), catatan: nilai('bulk-pembeli-catatan', idx)
   }));
-  // idPermintaan stabil sampai sukses -> klik ulang setelah gagal jaringan tidak menulis dobel
-  if (!wpBulkIdPermintaan) wpBulkIdPermintaan = 'pbm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
-  statusEl.textContent = ''; statusEl.className = 'status-text';
-  wpBulkSetSibuk(true, `Menyimpan ${daftar.length} pesanan...`);
+  // idPermintaan stabil untuk isian ini -> "Coba lagi" setelah gagal jaringan tidak menulis dobel
+  const idPermintaan = 'pbm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 
-  let data;
-  try {
-    data = await postJsonTulis({ aksi: 'simpan_data_pembeli_massal', daftar, idPermintaan: wpBulkIdPermintaan, email: currentUserEmail() }, 60000);
-  } catch (err) {
-    wpBulkSetSibuk(false);
-    statusEl.textContent = '✗ Gagal terhubung: ' + err.message + ' - klik Simpan Semua lagi (aman, tidak akan tersimpan dobel).';
-    statusEl.className = 'status-text err';
-    return;
-  }
-  if (!data || !data.success) {
-    wpBulkSetSibuk(false);
-    statusEl.textContent = (data && data.duplikat)
-      ? '⏳ Penyimpanan sebelumnya masih diproses server - tunggu beberapa detik lalu klik Simpan Semua lagi.'
-      : '✗ ' + ((data && data.error) || 'Gagal menyimpan');
-    statusEl.className = 'status-text err';
-    return;
-  }
-
-  playBeep();
-  const kunciDisimpan = daftarOrder.map(wpGabunganKunciUnik);
-  // Tampilkan hasil seketika di tabel (optimistis), lalu diselaraskan dengan server
-  const peta = new Map(wpGabunganCache.map(o => [wpGabunganKunciUnik(o), o]));
-  daftarOrder.forEach((o, i) => {
-    const d = daftar[i];
-    const c = peta.get(wpGabunganKunciUnik(o)) || o;
-    Object.assign(c, { usernameManual: d.usernameManual, namaManual: d.namaManual, hpManual: d.hpManual, alamatManual: d.alamatManual, catatan: d.catatan });
-    c.pembeli = d.namaManual || c.namaTersamar || c.pembeli;
-    delete c.__idx; // indeks pencarian dibangun ulang
-  });
-  el('wp-bulk-sibuk-teks').textContent = `✓ ${data.jumlahTersimpan} pesanan tersimpan`;
-  el('wp-bulk-pembeli-panel').classList.add('berhasil');
-  await new Promise(r => setTimeout(r, 450));
-  wpBulkSetSibuk(false);
-  wpBulkIdPermintaan = '';
-  wpTutupModalBulkPembeli();
-
-  // Reload terarah: hanya baris yang diperbarui yang diberi efek loading
+  // SEAMLESS: modal langsung ditutup, tabel tetap bisa dipakai. Penyimpanan jalan di latar belakang;
+  // hanya baris yang disimpan yang diberi spinner kecil - tidak ada loading/refresh satu halaman.
   wpGabunganTerpilih.clear();
-  kunciDisimpan.forEach(k => wpGabBarisMemuat.add(k));
-  wpGabRenderPertahankan([]);
-  const h = await wpFetchSemuaGabungan({ ulang: true, teks: 'Memperbarui data pembeli...' }); // server sudah invalidasi cache -> delta cukup
-  kunciDisimpan.forEach(k => { wpGabBarisMemuat.delete(k); if (!(h && h.gagal)) wpGabBarisTersimpan.add(k); });
-  wpGabRenderPertahankan([]);
-  setTimeout(() => {
-    kunciDisimpan.forEach(k => wpGabBarisTersimpan.delete(k));
-    el('wp-gabungan-body').querySelectorAll('tr.wp-row-tersimpan').forEach(tr => tr.classList.remove('wp-row-tersimpan'));
-  }, 2600);
+  wpGabunganUpdateBulkBar();
+  document.querySelectorAll('.wp-gab-row-check:checked').forEach(chk => { chk.checked = false; });
+  el('wp-bulk-pembeli-modal').style.display = 'none';
+  wpBulkPembeliData = [];
+  wpBulkIdPermintaan = '';
+  wpBulkPembeliKirimLatar({ daftarOrder, daftar, idPermintaan });
+}
+
+/* ===== Simpan data pembeli di latar belakang - update per baris tanpa render ulang tabel ===== */
+const wpGabBarisGagal = new Map(); // kunci -> pesan error (ikon ⚠ kecil di baris)
+const wpGabBarisProses = new Map(); // kunci -> jumlah penyimpanan yang masih berjalan untuk baris itu
+
+// Perbarui 1 baris yang sedang tampil di layar (sel Pembeli + status spinner/gagal) tanpa innerHTML tabel
+function wpGabPerbaruiBarisDiTempat(kunci, kilat) {
+  const o = wpGabunganCache.find(x => wpGabunganKunciUnik(x) === kunci);
+  const tr = Array.from(el('wp-gabungan-body').querySelectorAll('tr[data-kunci]')).find(x => x.dataset.kunci === kunci);
+  if (!tr || !o) return; // baris tidak di halaman ini -> otomatis benar saat halaman itu dirender
+  const td = tr.children[5];
+  if (td) td.innerHTML = wpGabSelPembeliHtml(o, kunci);
+  tr.toggleAttribute('aria-busy', wpGabBarisMemuat.has(kunci));
+  if (kilat) {
+    tr.classList.remove('wp-row-tersimpan'); void tr.offsetWidth; tr.classList.add('wp-row-tersimpan');
+    setTimeout(() => tr.classList.remove('wp-row-tersimpan'), 2600);
+  }
+}
+
+function wpGabSelPembeliHtml(o, kunci) {
+  let tambahan = '';
+  if (wpGabBarisMemuat.has(kunci)) tambahan = '<span class="wp-sel-putar" title="Menyimpan..." aria-label="Menyimpan"></span>';
+  else if (wpGabBarisGagal.has(kunci)) tambahan = `<span class="wp-sel-gagal" title="${escapeHtml('Gagal disimpan: ' + wpGabBarisGagal.get(kunci))}" aria-label="Gagal disimpan">!</span>`;
+  return escapeHtml(o.pembeli) + tambahan;
+}
+
+async function wpBulkPembeliKirimLatar(paket) {
+  const { daftarOrder, daftar, idPermintaan } = paket;
+  const kunciList = daftarOrder.map(wpGabunganKunciUnik);
+  kunciList.forEach(k => {
+    wpGabBarisProses.set(k, (wpGabBarisProses.get(k) || 0) + 1);
+    wpGabBarisMemuat.add(k);
+    wpGabBarisGagal.delete(k);
+    wpGabPerbaruiBarisDiTempat(k, false);
+  });
+  wpToastLatar('proses', `Menyimpan data pembeli ${daftar.length} pesanan di latar belakang...`);
+
+  let data = null, pesanGagal = '';
+  try {
+    data = await postJsonTulis({ aksi: 'simpan_data_pembeli_massal', daftar, idPermintaan, email: currentUserEmail() }, 60000);
+    if (!data || !data.success) pesanGagal = (data && data.duplikat) ? 'Penyimpanan sebelumnya masih diproses server' : ((data && data.error) || 'Gagal menyimpan');
+  } catch (err) {
+    pesanGagal = err.message || 'Gagal terhubung';
+  }
+
+  // Server yang sebenarnya menyimpan (tersimpan = daftar Order ID yang benar-benar ditulis)
+  const tersimpan = new Set(((data && data.tersimpan) || []).map(String));
+  const peta = new Map(wpGabunganCache.map(o => [wpGabunganKunciUnik(o), o]));
+  let jumlahBerhasil = 0;
+  daftarOrder.forEach((o, i) => {
+    const k = kunciList[i];
+    const sisa = (wpGabBarisProses.get(k) || 1) - 1;
+    if (sisa > 0) wpGabBarisProses.set(k, sisa); else { wpGabBarisProses.delete(k); wpGabBarisMemuat.delete(k); }
+    const berhasil = !pesanGagal && (tersimpan.size ? tersimpan.has(String(o.noReferensi)) : (data.jumlahTersimpan || 0) > 0);
+    if (berhasil) {
+      jumlahBerhasil++;
+      // Data baris diganti SETELAH server sukses menyimpan
+      const d = daftar[i];
+      const c = peta.get(k) || o;
+      Object.assign(c, { usernameManual: d.usernameManual, namaManual: d.namaManual, hpManual: d.hpManual, alamatManual: d.alamatManual, catatan: d.catatan });
+      c.pembeli = d.namaManual || c.namaTersamar || c.pembeli;
+      delete c.__idx; // indeks pencarian baris ini dibangun ulang
+      wpGabBarisGagal.delete(k);
+    } else {
+      wpGabBarisGagal.set(k, pesanGagal || 'Pesanan tidak ditemukan di sheet');
+    }
+    wpGabPerbaruiBarisDiTempat(k, berhasil);
+  });
+
+  if (!pesanGagal) {
+    wpCache.simpanNanti(wpGabunganCache); // IndexedDB ikut diperbarui; _sig baru diambil otomatis di sinkron delta berikutnya
+    const gagalSebagian = daftarOrder.length - jumlahBerhasil;
+    if (gagalSebagian > 0) wpToastLatar('gagal', `${jumlahBerhasil} tersimpan, ${gagalSebagian} pesanan tidak ditemukan di sheet (ditandai "!" di tabel).`);
+    else { playBeep(); wpToastLatar('ok', `✓ Data pembeli ${jumlahBerhasil} pesanan tersimpan`); }
+  } else {
+    wpToastLatar('gagal', `Data pembeli ${daftar.length} pesanan gagal disimpan: ${pesanGagal}`, () => wpBulkPembeliKirimLatar(paket));
+  }
+}
+
+// Notifikasi kecil di pojok bawah (tidak menutupi tabel). jenis: proses | ok | gagal. ulang = aksi tombol "Coba lagi"
+function wpToastLatar(jenis, teks, ulang) {
+  let t = document.getElementById('wp-toast-latar');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'wp-toast-latar';
+    t.setAttribute('role', 'status');
+    t.setAttribute('aria-live', 'polite');
+    document.body.appendChild(t);
+  }
+  clearTimeout(t._timer);
+  t.className = 'wp-toast-latar tampil ' + jenis;
+  t.innerHTML = `${jenis === 'proses' ? '<span class="wp-sel-putar" aria-hidden="true"></span>' : ''}<span class="isi">${escapeHtml(teks)}</span>`
+    + (ulang ? '<button type="button" class="ulang">Coba lagi</button>' : '')
+    + '<button type="button" class="tutup" aria-label="Tutup">×</button>';
+  if (ulang) t.querySelector('.ulang').onclick = () => { t.classList.remove('tampil'); ulang(); };
+  t.querySelector('.tutup').onclick = () => t.classList.remove('tampil');
+  if (jenis !== 'gagal') t._timer = setTimeout(() => t.classList.remove('tampil'), jenis === 'ok' ? 3500 : 12000);
 }
 
 async function wpGabunganJalankanAksi(aksi, o) {
@@ -13026,7 +13109,7 @@ function wpMulaiAutoRefreshTikTok() {
     if (tabWebAktif === 'pesanan' && document.querySelector('.web-nav-sub[data-wpsub="tiktok"]')?.classList.contains('active')) {
       wpFetchPesananTikTok();
     }
-  }, 60000); // refresh tampilan tiap 60 detik
+  }, WP_INTERVAL_POLLING_MS); // refresh tampilan tiap 15 menit
 }
 function wpHentikanAutoRefreshTikTok() {
   if (wpTiktokAutoRefreshInterval) { clearInterval(wpTiktokAutoRefreshInterval); wpTiktokAutoRefreshInterval = null; }
