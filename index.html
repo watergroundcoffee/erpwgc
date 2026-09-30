@@ -10,10 +10,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
-<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Library pihak ketiga dimuat "defer": diunduh paralel tanpa menahan tampilan pertama.
+     Semua pemakaiannya ada di dalam fungsi (kamera, cetak, grafik), jadi aman dijalankan setelah halaman siap.
+     ZXing & html2canvas dipindah ke jsDelivr (CDN lebih cepat & stabil untuk Indonesia). -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style id="gaya-utama-app">
   :root {
@@ -2769,6 +2773,13 @@
   .rt2-lb-tutup { position: absolute; top: 16px; right: 18px; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,0.15); color: #fff; font-size: 16px; cursor: pointer; }
   @media (max-width: 1200px) { .rt2-detail-grid { grid-template-columns: 1fr 1fr; } }
 
+  /* Scan Resi (kamera mode tap): kilatan tiap resi terbaca, kamera tetap terbuka */
+  .cam-tutup { position: absolute; top: 8px; left: 8px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; border: none;
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 15px; cursor: pointer; }
+  .cam-wrap.kamera-berhasil .cam-frame { animation: kamera-kilat 0.45s ease; }
+  @keyframes kamera-kilat { 0% { box-shadow: 0 0 0 0 rgba(47,158,110,0.9); border-color: #2f9e6e; } 100% { box-shadow: 0 0 0 14px rgba(47,158,110,0); } }
+  @media (prefers-reduced-motion: reduce) { .cam-wrap.kamera-berhasil .cam-frame { animation: none; } }
+
   /* ===== Panel "Input Stock tanpa QR" (bottom sheet) ===== */
   body.mgm-tqr-terbuka { overflow: hidden; }
   .mgm-tqr-latar {
@@ -4332,10 +4343,10 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
         <div class="hint-text">Arahkan scanner ke barcode / ketik No Resi</div>
         <div class="mgm-input-baris">
           <input id="scan-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="No Resi" />
-          <button type="button" class="mgm-kamera-tahan" id="scan-kamera-tahan" aria-label="Tahan untuk scan resi pakai kamera" title="Tahan untuk scan pakai kamera"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.3" r="3.4"/></svg></button>
+          <button type="button" class="mgm-kamera-tahan" id="scan-kamera-tahan" aria-label="Buka / tutup kamera scan resi" title="Tap untuk buka kamera, tap lagi / tap di luar untuk tutup"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.3" r="3.4"/></svg></button>
         </div>
         <div class="mgm-kamera-opsi">
-          <span class="mgm-kamera-petunjuk">Tahan 📷 untuk scan · lepas untuk menutup</span>
+          <span class="mgm-kamera-petunjuk">Tap 📷 buka kamera · scan terus · tap di luar kamera untuk tutup</span>
           <button type="button" class="mgm-flash-toggle" role="switch" aria-checked="false" onclick="mgmToggleFlash()" title="Nyalakan flash otomatis tiap kamera dibuka">
             <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
             <span>Flash</span>
@@ -4348,7 +4359,8 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           <video id="camera-video" playsinline autoplay muted></video>
           <div class="cam-guideline"></div>
           <button class="torch-btn" id="torch-btn" onclick="toggleTorch()" style="display:none;">🔦</button>
-          <div class="cam-caption">Arahkan ke barcode resi · lepas tombol untuk menutup</div>
+          <div class="cam-caption">Arahkan ke barcode resi satu per satu · tap di luar kamera untuk menutup</div>
+          <button type="button" class="cam-tutup" id="camera-tutup" aria-label="Tutup kamera">✕</button>
         </div>
         <div class="cam-error" id="camera-error"></div>
       </div>
@@ -9438,9 +9450,13 @@ async function ceklagiStatusAkses(silent) {
       return;
     }
 
+    // Cek ulang di latar: tampilan hanya disusun ulang kalau role / izin / nama BERUBAH.
+    // (Dulu selalu disusun ulang -> semua request awal terkirim 2x setiap aplikasi dibuka.)
+    const sidikLama = JSON.stringify([currentUser.role, currentUser.nama, currentUser.isOwner, currentUser.izin]);
     currentUser = { ...currentUser, ...data };
     localStorage.setItem('trg_user', JSON.stringify(currentUser));
-    terapkanTampilanLogin();
+    const sidikBaru = JSON.stringify([currentUser.role, currentUser.nama, currentUser.isOwner, currentUser.izin]);
+    if (!silent || sidikLama !== sidikBaru) terapkanTampilanLogin();
   } catch (err) {
     if (!silent) alert('Gagal cek status: ' + err.message);
   }
@@ -9459,7 +9475,8 @@ function terapkanTampilanLogin() {
 
   terapkanVisibilitasMenu();
   refreshMenuCounts();
-  muatProfilPerusahaan(); // sinkron TOKO_INFO dari Company Profile - biar cetak invoice/label ikut yang terbaru
+  // Profil perusahaan cuma dipakai saat cetak invoice/label -> dimuat belakangan, tidak berebut dengan data menu
+  setTimeout(() => muatProfilPerusahaan(), paksaModeMobile ? 6000 : 1500);
 
   // HP -> tampilan mobile; tablet, laptop & PC -> tampilan web (berapa pun lebar jendelanya).
   // Pilihan manual lewat "Buka Versi Mobile" / "Buka Versi Web" diingat di perangkat ini & selalu menang.
@@ -9638,11 +9655,16 @@ function switchKeTampilanWeb() {
   el('btn-nav-tagihan').style.display = (currentUser.isOwner || (currentUser.izin && currentUser.izin.lihatTagihan)) ? 'flex' : 'none';
   el('btn-nav-pesandev').style.display = (currentUser.email === 'developer@testing.local' && currentUser.isOwner) ? 'flex' : 'none';
   perbaruiIkonTema();
+  // Bagian di bawah ini KHUSUS tampilan web (dashboard, saran AI, panel insight, logo sidebar).
+  // Dulu tetap dijalankan di HP -> 5-8 request berat ikut antre dan memperlambat menu mobile.
+  if (paksaModeMobile) return;
+  window._pemuatWebSudah = true;
   pgtMuatPosisiMenu();
   muatStatusInsightPanel();
   muatLogoPerusahaan();
-  muatSemuaSaranAI(); // pre-generate sekali di awal, biar ganti halaman nggak nunggu loading lagi
   pulihkanLokasiTerakhir();
+  // Saran AI berat -> setelah halaman pertama selesai dimuat
+  setTimeout(() => muatSemuaSaranAI(), 4000);
 }
 
 function bukaMobileDariWeb() {
@@ -9663,6 +9685,12 @@ function bukaWebDariMobile() {
   simpanPilihanTampilan('web');
   toggleUserMenu(); // tutup dropdown menu mobile dulu
   switchKeTampilanWeb();
+  // Pemuat khusus web dilewati saat aplikasi dibuka di mode mobile -> jalankan sekarang (sekali)
+  if (!window._pemuatWebSudah) {
+    window._pemuatWebSudah = true;
+    try { pgtMuatPosisiMenu(); muatStatusInsightPanel(); muatLogoPerusahaan(); pulihkanLokasiTerakhir(); } catch (e) {}
+    setTimeout(() => muatSemuaSaranAI(), 3000);
+  }
 }
 
 let tabWebAktif = 'overview';
@@ -31311,7 +31339,11 @@ function setInputMode(mode) {
   if (!kameraTahanScan) {
     kameraTahanScan = buatKameraTahan({
       btnId: 'scan-kamera-tahan', wrapId: 'camera-wrap', videoId: 'camera-video', errorId: 'camera-error',
-      onHasil: teks => { if (teks) scanMasukAntrean(teks); scanTutupKeyboard(); }
+      modeToggle: true, // TAP buka, scan semua resi terus-menerus, tap di luar kamera untuk tutup
+      btnTutupId: 'camera-tutup',
+      sebelumBuka: () => { const i = el('scan-input'); if (i) i.blur(); },
+      onHasil: teks => { if (teks) scanMasukAntrean(teks); },
+      saatTutup: () => scanTutupKeyboard()
     });
     kameraTahanScan.pasang();
   }
@@ -32494,12 +32526,27 @@ async function refreshMenuCounts() {
     el('count-masuk-gabungan').textContent = 'URL belum diatur';
     return;
   }
-  el('count-keluar').textContent = 'memuat...';
-  el('count-masuk-gabungan').textContent = 'memuat...';
+  // Tampil instan dari angka terakhir (kalau masih hari yang sama), lalu diperbarui
+  let snapMenu = null;
+  try { snapMenu = JSON.parse(localStorage.getItem('menu_hitung_v1') || 'null'); } catch (e) {}
+  if (snapMenu && snapMenu.hari === krTgl(new Date())) {
+    el('count-keluar').textContent = (snapMenu.keluar ?? '-') + ' resi hari ini';
+    el('count-masuk-gabungan').textContent = ((snapMenu.retur || 0) + (snapMenu.stock || 0)) + ' resi hari ini';
+  } else {
+    el('count-keluar').textContent = 'memuat...';
+    el('count-masuk-gabungan').textContent = 'memuat...';
+  }
 
-  const [keluar, retur, stock] = await Promise.all([
-    fetchCount('keluar'), fetchCount('retur'), fetchCount('stock')
-  ]);
+  // 1 request untuk ketiga angka (dulu 3 request paralel). Cadangan: cara lama kalau backend belum diperbarui.
+  let keluar = null, retur = null, stock = null;
+  try {
+    const d = await postJson({ aksi: 'hitung_menu', email: currentUserEmail() }, 15000);
+    if (d && d.success && d.jumlah) { keluar = d.jumlah.keluar; retur = d.jumlah.retur; stock = d.jumlah.stock; }
+    else throw new Error('fallback');
+  } catch (e) {
+    [keluar, retur, stock] = await Promise.all([fetchCount('keluar'), fetchCount('retur'), fetchCount('stock')]);
+  }
+  try { localStorage.setItem('menu_hitung_v1', JSON.stringify({ hari: krTgl(new Date()), keluar, retur, stock })); } catch (e) {}
   if (el('screen-menu').style.display === 'none') return; // dicek LAGI - user mungkin udah pindah halaman selama fetch jalan
   el('count-keluar').textContent = (keluar ?? '-') + ' resi hari ini';
   el('count-masuk-gabungan').textContent = ((retur ?? 0) + (stock ?? 0)) + ' resi hari ini';
@@ -33284,8 +33331,10 @@ async function mgmStartCamera(sesi) {
 const KAMERA_TAHAN_SEMUA = [];
 
 function buatKameraTahan(cfg) {
-  // cfg: { btnId, wrapId, videoId, errorId, onHasil(teks), sebelumBuka() }
+  // cfg: { btnId, wrapId, videoId, errorId, onHasil(teks), sebelumBuka(), saatTutup(), modeToggle }
+  // modeToggle = true (khusus Scan Resi): TAP buka -> scan terus-menerus -> TAP di mana saja di luar kamera untuk tutup
   let ditahan = false, sesi = 0, mulaiTahan = 0, reader = null, track = null, teksAkhir = '', waktuAkhir = 0;
+  let pendengarLuar = null, blokirKlikSampai = 0;
 
   function stop() {
     if (track) { try { track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {}); } catch (e) {} }
@@ -33305,10 +33354,16 @@ function buatKameraTahan(cfg) {
         if (!result || s !== sesi) return;
         const teks = result.getText();
         const now = Date.now();
-        if (teks === teksAkhir && now - waktuAkhir < 2000) return;
+        if (cfg.modeToggle) {
+          // Barcode yang SAMA masih di depan kamera -> diabaikan (tidak dobel) sampai berganti barcode lain
+          if (teks === teksAkhir && now - waktuAkhir < 8000) { waktuAkhir = now; return; }
+        } else if (teks === teksAkhir && now - waktuAkhir < 2000) return;
         teksAkhir = teks; waktuAkhir = now;
         if (navigator.vibrate) navigator.vibrate(60);
-        lepas(false);
+        if (cfg.modeToggle) {
+          const w = el(cfg.wrapId);
+          if (w) { w.classList.remove('kamera-berhasil'); void w.offsetWidth; w.classList.add('kamera-berhasil'); }
+        } else lepas(false);
         try { cfg.onHasil(String(teks || '').trim()); } catch (e) { console.error(e); }
       });
       if (s !== sesi) { try { r.reset(); } catch (e) {} return; } // tombol sudah dilepas saat kamera baru siap
@@ -33327,10 +33382,13 @@ function buatKameraTahan(cfg) {
     if (ditahan) return;
     ditahan = true;
     mulaiTahan = Date.now();
+    teksAkhir = ''; waktuAkhir = 0;
     const s = ++sesi;
     if (cfg.sebelumBuka) try { cfg.sebelumBuka(); } catch (e) {}
     el(cfg.btnId).classList.add('aktif');
+    el(cfg.btnId).setAttribute('aria-pressed', 'true');
     el(cfg.wrapId).style.display = 'flex';
+    if (cfg.modeToggle) pasangPendengarLuar();
     start(s);
   }
 
@@ -33339,17 +33397,46 @@ function buatKameraTahan(cfg) {
     ditahan = false;
     sesi++;
     const b = el(cfg.btnId);
-    if (b) b.classList.remove('aktif');
+    if (b) { b.classList.remove('aktif'); b.setAttribute('aria-pressed', 'false'); }
     stop();
+    lepasPendengarLuar();
     const w = el(cfg.wrapId);
     if (w) w.style.display = 'none';
-    if (tampilkanTips && Date.now() - mulaiTahan < 300) pgrToast('Tahan tombol kamera selama scan, lepas untuk menutup.');
+    if (!cfg.modeToggle && tampilkanTips && Date.now() - mulaiTahan < 300) pgrToast('Tahan tombol kamera selama scan, lepas untuk menutup.');
+    if (cfg.saatTutup) try { cfg.saatTutup(); } catch (e) {}
   }
+
+  // Mode toggle: sentuhan di LUAR bingkai kamera & tombol = tutup kamera (sentuhan itu tidak diteruskan ke tombol lain)
+  function pasangPendengarLuar() {
+    if (pendengarLuar) return;
+    pendengarLuar = e => {
+      const w = el(cfg.wrapId), b = el(cfg.btnId);
+      if ((w && w.contains(e.target)) || (b && b.contains(e.target))) return;
+      e.preventDefault(); e.stopPropagation();
+      blokirKlikSampai = Date.now() + 500;
+      lepas(false);
+    };
+    document.addEventListener('pointerdown', pendengarLuar, true);
+  }
+  function lepasPendengarLuar() {
+    if (!pendengarLuar) return;
+    document.removeEventListener('pointerdown', pendengarLuar, true);
+    pendengarLuar = null;
+  }
+  if (cfg.modeToggle) document.addEventListener('click', e => { if (Date.now() < blokirKlikSampai) { e.preventDefault(); e.stopPropagation(); blokirKlikSampai = 0; } }, true);
 
   function pasang() {
     const btn = el(cfg.btnId);
     if (!btn || btn._terpasang) return;
     btn._terpasang = true;
+    if (cfg.modeToggle) {
+      const tutup = cfg.btnTutupId && el(cfg.btnTutupId);
+      if (tutup) tutup.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); lepas(false); });
+      btn.setAttribute('aria-pressed', 'false');
+      btn.addEventListener('contextmenu', e => e.preventDefault());
+      btn.addEventListener('click', e => { e.preventDefault(); if (ditahan) lepas(false); else mulai(); });
+      return;
+    }
     const lepasJari = () => lepas(true);
     btn.addEventListener('pointerdown', e => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -33365,7 +33452,7 @@ function buatKameraTahan(cfg) {
     btn.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); lepasJari(); } });
   }
 
-  const api = { pasang, lepas, track: () => track, errorId: cfg.errorId };
+  const api = { pasang, lepas, track: () => track, errorId: cfg.errorId, terbuka: () => ditahan };
   KAMERA_TAHAN_SEMUA.push(api);
   return api;
 }
@@ -36894,8 +36981,10 @@ async function konfirmasiKirim() {
 try {
   checkConfig();
   terapkanTemaAwal();
-  muatLoginCarousel();
-  muatLogoPerusahaan();
+  // Carousel & logo halaman login hanya perlu kalau layar login memang tampil (sesi tidak tersimpan)
+  let adaSesi = false;
+  try { const u = JSON.parse(localStorage.getItem('trg_user') || 'null'); adaSesi = !!(u && u.aktif); } catch (e) {}
+  if (!adaSesi) { muatLoginCarousel(); muatLogoPerusahaan(); }
   initApp();
 } catch (e) {
   console.error('Init error:', e);
