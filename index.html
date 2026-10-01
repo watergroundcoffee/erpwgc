@@ -4652,6 +4652,21 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
     .fin2 .fin2-jr-alat input.web-form-input { min-width: 0; flex-basis: 100%; }
   }
 
+  /* Form Input Pembelian: tabel barang selalu pas lebar (tanpa scroll horizontal saat zoom) */
+  .pm-modal-panel .pm-barang-wrap { overflow-x: hidden; }
+  .pm-tabel-barang { table-layout: fixed; width: 100%; min-width: 0 !important; }
+  .pm-tabel-barang col.c-sku { width: 19%; } .pm-tabel-barang col.c-qty { width: 11%; } .pm-tabel-barang col.c-harga { width: 18%; }
+  .pm-tabel-barang col.c-sub { width: 17%; } .pm-tabel-barang col.c-hapus { width: 46px; }
+  .pm-tabel-barang th, .pm-tabel-barang td { padding-left: 4px !important; padding-right: 4px !important; white-space: normal !important; }
+  .pm-tabel-barang .web-form-input { width: 100% !important; min-width: 0 !important; max-width: none !important; box-sizing: border-box; padding-left: 6px; padding-right: 6px; }
+  .pm-tabel-barang td.pm-sub { font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .pm-modal-panel .web-form-row { flex-wrap: wrap; }
+  .pm-modal-panel .web-form-row > div { min-width: min(160px, 100%); }
+  .pm-supplier-info { min-height: 0; font-size: 11.5px; margin: -4px 0 6px; }
+  .pm-supplier-info:empty { display: none; }
+  .pm-supplier-info .baru { color: #4338ca; font-weight: 600; }
+  .pm-supplier-info .ada { color: var(--web-text-dim); }
+  body.tema-gelap .pm-supplier-info .baru { color: #a5b4fc; }
   /* ================= PEMBELIAN: aksi atas, cari & filter list, panel Cek Memo Gudang ================= */
   .bel-aksi-atas { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; flex-wrap: wrap; }
   .bel-btn-bening { display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 999px; cursor: pointer;
@@ -7146,7 +7161,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <div style="font-size:11px; color:var(--web-text-dim); margin-bottom:10px;">Input manual data pembelian (invoice, barang, harga) - ini cuma nyimpen catatan invoice-nya. Stock baru beneran nambah setelah staff gudang cek fisik & konfirmasi lewat menu Checklist di mobile. Data ini ke depannya bisa diolah jadi Laporan Keuangan.</div>
             <div class="web-table-wrap">
               <table class="web-table" style="font-size:12.5px;">
-                <thead><tr><th>No Invoice</th><th>Tanggal</th><th>Supplier</th><th>Cabang</th><th>Jumlah Koli</th><th>Ongkos Kirim</th><th>Total</th><th>Status</th><th>Dicatat Oleh</th><th></th><th></th></tr></thead>
+                <thead><tr><th>No Invoice</th><th>Tanggal</th><th>Supplier</th><th>Cabang</th><th>Jumlah Koli</th><th>Ongkir / Biaya Lain</th><th>Total</th><th>Status</th><th>Dicatat Oleh</th><th></th><th></th></tr></thead>
                 <tbody id="bel-manual-body"></tbody>
               </table>
             </div>
@@ -7183,7 +7198,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
 
         <!-- ===== Modal Input Pembelian Manual ===== -->
         <div id="bel-modal-pembelian-manual" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:250; align-items:center; justify-content:center; padding:16px;">
-          <div class="web-panel" style="max-width:720px; width:100%; max-height:92vh; overflow-y:auto;">
+          <div class="web-panel pm-modal-panel" style="max-width:720px; width:100%; max-height:92vh; overflow-y:auto; overflow-x:hidden;">
             <div class="web-panel-header" style="display:flex; justify-content:space-between; align-items:center;">
               <span>📝 Input Pembelian Manual</span>
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="belTutupModalPembelianManual()">✕</button>
@@ -7198,8 +7213,9 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <div class="web-form-row">
               <div style="flex:1;">
                 <label style="font-size:12px; font-weight:600;">Nama Supplier</label>
-                <input id="pm-nama-supplier" type="text" class="web-form-input" placeholder="Nama toko/supplier" list="pm-daftar-supplier" onpaste="pmTanganiPaste(event)" oninput="pmUpdateDaftarCabang()" />
+                <input id="pm-nama-supplier" type="text" class="web-form-input" placeholder="Nama toko/supplier" list="pm-daftar-supplier" onpaste="pmTanganiPaste(event)" oninput="pmUpdateDaftarCabang(); pmCekSupplierBaru()" onchange="pmCekSupplierBaru()" />
                 <datalist id="pm-daftar-supplier"></datalist>
+                <div class="pm-supplier-info" id="pm-supplier-info" aria-live="polite"></div>
               </div>
               <div style="flex:1;">
                 <label style="font-size:12px; font-weight:600;">No Invoice</label>
@@ -7223,8 +7239,9 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             </div>
 
             <div style="font-size:12px; font-weight:600; margin-top:10px; margin-bottom:6px;">Daftar Barang</div>
-            <div class="web-table-wrap">
-              <table class="web-table" style="font-size:12px;">
+            <div class="web-table-wrap pm-barang-wrap">
+              <table class="web-table pm-tabel-barang" style="font-size:12px;">
+                <colgroup><col class="c-sku"><col class="c-nama"><col class="c-qty"><col class="c-harga"><col class="c-sub"><col class="c-hapus"></colgroup>
                 <thead><tr><th>SKU</th><th>Nama Produk</th><th>Qty</th><th>Harga Satuan</th><th>Subtotal</th><th></th></tr></thead>
                 <tbody id="pm-item-body"></tbody>
               </table>
@@ -7232,13 +7249,17 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <button class="web-btn-secondary" style="margin-top:8px; font-size:12px;" onclick="pmTambahBarisItem()">+ Tambah Baris</button>
 
             <div style="display:flex; justify-content:flex-end; margin-top:14px;">
-              <div style="min-width:280px;">
+              <div style="width:100%; max-width:340px;">
                 <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0;">
                   <span>Subtotal Barang</span><span id="pm-subtotal-barang">Rp 0</span>
                 </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; padding:4px 0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12.5px; padding:4px 0;">
                   <span>Ongkos Kirim (opsional)</span>
-                  <input id="pm-ongkos-kirim" type="number" class="web-form-input" placeholder="0" value="0" style="margin:0; max-width:140px; text-align:right;" oninput="pmHitungTotal()" />
+                  <input id="pm-ongkos-kirim" type="number" class="web-form-input" placeholder="0" value="0" min="0" style="margin:0; max-width:140px; text-align:right;" oninput="pmHitungTotal()" />
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12.5px; padding:4px 0;">
+                  <span title="Biaya layanan, asuransi, admin, packing kayu, dll - totalkan jadi satu">Biaya Lainnya (opsional)<small style="display:block; font-size:10.5px; color:var(--web-text-dim);">layanan, asuransi, admin, packing, dll</small></span>
+                  <input id="pm-biaya-lain" type="number" class="web-form-input" placeholder="0" value="0" min="0" style="margin:0; max-width:140px; text-align:right;" oninput="pmHitungTotal()" />
                 </div>
                 <div style="display:flex; justify-content:space-between; font-size:15px; font-weight:700; padding:8px 0; border-top:1px solid var(--web-border); margin-top:4px;">
                   <span>TOTAL</span><span id="pm-total">Rp 0</span>
@@ -7259,13 +7280,15 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <span>✏️ Edit Pembelian</span>
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="belTutupModalEditPembelian()">✕</button>
             </div>
-            <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:10px;">No Invoice: <b id="edit-pm-noinvoice-label"></b> - cuma Cabang, Jumlah Koli, dan Ongkos Kirim yang bisa diubah di sini (daftar barang udah kesimpen & motong stock).</div>
+            <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:10px;">No Invoice: <b id="edit-pm-noinvoice-label"></b> - cuma Cabang, Jumlah Koli, Ongkos Kirim &amp; Biaya Lainnya yang bisa diubah di sini (daftar barang udah kesimpen & motong stock).</div>
             <label style="font-size:12px; font-weight:600;">Cabang</label>
             <input id="edit-pm-cabang" type="text" class="web-form-input" placeholder="Misal: Shopee, Tokopedia, dll" />
             <label style="font-size:12px; font-weight:600;">Jumlah Koli</label>
             <input id="edit-pm-jumlah-koli" type="number" class="web-form-input" placeholder="Jumlah paket/dus fisik" min="0" />
             <label style="font-size:12px; font-weight:600;">Ongkos Kirim</label>
             <input id="edit-pm-ongkos-kirim" type="number" class="web-form-input" placeholder="0" min="0" />
+            <label style="font-size:12px; font-weight:600;">Biaya Lainnya <span style="font-weight:400; color:var(--web-text-dim);">(layanan, asuransi, admin, dll - total)</span></label>
+            <input id="edit-pm-biaya-lain" type="number" class="web-form-input" placeholder="0" min="0" />
             <button class="web-btn-primary" style="width:100%;" onclick="belSimpanEditPembelian()">💾 Simpan Perubahan</button>
             <div class="status-text" id="edit-pm-status" style="text-align:left; margin-top:6px;"></div>
           </div>
@@ -7278,9 +7301,25 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:22px; line-height:1.5;" id="batalkan-pm-subtext"></div>
             <div style="display:flex; gap:8px;">
               <button class="web-btn-secondary" style="flex:1;" onclick="belTutupModalBatalkan()">Nanti Saja</button>
-              <button class="web-btn-danger" style="flex:1;" onclick="belKonfirmasiBatalkanFinal()">Ya, Hapus</button>
+              <button class="web-btn-danger" style="flex:1;" onclick="belKonfirmasiBatalkanFinal()">Ya, Batalkan</button>
             </div>
             <div class="status-text" id="batalkan-pm-status" style="text-align:left; margin-top:8px;"></div>
+          </div>
+        </div>
+
+        <!-- ===== Modal Hapus Permanen Pembelian (langkah ke-2 setelah Dibatalkan) ===== -->
+        <div id="bel-modal-hapus-permanen" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:250; align-items:center; justify-content:center; padding:16px;" onmousedown="if(event.target===this) belTutupHapusPermanen()">
+          <div class="web-panel" style="max-width:420px; width:100%;" role="dialog" aria-modal="true" aria-labelledby="hapus-pm-judul">
+            <div style="font-size:16px; font-weight:700; margin-bottom:6px;" id="hapus-pm-judul">🗑️ Hapus permanen invoice <span id="hapus-pm-no"></span>?</div>
+            <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:4px;" id="hapus-pm-info"></div>
+            <div style="font-size:12px; color:var(--web-text-dim); line-height:1.55; margin:10px 0 14px;">Invoice &amp; semua barangnya <b style="color:var(--web-danger);">dihapus dari daftar dan tidak bisa dikembalikan</b> dari aplikasi. Salinan datanya tetap disimpan di sheet <i>Log Hapus Pembelian</i> untuk jaga-jaga. Stok tidak berubah (sudah dikoreksi saat dibatalkan).</div>
+            <label style="font-size:12px; font-weight:600;">Ketik No Invoice untuk konfirmasi</label>
+            <input id="hapus-pm-ketik" type="text" class="web-form-input" autocomplete="off" oninput="belCekKetikHapus()" onkeydown="if(event.key==='Enter'){event.preventDefault(); belKonfirmasiHapusPermanen();} else if(event.key==='Escape'){belTutupHapusPermanen();}" />
+            <div style="display:flex; gap:8px;">
+              <button class="web-btn-secondary" style="flex:1;" onclick="belTutupHapusPermanen()">Batal</button>
+              <button class="web-btn-danger" style="flex:1;" id="hapus-pm-btn" disabled onclick="belKonfirmasiHapusPermanen()">Hapus Permanen</button>
+            </div>
+            <div class="status-text" id="hapus-pm-status" style="text-align:left; margin-top:8px;"></div>
           </div>
         </div>
 
@@ -7310,6 +7349,9 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
                 </div>
                 <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0;">
                   <span>Ongkos Kirim</span><span id="detail-inv-ongkir">Rp 0</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0;" id="detail-inv-biaya-baris">
+                  <span>Biaya Lainnya</span><span id="detail-inv-biaya">Rp 0</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; font-size:15px; font-weight:700; padding:8px 0; border-top:1px solid var(--web-border); margin-top:4px;">
                   <span>TOTAL</span><span id="detail-inv-total">Rp 0</span>
@@ -17921,7 +17963,10 @@ function spHitungHargaBersih(h) {
     const qtyTotal = items.reduce((t, x) => t + x.qty, 0);
     if (Math.abs(selisih) <= Math.max(2, qtyTotal) && tambahan + selisih >= 0) tambahan += selisih; // sisa pembulatan
   }
-  return { items, ongkosKirim: Math.max(0, Math.round(tambahan)), diskon: Math.round(diskon), subtotal };
+  // Rincian untuk form Pembelian: ongkir murni & biaya lain (layanan/asuransi/dll + sisa pembulatan)
+  let ongkirSaja = Math.max(0, Math.round(ongkirBersih)), biayaSaja = Math.max(0, Math.round(tambahan)) - ongkirSaja;
+  if (biayaSaja < 0) { ongkirSaja += biayaSaja; biayaSaja = 0; }
+  return { items, ongkosKirim: Math.max(0, Math.round(tambahan)), ongkirSaja: Math.max(0, ongkirSaja), biayaLain: biayaSaja, diskon: Math.round(diskon), subtotal };
 }
 
 /* ---------- Pencocokan nama produk marketplace -> SKU katalog ---------- */
@@ -26602,7 +26647,7 @@ function belRenderPembelianManual() {
       <td>${belSorotTeks_(String(p.namaSupplier || ''), q)}</td>
       <td>${belSorotTeks_(String(p.cabang || '-'), q)}</td>
       <td>${escapeHtml(String(p.jumlahKoli))}</td>
-      <td>${p.ongkosKirim > 0 ? 'Rp ' + Number(p.ongkosKirim).toLocaleString('id-ID') : '-'}</td>
+      <td>${p.ongkosKirim > 0 ? 'Rp ' + Number(p.ongkosKirim).toLocaleString('id-ID') : '-'}${p.biayaLain > 0 ? `<div style="font-size:11px; color:var(--web-text-dim);" title="Biaya lainnya">+ Rp ${Number(p.biayaLain).toLocaleString('id-ID')}</div>` : ''}</td>
       <td style="font-weight:600; ${dibatalkan ? 'text-decoration:line-through;' : ''}">Rp ${Number(p.total).toLocaleString('id-ID')}</td>
       <td>
         ${p._antre ? (p._status === 'gagal' ? '<span class="web-status-pill batal" title="Lihat Log Tindakan di kanan bawah">✗ Gagal simpan</span>' : '<span class="web-status-pill aktif"><i class="dok-spin"></i> Menyimpan…</span>')
@@ -26610,12 +26655,14 @@ function belRenderPembelianManual() {
       </td>
       <td style="font-size:11px; color:var(--web-text-dim);">${escapeHtml(p.dicatatOleh || '-')}</td>
       <td>
-        ${dibatalkan || p._antre ? '' : `
+        ${p._antre ? '' : `
           <div class="row-menu-wrap">
             <button class="row-menu-btn" id="row-menu-btn-${idx}" onclick="belToggleRowMenu(${idx})" title="Aksi lainnya"><span class="row-menu-arrow">▾</span></button>
             <div class="row-menu-panel" id="row-menu-panel-${idx}">
-              <button onclick="belRowMenuAksi(${idx}, 'edit')">✏️ Edit</button>
-              <button class="danger" onclick="belRowMenuAksi(${idx}, 'batalkan')">🚫 Batalkan</button>
+              ${dibatalkan
+                ? `<button class="danger" onclick="belRowMenuAksi(${idx}, 'hapus')">🗑️ Hapus Permanen</button>`
+                : `<button onclick="belRowMenuAksi(${idx}, 'edit')">✏️ Edit</button>
+              <button class="danger" onclick="belRowMenuAksi(${idx}, 'batalkan')">🚫 Batalkan</button>`}
             </div>
           </div>
         `}
@@ -27126,6 +27173,7 @@ function belBukaModalEditPembelian(noInvoice) {
   el('edit-pm-cabang').value = p.cabang && p.cabang !== '-' ? p.cabang : '';
   el('edit-pm-jumlah-koli').value = p.jumlahKoli && p.jumlahKoli !== '-' ? p.jumlahKoli : '';
   el('edit-pm-ongkos-kirim').value = p.ongkosKirim || 0;
+  el('edit-pm-biaya-lain').value = p.biayaLain || 0;
   el('edit-pm-status').textContent = '';
   el('bel-modal-edit-pembelian').dataset.noInvoice = p.noInvoice;
   el('bel-modal-edit-pembelian').style.display = 'flex';
@@ -27140,10 +27188,12 @@ async function belSimpanEditPembelian() {
   const cabang = el('edit-pm-cabang').value.trim();
   const jumlahKoli = el('edit-pm-jumlah-koli').value.trim();
   const ongkosKirim = parseFloat(el('edit-pm-ongkos-kirim').value) || 0;
+  const biayaLain = parseFloat(el('edit-pm-biaya-lain').value) || 0;
   const statusEl = el('edit-pm-status');
+  if (ongkosKirim < 0 || biayaLain < 0) { statusEl.textContent = '✗ Ongkos kirim / biaya lainnya tidak boleh minus'; statusEl.className = 'status-text err'; return; }
   setLoadingDots(statusEl, 'Menyimpan');
   try {
-    const data = await postJson({ aksi: 'edit_pembelian_manual', noInvoice, cabang, jumlahKoli, ongkosKirim, email: currentUserEmail() });
+    const data = await postJsonTulis({ aksi: 'edit_pembelian_manual', noInvoice, cabang, jumlahKoli, ongkosKirim, biayaLain, email: currentUserEmail() });
     stopLoadingDots(statusEl);
     if (data.success) {
       playBeep();
@@ -27189,6 +27239,8 @@ async function belBukaModalDetailInvoice(idx) {
   el('detail-inv-cabang').textContent = p.cabang || '-';
   el('detail-inv-tanggal').textContent = p.tanggal;
   el('detail-inv-ongkir').textContent = 'Rp ' + Number(p.ongkosKirim || 0).toLocaleString('id-ID');
+  el('detail-inv-biaya').textContent = 'Rp ' + Number(p.biayaLain || 0).toLocaleString('id-ID');
+  el('detail-inv-biaya-baris').style.display = p.biayaLain ? 'flex' : 'none';
   el('detail-inv-total').textContent = 'Rp ' + Number(p.total || 0).toLocaleString('id-ID');
   el('detail-inv-dokumen').innerHTML = (p.dokumen || []).length ? '📎 Dokumen: ' + p.dokumen.map((u, i) => `<a href="${pgrAttr(u)}" ${lampiranAttr(p.dokumen, i)}>Dokumen ${i + 1}</a>`).join(' · ') : '';
   el('detail-inv-item-body').innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--web-text-dim);">Memuat...</td></tr>';
@@ -27253,6 +27305,49 @@ function belRowMenuAksi(idx, aksi) {
   belToggleRowMenu(idx); // tutup dropdown-nya dulu
   if (aksi === 'edit') belBukaModalEditPembelian(p.noInvoice);
   else if (aksi === 'batalkan') belBatalkanPembelian(p.noInvoice);
+  else if (aksi === 'hapus') belBukaHapusPermanen(p.noInvoice);
+}
+/* ===== Hapus Permanen (langkah ke-2, hanya untuk invoice yang sudah Dibatalkan) ===== */
+let noInvoiceUntukDihapus = null;
+function belBukaHapusPermanen(noInvoice) {
+  const p = belPembelianManualCache.find(x => x.noInvoice === noInvoice);
+  if (!p || p.statusPembelian !== 'Dibatalkan') { pgrToast('Batalkan invoice dulu sebelum hapus permanen'); return; }
+  noInvoiceUntukDihapus = noInvoice;
+  el('hapus-pm-no').textContent = noInvoice;
+  el('hapus-pm-info').textContent = `${p.namaSupplier || '-'} · ${p.tanggal || ''} · Rp ${Number(p.total || 0).toLocaleString('id-ID')}`;
+  el('hapus-pm-ketik').value = '';
+  el('hapus-pm-ketik').placeholder = noInvoice;
+  el('hapus-pm-btn').disabled = true;
+  el('hapus-pm-status').textContent = '';
+  el('bel-modal-hapus-permanen').style.display = 'flex';
+  setTimeout(() => el('hapus-pm-ketik').focus(), 50);
+}
+function belTutupHapusPermanen() { el('bel-modal-hapus-permanen').style.display = 'none'; noInvoiceUntukDihapus = null; }
+function belCekKetikHapus() {
+  el('hapus-pm-btn').disabled = el('hapus-pm-ketik').value.trim().toLowerCase() !== String(noInvoiceUntukDihapus || '').toLowerCase();
+}
+async function belKonfirmasiHapusPermanen() {
+  const noInvoice = noInvoiceUntukDihapus;
+  if (!noInvoice || el('hapus-pm-btn').disabled) return;
+  const statusEl = el('hapus-pm-status'), btn = el('hapus-pm-btn');
+  btn.disabled = true;
+  setLoadingDots(statusEl, 'Menghapus');
+  try {
+    const data = await postJsonTulis({ aksi: 'hapus_permanen_pembelian_manual', noInvoice, email: currentUserEmail() });
+    stopLoadingDots(statusEl);
+    if (!data || !data.success) throw new Error((data && data.error) || 'Gagal');
+    playToot();
+    belPembelianManualCache = belPembelianManualCache.filter(x => x.noInvoice !== noInvoice);
+    try { simpanCacheLokal('pembelian_manual', belPembelianManualCache.filter(x => !x._antre)); } catch (e) { }
+    belRenderPembelianManual();
+    belTutupHapusPermanen();
+    pgrToast(`🗑️ Invoice ${noInvoice} dihapus permanen (salinan tersimpan di sheet Log Hapus Pembelian)`);
+  } catch (err) {
+    stopLoadingDots(statusEl);
+    statusEl.textContent = '✗ ' + String(err.message || err).replace(/^Error:\s*/, '');
+    statusEl.className = 'status-text err';
+    belCekKetikHapus();
+  }
 }
 
 let noInvoiceUntukDibatalkan = null;
@@ -27260,7 +27355,7 @@ let noInvoiceUntukDibatalkan = null;
 function belBatalkanPembelian(noInvoice) {
   noInvoiceUntukDibatalkan = noInvoice;
   el('batalkan-pm-judul').textContent = `Yakin membatalkan Pesanan No ${noInvoice}?`;
-  el('batalkan-pm-subtext').textContent = 'Data invoice tetap tersimpan (nggak dihapus), cuma ditandai Dibatalkan. Kalau stock-nya udah kepotong (Sudah Dicek), stock bakal otomatis dikoreksi balik.';
+  el('batalkan-pm-subtext').textContent = 'Data invoice tetap tersimpan (nggak dihapus), cuma ditandai Dibatalkan. Kalau stock-nya udah kepotong (Sudah Dicek), stock bakal otomatis dikoreksi balik. Setelah dibatalkan, invoice bisa dihapus permanen lewat menu ▾.';
   el('batalkan-pm-status').textContent = '';
   el('bel-modal-batalkan-pembelian').style.display = 'flex';
 }
@@ -27313,6 +27408,8 @@ async function belBukaModalPembelianManual() {
   el('pm-cabang').value = '';
   el('pm-jumlah-koli').value = '';
   el('pm-ongkos-kirim').value = '0';
+  el('pm-biaya-lain').value = '0';
+  el('pm-supplier-info').innerHTML = '';
   el('pm-status').textContent = '';
   el('pm-tanggal').value = krTgl(new Date());
   el('pm-sp-hasil').innerHTML = '';
@@ -27328,8 +27425,18 @@ async function belBukaModalPembelianManual() {
   // Muat Kontak Pemasok kalau belum pernah, biar dropdown Supplier & Cabang lengkap
   if (!belKontakCache || belKontakCache.length === 0) await belFetchKontak();
   el('pm-daftar-supplier').innerHTML = (belKontakCache || []).map(s => `<option value="${escapeHtml(s.nama)}"></option>`).join('');
+  pmCekSupplierBaru();
 }
 
+// Tanda "Supplier baru" - nama yang belum ada di Kontak Pemasok akan otomatis dicatat saat Simpan
+function pmCekSupplierBaru() {
+  const inp = el('pm-nama-supplier'), info = el('pm-supplier-info');
+  if (!inp || !info) return;
+  const nama = inp.value.replace(/\s+/g, ' ').trim();
+  if (nama.length < 2 || !belKontakCache || !belKontakCache.length) { info.innerHTML = ''; return; }
+  const ada = belKontakCache.some(s => String(s.nama).replace(/\s+/g, ' ').trim().toLowerCase() === nama.toLowerCase());
+  info.innerHTML = ada ? '<span class="ada">✓ Supplier terdaftar di Kontak Pemasok</span>' : '<span class="baru">✨ Supplier baru - otomatis dicatat ke Kontak Pemasok saat disimpan</span>';
+}
 // Update dropdown Cabang mengikuti Supplier yang lagi diketik/dipilih di form
 function pmUpdateDaftarCabang() {
   const namaSupplier = el('pm-nama-supplier').value.trim().toLowerCase();
@@ -27362,12 +27469,12 @@ function pmUpdateField(idx, field, value) {
 function pmRenderItemBody() {
   el('pm-item-body').innerHTML = pmItemsAktif.map((it, idx) => `
     <tr>
-      <td><input type="text" class="web-form-input${!String(it.sku || '').trim() && it.nama ? ' sp-perlu-isi' : ''}" style="margin:0; min-width:90px;" value="${escapeHtml(it.sku)}" oninput="pmUpdateField(${idx}, 'sku', this.value); this.classList.remove('sp-perlu-isi')" onpaste="pmTanganiPaste(event)" placeholder="SKU" title="${it.skuOtomatis ? 'SKU dicocokkan otomatis dari katalog - cek lagi' : ''}" /></td>
-      <td><input type="text" class="web-form-input" style="margin:0; min-width:140px;" value="${escapeHtml(it.nama)}" oninput="pmUpdateField(${idx}, 'nama', this.value)" onpaste="pmTanganiPaste(event)" placeholder="Nama produk" /></td>
-      <td><input type="number" class="web-form-input" style="margin:0; max-width:70px;" value="${it.qty}" oninput="pmUpdateField(${idx}, 'qty', this.value)" onpaste="pmTanganiPaste(event)" min="0" /></td>
-      <td><input type="number" class="web-form-input" style="margin:0; min-width:110px; max-width:140px;" value="${it.hargaSatuan}" oninput="pmUpdateField(${idx}, 'hargaSatuan', this.value)" onpaste="pmTanganiPaste(event)" min="0" /></td>
-      <td style="font-weight:600; white-space:nowrap;">Rp ${Number(it.qty * it.hargaSatuan).toLocaleString('id-ID')}</td>
-      <td><button class="web-btn-danger" style="padding:4px 8px; font-size:11px;" onclick="pmHapusBarisItem(${idx})">🗑️</button></td>
+      <td><input type="text" class="web-form-input${!String(it.sku || '').trim() && it.nama ? ' sp-perlu-isi' : ''}" style="margin:0;" value="${escapeHtml(it.sku)}" oninput="pmUpdateField(${idx}, 'sku', this.value); this.classList.remove('sp-perlu-isi')" onpaste="pmTanganiPaste(event)" placeholder="SKU" title="${it.skuOtomatis ? 'SKU dicocokkan otomatis dari katalog - cek lagi' : ''}" /></td>
+      <td><input type="text" class="web-form-input" style="margin:0;" value="${escapeHtml(it.nama)}" title="${pgrAttr(it.nama || '')}" oninput="pmUpdateField(${idx}, 'nama', this.value)" onpaste="pmTanganiPaste(event)" placeholder="Nama produk" /></td>
+      <td><input type="number" class="web-form-input" style="margin:0;" value="${it.qty}" oninput="pmUpdateField(${idx}, 'qty', this.value)" onpaste="pmTanganiPaste(event)" min="0" /></td>
+      <td><input type="number" class="web-form-input" style="margin:0;" value="${it.hargaSatuan}" oninput="pmUpdateField(${idx}, 'hargaSatuan', this.value)" onpaste="pmTanganiPaste(event)" min="0" /></td>
+      <td class="pm-sub">Rp ${Number(it.qty * it.hargaSatuan).toLocaleString('id-ID')}</td>
+      <td><button class="web-btn-danger" style="padding:4px 8px; font-size:11px; margin:0;" onclick="pmHapusBarisItem(${idx})" aria-label="Hapus baris">🗑️</button></td>
     </tr>
   `).join('');
   pmHitungTotal();
@@ -27376,7 +27483,8 @@ function pmRenderItemBody() {
 function pmHitungTotal() {
   const subtotalBarang = pmItemsAktif.reduce((sum, it) => sum + (it.qty * it.hargaSatuan), 0);
   const ongkosKirim = parseFloat(el('pm-ongkos-kirim').value) || 0;
-  const totalKeseluruhan = subtotalBarang + ongkosKirim;
+  const biayaLain = parseFloat(el('pm-biaya-lain').value) || 0;
+  const totalKeseluruhan = subtotalBarang + ongkosKirim + biayaLain;
   el('pm-subtotal-barang').textContent = 'Rp ' + subtotalBarang.toLocaleString('id-ID');
   el('pm-total').textContent = 'Rp ' + totalKeseluruhan.toLocaleString('id-ID');
 
@@ -27402,7 +27510,7 @@ function pmAmbilSnapshot() {
   return {
     namaSupplier: el('pm-nama-supplier').value.trim(), noInvoice: el('pm-no-invoice').value.trim(),
     cabang: el('pm-cabang').value.trim(), jumlahKoli: el('pm-jumlah-koli').value.trim(),
-    ongkosKirim: parseFloat(el('pm-ongkos-kirim').value) || 0, tanggal: el('pm-tanggal').value,
+    ongkosKirim: parseFloat(el('pm-ongkos-kirim').value) || 0, biayaLain: parseFloat(el('pm-biaya-lain').value) || 0, tanggal: el('pm-tanggal').value,
     tanggalPaste: pmTanggalTransaksiDariPaste, totalRef: pmTotalReferensiDariPaste,
     items: pmItemsAktif.map(it => ({ ...it })), berkas: ((DOK['pm-dok-zona'] && DOK['pm-dok-zona'].files) || []).slice(),
     hasilSp: el('pm-sp-hasil').innerHTML
@@ -27412,7 +27520,7 @@ async function pmIsiDariSnapshot(sn) {
   await belBukaModalPembelianManual();
   el('pm-nama-supplier').value = sn.namaSupplier; pmUpdateDaftarCabang();
   el('pm-no-invoice').value = sn.noInvoice; el('pm-cabang').value = sn.cabang; el('pm-jumlah-koli').value = sn.jumlahKoli;
-  el('pm-ongkos-kirim').value = sn.ongkosKirim; el('pm-tanggal').value = sn.tanggal || krTgl(new Date());
+  el('pm-ongkos-kirim').value = sn.ongkosKirim; el('pm-biaya-lain').value = sn.biayaLain || 0; pmCekSupplierBaru(); el('pm-tanggal').value = sn.tanggal || krTgl(new Date());
   pmTanggalTransaksiDariPaste = sn.tanggalPaste; pmTotalReferensiDariPaste = sn.totalRef;
   pmItemsAktif = sn.items.map(it => ({ ...it }));
   DOK['pm-dok-zona'].files = sn.berkas.slice(); dokRender('pm-dok-zona');
@@ -27448,7 +27556,7 @@ function pmSimpanPembelian() {
     sn, itemsValid, tanggalTransaksi, idempotencyKey: pmIdempotencyKey || pmBuatIdempotencyKey(),
     baris: {
       _antre: true, noInvoice: sn.noInvoice, namaSupplier: sn.namaSupplier, cabang: sn.cabang || '-', jumlahKoli: sn.jumlahKoli || '-',
-      ongkosKirim: sn.ongkosKirim, total: subtotal + sn.ongkosKirim, dicatatOleh: '-', dokumen: [],
+      ongkosKirim: sn.ongkosKirim, biayaLain: sn.biayaLain || 0, total: subtotal + sn.ongkosKirim + (sn.biayaLain || 0), dicatatOleh: '-', dokumen: [],
       tanggal: (sn.tanggal ? fin2TglLabel(sn.tanggal) : 'Hari ini'), statusDicek: 'Belum Dicek', statusPembelian: 'Aktif', _status: 'simpan'
     }
   };
@@ -27474,7 +27582,7 @@ async function pmJalankanSimpan(job) {
     const data = await postJsonTulis({
       aksi: 'simpan_pembelian_manual', idempotencyKey: job.idempotencyKey,
       namaSupplier: job.sn.namaSupplier, noInvoice: job.sn.noInvoice, cabang: job.sn.cabang, jumlahKoli: job.sn.jumlahKoli,
-      ongkosKirim: job.sn.ongkosKirim, tanggalTransaksi: job.tanggalTransaksi,
+      ongkosKirim: job.sn.ongkosKirim, biayaLain: job.sn.biayaLain || 0, tanggalTransaksi: job.tanggalTransaksi,
       dokumen: job.sn.berkas.filter(f => f.status === 'ok').map(f => f.url),
       items: job.itemsValid, email: currentUserEmail()
     }, 90000);
@@ -27483,6 +27591,15 @@ async function pmJalankanSimpan(job) {
       throw new Error(((data && data.error) || 'respons kosong dari server') + (d.fungsi ? ` [${d.fungsi}${d.baris ? ' baris ' + d.baris : ''}]` : ''));
     }
     pmAntre.splice(pmAntre.indexOf(job.baris), 1);
+    if (data.supplierBaru) {
+      // Supplier baru langsung muncul di Kontak Pemasok & dropdown form berikutnya (tanpa tunggu muat ulang)
+      const nama = data.namaSupplier || job.sn.namaSupplier;
+      if (!(belKontakCache || []).some(x => String(x.nama).toLowerCase() === nama.toLowerCase())) {
+        belKontakCache.push({ row: 0, nama, kontakUtama: '', catatan: 'Ditambahkan otomatis dari Input Pembelian', kontakWA: [], cabang: job.sn.cabang ? [{ row: 0, namaCabang: job.sn.cabang, alamat: '', kontak: '' }] : [] });
+        try { simpanCacheLokal('kontak_pemasok', belKontakCache); } catch (e) { }
+      }
+      pgrToast(`✨ Supplier baru "${nama}" otomatis ditambahkan ke Kontak Pemasok`);
+    }
     logTindakan.ubah(job.logId, dokGagal ? 'gagal' : 'ok',
       `Tersimpan · ${data.jumlahItem} barang · Rp ${Number(data.total).toLocaleString('id-ID')}${data.sudahTersimpanSebelumnya ? ' (sudah masuk sebelumnya, tidak dobel)' : ''}${dokGagal ? ` · ${dokGagal} dokumen gagal di-upload` : ''}`);
     belFetchPembelianManual();
@@ -27527,13 +27644,16 @@ async function pmTerapkanSmartPaste(h) {
     el('pm-tanggal').value = krTgl(h.tanggal.tanggal);
     pmTanggalTransaksiDariPaste = h.tanggal.adaJam ? h.tanggal.tanggal.toISOString() : null;
   }
-  el('pm-ongkos-kirim').value = hb.ongkosKirim;
+  el('pm-ongkos-kirim').value = hb.ongkirSaja !== undefined ? hb.ongkirSaja : hb.ongkosKirim;
+  el('pm-biaya-lain').value = hb.biayaLain || 0;
+  pmCekSupplierBaru();
   pmTotalReferensiDariPaste = h.totalBayar || null;
   pmRenderItemBody();
   const tanpaSku = pmItemsAktif.length - cocok;
   el('pm-sp-hasil').innerHTML = `<b>✨ Smart Paste ${escapeHtml(h.platform)}:</b> ${pmItemsAktif.length} barang terbaca` +
     (hb.diskon ? ` · voucher ${fin2Rp(hb.diskon)} dibagi ke harga barang (supaya HPP akurat)` : '') +
-    (hb.ongkosKirim ? ` · ongkir + biaya layanan ${fin2Rp(hb.ongkosKirim)}` : '') +
+    (hb.ongkirSaja ? ` · ongkir ${fin2Rp(hb.ongkirSaja)}` : '') +
+    (hb.biayaLain ? ` · biaya lain (layanan dll) ${fin2Rp(hb.biayaLain)}` : '') +
     (h.totalBayar ? ` · total bayar ${fin2Rp(h.totalBayar)}` : '') +
     (cocok ? ` · <span class="ok">${cocok} SKU cocok otomatis</span>` : '') +
     (tanpaSku ? ` · <span class="warn">${tanpaSku} SKU belum terisi - isi di kolom SKU yang kuning</span>` : '') +
@@ -30140,6 +30260,53 @@ async function mgbBukaDetail(noMemo, dari) {
   } catch (err) {
     el('mgb-isi').innerHTML = `<div style="color:#dc2626; padding:14px 0;">Gagal: ${escapeHtml(err.message)}</div>`;
   }
+}
+
+/* ===== Detail Memo Minta Stock (Riwayat mobile): daftar barang yang diminta + Salin Semua SKU ===== */
+var mgmRiwayatData = [];
+function mgbRenderMintaStock_(judul, info, items) {
+  mgb.itemMs = items;
+  const total = items.reduce((s, it) => s + (Number(it.qtyMinta) || 0), 0);
+  el('mgb-judul').textContent = judul;
+  el('mgb-sub').textContent = 'Memo Minta Stock · ' + items.length + ' SKU · ' + total.toLocaleString('id-ID') + ' pcs';
+  el('mgb-isi').innerHTML = `
+    <div class="mgb-info">${info.map(x => `<div><small>${escapeHtml(x[0])}</small><b>${escapeHtml(x[1] || '-')}</b>${x[2] ? `<small>${escapeHtml(x[2])}</small>` : ''}</div>`).join('')}</div>
+    <table class="mgb-tabel"><thead><tr><th>SKU</th><th>Nama</th><th style="text-align:right;">Sisa</th><th style="text-align:right;">Minta</th></tr></thead><tbody>
+      ${items.map(it => `<tr><td style="font-weight:700; white-space:nowrap;">${escapeHtml(it.sku)}</td><td>${escapeHtml(it.nama || '-')}${it.catatan ? `<div style="font-size:11px; color:var(--web-text-dim, #6b7280);">📝 ${escapeHtml(it.catatan)}</div>` : ''}</td><td style="text-align:right;">${Number(it.sisa || 0).toLocaleString('id-ID')}</td><td style="text-align:right; font-weight:700;">${Number(it.qtyMinta || 0).toLocaleString('id-ID')}</td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center; padding:14px 0;">Barang memo tidak ditemukan.</td></tr>'}
+      ${items.length ? `<tr><td colspan="3" style="font-weight:700;">Total</td><td style="text-align:right; font-weight:800;">${total.toLocaleString('id-ID')}</td></tr>` : ''}
+    </tbody></table>`;
+  el('mgb-foot').innerHTML = `${items.length ? '<button type="button" class="mgb-btn utama" onclick="mgbSalinSkuMintaStock()">📋 Salin Semua SKU</button>' : ''}<button type="button" class="mgb-btn" onclick="mgbTutup()">Tutup</button>`;
+}
+async function mgbBukaDetailMintaStock(noMemo) {
+  mgb.dari = 'mobile';
+  mgbDom().hidden = false;
+  el('mgb-judul').textContent = 'Memo ' + noMemo;
+  el('mgb-sub').textContent = 'Memo Minta Stock';
+  el('mgb-isi').innerHTML = '<div style="text-align:center; padding:24px 0;"><span class="wp-sync-chip"><span class="putar"></span>Memuat barang...</span></div>';
+  el('mgb-foot').innerHTML = '<button type="button" class="mgb-btn" onclick="mgbTutup()">Tutup</button>';
+  const m = (mgmRiwayatData || []).find(x => x.noMemo === noMemo) || {};
+  try {
+    const d = await postJson({ aksi: 'lihat_detail_memo_minta_stock', noMemo, email: currentUserEmail() }, 30000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat');
+    const items = (d.daftar || []).map(it => ({ sku: String(it.sku || ''), nama: it.nama, sisa: it.sisaStokSaatItu, qtyMinta: it.qtyMinta, catatan: it.catatan }));
+    mgbRenderMintaStock_('Memo ' + noMemo, [['Status', m.status], ['Dibuat', m.tanggal, m.dibuatOleh ? 'oleh ' + m.dibuatOleh : ''], ['Diproses oleh', m.disetujuiOleh && m.disetujuiOleh !== '-' ? m.disetujuiOleh : '']].filter(x => x[1]), items);
+  } catch (err) {
+    el('mgb-isi').innerHTML = `<div style="color:#dc2626; padding:14px 0;">Gagal: ${escapeHtml(err.message)}</div>`;
+  }
+}
+function mgbBukaDetailMintaStockAntre(id) {
+  const e = (msoDaftar || []).find(x => x.id === id);
+  if (!e) return;
+  mgb.dari = 'mobile';
+  mgbDom().hidden = false;
+  const items = e.items.map(it => ({ sku: it.sku, nama: it.nama, sisa: it.sisaStok, qtyMinta: it.qtyMinta, catatan: it.catatan }));
+  mgbRenderMintaStock_('Memo belum terkirim', [['Status', e.status === 'gagal' ? 'Ditolak server' : e.status === 'kirim' ? 'Mengirim…' : 'Antrean HP'], ['Dibuat', msoJam_(e.dibuat)], ['Info', e.error || 'Tersimpan di HP, dikirim otomatis']], items);
+}
+async function mgbSalinSkuMintaStock() {
+  const sku = [];
+  (mgb.itemMs || []).forEach(it => { const s = String(it.sku || '').trim(); if (s && !sku.includes(s)) sku.push(s); });
+  if (!sku.length) return;
+  await bmmSalin(sku.join('\n'), sku.length + ' SKU');
 }
 
 function mgbBukaBatal() {
@@ -36452,8 +36619,9 @@ async function mgmBukaRiwayat() {
     // Memo Minta Stock yang masih di antrean HP (belum diterima server) tampil paling atas
     const antreHp = mgmTabAktif === 'mintastock' ? msoBelum().slice().reverse() : [];
     el('mgm-riwayat-empty').style.display = daftar.length === 0 && !antreHp.length ? 'block' : 'none';
+    mgmRiwayatData = daftar;
     el('mgm-riwayat-list').innerHTML = antreHp.map(e => `
-      <div class="section-box" style="width:100%; box-sizing:border-box; border-style:dashed;">
+      <div class="section-box" style="width:100%; box-sizing:border-box; border-style:dashed; cursor:pointer;" role="button" tabindex="0" onclick="mgbBukaDetailMintaStockAntre('${pgrAttr(e.id)}')">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <b style="font-size:13.5px;">Belum ada No Memo</b>
           <span class="mode-badge" style="margin:0; font-size:9.5px; background:${e.status === 'gagal' ? '#dc2626' : '#3f7fc9'};">${e.status === 'gagal' ? 'Ditolak server' : e.status === 'kirim' ? 'Mengirim…' : 'Antrean HP'}</span>
@@ -36462,14 +36630,15 @@ async function mgmBukaRiwayat() {
       </div>`).join('') + daftar.map(m => {
       const batal = String(m.status || '').startsWith('Dibatalkan');
       const selesai = batal || m.status === 'Bisa PO Stock' || m.status === 'Sudah Dipesan' || m.status === 'Diabaikan' || m.status === 'Dieksekusi' || m.status === 'Disetujui' || m.status === 'Terverifikasi' || String(m.status || '').startsWith('Selesai');
-      const bisaDetail = mgmTabAktif === 'barangmasuk';
+      const bisaDetail = mgmTabAktif === 'barangmasuk' || mgmTabAktif === 'mintastock';
+      const fnDetail = mgmTabAktif === 'mintastock' ? `mgbBukaDetailMintaStock('${pgrAttr(m.noMemo)}')` : `mgbBukaDetail('${pgrAttr(m.noMemo)}', 'mobile')`;
       return `
-      <div class="section-box" style="width:100%; box-sizing:border-box; ${selesai ? 'opacity:0.55;' : ''}${bisaDetail ? ' cursor:pointer;' : ''}" ${bisaDetail ? `role="button" tabindex="0" onclick="mgbBukaDetail('${pgrAttr(m.noMemo)}', 'mobile')"` : ''}>
+      <div class="section-box" style="width:100%; box-sizing:border-box; ${selesai ? 'opacity:0.55;' : ''}${bisaDetail ? ' cursor:pointer;' : ''}" ${bisaDetail ? `role="button" tabindex="0" onclick="${fnDetail}"` : ''}>
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <b style="font-size:13.5px;">${escapeHtml(m.noMemo)}</b>
           <span class="mode-badge" style="margin:0; font-size:9.5px; background:${batal ? '#dc2626' : (selesai ? '#2f9e6e' : '#c99a1f')};">${escapeHtml(m.status || '-')}</span>
         </div>
-        <div style="font-size:11px; color:var(--text-dim); margin-top:4px;">${escapeHtml(m.tanggal)}${m.noInvoiceTerkait && m.noInvoiceTerkait !== '-' ? ' · Invoice: ' + escapeHtml(m.noInvoiceTerkait) : ''}${bisaDetail && !selesai ? ' · <span style="color:var(--accent, #2f9e6e); font-weight:700;">Ketuk untuk detail / batalkan</span>' : ''}</div>
+        <div style="font-size:11px; color:var(--text-dim); margin-top:4px;">${escapeHtml(m.tanggal)}${m.noInvoiceTerkait && m.noInvoiceTerkait !== '-' ? ' · Invoice: ' + escapeHtml(m.noInvoiceTerkait) : ''}${bisaDetail && mgmTabAktif === 'mintastock' ? ' · <span style="color:var(--accent, #2f9e6e); font-weight:700;">Ketuk untuk lihat barang</span>' : (bisaDetail && !selesai ? ' · <span style="color:var(--accent, #2f9e6e); font-weight:700;">Ketuk untuk detail / batalkan</span>' : '')}</div>
       </div>`;
     }).join('');
   } catch (err) { el('mgm-riwayat-list').innerHTML = `<div style="color:var(--danger); font-size:12.5px;">Gagal terhubung: ${escapeHtml(err.message)}</div>`; }
