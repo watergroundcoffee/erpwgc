@@ -1277,6 +1277,27 @@
   .oc-sumber a:hover { text-decoration: underline; }
   .oc-mengetik-label { font-size: 11px; color: var(--web-text-dim); margin-top: 4px; }
   .oc-msg.ai.oc-error .oc-msg-bubble { border-color: #f5c2c0; background: #fdf2f2; color: #9b1c1c; }
+  /* Kartu aksi AI (Action Executor) */
+  .oc-aksi { margin-top: 10px; border: 1px solid var(--web-border); border-left: 3px solid var(--web-accent); border-radius: 10px; padding: 9px 10px; background: var(--web-panel); }
+  .oc-aksi-judul { font-size: 11px; font-weight: 700; color: var(--web-text-dim); text-transform: uppercase; letter-spacing: .03em; }
+  .oc-aksi-alasan { font-size: 12px; margin-top: 4px; }
+  .oc-aksi-cek { font-size: 11.5px; margin-top: 5px; color: var(--web-text-dim); }
+  .oc-aksi-cek.ok { color: #15803d; } .oc-aksi-cek.tolak { color: #b45309; }
+  .oc-aksi-tombol { display: flex; gap: 6px; margin-top: 8px; }
+  .oc-aksi-eksekusi { flex: 1; text-align: left; font-family: inherit; font-size: 12.5px; font-weight: 700; padding: 8px 10px; border-radius: 8px; border: none; cursor: pointer; color: #fff; background: linear-gradient(135deg, var(--web-accent), #6366f1); }
+  .oc-aksi-eksekusi:disabled { opacity: .5; cursor: not-allowed; }
+  .oc-aksi-abaikan { font-family: inherit; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text-dim); border-radius: 8px; padding: 0 10px; cursor: pointer; }
+  .oc-aksi.selesai .oc-aksi-tombol { display: none; }
+  .oc-aksi.diabaikan { opacity: .55; }
+  .oc-aksi-status { font-size: 12px; margin-top: 6px; line-height: 1.45; }
+  .oc-aksi-status:empty { display: none; }
+  .oc-aksi-status.loading { color: var(--web-text-dim); } .oc-aksi-status.ok { color: #15803d; font-weight: 600; }
+  .oc-aksi-status.tolak { color: #b45309; font-weight: 600; } .oc-aksi-status.gagal { color: #b91c1c; font-weight: 600; } .oc-aksi-status.info { color: var(--web-text-dim); }
+  .oc-aksi.selesai { border-left-color: var(--web-border); }
+  .oc-autopilot-bar { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-top: 1px solid var(--web-border); font-size: 11.5px; color: var(--web-text-dim); }
+  .oc-autopilot-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+  .oc-autopilot-bar.nyala { color: #b45309; font-weight: 600; background: #fff7ed; }
+  .oc-autopilot-bar button { margin-left: auto; font-family: inherit; font-size: 11px; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text); border-radius: 999px; padding: 3px 9px; cursor: pointer; }
   .oc-chat-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 8px; }
   .oc-chat-chips button { font-family: inherit; font-size: var(--fs-xs); padding: 5px 10px; border-radius: 999px; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text); cursor: pointer; }
   .oc-chat-chips button:hover { border-color: var(--web-accent); }
@@ -10578,6 +10599,13 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             <button type="button" data-oc-prompt="Stok mana yang harus segera di-restock dan berapa kira-kira jumlahnya?">⚠️ Restock prioritas</button>
             <button type="button" data-oc-prompt="Apa tren pasar kopi & kampanye marketplace terdekat yang bisa saya manfaatkan bulan ini?">🌐 Tren pasar terkini</button>
           </div>
+          <div class="oc-autopilot-bar" id="oc-autopilot-wrap">
+            <label title="Eksekusi otomatis usulan aksi AI yang aman (update harga maks ±15%, jeda iklan)">
+              <input type="checkbox" id="oc-autopilot" onchange="ocSetAutoPilot(this.checked)" /> ⚡ Auto-Pilot
+            </label>
+            <span>Aksi lain tetap butuh konfirmasi</span>
+            <button type="button" onclick="ocLihatLogEksekusi()" title="10 eksekusi terakhir (sheet Execution_Logs)">📜 Log Eksekusi</button>
+          </div>
           <div class="oc-chat-input">
             <textarea id="oc-chat-input" rows="1" placeholder="Tanya OmniAI... (Enter kirim, Shift+Enter baris baru)"></textarea>
             <button type="button" id="oc-chat-kirim" class="oc-kirim" title="Kirim" aria-label="Kirim">➤</button>
@@ -13721,6 +13749,7 @@ function ocInit() {
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ocKirimChat(); } });
   el('oc-chat-kirim').addEventListener('click', ocKirimChat);
   el('oc-chat-kirim').disabled = true;
+  if (el('oc-autopilot')) { el('oc-autopilot').checked = ocAutoPilot; el('oc-autopilot-wrap').classList.toggle('nyala', ocAutoPilot); }
   el('oc-chat-chips').addEventListener('click', e => { const b = e.target.closest('[data-oc-prompt]'); if (b) { input.value = b.dataset.ocPrompt; ocKirimChat(); } });
   ocChatTambah('ai', 'Halo ' + ((typeof currentUser !== 'undefined' && currentUser && currentUser.nama) ? currentUser.nama.split(' ')[0] : '') + '! 👋 Aku **OmniAI Copilot**, konsultan growth untuk Waterground Coffee. Aku membaca data ERP real-time (laba rugi bulan ini, stok, pesanan, iklan & promo) plus tren pasar dari web.\n\nTanya apa saja, misalnya *strategi naikkan omzet minggu ini* atau *evaluasi ROAS iklan*.', { tanpaRiwayat: true });
 
@@ -13915,9 +13944,12 @@ function ocChatTambah(peran, teks, opsi) {
     ? `<div class="oc-msg-avatar">✨</div><div style="min-width:0; max-width:85%;"><div class="oc-msg-bubble" style="max-width:100%;"></div><div class="oc-msg-waktu"></div></div>`
     : `<div style="display:flex; flex-direction:column; align-items:flex-end; max-width:85%;"><div class="oc-msg-bubble" style="max-width:100%;"></div><div class="oc-msg-waktu"></div></div>`;
   const bubble = div.querySelector('.oc-msg-bubble');
+  let daftarAksi = [];
   if (peran === 'ai' && !opsi.error) {
     bubble.classList.add('oc-md');
-    bubble.innerHTML = ocMarkdown(teks); // sudah di-escape di ocMarkdown -> aman dari HTML injection
+    const pisah = opsi.tanpaAksi ? { teks, aksi: [] } : ocPisahkanAksi(teks); // blok JSON tool_call -> kartu aksi
+    daftarAksi = pisah.aksi;
+    bubble.innerHTML = ocMarkdown(pisah.teks || (daftarAksi.length ? 'Berikut aksi yang aku usulkan:' : '')); // sudah di-escape -> aman dari HTML injection
     const sumber = (opsi.sumber || []).filter(s => /^https?:\/\//.test(s.url || ''));
     if (sumber.length) {
       const box = document.createElement('div');
@@ -13931,6 +13963,7 @@ function ocChatTambah(peran, teks, opsi) {
       });
       bubble.appendChild(box);
     }
+    if (daftarAksi.length) ocRenderKartuAksi(bubble, daftarAksi);
   } else {
     bubble.textContent = teks; // pesan user & error: teks polos
   }
@@ -13981,10 +14014,186 @@ async function ocChatLLM(pesan, dataLayer, riwayat) {
   const konteks = el('oc-konteks') ? el('oc-konteks').textContent.trim() : '';
   const r = await postJson({
     aksi: 'tanya_copilot', email: currentUserEmail(), pesan, halaman: konteks,
-    riwayat: (riwayat || []).slice(-9).map(m => ({ role: m.role, content: String(m.content || '').slice(0, 2000) }))
+    riwayat: (riwayat || []).slice(-11).map(m => ({ role: m.role, content: String(m.content || '').slice(0, 2000) }))
   }, 120000, true);
   if (!r || !r.success) throw new Error((r && r.error) || 'Tidak ada balasan dari server');
   return { teks: r.jawaban, sumber: r.sumber || [], grounded: r.grounded, durasi: r.durasi };
+}
+
+/* ============================================================
+   AI TOOL EXECUTION BRIDGE - blok JSON {"tool_call":"execute_action",...} dari Copilot
+   -> kartu konfirmasi "⚡ Eksekusi Sekarang" (atau Auto-Pilot) -> executeAiAction() di backend.
+   Semua guardrail (HPP + komisi, batas % perubahan, kebijakan Auto-Pilot, izin) diperiksa ULANG di server.
+   ============================================================ */
+const OC_AUTOPILOT_KEY = 'oc_autopilot';
+let ocAutoPilot = false;
+try { ocAutoPilot = localStorage.getItem(OC_AUTOPILOT_KEY) === '1'; } catch (e) { }
+let ocAksiSeq = 0;
+
+// Ambil semua objek JSON aksi dari teks AI (blok ```json``` maupun JSON mentah) -> { teks tanpa blok, daftar aksi }
+function ocPisahkanAksi(teks) {
+  const aksi = [];
+  const ambil = obj => {
+    const list = Array.isArray(obj) ? obj : [obj];
+    let ada = false;
+    list.forEach(o => { if (o && typeof o === 'object' && (o.tool_call === 'execute_action' || (o.action && o.params && !o.tool_call))) { aksi.push(o); ada = true; } });
+    return ada;
+  };
+  let bersih = String(teks || '').replace(/```(?:json|JSON)?\s*([\s\S]*?)```/g, (utuh, isi) => {
+    try { return ambil(JSON.parse(isi.trim())) ? '\n' : utuh; } catch (e) { return utuh; }
+  });
+  // JSON mentah (tanpa pagar kode) yang memuat "tool_call"
+  let idx;
+  let guard = 0;
+  while ((idx = bersih.indexOf('"tool_call"')) !== -1 && guard++ < 10) {
+    const awal = bersih.lastIndexOf('{', idx);
+    if (awal === -1) break;
+    let dalam = 0, akhir = -1, diString = false;
+    for (let i = awal; i < bersih.length; i++) {
+      const c = bersih[i];
+      if (c === '"' && bersih[i - 1] !== '\\') diString = !diString;
+      if (diString) continue;
+      if (c === '{') dalam++;
+      else if (c === '}') { dalam--; if (dalam === 0) { akhir = i; break; } }
+    }
+    if (akhir === -1) break;
+    try { if (ambil(JSON.parse(bersih.slice(awal, akhir + 1)))) { bersih = bersih.slice(0, awal) + bersih.slice(akhir + 1); continue; } } catch (e) { }
+    break;
+  }
+  return { teks: bersih.replace(/\n{3,}/g, '\n\n').trim(), aksi };
+}
+
+function ocRp(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function ocLabelAksi(a) {
+  const p = a.params || {}, act = String(a.action || '').toUpperCase();
+  if (act === 'UPDATE_PRICE') return `Update Harga SKU ${p.sku} (${p.platform || 'Shopee'}) ke ${ocRp(p.new_price)}`;
+  if (act === 'UPDATE_STOCK') return `Set Stok SKU ${p.sku} jadi ${p.new_qty}${p.location ? ' @ ' + p.location : ''}`;
+  if (act === 'CREATE_VOUCHER') return `Buat Voucher ${p.kode || ''} ${/persen/i.test(p.jenis_diskon || '') ? (p.nilai + '%') : ocRp(p.nilai)} (${p.platform || 'Shopee'})`;
+  if (act === 'CREATE_BUNDLE') return `Buat Bundling "${p.nama || ''}" (${(p.skus || []).length} SKU, min ${p.min_qty || 2} pcs)`;
+  if (act === 'TOGGLE_AD') return `${/enable|aktif|resume|start/i.test(p.action || '') ? 'Aktifkan' : 'Jeda'} Iklan ${p.platform || 'TikTok Shop'} #${p.campaign_id}`;
+  return `${act || 'Aksi'} ${JSON.stringify(p).slice(0, 60)}`;
+}
+// Kebijakan Auto-Pilot di sisi UI (server tetap menjadi penentu akhir)
+function ocBolehAutoPilot(a) {
+  const act = String(a.action || '').toUpperCase(), p = a.params || {};
+  if (act === 'UPDATE_PRICE') return true;
+  if (act === 'TOGGLE_AD') return !/enable|aktif|resume|start/i.test(p.action || '');
+  return false;
+}
+
+function ocRenderKartuAksi(bubble, daftarAksi) {
+  daftarAksi.forEach(a => {
+    const id = 'oc-aksi-' + Date.now().toString(36) + '-' + (++ocAksiSeq);
+    a.__id = id;
+    const kartu = document.createElement('div');
+    kartu.className = 'oc-aksi';
+    kartu.innerHTML = `
+      <div class="oc-aksi-judul">🛠️ Usulan aksi AI</div>
+      <div class="oc-aksi-alasan"></div>
+      <div class="oc-aksi-cek"></div>
+      <div class="oc-aksi-tombol">
+        <button type="button" class="oc-aksi-eksekusi"></button>
+        <button type="button" class="oc-aksi-abaikan" title="Abaikan usulan ini">✕</button>
+      </div>
+      <div class="oc-aksi-status" aria-live="polite"></div>`;
+    kartu.querySelector('.oc-aksi-alasan').textContent = a.alasan || '';
+    if (!a.alasan) kartu.querySelector('.oc-aksi-alasan').remove();
+    const btn = kartu.querySelector('.oc-aksi-eksekusi');
+    btn.textContent = '⚡ Eksekusi Sekarang: ' + ocLabelAksi(a);
+    btn.addEventListener('click', () => ocEksekusiAksi(a, kartu, 'manual'));
+    kartu.querySelector('.oc-aksi-abaikan').addEventListener('click', () => {
+      kartu.classList.add('selesai', 'diabaikan');
+      ocSetStatusKartu(kartu, 'info', 'Diabaikan.');
+      ocRiwayatChat.push({ role: 'user', content: '[SISTEM] User mengabaikan aksi: ' + ocLabelAksi(a), waktu: new Date().toISOString() });
+    });
+    bubble.appendChild(kartu);
+    // Pratinjau guardrail harga (tidak mengeksekusi apa pun)
+    if (String(a.action).toUpperCase() === 'UPDATE_PRICE') ocPratinjauHarga(a, kartu);
+    if (ocAutoPilot && ocBolehAutoPilot(a)) {
+      ocSetStatusKartu(kartu, 'loading', '🤖 Auto-Pilot menjalankan aksi ini dalam 3 detik… (klik ✕ untuk batal)');
+      a.__timer = setTimeout(() => { if (!kartu.classList.contains('selesai')) ocEksekusiAksi(a, kartu, 'autopilot'); }, 3000);
+      kartu.querySelector('.oc-aksi-abaikan').addEventListener('click', () => clearTimeout(a.__timer));
+    } else if (ocAutoPilot) {
+      ocSetStatusKartu(kartu, 'info', 'Aksi ini selalu butuh konfirmasi manual (di luar wewenang Auto-Pilot).');
+    }
+  });
+}
+
+async function ocPratinjauHarga(a, kartu) {
+  const p = a.params || {}, cek = kartu.querySelector('.oc-aksi-cek');
+  try {
+    const r = await postJson({ aksi: 'cek_harga_aman', email: currentUserEmail(), sku: p.sku, harga: p.new_price, platform: p.platform || 'Shopee' }, 30000, true);
+    if (!r || !r.success) return;
+    const h = r.hasil || {};
+    if (h.status === 'OK') {
+      cek.className = 'oc-aksi-cek ok';
+      cek.textContent = `✅ Lolos guardrail · HPP ${ocRp(h.hpp)} + komisi ${ocRp(h.komisi)} · minimum aman ${ocRp(h.hargaMinimumAman)} · margin ±${ocRp(h.marginBersih)} (${h.marginPct}%)`;
+    } else {
+      cek.className = 'oc-aksi-cek tolak';
+      cek.textContent = '⛔ ' + (h.alasan || 'Ditolak guardrail harga.');
+      const btn = kartu.querySelector('.oc-aksi-eksekusi');
+      btn.disabled = true; btn.title = 'Harga melanggar batas aman - eksekusi pasti ditolak server.';
+      if (a.__timer) { clearTimeout(a.__timer); ocSetStatusKartu(kartu, 'tolak', 'Auto-Pilot dibatalkan: harga melanggar guardrail.'); }
+    }
+  } catch (e) { /* pratinjau opsional */ }
+}
+
+function ocSetStatusKartu(kartu, jenis, teks) {
+  const st = kartu.querySelector('.oc-aksi-status');
+  st.className = 'oc-aksi-status ' + jenis;
+  st.textContent = teks;
+}
+
+// Bridge ke backend: google.script.run (bila halaman disajikan HtmlService) atau doPost (web app eksternal)
+function ocPanggilEksekutor(payload) {
+  const gsr = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
+  if (gsr) {
+    return new Promise((resolve, reject) => {
+      gsr.withSuccessHandler(resolve).withFailureHandler(err => reject(new Error(err && err.message ? err.message : String(err))))
+        .executeAiAction(Object.assign({ email: currentUserEmail(), toko: typeof currentToko !== 'undefined' ? currentToko : undefined }, payload));
+    });
+  }
+  return postJson({ aksi: 'execute_ai_action', email: currentUserEmail(), payload }, 180000, true);
+}
+
+async function ocEksekusiAksi(a, kartu, mode) {
+  if (kartu.classList.contains('selesai') || kartu.classList.contains('berjalan')) return;
+  kartu.classList.add('berjalan');
+  const btn = kartu.querySelector('.oc-aksi-eksekusi');
+  btn.disabled = true;
+  ocSetStatusKartu(kartu, 'loading', mode === 'autopilot' ? '🤖 Auto-Pilot mengeksekusi…' : '⏳ Mengeksekusi…');
+  const payload = { tool_call: 'execute_action', action: a.action, params: a.params || {}, sumber: 'AI', mode, actionId: a.__id };
+  let r;
+  try { r = await ocPanggilEksekutor(payload); }
+  catch (e) { r = { success: false, status: 'FAILED', pesan: e.message || String(e) }; }
+  kartu.classList.remove('berjalan');
+  const status = (r && r.status) || 'FAILED';
+  const ikon = status === 'SUCCESS' ? '✅' : /^REJECTED/.test(status) ? '⛔' : '❌';
+  const jenis = status === 'SUCCESS' ? 'ok' : /^REJECTED/.test(status) ? 'tolak' : 'gagal';
+  ocSetStatusKartu(kartu, jenis, `${ikon} ${status}${r && r.duplikat ? ' (sudah pernah dieksekusi)' : ''} - ${(r && (r.pesan || r.error)) || 'tidak ada respons'}`);
+  if (status === 'SUCCESS' || /^REJECTED/.test(status)) kartu.classList.add('selesai');
+  else btn.disabled = false; // gagal teknis -> boleh dicoba lagi
+  if (status === 'SUCCESS') playBeep();
+  ocRiwayatChat.push({ role: 'user', content: `[HASIL EKSEKUSI SISTEM] ${ocLabelAksi(a)} -> ${status}: ${(r && (r.pesan || r.error)) || ''}`, waktu: new Date().toISOString() });
+  el('oc-chat-log').scrollTop = el('oc-chat-log').scrollHeight;
+}
+
+function ocSetAutoPilot(nyala) {
+  if (nyala && !confirm('Aktifkan Auto-Pilot?\n\nOmniAI akan langsung mengeksekusi usulan:\n• Update harga (maks ±15%, tetap wajib ≥ HPP + komisi)\n• Menjeda iklan\n\nStok, voucher, bundling & menyalakan iklan tetap butuh klik manual. Semua aksi tercatat di sheet Execution_Logs.')) {
+    el('oc-autopilot').checked = false; return;
+  }
+  ocAutoPilot = !!nyala;
+  try { localStorage.setItem(OC_AUTOPILOT_KEY, ocAutoPilot ? '1' : '0'); } catch (e) { }
+  el('oc-autopilot-wrap').classList.toggle('nyala', ocAutoPilot);
+}
+
+async function ocLihatLogEksekusi() {
+  try {
+    const r = await postJson({ aksi: 'lihat_execution_logs', email: currentUserEmail(), limit: 10 }, 30000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal memuat log');
+    const baris = (r.data || []).map(x => `- **${x.Status}** · ${x.Action_Type} · ${x['SKU/Target']}${x.Old_Value || x.New_Value ? ` · ${x.Old_Value || '-'} → ${String(x.New_Value || '-').slice(0, 60)}` : ''}\n  ${x.Timestamp} · ${x.Executed_By}`);
+    ocChatTambah('ai', baris.length ? '### 📜 10 eksekusi terakhir\n' + baris.join('\n') : 'Belum ada aksi yang dieksekusi.', { tanpaRiwayat: true });
+  } catch (e) { ocChatTambah('ai', '⚠️ ' + e.message, { error: true, tanpaRiwayat: true }); }
 }
 
 // Jawaban DUMMY: memakai Data Layer kalau ada, supaya alur chat bisa dites end-to-end.
@@ -35912,7 +36121,7 @@ const webAppCacheBaca = new Map();        // kunci request -> { t, data }
 const WEBAPP_AKSI_BACA_RE = /^(lihat_|detail_|ringkasan_|riwayat_|semua_saran_ai$|vm_lihat_|reminder_repeat_order$|analisa_performa_staff$)/;
 // Dashboard & laporan angka (omzet, laba) SELALU diambil dari server - tampilan instan tetap dari snapshot lokal
 const WEBAPP_AKSI_BACA_LIVE = new Set(['lihat_semua_pesanan_gabungan', 'lihat_pesanan_gabungan_ringan', 'lihat_pesanan_gabungan_detail', 'lihat_stok_banyak_sku',
-  'lihat_dashboard_penjualan', 'lihat_fin_laporan', 'lihat_fin_biaya', 'lihat_fin_mutasi', 'lihat_pesanan_po']);
+  'lihat_dashboard_penjualan', 'lihat_fin_laporan', 'lihat_fin_biaya', 'lihat_fin_mutasi', 'lihat_pesanan_po', 'lihat_execution_logs']);
 // Aksi "baca-ish" yang tidak di-cache tapi juga bukan penulisan (tidak membuang cache)
 const WEBAPP_AKSI_NETRAL_RE = /^(tanya_|lihat_|detail_|ringkasan_|riwayat_|cari_|cek_|semua_|hitung_|simulasi_|ambil_|analisa_|rangkum_|katalog_ambil_|vm_lihat_|reminder_|login$|buat_auth_url)/;
 let webAppPaksaSegarHitung = 0;   // > 0 selama pemicu yang diizinkan (polling/visibility) sedang berjalan
