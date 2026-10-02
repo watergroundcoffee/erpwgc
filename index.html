@@ -8366,6 +8366,10 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           <div class="fmk-alat-atas">
             <div class="fin2-atur-ket" style="margin:0; flex:1; min-width:240px;">Saldo &amp; mutasi riil dari rekening bank dan marketplace. Pilih <b>Kategori Finance</b> tiap mutasi - Laporan Arus Kas riil tersusun otomatis.</div>
             <button type="button" class="web-btn-secondary fin2-btn-kecil" id="fmk-btn-sinkron" onclick="fmkSinkron(false)">↻ Tarik Saldo &amp; Mutasi Marketplace</button>
+            <select class="web-form-input" id="fmk-iklan-hari" title="Rentang tarik biaya iklan" style="width:auto; margin:0; padding:6px 8px; font-size:12px;">
+              <option value="7" selected>Iklan 7 hari</option><option value="30">Iklan 30 hari</option><option value="90">Iklan 90 hari</option>
+            </select>
+            <button type="button" class="web-btn-secondary fin2-btn-kecil" id="fmk-btn-sinkron-iklan" onclick="fmkSinkronIklan()">⟳ Sinkron Biaya Iklan</button>
             <button type="button" class="web-btn-primary fin2-btn-kecil" onclick="fmkBukaUpload()">⬆ Upload CSV Bank</button>
           </div>
           <div class="fmk-akun-grid" id="fmk-akun"></div>
@@ -20326,6 +20330,27 @@ async function fmkSinkron(diamDiam) {
     await fmkMuat(false);
   } catch (err) { if (!diamDiam) pgrToast('✗ Tarik marketplace gagal: ' + String(err.message || err)); }
   finally { fmk.sinkron = false; btn.disabled = false; btn.innerHTML = '↻ Tarik Saldo &amp; Mutasi Marketplace'; }
+}
+// Tarik biaya iklan Shopee Ads & TikTok Ads -> otomatis dijurnal sebagai "Beban Iklan & Promosi" (Laba Rugi ikut terpotong)
+let fmkIklanJalan = false;
+async function fmkSinkronIklan() {
+  if (fmkIklanJalan) return;
+  fmkIklanJalan = true;
+  const btn = el('fmk-btn-sinkron-iklan');
+  btn.disabled = true; btn.innerHTML = '<i class="dok-spin"></i> Menarik biaya iklan…';
+  try {
+    const r = await postJsonTulis({ aksi: 'fin_sinkron_iklan', hariMundur: el('fmk-iklan-hari').value, email: currentUserEmail() }, 330000);
+    if (r && r.sedangJalan) { pgrToast('⏳ ' + r.pesan); return; }
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    const h = r.hasil || {};
+    const rinci = Object.keys(h).map(k => h[k].ok
+      ? `${k}: ✓ ${fin2Rp(h[k].total)}${h[k].baru || h[k].diubah ? ` (${h[k].baru} baru, ${h[k].diubah} diperbarui)` : ''}${h[k].pesan ? ' ⚠ ' + h[k].pesan : ''}`
+      : `${k}: ✗ ${h[k].pesan}`).join(' · ');
+    pgrToast(`✓ Biaya iklan ${r.sinkron && r.sinkron.hariMundur ? r.sinkron.hariMundur + ' hari' : ''} tersinkron & dijurnal: ${fin2Rp(r.totalBiaya)} · ${rinci}`);
+    playBeep();
+    if (typeof fin2 !== 'undefined') fin2.lapKunci = ''; // Laba Rugi dimuat ulang dengan beban iklan terbaru
+  } catch (err) { pgrToast('✗ Sinkron biaya iklan gagal: ' + String(err.message || err).replace(/^Error:\s*/, '')); }
+  finally { fmkIklanJalan = false; btn.disabled = false; btn.innerHTML = '⟳ Sinkron Biaya Iklan'; }
 }
 async function fmkHapusBatch(batch, n) {
   if (!confirm(`Hapus ${n} baris mutasi dari impor ini?\n\nGunakan kalau salah pilih rekening / salah file. Kategori yang sudah dipilih di baris ini ikut terhapus.`)) return;
