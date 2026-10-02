@@ -613,6 +613,8 @@
   .doc-meta .k { color: #555; }
   .doc-barcode { display: flex; justify-content: flex-end; margin-top: 4px; line-height: 0; }
   .doc-barcode svg { display: block; max-width: 100%; height: auto; }
+  .doc-barcode-in { display: inline-flex; flex-direction: column; align-items: stretch; max-width: 100%; }
+  .doc-barcode-teks { display: block; text-align: center; font-family: 'Courier New', Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; line-height: 1.2; color: #000; margin-top: 2px; white-space: nowrap; }
 
   .addr-cols { display: flex; gap: 10px; margin-top: 10px; }
   .addr-col { flex: 1; }
@@ -6637,35 +6639,9 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <button type="button" role="tab" id="kmp-mode-tiktok" aria-selected="false" onclick="kmpGantiMode('tiktok')">⚫ TikTok Shop <span class="kmp-n" id="kmp-n-tiktok"></span></button>
             </div>
 
-            <!-- ===== KOMPLAIN PELANGGAN (semua marketplace + manual) ===== -->
-            <div id="kmp-wrap">
-              <div class="wp-toolbar-terpadu">
-                <button class="web-btn-primary wp-tt-btn-baru" onclick="kmpBukaForm()">+ Input Komplain</button>
-                <div class="wp-omni-wrap">
-                  <input type="text" id="kmp-cari" class="web-search-input wp-omni-input" autocomplete="off" spellcheck="false"
-                    placeholder="🔍 Cari No Pesanan / Nama Pembeli / No HP / Barang..." oninput="kmpFilter()" />
-                </div>
-                <select id="kmp-f-jenis" class="web-form-input wp-tt-select" onchange="kmpFilter()" title="Jenis kendala">
-                  <option value="">Semua Kendala</option><option>Barang Rusak</option><option>Kurang Kirim</option><option>Salah Kirim</option>
-                </select>
-                <div class="wp-tt-kanan">
-                  <span id="kmp-sync-chip" class="wp-sync-chip" role="status" aria-live="polite" hidden></span>
-                  <button class="wp-tt-refresh" onclick="kmpMuat(true)" title="Muat ulang daftar komplain">🔄</button>
-                </div>
-              </div>
-              <div class="wp-kapsul-baris" id="kmp-kapsul" role="tablist" aria-label="Filter status penyelesaian"></div>
-              <div class="web-table-wrap">
-                <table class="web-table wp-tabel-penjualan wp-tabel-ringkas">
-                  <thead><tr><th>Tanggal</th><th>No Pesanan</th><th>Channel</th><th>Pembeli</th><th>Jenis Kendala</th><th>Solusi</th><th>Status</th><th></th></tr></thead>
-                  <tbody id="kmp-body"></tbody>
-                </table>
-              </div>
-              <div class="web-placeholder" id="kmp-empty" style="display:none;">Belum ada komplain. Klik "+ Input Komplain", cukup masukkan No Pesanan.</div>
-              <div id="kmp-paginasi"></div>
-            </div>
-
-            <div id="retur-tiktok-wrap" style="display:none;">
-            <div class="kmp-subjudul">↩️ Retur TikTok Shop <small>sinkron otomatis dari TikTok Shop</small></div>
+            <!-- ===== TABEL TUNGGAL RETUR / KOMPLAIN (sumber data mengikuti pill Shopee / TikTok Shop) ===== -->
+            <div id="retur-wrap">
+            <div class="kmp-subjudul" id="retur-subjudul">↩️ Retur Shopee <small>sinkron otomatis dari Shopee</small></div>
             <div class="wp-toolbar-terpadu">
               <div class="wp-omni-wrap">
                 <input type="text" id="retur-cari" class="web-search-input wp-omni-input" autocomplete="off" spellcheck="false"
@@ -6684,7 +6660,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <div class="wp-tt-kanan">
                 <span id="retur-sync-chip" class="wp-sync-chip" role="status" aria-live="polite" hidden></span>
                 <span id="retur-sync-info" class="wp-tt-info"></span>
-                <button class="web-btn-primary" onclick="wpSyncReturTikTok()" id="retur-sync-btn" style="font-size:12px; white-space:nowrap;">🔄 Sync dari TikTok Shop</button>
+                <button class="web-btn-primary" onclick="wpSyncRetur()" id="retur-sync-btn" style="font-size:12px; white-space:nowrap;">🔄 Sync dari Shopee</button>
               </div>
             </div>
             <div class="wp-kapsul-baris" id="retur-kapsul" role="tablist" aria-label="Filter status retur"></div>
@@ -6696,7 +6672,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
                 <tbody id="retur-body"></tbody>
               </table>
             </div>
-            <div class="web-placeholder" id="retur-empty" style="display:none;">Belum ada data retur/komplain. Klik "Sync dari TikTok Shop" untuk menarik data terbaru.</div>
+            <div class="web-placeholder" id="retur-empty" style="display:none;">Belum ada data retur/komplain.</div>
             <div id="retur-paginasi"></div>
             <div style="font-size:11px; color:var(--web-text-dim); margin-top:6px;">Klik <b>No Pesanan</b> untuk melihat detail produk, alasan lengkap &amp; pesanan asalnya.</div>
             </div>
@@ -12240,9 +12216,41 @@ function wpRenderPantauan(data) {
 }
 
 let returCache = [];
+let returKanal = 'shopee';                         // pill aktif: 'shopee' | 'tiktok'
+const returCachePerKanal = { shopee: [], tiktok: [] };
+const RETUR_KANAL_NAMA = { shopee: 'Shopee', tiktok: 'TikTok Shop' };
 let returKategoriAktif = '';
 let returPaginasiState = buatStatePaginasi();
-let returSedangMuat = false;
+const returSedangMuatKanal = { shopee: false, tiktok: false };
+
+// Ganti sumber data tabel retur tunggal sesuai pill channel
+function returGantiKanal(k) {
+  returKanal = k === 'tiktok' ? 'tiktok' : 'shopee';
+  const nama = RETUR_KANAL_NAMA[returKanal];
+  if (el('retur-subjudul')) el('retur-subjudul').innerHTML = `↩️ Retur ${nama} <small>sinkron otomatis dari ${nama}</small>`;
+  if (el('retur-sync-btn')) el('retur-sync-btn').textContent = `🔄 Sync dari ${nama}`;
+  if (el('retur-sync-status')) { el('retur-sync-status').textContent = ''; el('retur-sync-status').className = 'status-text'; }
+  if (el('retur-sync-info')) el('retur-sync-info').textContent = '';
+  if (!returCachePerKanal[returKanal].length) {
+    const lokal = ambilCacheLokal('retur_' + returKanal);
+    if (lokal && lokal.length) returCachePerKanal[returKanal] = lokal;
+  }
+  returCache = returCachePerKanal[returKanal];
+  returKategoriAktif = '';
+  returPaginasiState.page = 1;
+  if (returCache.length) wpRenderRetur(); else returRenderSkeleton(8);
+  wpFetchRetur();
+}
+
+// Badge jumlah retur yang masih berjalan (belum selesai / ditolak) di tiap pill
+function returUpdateBadge() {
+  ['shopee', 'tiktok'].forEach(k => {
+    const b = el('kmp-n-' + k);
+    if (!b) return;
+    const n = (returCachePerKanal[k] || []).filter(r => { const kat = returKategori(r); return kat === 'menunggu' || kat === 'pengecekan'; }).length;
+    b.textContent = n ? String(n) : '';
+  });
+}
 
 // Kategori status retur untuk tim operasional (status asli TikTok tetap ditampilkan kecil)
 const RETUR_KATEGORI = [
@@ -12256,14 +12264,19 @@ const RETUR_LABEL_STATUS = {
   RETURN_OR_REFUND_REQUEST_PENDING: 'Menunggu persetujuan', REFUND_OR_RETURN_REQUEST_REJECT: 'Pengajuan ditolak',
   AWAITING_BUYER_SHIP: 'Menunggu pembeli mengirim', BUYER_SHIPPED_ITEM: 'Barang dalam perjalanan balik',
   REJECT_RECEIVE_PACKAGE: 'Paket ditolak penjual', RETURN_OR_REFUND_REQUEST_SUCCESS: 'Refund berhasil',
-  RETURN_OR_REFUND_REQUEST_CANCEL: 'Dibatalkan pembeli', RETURN_OR_REFUND_REQUEST_COMPLETE: 'Selesai'
+  RETURN_OR_REFUND_REQUEST_CANCEL: 'Dibatalkan pembeli', RETURN_OR_REFUND_REQUEST_COMPLETE: 'Selesai',
+  // Status retur Shopee
+  REQUESTED: 'Pengajuan baru', PROCESSING: 'Sedang diproses', ACCEPTED: 'Refund disetujui', CANCELLED: 'Dibatalkan',
+  JUDGING: 'Ditinjau Shopee', SELLER_DISPUTE: 'Sengketa penjual', CLOSED: 'Selesai'
 };
 
 function returKategori(r) {
   const st = String(r.status || '').toUpperCase();
   if (/REJECT|CANCEL|DITOLAK|BATAL/.test(st)) return 'ditolak';
   if (/COMPLETE|SUCCESS|REFUNDED|SELESAI|CLOSED/.test(st)) return 'selesai';
+  if (/^ACCEPTED$/.test(st)) return 'selesai';         // Shopee: refund disetujui
   if (r.diterimaGudang) return 'pengecekan';           // barang sudah di gudang, belum diputuskan
+  if (/^(REQUESTED|PROCESSING)$/.test(st) && wpResiStr(r.noResiPengembalian) !== '-' && String(r.noResiPengembalian || '').trim()) return 'menunggu'; // Shopee: barang sedang dikirim balik
   if (/AWAITING_BUYER_SHIP|BUYER_SHIPPED|SHIP|KIRIM|TRANSIT/.test(st)) return 'menunggu';
   return 'pengecekan';                                  // mis. menunggu persetujuan penjual
 }
@@ -12309,29 +12322,37 @@ function returRenderSkeleton(n) {
 }
 
 async function wpFetchRetur() {
-  if (returSedangMuat) return;
-  returSedangMuat = true;
+  const kanal = returKanal;
+  if (returSedangMuatKanal[kanal]) return;
+  returSedangMuatKanal[kanal] = true;
+  const aktif = () => returKanal === kanal;
   try {
-    if (returCache.length === 0) {
-      const dataLokal = ambilCacheLokal('retur_tiktok');
-      if (dataLokal && dataLokal.length) { returCache = dataLokal; wpRenderRetur(); }
-      else returRenderSkeleton(8);
+    if (!returCachePerKanal[kanal].length) {
+      const dataLokal = ambilCacheLokal('retur_' + kanal);
+      if (dataLokal && dataLokal.length) { returCachePerKanal[kanal] = dataLokal; if (aktif()) { returCache = dataLokal; wpRenderRetur(); } }
+      else if (aktif()) returRenderSkeleton(8);
     }
     // Nama pelanggan cadangan diambil dari daftar pesanan tersimpan (kalau belum dimuat)
     if (!wpGabunganCache.length) { try { await wpGabMuatCacheLokal(); } catch (e) { } }
-    returSetIndikator(true, 'Menyelaraskan data retur...');
-    const data = await postJson({ aksi: 'lihat_daftar_retur_tiktok', email: currentUserEmail() }, 45000, true);
+    if (aktif()) returSetIndikator(true, 'Menyelaraskan data retur...');
+    const data = await postJson({ aksi: 'lihat_daftar_retur_' + kanal, email: currentUserEmail() }, 45000, true);
     if (!data.success) throw new Error(data.error || 'Gagal memuat retur');
-    returCache = data.daftar || [];
-    if (el('retur-sync-info')) el('retur-sync-info').textContent = data.waktuSyncTerakhir ? `Sync terakhir: ${data.waktuSyncTerakhir}` : '';
-    wpRenderRetur(true);
-    simpanCacheLokal('retur_tiktok', returCache);
-    returSetIndikator(false);
+    returCachePerKanal[kanal] = (data.daftar || []).map(r => Object.assign({ kanal }, r));
+    simpanCacheLokal('retur_' + kanal, returCachePerKanal[kanal]);
+    returUpdateBadge();
+    if (aktif()) {
+      returCache = returCachePerKanal[kanal];
+      if (el('retur-sync-info')) el('retur-sync-info').textContent = data.waktuSyncTerakhir ? `Sync terakhir: ${data.waktuSyncTerakhir}` : '';
+      wpRenderRetur(true);
+      returSetIndikator(false);
+    }
   } catch (err) {
-    if (returCache.length === 0) el('retur-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(err.message)}</td></tr>`;
-    returSetIndikator(false, 'Gagal sinkron - data terakhir ditampilkan', true);
+    if (aktif()) {
+      if (returCache.length === 0) el('retur-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(err.message)}</td></tr>`;
+      returSetIndikator(false, 'Gagal sinkron - data terakhir ditampilkan', true);
+    }
   } finally {
-    returSedangMuat = false;
+    returSedangMuatKanal[kanal] = false;
   }
 }
 
@@ -12370,6 +12391,7 @@ function returRenderKapsul(jumlah) {
 }
 
 function wpRenderRetur(pertahankanHalaman) {
+  returUpdateBadge();
   const q = (el('retur-cari')?.value || '').toLowerCase().trim();
   const belumGudang = !!el('retur-belum-gudang')?.checked;
   const sortPilihan = el('retur-sort')?.value || 'terbaru';
@@ -12396,7 +12418,7 @@ function wpRenderRetur(pertahankanHalaman) {
   if (daftar.length === 0) {
     el('retur-body').innerHTML = '';
     el('retur-empty').style.display = 'block';
-    el('retur-empty').textContent = returCache.length ? 'Tidak ada retur yang cocok dengan pencarian / filter.' : 'Belum ada data retur/komplain. Klik "Sync dari TikTok Shop" untuk menarik data terbaru.';
+    el('retur-empty').textContent = returCache.length ? 'Tidak ada retur yang cocok dengan pencarian / filter.' : `Belum ada data retur/komplain ${RETUR_KANAL_NAMA[returKanal]}. Klik "Sync dari ${RETUR_KANAL_NAMA[returKanal]}" untuk menarik data terbaru.`;
     if (el('retur-paginasi')) el('retur-paginasi').innerHTML = '';
     return;
   }
@@ -12698,7 +12720,7 @@ async function buktiReturUploadSemua() {
       const item = buktiReturState.hasil[jenis];
       const base64 = await buktiReturBlobKeBase64(item.blob);
       const data = await postJson({
-        aksi: 'upload_bukti_retur', returnId: buktiReturState.returnId, jenis,
+        aksi: 'upload_bukti_retur', returnId: buktiReturState.returnId, jenis, kanal: returKanal,
         base64, mimeType: item.mime, email: currentUserEmail()
       }, 90000);
       if (data.success) berhasil++; else gagal++;
@@ -12764,20 +12786,21 @@ function buktiViewerTutup() {
   el('bukti-viewer-modal').style.display = 'none';
 }
 
-async function wpSyncReturTikTok() {
+async function wpSyncRetur() {
+  const kanal = returKanal, nama = RETUR_KANAL_NAMA[kanal];
   const btn = el('retur-sync-btn');
   const statusEl = el('retur-sync-status');
   btn.disabled = true;
-  setLoadingDots(statusEl, 'Menarik data dari TikTok Shop');
+  setLoadingDots(statusEl, 'Menarik data dari ' + nama);
   try {
-    const data = await postJson({ aksi: 'sync_retur_tiktok', email: currentUserEmail() }, 60000);
+    const data = await postJson({ aksi: 'sync_retur_' + kanal, email: currentUserEmail() }, 300000);
     stopLoadingDots(statusEl);
     btn.disabled = false;
     if (data.success) {
       playBeep();
-      statusEl.textContent = `✓ ${data.jumlahBaru} retur baru, ${data.jumlahDiupdate} diupdate`;
+      statusEl.textContent = data.sedangJalan ? '⏳ ' + (data.pesan || 'Sinkron sedang berjalan') : `✓ ${data.jumlahBaru} retur baru, ${data.jumlahDiupdate} diupdate${data.terpotong ? ' (sebagian - klik Sync lagi untuk melanjutkan)' : ''}`;
       statusEl.className = 'status-text ok';
-      wpFetchRetur();
+      if (returKanal === kanal) wpFetchRetur();
     } else {
       statusEl.textContent = '✗ ' + (data.error || '');
       statusEl.className = 'status-text err';
@@ -12789,6 +12812,7 @@ async function wpSyncReturTikTok() {
     statusEl.className = 'status-text err';
   }
 }
+function wpSyncReturTikTok() { return wpSyncRetur(); } // kompatibilitas nama lama
 
 let wpGabunganKunciTerlihat = new Set(); // kunci unik pesanan yang udah pernah ditampilin, buat deteksi "ini baru masuk"
 
@@ -16930,6 +16954,7 @@ const kmp = { mode: 'shopee', daftar: null, status: 'Menunggu', paginasi: buatSt
 // Kelompok channel komplain: tab Shopee & tab TikTok Shop (Tokopedia ikut TikTok Shop)
 function kmpGrupChannel(c) { c = String(c || '').toLowerCase(); return /shopee/.test(c) ? 'shopee' : (/tiktok|tokopedia/.test(c) ? 'tiktok' : ''); }
 function kmpRenderLoader() {
+  if (!el('kmp-body')) return; // tabel komplain manual sudah digabung ke tabel retur tunggal
   const sel = Array.from({ length: 7 * 6 }, () => '<i></i>').join('');
   el('kmp-body').innerHTML = `<tr><td colspan="8" style="padding:0;"><div class="kmp-loader" role="status" aria-label="Memuat data komplain">${sel}<div class="kmp-loader-ket">Menarik data komplain…</div></div></td></tr>`;
   el('kmp-empty').style.display = 'none';
@@ -16939,14 +16964,11 @@ const KMP_SOLUSI = { kirim_ulang: '📦 Kirim Ulang Barang', refund: '💸 Refun
 function kmpGantiMode(m) {
   kmp.mode = m === 'tiktok' ? 'tiktok' : 'shopee';
   ['shopee', 'tiktok'].forEach(x => { const b = el('kmp-mode-' + x); if (b) { b.classList.toggle('aktif', x === kmp.mode); b.setAttribute('aria-selected', x === kmp.mode ? 'true' : 'false'); } });
-  el('kmp-wrap').style.display = '';
-  el('retur-tiktok-wrap').style.display = kmp.mode === 'tiktok' ? '' : 'none';
-  kmp.paginasi.page = 1;
-  kmpMuat(false);
-  if (kmp.mode === 'tiktok') wpFetchRetur();
+  returGantiKanal(kmp.mode); // 1 tabel tunggal - sumber data ikut pill
 }
 function kmpKunciLokal() { return 'kmp_v1|' + currentUserEmail(); }
 async function kmpMuat(paksa) {
+  if (!el('kmp-body')) return;
   if (!kmp.daftar) { try { const c = JSON.parse(localStorage.getItem(kmpKunciLokal()) || 'null'); if (Array.isArray(c)) kmp.daftar = c; } catch (e) { } }
   if (kmp.daftar && !paksa) kmpRender(); else kmpRenderLoader();
   if (kmp.memuat) return;
@@ -16969,6 +16991,7 @@ async function kmpMuat(paksa) {
 function kmpFilter() { kmp.paginasi.page = 1; kmpRender(); }
 function kmpPilihStatus(st) { kmp.status = st; kmp.paginasi.page = 1; kmpRender(); }
 function kmpRender() {
+  if (!el('kmp-body')) return; // tabel komplain manual sudah digabung ke tabel retur tunggal
   const semua = kmp.daftar || [];
   const q = (el('kmp-cari').value || '').trim().toLowerCase();
   const jenis = el('kmp-f-jenis').value;
@@ -36752,7 +36775,7 @@ async function scanKirimBatch() {
         if (h.success) {
           let ket = '';
           if (h.pendingDiselesaikan) ket = ' (pending selesai)';
-          else if (h.returTikTokCocok) ket = ' (cocok retur TikTok)';
+          else if (h.returTikTokCocok) ket = h.returShopeeCocok ? ' (cocok retur Shopee)' : ' (cocok retur TikTok)';
           const jamSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
           // Deteksi otomatis dari backend: jenisPengiriman 'kilat' = Transfer Gudang Shopee (No Reservasi)
           const kilat = h.jenisPengiriman === 'kilat' ? { noReservasi: h.noReservasi, perluProduk: !!h.perluProduk } : null;
@@ -36863,7 +36886,7 @@ async function kirimScan(noResi) {
         : data.pendingDiselesaikan
         ? '✅ Pending selesai! Resi terkirim: ' + noResi
         : data.returTikTokCocok
-        ? `🎯 Cocok dengan retur TikTok Shop! Alasan: ${data.returTikTokAlasan} - otomatis ditandai diterima.`
+        ? `🎯 Cocok dengan retur ${data.returShopeeCocok ? 'Shopee' : 'TikTok Shop'}! Alasan: ${data.returTikTokAlasan} - otomatis ditandai diterima.`
         : '✓ Tersimpan: ' + noResi;
       statusEl.className = 'status-text ok';
       el('conn-dot').classList.remove('bad');
@@ -40965,7 +40988,7 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
         <div class="doc-title">INVOICE</div>
         <div class="doc-meta"><span class="k">DATE:</span> ${escapeHtml(String(order.tanggal).split(',')[0])}</div>
         <div class="doc-meta"><span class="k">No Invoice:</span> ${escapeHtml(order.noInvoice)}</div>
-        <div class="doc-barcode">${buatBarcodeSvg(order.noInvoice, { modul: 1.25, tinggi: 28 })}</div>
+        <div class="doc-barcode"><div class="doc-barcode-in">${buatBarcodeSvg(order.noInvoice, { modul: 1.25, tinggi: 28 })}<span class="doc-barcode-teks">${escapeHtml(order.noInvoice)}</span></div></div>
       </div>
     </div>
     <div class="addr-cols">
@@ -41032,7 +41055,7 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
         ${buatLogoLabel(order.toko)}
         <div style="text-align:right;">
           <div class="label-title">LABEL<br>PENGIRIMAN</div>
-          <div class="doc-barcode">${buatBarcodeSvg(order.noInvoice, { modul: 1.3, tinggi: 30 })}</div>
+          <div class="doc-barcode"><div class="doc-barcode-in">${buatBarcodeSvg(order.noInvoice, { modul: 1.3, tinggi: 30 })}<span class="doc-barcode-teks">${escapeHtml(order.noInvoice)}</span></div></div>
         </div>
       </div>
       <div class="pengirim-qr-row">
@@ -41058,7 +41081,7 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
         ${buatLogoLabel(order.toko)}
         <div style="text-align:right;">
           <div class="label-title" style="font-size:16px;">LABEL<br>PENGIRIMAN</div>
-          <div class="doc-barcode">${buatBarcodeSvg(order.noInvoice, { modul: 1.2, tinggi: 26 })}</div>
+          <div class="doc-barcode"><div class="doc-barcode-in">${buatBarcodeSvg(order.noInvoice, { modul: 1.2, tinggi: 26 })}<span class="doc-barcode-teks">${escapeHtml(order.noInvoice)}</span></div></div>
         </div>
       </div>
       <div class="val-bold">${escapeHtml(order.namaPenerima)}</div>`;
