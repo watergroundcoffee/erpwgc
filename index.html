@@ -1227,6 +1227,21 @@
   }
   .oc-window[hidden] { display: none; }
   .oc-window.oc-tampil { opacity: 1; transform: none; }
+  /* ---------- Mode layar penuh (seperti Gemini Web) ---------- */
+  .oc-window.oc-full {
+    left: 0 !important; right: 0 !important; top: 16px !important; bottom: 16px !important;
+    margin: 0 auto; width: min(1100px, calc(100vw - 32px)); height: auto; border-radius: 20px;
+    transform-origin: center !important;
+    box-shadow: 0 0 0 100vmax rgba(15, 23, 42, .45), 0 24px 60px rgba(0,0,0,.35);
+  }
+  .oc-window.oc-full .oc-chat-log { padding: 20px max(20px, calc((100% - 860px) / 2)); gap: 14px; }
+  .oc-window.oc-full .oc-msg-bubble { line-height: 1.65; }
+  .oc-window.oc-full .oc-chat-input, .oc-window.oc-full .oc-chat-chips, .oc-window.oc-full .oc-autopilot-bar {
+    width: 100%; max-width: 900px; margin-left: auto; margin-right: auto; box-sizing: border-box;
+  }
+  .oc-icon-btn svg { width: 16px; height: 16px; display: block; margin: auto; }
+  body.oc-full-aktif { overflow: hidden; }
+  body.oc-full-aktif .oc-fab, body.oc-full-aktif .oc-bubble { opacity: 0; pointer-events: none; }
   .oc-header { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px; }
   .oc-avatar { width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; background: linear-gradient(135deg, var(--web-accent), #6366f1); flex-shrink: 0; }
   .oc-title { font-size: var(--fs-md); font-weight: 700; }
@@ -1324,6 +1339,9 @@
   @media (max-width: 520px) {
     .oc-window { width: calc(100vw - 16px); height: calc(100vh - 96px); border-radius: 14px; }
     .oc-tab { font-size: 12px; padding: 8px 4px; }
+  }
+  @media (max-width: 520px) {
+    .oc-window.oc-full { top: 0 !important; bottom: 0 !important; width: 100vw; border-radius: 0; }
   }
   @media (prefers-reduced-motion: reduce) { .oc-window, .oc-fab, .oc-bubble { transition: none; } .oc-fab-badge.urgent { animation: none; } }
 
@@ -3652,6 +3670,25 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 .harga-col-margin { width: 64px; }
 .harga-col-ch { min-width: 116px; }
 .harga-col-aksi { width: 96px; }
+.harga-col-live { min-width: 150px; }
+.harga-live-item { padding: 5px 7px; border-radius: 8px; border: 1px solid var(--web-border); background: var(--web-bg); margin-bottom: 4px; line-height: 1.3; }
+.harga-live-item:last-child { margin-bottom: 0; }
+.harga-live-baris { display: flex; align-items: center; gap: 5px; }
+.harga-live-angka { font-weight: 700; font-variant-numeric: tabular-nums; }
+.harga-live-coret { display: block; font-size: 11px; color: var(--web-text-dim); }
+.harga-live-status { display: inline-block; margin-top: 2px; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: rgba(127,127,127,.12); color: var(--web-text-dim); }
+.harga-live-item.aman .harga-live-status { background: rgba(22,163,74,.12); color: #15803d; }
+.harga-live-item.waspada { border-color: rgba(217,119,6,.45); }
+.harga-live-item.waspada .harga-live-status { background: rgba(217,119,6,.14); color: var(--web-warning); }
+.harga-live-item.bahaya { border-color: rgba(220,38,38,.55); background: rgba(220,38,38,.06); }
+.harga-live-item.bahaya .harga-live-status { background: var(--web-danger); color: #fff; }
+.harga-live-item.redup { opacity: .7; }
+.harga-live-kosong { font-size: 11.5px; color: var(--web-text-dim); }
+.harga-live-info { font-size: 12px; color: var(--web-text-dim); max-width: 520px; }
+.harga-live-alert { border: 1px solid rgba(220,38,38,.45); background: rgba(220,38,38,.06); color: var(--web-text); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px; }
+.harga-live-alert ul { margin: 6px 0 0; padding-left: 18px; }
+.harga-live-alert li { margin: 2px 0; }
+.harga-live-alert-lagi { margin-top: 4px; font-size: 12px; color: var(--web-text-dim); }
 .harga-table th.harga-col-produk, .harga-table td.harga-col-produk { position: sticky; left: 0; background: var(--web-panel); z-index: 3; box-shadow: 1px 0 0 var(--web-border); }
 .harga-table thead th.harga-col-produk { z-index: 6; }
 .harga-table tr:hover td.harga-col-produk { background: #eef7f2; }
@@ -9723,10 +9760,13 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             </div>
             <div class="web-toolbar-row" style="margin-bottom:10px;">
               <input id="harga-cari-input" type="search" class="web-search-input" placeholder="Cari nama produk atau SKU" oninput="hargaCariBerubah()" />
+              <button type="button" class="web-btn-secondary" id="harga-btn-sync-live" onclick="hargaSyncLive()" title="Tarik harga yang benar-benar tayang (harga normal & harga promo) dari API Shopee & TikTok Shop">🔄 Sync Harga Aktual</button>
+              <span class="harga-live-info" id="harga-live-info">Harga live belum dimuat</span>
               <div style="flex:1;"></div>
               <span class="status-text" id="harga-simpan-semua-status" style="text-align:right;"></span>
               <button class="web-btn-primary" id="harga-btn-simpan-semua" onclick="hargaSimpanSemuaPerubahan()" disabled>💾 Simpan Semua Perubahan (<span id="harga-jumlah-dirty">0</span>)</button>
             </div>
+            <div class="harga-live-alert" id="harga-live-alert" role="alert" style="display:none;"></div>
             <div class="web-table-wrap harga-table-wrap">
               <table class="web-table harga-table">
                 <thead><tr>
@@ -9737,6 +9777,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
                   <th class="harga-col-ch">Harga Default</th>
                   <th class="harga-col-ch">Shopee</th>
                   <th class="harga-col-ch">TikTok Shop &amp; Tokopedia</th>
+                  <th class="harga-col-live" title="Harga yang benar-benar tayang di marketplace (hasil Sync Harga Aktual)">Harga Live Aktual</th>
                   <th class="harga-col-aksi">Status</th>
                 </tr></thead>
                 <tbody id="katalog-harga-body"></tbody>
@@ -10579,6 +10620,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
           <div class="oc-title">OmniAI Copilot</div>
           <div class="oc-subtitle" id="oc-konteks">Beranda</div>
         </div>
+        <button type="button" class="oc-icon-btn" id="oc-btn-full" onclick="ocToggleLayarPenuh()" title="Layar penuh" aria-label="Layar penuh" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
         <button type="button" class="oc-icon-btn" onclick="ocTutup()" title="Tutup (Esc)" aria-label="Tutup">✕</button>
       </div>
 
@@ -13754,7 +13796,7 @@ function ocInit() {
   ocChatTambah('ai', 'Halo ' + ((typeof currentUser !== 'undefined' && currentUser && currentUser.nama) ? currentUser.nama.split(' ')[0] : '') + '! 👋 Aku **OmniAI Copilot**, konsultan growth untuk Waterground Coffee. Aku membaca data ERP real-time (laba rugi bulan ini, stok, pesanan, iklan & promo) plus tren pasar dari web.\n\nTanya apa saja, misalnya *strategi naikkan omzet minggu ini* atau *evaluasi ROAS iklan*.', { tanpaRiwayat: true });
 
   // ----- Global -----
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && ocTerbuka) ocTutup(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && ocTerbuka) { if (ocLayarPenuh) ocToggleLayarPenuh(false); else ocTutup(); } });
   // Sengaja TIDAK auto-tutup saat klik di luar: admin bisa membaca tracker sambil bekerja di tabel.
   window.addEventListener('resize', () => {
     const r = fab.getBoundingClientRect();
@@ -13806,6 +13848,7 @@ function ocBuka(tab) {
   if (tab) ocGantiTab(tab);
   win.hidden = false;
   ocPosisikanJendela();
+  if (ocLayarPenuh) document.body.classList.add('oc-full-aktif');
   requestAnimationFrame(() => win.classList.add('oc-tampil'));
   ocTerbuka = true;
   el('oc-fab').classList.add('oc-terbuka');
@@ -13820,6 +13863,7 @@ function ocTutup() {
   if (!win || !ocTerbuka) return;
   win.classList.remove('oc-tampil');
   ocTerbuka = false;
+  document.body.classList.remove('oc-full-aktif');
   el('oc-fab').classList.remove('oc-terbuka');
   el('oc-fab').setAttribute('aria-expanded', 'false');
   setTimeout(() => { if (!ocTerbuka) win.hidden = true; }, 180);
@@ -13828,6 +13872,26 @@ function ocTutup() {
 function ocToggle(tab) {
   if (ocTerbuka && (!tab || tab === ocTabAktif)) ocTutup();
   else ocBuka(tab);
+}
+
+/* ---------- Mode layar penuh chat (toggle kelas .oc-full) ---------- */
+let ocLayarPenuh = false;
+const OC_IKON_FULL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+const OC_IKON_MIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>';
+function ocToggleLayarPenuh(paksa) {
+  const win = el('oc-window'), btn = el('oc-btn-full');
+  if (!win || !btn) return;
+  ocLayarPenuh = typeof paksa === 'boolean' ? paksa : !ocLayarPenuh;
+  win.classList.toggle('oc-full', ocLayarPenuh);
+  document.body.classList.toggle('oc-full-aktif', ocLayarPenuh && ocTerbuka);
+  btn.innerHTML = ocLayarPenuh ? OC_IKON_MIN : OC_IKON_FULL;
+  btn.title = ocLayarPenuh ? 'Kecilkan (kembali ke pojok)' : 'Layar penuh';
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', String(ocLayarPenuh));
+  if (!ocLayarPenuh && ocTerbuka) ocPosisikanJendela();
+  const log = el('oc-chat-log');
+  if (log) requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; });
+  if (ocTerbuka && ocTabAktif === 'chat') setTimeout(() => { const i = el('oc-chat-input'); if (i) i.focus(); }, 60);
 }
 
 function ocGantiTab(tab) {
@@ -26699,18 +26763,19 @@ async function katalogFetchHarga() {
   if (katalogHargaCache.length === 0) {
     const dataLokal = ambilCacheLokal('katalog_harga_v7');
     if (dataLokal) hargaTerapkanDataServer(dataLokal);
-    else tampilkanMemuatTabel('katalog-harga-body', 8);
+    else tampilkanMemuatTabel('katalog-harga-body', 9);
   }
   try {
     const data = await postJson({ aksi: 'lihat_katalog_harga', email: currentUserEmail() });
     if (!data.success) {
-      if (katalogHargaCache.length === 0) el('katalog-harga-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error || '')}</td></tr>`;
+      if (katalogHargaCache.length === 0) el('katalog-harga-body').innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error || '')}</td></tr>`;
       return;
     }
     hargaTerapkanDataServer(data);
     simpanCacheLokal('katalog_harga_v7', { daftar: data.daftar, marginGlobal: data.marginGlobal, paramBiaya: data.paramBiaya });
+    hargaLiveMuat();
   } catch (err) {
-    if (katalogHargaCache.length === 0) el('katalog-harga-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
+    if (katalogHargaCache.length === 0) el('katalog-harga-body').innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -26799,6 +26864,91 @@ function hargaSelChannelHtml(sku, ch, d) {
     </td>`;
 }
 
+/* ===================== HARGA LIVE AKTUAL (harga yang benar-benar tayang di marketplace) ===================== */
+let hargaLiveMap = {};          // sku -> [{ platform, hargaLive, hargaList, status, ... }]
+let hargaLiveRingkas = null;
+let hargaLiveSedangSync = false;
+const HARGA_LIVE_IKON = { 'Shopee': '🛍️', 'TikTok Shop': '🎵' };
+const HARGA_LIVE_LABEL = { 'AMAN': 'Aman', 'BEDA DENGAN ERP': 'Beda dgn ERP', 'DI BAWAH BATAS AMAN': 'Di bawah batas aman', 'HPP KOSONG': 'HPP kosong', 'HARGA KOSONG': 'Harga kosong', 'TIDAK DITEMUKAN': 'Tidak ditemukan' };
+function hargaLiveKelas(status) {
+  if (status === 'DI BAWAH BATAS AMAN') return 'bahaya';
+  if (status === 'BEDA DENGAN ERP' || status === 'HPP KOSONG') return 'waspada';
+  if (status === 'AMAN') return 'aman';
+  return 'redup';
+}
+function hargaLiveSelHtml(sku) {
+  const rows = hargaLiveMap[sku] || [];
+  if (!rows.length) return '<div class="harga-live-kosong">Belum ada data</div>';
+  return rows.map(r => {
+    const live = Number(r.hargaLive) || 0, list = Number(r.hargaList) || 0;
+    const tip = [
+      `${r.platform} · ${r.kodeMp || '-'}`,
+      list ? `Harga normal: ${ocRp(list)}` : '',
+      live ? `Harga tayang: ${ocRp(live)}` : '',
+      r.promo ? `Promo: ${r.promo}` : '',
+      r.hargaErp ? `Harga jual ERP: ${ocRp(r.hargaErp)}` : '',
+      r.batasAman ? `Batas aman (HPP + komisi): ${ocRp(r.batasAman)}` : '',
+      r.catatan || '',
+      `Sync: ${r.waktu || '-'}`
+    ].filter(Boolean).join('\n');
+    return `<div class="harga-live-item ${hargaLiveKelas(r.status)}" title="${escapeHtml(tip)}">
+        <div class="harga-live-baris"><span class="harga-live-pf" aria-hidden="true">${HARGA_LIVE_IKON[r.platform] || '🛒'}</span><span class="harga-live-angka">${live ? escapeHtml(ocRp(live)) : '-'}</span></div>
+        ${list && live && live < list ? `<s class="harga-live-coret">${escapeHtml(ocRp(list))}</s>` : ''}
+        <span class="harga-live-status">${escapeHtml(HARGA_LIVE_LABEL[r.status] || r.status || '-')}</span>
+      </div>`;
+  }).join('');
+}
+function hargaLiveRenderSel() {
+  document.querySelectorAll('#katalog-harga-body td[data-role="live"]').forEach(td => { td.innerHTML = hargaLiveSelHtml(td.dataset.liveSku); });
+}
+function hargaLiveRenderInfo() {
+  const info = el('harga-live-info'), box = el('harga-live-alert'), r = hargaLiveRingkas;
+  if (info) {
+    let t = r ? `Harga live: sync ${r.waktu} · ${r.jumlah} listing${r.beda ? ` · ${r.beda} beda dgn ERP` : ''}` : 'Harga live belum pernah di-sync';
+    const gagal = r && r.platform ? Object.keys(r.platform).filter(k => r.platform[k] && !r.platform[k].ok && r.platform[k].pesan) : [];
+    if (gagal.length) t += ' · ⚠️ ' + gagal.map(k => `${k}: ${r.platform[k].pesan}`).join(' | ');
+    info.textContent = t;
+  }
+  if (!box) return;
+  const alerts = (r && r.alerts) || [];
+  if (!alerts.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML = `<b>🚨 ${r.alert} listing tayang DI BAWAH batas harga aman (HPP + komisi)</b>
+    <ul>${alerts.slice(0, 8).map(a => `<li>${HARGA_LIVE_IKON[a.platform] || '🛒'} <b>${escapeHtml(a.nama || a.sku)}</b> [${escapeHtml(a.sku)}]: tayang ${escapeHtml(ocRp(a.live))} &lt; aman ${escapeHtml(ocRp(a.batas))}</li>`).join('')}</ul>
+    ${r.alert > 8 ? `<div class="harga-live-alert-lagi">…dan ${r.alert - 8} listing lainnya (lihat sheet "Harga Live Marketplace").</div>` : ''}`;
+}
+function hargaLiveTerapkan(data) {
+  hargaLiveMap = {};
+  (data.data || []).forEach(r => { (hargaLiveMap[r.sku] = hargaLiveMap[r.sku] || []).push(r); });
+  hargaLiveRingkas = data.ringkas || null;
+  hargaLiveRenderSel();
+  hargaLiveRenderInfo();
+}
+async function hargaLiveMuat(segar) {
+  try {
+    const d = await postJson({ aksi: 'lihat_harga_live', email: currentUserEmail(), segar: !!segar }, 30000, true);
+    if (d && d.success) hargaLiveTerapkan(d);
+  } catch (e) { /* data live opsional - tabel harga tetap jalan */ }
+}
+async function hargaSyncLive() {
+  if (hargaLiveSedangSync) return;
+  hargaLiveSedangSync = true;
+  const btn = el('harga-btn-sync-live'), info = el('harga-live-info');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Menarik harga live…'; }
+  if (info) info.textContent = 'Menghubungi Shopee & TikTok Shop… (bisa 1-4 menit, jangan tutup halaman)';
+  try {
+    const d = await postJson({ aksi: 'sync_harga_live', email: currentUserEmail() }, 330000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Sync gagal');
+    hargaLiveTerapkan(d);
+    hargaLiveMuat(true); // segarkan cache baca di browser
+  } catch (e) {
+    if (info) info.textContent = '⚠️ Sync Harga Aktual gagal: ' + e.message;
+  } finally {
+    hargaLiveSedangSync = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Harga Aktual'; }
+  }
+}
+
 function hargaBarisHtml(p) {
   const d = hargaAmbilDraft(p.sku);
   const s = escapeHtml(p.sku);
@@ -26839,6 +26989,7 @@ function hargaBarisHtml(p) {
         <div class="harga-persen-input harga-edit-box"><input type="text" inputmode="decimal" autocomplete="off" class="harga-input-margin harga-input-edit" data-sku="${s}" placeholder="${escapeHtml(hargaTeksPersen(katalogMarginGlobalCache))}" aria-label="Target Margin ${escapeHtml(p.nama || p.sku)}" /><span>%</span></div>
       </td>
       ${HARGA_CHANNEL.map(ch => hargaSelChannelHtml(p.sku, ch, d)).join('')}
+      <td class="harga-col-live" data-role="live" data-live-sku="${s}">${hargaLiveSelHtml(p.sku)}</td>
       <td class="harga-col-aksi">
         <div class="harga-aksi">
           ${hargaSyncInfoHtml(p)}
