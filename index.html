@@ -23729,6 +23729,8 @@ const INT_IKON = {
 let intKoneksi = [];            // dari backend (registri "Otorisasi Toko" + status token)
 let intMasterSiap = { shopee: false, tiktok: false };
 let intMasterKurang = {};       // { tiktok: ['TIKTOK_SERVICE_ID', ...] } Script Property master yang masih kosong
+// Kartu bisa dihubungkan kalau backend bilang app untuk koneksi INI siap (app khusus toko atau master)
+function intAppSiap(k) { return k && typeof k.appSiap === 'boolean' ? k.appSiap : !!intMasterSiap[k && k.platform]; }
 function intTeksMasterBelum(p) {
   const kurang = (intMasterKurang[p] || []);
   return 'Aplikasi master OmniAI untuk ' + ((INT_PLATFORM[p] || {}).nama || p) + ' belum lengkap' + (kurang.length ? ' (kosong: ' + kurang.join(', ') + ')' : '') + '.';
@@ -23754,7 +23756,7 @@ function intKartuHTML(k) {
   const kd = intSedangMemuat && !intSudahDimuat ? { kode: 'memuat', label: 'Memeriksa...' } : intKondisi(k);
   const sibuk = intSibuk[k.idKoneksi], pesan = intPesan[k.idKoneksi];
   const terhubung = kd.kode === 'terhubung' || kd.kode === 'kedaluwarsa';
-  const masterOk = intMasterSiap[k.platform];
+  const masterOk = intAppSiap(k);
   const meta = [];
   if (terhubung) {
     meta.push(['Token berlaku s/d', k.berlakuSampai || '-']);
@@ -23938,8 +23940,8 @@ function intRenderDrawer() {
   const banner = {
     terhubung: ['Koneksi aktif', 'Token diperbarui otomatis sebelum kedaluwarsa.'],
     kedaluwarsa: ['Token kedaluwarsa', 'Sambungkan ulang agar sinkronisasi kembali berjalan.'],
-    belum: [intMasterSiap[k.platform] ? (k.gagalTerakhir ? 'Otorisasi terakhir gagal' : 'Belum terhubung') : 'Menunggu konfigurasi',
-      intMasterSiap[k.platform] ? (k.gagalTerakhir ? k.gagalTerakhir.pesan : 'Tekan Hubungkan lalu login di halaman resmi ' + plat.nama + '.') : intTeksMasterBelum(k.platform)]
+    belum: [intAppSiap(k) ? (k.gagalTerakhir ? 'Otorisasi terakhir gagal' : 'Belum terhubung') : 'Menunggu konfigurasi',
+      intAppSiap(k) ? (k.gagalTerakhir ? k.gagalTerakhir.pesan : 'Tekan Hubungkan lalu login di halaman resmi ' + plat.nama + '.') : intTeksMasterBelum(k.platform)]
   }[kd.kode] || ['Status', ''];
   const baris = [
     ['Status', kd.label],
@@ -23960,7 +23962,7 @@ function intRenderDrawer() {
   const sibuk = intSibuk[k.idKoneksi];
   el('int-drawer-aksi').innerHTML = `
     ${kd.kode === 'terhubung' && INT_AKSI_SYNC[k.idKoneksi] ? `<button type="button" class="int-btn int-btn-lebar ${sibuk === 'sync' ? 'is-berputar' : ''}" data-int-aksi="sync" data-int-id="${escapeHtml(k.idKoneksi)}" ${sibuk ? 'disabled' : ''}>${INT_IKON.sync}Sync Sekarang</button>` : ''}
-    <button type="button" class="int-btn ${terhubung ? '' : 'int-btn-utama'} int-btn-lebar" data-int-aksi="hubungkan" data-int-id="${escapeHtml(k.idKoneksi)}" ${sibuk || !intMasterSiap[k.platform] ? 'disabled' : ''}>${INT_IKON.hubung}${terhubung ? 'Sambungkan Ulang' : 'Hubungkan'}</button>
+    <button type="button" class="int-btn ${terhubung ? '' : 'int-btn-utama'} int-btn-lebar" data-int-aksi="hubungkan" data-int-id="${escapeHtml(k.idKoneksi)}" ${sibuk || !intAppSiap(k) ? 'disabled' : ''}>${INT_IKON.hubung}${terhubung ? 'Sambungkan Ulang' : 'Hubungkan'}</button>
     ${terhubung ? `<button type="button" class="int-btn int-btn-bahaya int-btn-lebar" data-int-aksi="putuskan" data-int-id="${escapeHtml(k.idKoneksi)}" ${sibuk ? 'disabled' : ''}>${INT_IKON.putus}Putuskan Koneksi</button>` : ''}`;
 }
 
