@@ -1304,7 +1304,7 @@
   .oc-aksi-abaikan { font-family: inherit; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text-dim); border-radius: 8px; padding: 0 10px; cursor: pointer; }
   .oc-aksi.selesai .oc-aksi-tombol { display: none; }
   .oc-aksi.diabaikan { opacity: .55; }
-  .oc-aksi-status { font-size: 12px; margin-top: 6px; line-height: 1.45; }
+  .oc-aksi-status { font-size: 12px; margin-top: 6px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
   .oc-aksi-status:empty { display: none; }
   .oc-aksi-status.loading { color: var(--web-text-dim); } .oc-aksi-status.ok { color: #15803d; font-weight: 600; }
   .oc-aksi-status.tolak { color: #b45309; font-weight: 600; } .oc-aksi-status.gagal { color: #b91c1c; font-weight: 600; } .oc-aksi-status.info { color: var(--web-text-dim); }
@@ -3779,6 +3779,9 @@ a.harga-link-terapkan:focus-visible { outline: 2px solid rgba(63,127,201,0.4); o
 .harga-sync-hasil-baris.lewat { color: var(--web-text-dim); }
 .harga-sync-hasil-baris.gagal { color: #8a4b0f; }
 .harga-sync-hasil-baris.gagal .ikon { color: #b3261e; }
+.harga-sync-hasil-baris.jadwal { color: #1d4ed8; }
+.katalog-badge-terjual { display: inline-block; margin-top: 3px; font-size: 10.5px; font-weight: 700; color: #b45309; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 999px; padding: 1px 8px; }
+.katalog-badge-terjual.nol { color: var(--web-text-dim); background: transparent; border-color: var(--web-border); font-weight: 600; }
 .harga-row-loader { display: none; padding: 4px 0; }
 .harga-row-loader .loader-box-dots { width: 32px; }
 .harga-table tr.harga-row-loading td:not(.harga-col-aksi) { opacity: 0.5; pointer-events: none; }
@@ -9304,8 +9307,11 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
               <option value="Shopee">Shopee</option>
               <option value="Tokopedia">Tokopedia</option>
             </select>
-            <select id="katalog-produk-sort" class="web-form-input" style="max-width:170px; margin-bottom:0;" onchange="katalogProdukPaginasiState.page=1; katalogProdukRenderHalaman();">
+            <select id="katalog-produk-sort" class="web-form-input" style="max-width:190px; margin-bottom:0;" onchange="katalogSortBerubah(this)" title="Terlaris = unit terjual dari Stock Ledger (Terjual Online / PO Sales)">
               <option value="terbaru" selected>Produk Terbaru</option>
+              <option value="terlaris-30">🔥 Terlaris (30 hari)</option>
+              <option value="terlaris-90">🔥 Terlaris (90 hari)</option>
+              <option value="terlaris-semua">🔥 Terlaris (semua waktu)</option>
               <option value="nama-asc">Nama A-Z</option>
               <option value="nama-desc">Nama Z-A</option>
             </select>
@@ -10647,6 +10653,7 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
             </label>
             <span>Aksi lain tetap butuh konfirmasi</span>
             <button type="button" onclick="ocLihatLogEksekusi()" title="10 eksekusi terakhir (sheet Execution_Logs)">📜 Log Eksekusi</button>
+            <button type="button" onclick="ocLihatAgenda()" title="Agenda aksi terjadwal (sheet Scheduled_Tasks)">📅 Agenda</button>
           </div>
           <div class="oc-chat-input">
             <textarea id="oc-chat-input" rows="1" placeholder="Tanya OmniAI... (Enter kirim, Shift+Enter baris baru)"></textarea>
@@ -14136,12 +14143,19 @@ function ocLabelAksi(a) {
   if (act === 'CREATE_BUNDLE') return `Buat Bundling "${p.nama || ''}" (${(p.skus || []).length} SKU, min ${p.min_qty || 2} pcs)`;
   if (act === 'TOGGLE_AD') return `${/enable|aktif|resume|start/i.test(p.action || '') ? 'Aktifkan' : 'Jeda'} Iklan ${p.platform || 'TikTok Shop'} #${p.campaign_id}`;
   if (act === 'UPDATE_MEMORY') return `🧠 ${(p.operasi || 'tambah').toUpperCase()} Memori (${p.bagian || '-'})${p.kunci ? ' ' + p.kunci : ''}${p.nilai !== undefined ? ': ' + p.nilai : ''}${p.berlaku_mulai ? ' mulai ' + p.berlaku_mulai : ''}`;
+  if (act === 'AUTOMATE_PRICE_RESTRUCTURE') return `📈 Restrukturisasi Harga ${p.sku} (Shopee): dasar ${ocRp(p.harga_dasar_baru)} → promo -${p.diskon_persen || 15}% dalam ${p.jeda_hari !== undefined ? p.jeda_hari : 7} hari ${p.jeda_jam !== undefined ? p.jeda_jam : 1} jam`;
+  if (act === 'CANCEL_SCHEDULED_TASK') return `🗑️ Batalkan Agenda ${p.task_id || ''}`;
+  if (act === 'GET_SCHEDULED_TASKS') return `📅 Lihat Agenda Terjadwal${p.status && p.status !== 'SEMUA' ? ' (' + p.status + ')' : ''}${p.sku ? ' · ' + p.sku : ''}`;
+  if (act === 'GET_ACTION_LOGS') return `📜 Lihat Log Aksi${p.sku ? ' · ' + p.sku : ''}`;
+  if (act === 'CHECK_SKU_MAPPING') return `🔎 Cek Mapping SKU ${p.sku || ''}${p.platform ? ' (' + p.platform + ')' : ''}`;
   return `${act || 'Aksi'} ${JSON.stringify(p).slice(0, 60)}`;
 }
 // Kebijakan Auto-Pilot di sisi UI (server tetap menjadi penentu akhir)
+// Aksi BACA: tidak mengubah data -> langsung dijalankan tanpa klik (hasilnya tampil di kartu & masuk riwayat chat)
+const OC_AKSI_BACA = new Set(['GET_SCHEDULED_TASKS', 'GET_ACTION_LOGS', 'CHECK_SKU_MAPPING']);
 function ocBolehAutoPilot(a) {
   const act = String(a.action || '').toUpperCase(), p = a.params || {};
-  if (act === 'UPDATE_PRICE') return true;
+  if (act === 'UPDATE_PRICE' || OC_AKSI_BACA.has(act)) return true;
   if (act === 'TOGGLE_AD') return !/enable|aktif|resume|start/i.test(p.action || '');
   return false;
 }
@@ -14174,6 +14188,11 @@ function ocRenderKartuAksi(bubble, daftarAksi) {
     bubble.appendChild(kartu);
     // Pratinjau guardrail harga (tidak mengeksekusi apa pun)
     if (String(a.action).toUpperCase() === 'UPDATE_PRICE') ocPratinjauHarga(a, kartu);
+    if (OC_AKSI_BACA.has(String(a.action || '').toUpperCase())) {
+      kartu.querySelector('.oc-aksi-judul').textContent = '🔍 Data diambil otomatis (aksi baca)';
+      ocEksekusiAksi(a, kartu, 'manual');
+      return;
+    }
     if (ocAutoPilot && ocBolehAutoPilot(a)) {
       ocSetStatusKartu(kartu, 'loading', '🤖 Auto-Pilot menjalankan aksi ini dalam 3 detik… (klik ✕ untuk batal)');
       a.__timer = setTimeout(() => { if (!kartu.classList.contains('selesai')) ocEksekusiAksi(a, kartu, 'autopilot'); }, 3000);
@@ -14250,6 +14269,22 @@ function ocSetAutoPilot(nyala) {
   ocAutoPilot = !!nyala;
   try { localStorage.setItem(OC_AUTOPILOT_KEY, ocAutoPilot ? '1' : '0'); } catch (e) { }
   el('oc-autopilot-wrap').classList.toggle('nyala', ocAutoPilot);
+}
+
+// Agenda terjadwal (Scheduled_Tasks) + tombol batal untuk yang masih PENDING
+async function ocLihatAgenda() {
+  try {
+    const r = await postJson({ aksi: 'lihat_scheduled_tasks', email: currentUserEmail(), status: 'SEMUA', limit: 15 }, 30000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal memuat agenda');
+    const d = r.data || [];
+    if (!d.length) { ocChatTambah('ai', '📅 Belum ada agenda terjadwal.', { tanpaRiwayat: true }); return; }
+    const baris = d.map(x => `- **${x.status}** · \`${x.task_id}\` · ${x.action} · ${x.sku}\n  ⏰ ${x.eksekusi} · ${x.ringkas}${x.hasil_terakhir ? `\n  ↳ ${String(x.hasil_terakhir).slice(0, 160)}` : ''}`);
+    ocChatTambah('ai', '### 📅 Agenda terjadwal\n' + baris.join('\n') + (d.some(x => x.status === 'PENDING') ? '\n\nUntuk membatalkan: ketik *"batalkan agenda T..."* atau klik tombol di bawah.' : ''), { tanpaRiwayat: true });
+    const log = el('oc-chat-log'), pesanAkhir = log && log.lastElementChild, bubble = pesanAkhir && pesanAkhir.querySelector('.oc-msg-bubble');
+    if (bubble) d.filter(x => x.status === 'PENDING').slice(0, 5).forEach(x => {
+      ocRenderKartuAksi(bubble, [{ tool_call: 'execute_action', action: 'CANCEL_SCHEDULED_TASK', params: { task_id: x.task_id, alasan: 'Dibatalkan dari daftar agenda' }, alasan: `${x.action} ${x.sku} · ${x.eksekusi}` }]);
+    });
+  } catch (e) { ocChatTambah('ai', '⚠️ ' + e.message, { error: true, tanpaRiwayat: true }); }
 }
 
 async function ocLihatLogEksekusi() {
@@ -22918,6 +22953,11 @@ function katalogFilterSortProduk() {
   daftar = [...daftar]; // biar sort nggak ngubah urutan asli cache
   if (sortBy === 'nama-asc') daftar.sort((a, b) => a.nama.localeCompare(b.nama));
   else if (sortBy === 'nama-desc') daftar.sort((a, b) => b.nama.localeCompare(a.nama));
+  else if (sortBy.indexOf('terlaris') === 0) {
+    // Produk jagoan dulu: unit terjual terbanyak -> prioritas update harga & strategi OmniAI
+    const m = sortBy.split('-')[1];
+    daftar.sort((a, b) => (katalogQtyTerjual(b.sku, m) - katalogQtyTerjual(a.sku, m)) || a.nama.localeCompare(b.nama));
+  }
   else if (sortBy === 'terbaru') {
     daftar.reverse(); // cache-nya sesuai urutan sheet (lama->baru), reverse = terbaru duluan
     // 2c: KECUALI user pilih sort A-Z/Z-A secara eksplisit, produk yang satu grup varian
@@ -22926,6 +22966,42 @@ function katalogFilterSortProduk() {
   }
 
   return daftar;
+}
+
+/* ===== SORT TERLARIS =====
+   Data dari backend (aksi lihat_terlaris_sku, cache server 30 menit): peta sku -> [qty30, qty90, qtySemua, transaksi30, terakhirMs] */
+let katalogTerlarisData = null;
+let katalogTerlarisJanji = null;
+function katalogMuatTerlaris(segar) {
+  if (katalogTerlarisData && !segar) return Promise.resolve(katalogTerlarisData);
+  if (katalogTerlarisJanji) return katalogTerlarisJanji;
+  katalogTerlarisJanji = postJson({ aksi: 'lihat_terlaris_sku', email: currentUserEmail(), segar: !!segar }, 120000)
+    .then(r => { if (!r || !r.success) throw new Error((r && r.error) || 'Gagal memuat data penjualan'); katalogTerlarisData = r.data || { peta: {} }; return katalogTerlarisData; })
+    .finally(() => { katalogTerlarisJanji = null; });
+  return katalogTerlarisJanji;
+}
+function katalogQtyTerjual(sku, mode) {
+  const d = katalogTerlarisData && katalogTerlarisData.peta && katalogTerlarisData.peta[sku];
+  if (!d) return 0;
+  return mode === '30' ? d[0] : mode === '90' ? d[1] : d[2];
+}
+async function katalogSortBerubah(sel) {
+  katalogProdukPaginasiState.page = 1;
+  if (sel.value.indexOf('terlaris') === 0 && !katalogTerlarisData) {
+    const opt = sel.options[sel.selectedIndex], teksAsli = opt.text;
+    opt.text = '⏳ Menghitung penjualan...'; sel.disabled = true;
+    try { await katalogMuatTerlaris(); }
+    catch (e) { alert('Data terlaris belum bisa dimuat: ' + e.message); sel.value = 'terbaru'; }
+    finally { opt.text = teksAsli; sel.disabled = false; }
+  }
+  katalogProdukRenderHalaman();
+}
+function katalogBadgeTerjualHtml(sku) {
+  const s = el('katalog-produk-sort')?.value || '';
+  if (s.indexOf('terlaris') !== 0 || !katalogTerlarisData) return '';
+  const m = s.split('-')[1], q = katalogQtyTerjual(sku, m);
+  const label = m === '30' ? '30 hari' : m === '90' ? '90 hari' : 'total';
+  return `<div class="katalog-badge-terjual${q ? '' : ' nol'}" title="Unit terjual (Stock Ledger) · data ${escapeHtml(katalogTerlarisData.waktu || '')}">🔥 ${Number(q).toLocaleString('id-ID')} terjual · ${label}</div>`;
 }
 
 // Kelompokkan produk yang satu grup varian (idVarian sama) biar posisinya SELALU berdampingan,
@@ -23193,6 +23269,7 @@ function katalogRenderTabel(halamanIni) {
           <div class="tabel-produk-brand">${p.arsip ? '<span class="katalog-tag-arsip">🗄️ ARSIP</span> ' : ''}${p.brand ? escapeHtml(p.brand) : '-'}</div>
           <div class="tabel-produk-nama katalog-klik-detail" data-sku="${escapeHtml(p.sku)}">${escapeHtml(p.nama)}</div>
           <div class="tabel-produk-sku">SKU Gudang: <span class="katalog-sku-badge">${escapeHtml(p.sku)}</span></div>
+          ${katalogBadgeTerjualHtml(p.sku)}
           ${(katalogSkuTerhubungMap[p.sku] && katalogSkuTerhubungMap[p.sku].length > 0) ? `<div class="tabel-produk-sku-terhubung"><span class="tabel-sku-terhubung-label">SKU Supplier:</span>${katalogSkuTerhubungMap[p.sku].map(k => `<span class="katalog-sku-badge">${escapeHtml(k)}</span>`).join('')}</div>` : ''}
           <div class="status-text katalog-nama-aksi-status" data-sku="${escapeHtml(p.sku)}" style="text-align:left; font-size:9.5px; margin-top:2px;"></div>
         </div>
@@ -23354,6 +23431,7 @@ function katalogRenderCard(halamanIni) {
       </div>
       <div class="katalog-card-title">${escapeHtml(p.nama)}</div>
       <div class="katalog-card-sku">SKU Gudang: <span class="katalog-sku-badge">${escapeHtml(p.sku)}</span></div>
+      ${katalogBadgeTerjualHtml(p.sku)}
       ${(katalogSkuMarketplaceMap[p.sku] || []).length === 0 && !p.arsip ? `<div class="katalog-card-link">Belum ada SKU terhubung<br><button type="button" class="katalog-btn-hubungkan" data-sku="${escapeHtml(p.sku)}" onclick="event.stopPropagation(); katalogBukaHubungkanSku(this)">🔗 Hubungkan SKU</button></div>` : ''}
       <div class="katalog-card-bawah">
         <div class="katalog-card-kategori">
@@ -27609,14 +27687,18 @@ async function hargaSyncSatuKanal(sku, kanal) {
       baris.push({ jenis: 'gagal', sku: '', alasan: r.alasanSingkat || '', pesan: r.alasanSingkat && r.alasanSingkat !== r.pesan ? r.pesan : '' , utama: r.alasanSingkat || r.pesan || r.error || 'Gagal' });
     } else {
       const nDilewati = r.jumlahDilewati || 0;
-      const ikon = r.jumlahGagal === 0 ? (r.jumlahSukses > 0 ? '✓' : '⏭') : (r.jumlahSukses > 0 ? '⚠️' : '✗');
-      teks = `${ikon} ${cfg.label} ${r.jumlahSukses}/${r.jumlahListing} ter-update${nDilewati ? ` · ${nDilewati} dilewati` : ''}${r.jumlahGagal ? ` · ${r.jumlahGagal} ditolak` : ''}${dryRun && r.jumlahSukses ? ' (dry-run)' : ''}`;
+      const nJadwal = r.jumlahDijadwalkan || 0;
+      const ikon = r.jumlahGagal === 0 ? (r.jumlahSukses > 0 ? '✓' : (nJadwal ? '⏰' : '⏭')) : (r.jumlahSukses > 0 ? '⚠️' : '✗');
+      teks = `${ikon} ${cfg.label} ${r.jumlahSukses}/${r.jumlahListing} ter-update${nDilewati ? ` · ${nDilewati} dilewati` : ''}${nJadwal ? ` · ${nJadwal} dijadwalkan (promo)` : ''}${r.jumlahGagal ? ` · ${r.jumlahGagal} ditolak` : ''}${dryRun && r.jumlahSukses ? ' (dry-run)' : ''}`;
       ok = r.jumlahGagal === 0;
       (r.perListing || []).forEach(l => {
-        detail.push(`${cfg.label} #${l.urutan} ${l.skuMarketplace}${l.asalKolom && kanal === 'tiktok' ? ' (kolom ' + l.asalKolom + ')' : ''} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : (l.dilewati ? '⏭' : '✗')} ${l.pesan}`);
-        if (l.success) baris.push({ jenis: 'ok', sku: l.skuMarketplace, utama: `Rp ${Number(l.originalPrice).toLocaleString('id-ID')} terkirim` });
-        else if (l.dilewati) baris.push({ jenis: 'lewat', sku: l.skuMarketplace, utama: 'Dilewati - tidak ada / tidak aktif di marketplace' });
-        else baris.push({ jenis: 'gagal', sku: l.skuMarketplace, utama: l.alasanSingkat || 'Ditolak marketplace', pesan: l.pesanAsli || (l.alasanSingkat ? '' : l.pesan) });
+        // SKU duplikat -> tiap listing tampil sendiri (mis. "ABC1 (listing 2/2)")
+        const labelSku = l.skuMarketplace + (l.listingKe ? ` (listing ${l.listingKe})` : '');
+        detail.push(`${cfg.label} #${l.urutan} ${labelSku}${l.target ? ' [' + l.target + ']' : ''}${l.asalKolom && kanal === 'tiktok' ? ' (kolom ' + l.asalKolom + ')' : ''} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : (l.dilewati ? '⏭' : (l.dijadwalkan ? '⏰' : '✗'))} ${l.pesan}`);
+        if (l.success) baris.push({ jenis: 'ok', sku: labelSku, utama: `Rp ${Number(l.originalPrice).toLocaleString('id-ID')} terkirim` });
+        else if (l.dilewati) baris.push({ jenis: 'lewat', sku: labelSku, utama: 'Dilewati - tidak ada / tidak aktif di marketplace' });
+        else if (l.dijadwalkan) baris.push({ jenis: 'jadwal', sku: labelSku, utama: l.alasanSingkat || 'Terkunci promo - dijadwalkan ulang otomatis', pesan: l.pesanAsli || '' });
+        else baris.push({ jenis: 'gagal', sku: labelSku, utama: l.alasanSingkat || 'Ditolak marketplace', pesan: l.pesanAsli || (l.alasanSingkat ? '' : l.pesan) });
       });
     }
     hargaSimpanHasilKanal(sku, kanal, { teks, ok, detail, baris, label: cfg.label, waktu: Date.now() });
@@ -27656,7 +27738,7 @@ function hargaSimpanHasilKanal(sku, kanal, hasil) {
 function hargaSyncHasilHtml(sku) {
   const h = hargaHasilSync[sku];
   if (!h) return '';
-  const IKON = { ok: '✓', lewat: '⏭', gagal: '✗' };
+  const IKON = { ok: '✓', lewat: '⏭', gagal: '✗', jadwal: '⏰' };
   return ['shopee', 'tiktok'].map(k => h[k]).filter(x => x && x.baris && x.baris.length).map(x => `
     <div class="harga-sync-hasil-kanal">
       <div class="harga-sync-hasil-judul">${escapeHtml(x.label || '')}</div>
