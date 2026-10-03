@@ -3351,6 +3351,7 @@ body.tema-gelap .page-loader-overlay { background: rgba(16, 21, 27, 0.55); }
 .log-item.proses .log-ikon { border: 2px solid rgba(79, 70, 229, .25); border-top-color: #4f46e5; animation: wpPutar .8s linear infinite; }
 .log-item.ok .log-ikon { background: #e8f6ec; color: #3730a3; }
 .log-item.gagal .log-ikon { background: #fdf1dc; color: #9a6412; }
+.log-item.info .log-ikon { background: #e8eefc; color: #1d4ed8; }
 .log-teks { flex: 1; min-width: 0; line-height: 1.35; }
 .log-teks b { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-teks small { display: block; font-size: 11.5px; color: var(--web-text-dim, #6b7280); }
@@ -3763,7 +3764,8 @@ a.harga-link-terapkan:focus-visible { outline: 2px solid rgba(63,127,201,0.4); o
 .harga-aksi a.harga-link-batal { color: var(--web-text-dim); }
 .harga-aksi-links { display: none; flex-direction: column; gap: 4px; }
 .harga-table tr.harga-row-dirty .harga-aksi-links { display: flex; }
-.harga-aksi-status { font-size: 10.5px; line-height: 1.3; }
+.harga-aksi-status { font-size: 10.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; max-width: 200px; }
+.harga-aksi-status:empty { display: none; }
 .harga-aksi-status.err { color: #b3261e; }
 .harga-aksi-status.ok { color: #4338ca; }
 /* Rincian hasil Sync Harga per listing (terlihat langsung di baris) */
@@ -3854,6 +3856,30 @@ tr.harga-row-hpp-invalid .katalog-harga-row-check { cursor: not-allowed; opacity
 .harga-sync-info.simulasi b { color: #1f4f80; }
 .harga-sync-info .harga-sync-tag { display: inline-block; font-size: 9.5px; font-weight: 600; color: #9a6a12; background: #fdf4e3; border: 1px solid #f2dcae; border-radius: 4px; padding: 0 4px; margin-top: 2px; }
 .harga-sync-info.baru { animation: hargaFlashTerapkan 1.2s ease; border-radius: 4px; }
+/* "Terakhir Sync" = tombol pembuka popup Log Sync Harga (grid tetap ringkas, rincian ada di popup) */
+.harga-sync-info[data-sku] { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; transition: background .15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.harga-sync-info[data-sku]:hover, .harga-sync-info[data-sku]:focus-visible { background: rgba(79,70,229,.08); outline: none; }
+.harga-sync-info .harga-sync-log-ikon { font-size: 10px; font-weight: 600; color: #4338ca; margin-left: 4px; }
+.harga-sync-info b { overflow: hidden; text-overflow: ellipsis; }
+/* Single sync Harga Live per produk */
+td.harga-col-live.memuat { opacity: .5; cursor: progress; }
+td.harga-col-live.baru .harga-live-item { animation: hargaFlashTerapkan 1.2s ease; border-radius: 6px; }
+/* Simpan optimistis: baris berkedip hijau sebentar */
+.harga-table tr.harga-row-tersimpan > td { animation: hargaRowTersimpan 1.1s ease; }
+@keyframes hargaRowTersimpan { 0% { background: rgba(34,160,90,.16); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .harga-table tr.harga-row-tersimpan > td, td.harga-col-live.baru .harga-live-item { animation: none; } }
+/* Popup Log Sync Harga */
+.hsl-produk { font-size: 12.5px; color: var(--web-text-dim); padding: 8px 2px 4px; }
+.hsl-judul { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--web-text-dim); margin: 12px 0 6px; }
+.hsl-grup { border: 1px solid var(--web-border); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; background: var(--web-bg); }
+.hsl-grup-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.hsl-grup-head span { font-weight: 500; color: var(--web-text-dim); white-space: nowrap; }
+.hsl-baris { display: flex; gap: 7px; font-size: 12px; line-height: 1.4; padding: 3px 0; }
+.hsl-baris .ikon { flex: none; width: 14px; text-align: center; font-weight: 800; }
+.hsl-baris .isi { min-width: 0; overflow-wrap: anywhere; }
+.hsl-baris small { display: block; font-size: 11px; color: var(--web-text-dim); user-select: all; }
+.hsl-baris.ok { color: #3730a3; } .hsl-baris.lewat { color: var(--web-text-dim); } .hsl-baris.gagal { color: #8a4b0f; } .hsl-baris.jadwal { color: #1d4ed8; }
+.hsl-kosong { font-size: 12px; color: var(--web-text-dim); padding: 6px 2px; }
 /* Warna link URL Supplier: oranye = belum diisi, hijau = sudah tersimpan */
 a.harga-url-toggle.kosong { color: #c2410c; }
 a.harga-url-toggle.ada { color: #4338ca; }
@@ -4546,6 +4572,9 @@ body.tema-gelap .pgr-inv-error { color: #ff6b6b; }
   body:not(.tema-gelap) .fin2 .fin2-item-ikon { background: #f1f5f9; }
   .fin2 .fin2-item-nama { font-size: 13px; font-weight: 600; color: var(--web-text); }
   .fin2 .fin2-item-ket { font-size: 11.5px; color: var(--fin-slate-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fin2 .fin2-item-desc { font-size: 11.5px; line-height: 1.4; color: var(--fin-slate-5); margin-top: 2px; max-height: 2.8em; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; word-break: break-word; cursor: help; }
+  .fin2 .fin2-item-desc.err { color: var(--fin-merah, #b3261e); }
   .fin2 .fin2-item-ket a { color: var(--fin-aksen); }
   .fin2 .fin2-item-jml { font-size: 13.5px; font-weight: 700; color: var(--web-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .fin2 .fin2-item-hapus { border: none; background: none; color: var(--fin-slate-5); cursor: pointer; padding: 6px; border-radius: 8px; font-size: 14px; opacity: 0.55; transition: all 0.15s ease; }
@@ -21140,6 +21169,7 @@ function spCocokSku(nama, katalog) {
 
 /* ---------- Parser biaya operasional (invoice digital Tokopedia, pesanan Shopee/Tokopedia, struk umum) ---------- */
 const SP_ATURAN_KATEGORI = [
+  [/\bpph\b|pajak\s*penghasilan|\bntpn\b|e-?billing\s*(pajak|djp)|bukti\s*penerimaan\s*negara|41112[1568]|pp\s*(55|23)\b/i, 'Beban Pajak Penghasilan'],
   [/listrik|\bpln\b|token|pdam|\bair\b/i, 'Beban Listrik & Air'],
   [/bensin|pertamina|\bbbm\b|pertalite|pertamax|solar|parkir|\btol\b|e-?toll|gojek|grab|maxim|transport/i, 'Beban Bensin & Transportasi'],
   [/plastik|lakban|bubble|kardus|kemasan|pouch|stiker|sticker|label|packing|selotip|isolasi/i, 'Beban Kemasan & Perlengkapan'],
@@ -21196,7 +21226,7 @@ function spParseBiaya(teks, daftarKategori) {
   if (!jumlah) return null;
   const tglTeks = val(/^Tanggal\b/i) || val(/^Waktu\s*Transaksi/i) || '';
   const tgl = spTanggal(tglTeks) || (pesanan && pesanan.tanggal) || spTanggal(teks);
-  const nomor = val(/^Nomor\b/i) || val(/^No\.?\s*(Invoice|Transaksi|Ref)/i) || (pesanan && pesanan.noInvoice) || '';
+  const nomor = val(/^Nomor\b/i) || val(/^No\.?\s*(Invoice|Transaksi|Ref|Pesanan|Nota)/i) || val(/^NTPN\b/i) || val(/^Kode\s*Billing/i) || (pesanan && pesanan.noInvoice) || '';
   if (kategoriTeks) {
     ket.push(kategoriTeks);
     [[/^IDPEL/i, 'IDPEL'], [/^NO\s*METER/i, 'Meter'], [/^JML\s*KWH/i, 'kWh'], [/^Nomor\s*Objek\s*Pajak/i, 'NOP'], [/^Tahun\s*Pajak/i, 'Tahun'], [/^(No\.?\s*)?(HP|Ponsel|Telepon|Pelanggan)\b/i, 'No']]
@@ -21217,6 +21247,7 @@ function spParseBiaya(teks, daftarKategori) {
    3 menu: Dashboard Ringkasan · Input Biaya Operasional · Laporan Keuangan (8 laporan siklus akuntansi).
    Semua angka dihitung server dari Jurnal Umum otomatis (lihat_fin_laporan, lihat_fin_jurnal);
    input manual hanya biaya operasional (fin_catat_biaya) + transaksi modal/aset/pinjaman yang jarang (fin_catat_nonops). */
+const FIN2_AKUN_PAJAK = 'Beban Pajak Penghasilan';
 const FIN2_KATEGORI_DEFAULT = [
   { akun: 'Beban Listrik & Air', ikon: '⚡', label: 'Listrik & Air' },
   { akun: 'Beban Bensin & Transportasi', ikon: '⛽', label: 'Bensin & Transport' },
@@ -21227,6 +21258,7 @@ const FIN2_KATEGORI_DEFAULT = [
   { akun: 'Beban Internet & Pulsa', ikon: '📶', label: 'Internet & Pulsa' },
   { akun: 'Beban Iklan & Promosi', ikon: '📣', label: 'Iklan & Promosi' },
   { akun: 'Beban Perawatan & Perbaikan', ikon: '🔧', label: 'Perawatan & Perbaikan' },
+  { akun: 'Beban Pajak Penghasilan', ikon: '🏛️', label: 'Pajak Penghasilan' },
   { akun: 'Beban Operasional Lain', ikon: '🧾', label: 'Lain-lain' }
 ];
 const FIN2_SUB = ['ringkasan', 'biaya', 'mutasi', 'laporan', 'biayapenjualan']; // submenu "Invoice Supplier (AI)" dihapus permanen
@@ -21455,6 +21487,7 @@ function fin2RenderRingkasan(L) {
       baris('− Biaya operasional', -(lr.totalBebanUmum + lr.bebanKerugianPersediaan + (lr.bebanPenyusutan || 0)), 'merah') +
       (lr.pendapatanLain ? baris('+ Pendapatan lain', lr.pendapatanLain, 'hijau') : '') +
       (lr.bebanLain ? baris('− Bunga pinjaman', -lr.bebanLain, 'merah') : '') +
+      (lr.bebanPajak ? baris('− Pajak penghasilan', -lr.bebanPajak, 'merah') : '') +
       baris('= Laba bersih', lr.labaBersih, lr.labaBersih >= 0 ? 'hijau' : 'merah', true)
     : '<div class="fin2-kosong">Belum ada transaksi di periode ini.</div>';
 
@@ -21558,8 +21591,12 @@ function fin2HtmlLabaRugi(L) {
     if (lr.pendapatanLain) h += fin2BarisLap('Pendapatan lain-lain', lr.pendapatanLain, 'sub');
     if (lr.bebanLain) h += fin2BarisLap('Beban bunga pinjaman', lr.bebanLain, 'sub', { kurang: true });
   }
+  if (lr.bebanPajak) {
+    h += fin2BarisLap('LABA SEBELUM PAJAK', lr.labaSebelumPajak, 'total utama');
+    h += fin2BarisLap('Beban pajak penghasilan', lr.bebanPajak, 'sub', { kurang: true, ket: 'PPh yang dibayar & dicatat di kategori Pajak Penghasilan' });
+  }
   h += fin2BarisLap(lr.labaBersih < 0 ? 'RUGI BERSIH' : 'LABA BERSIH', lr.labaBersih, 'grand', { ket: 'Margin bersih ' + fin2Persen(lr.marginBersih) });
-  h += `</table><div class="fin2-lap-catatan">Info pajak: estimasi PPh Final UMKM 0,5% (PP 55/2022) dari omzet periode ini ≈ <b>${fin2Rp(lr.estimasiPphFinal)}</b>. Belum dikurangkan dari laba - pastikan ketentuan (batas omzet bebas pajak, masa berlaku) dengan konsultan pajak.</div>`;
+  h += `</table><div class="fin2-lap-catatan">Info pajak: estimasi PPh Final UMKM 0,5% (PP 55/2022) dari omzet periode ini ≈ <b>${fin2Rp(lr.estimasiPphFinal)}</b>. ${lr.bebanPajak ? 'PPh yang sudah dicatat periode ini: <b>' + fin2Rp(lr.bebanPajak) + '</b> (sudah dikurangkan dari laba).' : 'Estimasi ini belum dikurangkan dari laba - catat bukti setornya di Input Biaya kategori Pajak Penghasilan.'} Pastikan ketentuan (batas omzet bebas pajak, masa berlaku) dengan konsultan pajak.</div>`;
   return h;
 }
 
@@ -21663,7 +21700,7 @@ function fin2HtmlNeracaSaldo(L) {
     <tr><th rowspan="2">Kode</th><th rowspan="2">Nama Akun</th><th colspan="2" class="c">Saldo Awal</th><th colspan="2" class="c">Mutasi Periode</th><th colspan="2" class="c">Saldo Akhir</th></tr>
     <tr><th class="n">Debet</th><th class="n">Kredit</th><th class="n">Debet</th><th class="n">Kredit</th><th class="n">Debet</th><th class="n">Kredit</th></tr></thead><tbody>`;
   let grupLama = '';
-  const namaGrup = { aset: 'Aset', liab: 'Liabilitas', ekuitas: 'Ekuitas', pendapatan: 'Pendapatan', hpp: 'Harga Pokok Penjualan', bebanJual: 'Beban Penjualan', beban: 'Beban Usaha', pendLain: 'Pendapatan Lain-lain', bebanLain: 'Beban Lain-lain' };
+  const namaGrup = { aset: 'Aset', liab: 'Liabilitas', ekuitas: 'Ekuitas', pendapatan: 'Pendapatan', hpp: 'Harga Pokok Penjualan', bebanJual: 'Beban Penjualan', beban: 'Beban Usaha', pendLain: 'Pendapatan Lain-lain', bebanLain: 'Beban Lain-lain', pajak: 'Beban Pajak Penghasilan' };
   ns.baris.forEach(b => {
     if (b.gol !== grupLama) { grupLama = b.gol; h += `<tr class="grup"><td colspan="8">${namaGrup[b.gol] || b.gol}</td></tr>`; }
     const aw = dk(b.awal), ak = dk(b.akhir);
@@ -22859,9 +22896,23 @@ async function fin2BacaAI(otomatis) {
     if (!r.success) throw new Error(r.error || 'AI gagal membaca');
     if (r.jumlah > 0) el('fin2-b-jumlah').value = Math.round(r.jumlah).toLocaleString('id-ID');
     if (/^\d{4}-\d{2}-\d{2}$/.test(r.tanggal || '')) el('fin2-b-tanggal').value = r.tanggal;
+    if (r.kategoriBiaya === FIN2_AKUN_PAJAK && !fin2.kategori.some(k => k.akun === FIN2_AKUN_PAJAK)) {
+      const sisip = Math.max(0, fin2.kategori.findIndex(k => k.akun === 'Beban Operasional Lain'));
+      fin2.kategori.splice(sisip >= 0 ? sisip : fin2.kategori.length, 0, { akun: FIN2_AKUN_PAJAK, ikon: '🏛️', label: 'Pajak Penghasilan' });
+    }
     if (r.kategoriBiaya && fin2.kategori.some(k => k.akun === r.kategoriBiaya)) fin2PilihKategori(r.kategoriBiaya, false);
     if (r.keterangan && !el('fin2-b-ket').value.trim()) el('fin2-b-ket').value = r.keterangan;
-    st.className = 'status-text ok'; st.textContent = '✓ Terisi dari gambar - cek dulu sebelum simpan';
+    // No Nota/Pesanan WAJIB: kunci anti-dobel (bayar listrik 2x nominal sama tetap bisa dicatat)
+    const inpNota = el('fin2-b-nota');
+    if (r.noNota && !inpNota.value.trim()) inpNota.value = String(r.noNota).toUpperCase();
+    if (inpNota.value.trim()) {
+      st.className = 'status-text ok';
+      st.textContent = `✓ Terisi dari gambar${r.noNota ? ` · No Nota dari ${r.jenisNomor || 'struk'}` : ''} - cek dulu sebelum simpan`;
+    } else {
+      st.className = 'status-text err';
+      st.textContent = '⚠️ No Nota/Pesanan tidak terbaca - isi manual supaya tidak dianggap dobel dengan transaksi lain';
+      inpNota.focus();
+    }
   } catch (err) {
     stopLoadingDots(st);
     st.className = 'status-text err';
@@ -23113,7 +23164,8 @@ function fin2HtmlItemBiaya(d) {
     <div class="fin2-item-ikon">${d.ikon || '🧾'}</div>
     <div style="min-width:0;">
       <div class="fin2-item-nama">${escapeHtml(d.label)}${d._menyimpan ? ' <span class="fin2-lencana simpan"><i class="dok-spin"></i> Menyimpan perubahan</span>' : ''}</div>
-      <div class="fin2-item-ket" title="${pgrAttr(d.keterangan || '')}">${escapeHtml(d.tanggalLabel || fin2TglLabel(d.tanggal))}${nota}${(d.dokumen || []).map((u, i) => ` · <a href="${pgrAttr(u)}" ${lampiranAttr(d.dokumen, i)} title="Lihat lampiran">📎${(d.dokumen || []).length > 1 ? i + 1 : ''}</a>`).join('')}${d.keterangan ? ' · ' + escapeHtml(d.keterangan) : ''}</div>
+      <div class="fin2-item-ket">${escapeHtml(d.tanggalLabel || fin2TglLabel(d.tanggal))}${nota}${(d.dokumen || []).map((u, i) => ` · <a href="${pgrAttr(u)}" ${lampiranAttr(d.dokumen, i)} title="Lihat lampiran">📎${(d.dokumen || []).length > 1 ? i + 1 : ''}</a>`).join('')}</div>
+      ${d.keterangan ? `<div class="fin2-item-desc" title="${pgrAttr(d.keterangan)}">${escapeHtml(d.keterangan)}</div>` : ''}
     </div>
     <div class="fin2-item-jml">${fin2Rp(d.jumlah)}</div>
     ${d.bisaHapus && !d._menyimpan ? `<div class="fin2-item-aksi">
@@ -23190,7 +23242,9 @@ function fin2RenderBiaya(r) {
       <div class="fin2-item-ikon">${x.ikon}</div>
       <div style="min-width:0;">
         <div class="fin2-item-nama">${escapeHtml(x.label)} <span class="fin2-lencana ${x.status === 'tolak' ? 'gagal' : x.status}">${lencana}</span></div>
-        <div class="fin2-item-ket" title="${pgrAttr(x.teks || '')}">${escapeHtml(fin2TglLabel(x.tanggal))}${x.noNota ? ' · 🧾 ' + escapeHtml(x.noNota) : ''}${x.berkas.length ? ` · 📎${x.berkas.length}` : ''}${x.keterangan ? ' · ' + escapeHtml(x.keterangan) : ''}${x.status === 'gagal' || x.status === 'tolak' ? ' · ' + escapeHtml(x.teks) : ''}</div>
+        <div class="fin2-item-ket">${escapeHtml(fin2TglLabel(x.tanggal))}${x.noNota ? ' · 🧾 ' + escapeHtml(x.noNota) : ''}${x.berkas.length ? ` · 📎${x.berkas.length}` : ''}</div>
+        ${x.keterangan ? `<div class="fin2-item-desc" title="${pgrAttr(x.keterangan)}">${escapeHtml(x.keterangan)}</div>` : ''}
+        ${x.status === 'gagal' || x.status === 'tolak' ? `<div class="fin2-item-desc err" title="${pgrAttr(x.teks || '')}">${escapeHtml(x.teks || '')}</div>` : ''}
       </div>
       <div class="fin2-item-jml">${fin2Rp(x.jumlah)}</div>
       ${x.status === 'gagal' ? `<button type="button" class="fin2-item-hapus" style="opacity:1" onclick="fin2CobaLagiAntre('${x.tmp}')" title="Coba lagi" aria-label="Coba simpan lagi">↻</button>`
@@ -26095,7 +26149,7 @@ async function katalogSimpanProdukBaru() {
    ============================================================ */
 const logTindakan = (() => {
   let wadah = null, nomor = 0;
-  const IKON = { antre: '⏳', ok: '✓', gagal: '!' };
+  const IKON = { antre: '⏳', ok: '✓', gagal: '!', info: '⏰' };
   function dom() {
     if (wadah) return wadah;
     wadah = document.createElement('div');
@@ -26147,7 +26201,8 @@ const logTindakan = (() => {
     if (status === 'ok') item._timer = setTimeout(() => { item.classList.add('keluar'); setTimeout(() => { item.remove(); ringkas(); }, 250); }, 3500);
     ringkas();
   }
-  return { tambah, ubah };
+  function hapus(id) { const item = document.getElementById(id); if (item) { clearTimeout(item._timer); item.remove(); } if (wadah) ringkas(); }
+  return { tambah, ubah, hapus };
 })();
 
 /* ===== SIMPAN EDIT PRODUK DI LATAR =====
@@ -28206,6 +28261,7 @@ function hargaTerapkanDataServer(data) {
   const simulasiLama = {};
   katalogHargaCache.forEach(p => { if (p.syncSimulasi) simulasiLama[p.sku] = p.syncSimulasi; });
   katalogHargaCache = (data.daftar || []).map(p => simulasiLama[p.sku] ? Object.assign({}, p, { syncSimulasi: simulasiLama[p.sku] }) : p);
+  if (typeof hargaOptimisTertunda !== 'undefined') hargaOptimisTertunda.forEach((t, sku) => { const it = katalogHargaCache.find(p => p.sku === sku); if (it) hargaTerapkanPayloadKeItem(it, t); });
   if (data.marginGlobal !== undefined && data.marginGlobal !== null) katalogMarginGlobalCache = Number(data.marginGlobal) || 0;
   Object.keys(hargaDraft).forEach(sku => { if (!skuDirtySebelum.has(sku) || !katalogHargaCache.some(p => p.sku === sku)) delete hargaDraft[sku]; });
   const skuAda = new Set(katalogHargaCache.map(p => p.sku));
@@ -28424,7 +28480,6 @@ function hargaBarisHtml(p) {
           </div>
           <div class="harga-row-loader"><div class="loader-box-dots"></div></div>
           <div class="harga-aksi-status" data-role="aksi-status"></div>
-          <div class="harga-sync-hasil" data-role="sync-hasil">${hargaSyncHasilHtml(p.sku)}</div>
         </div>
       </td>
     </tr>`;
@@ -28666,6 +28721,7 @@ function hargaSelesaiEdit(inp) {
   });
   body.addEventListener('keydown', (e) => {
     const t = e.target;
+    if (t.dataset && t.dataset.role === 'sync-info' && t.dataset.sku && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); hargaBukaLogSync(t.dataset.sku); return; }
     if (t.classList.contains('harga-input-edit')) {
       if (e.key === 'Enter') { e.preventDefault(); t.blur(); }
       else if (e.key === 'Escape') { e.preventDefault(); t.dataset.batal = '1'; t.blur(); }
@@ -28689,6 +28745,8 @@ function hargaSelesaiEdit(inp) {
     katalogHargaUpdateBulkCount();
   });
   body.addEventListener('click', (e) => {
+    const logInfo = e.target.closest('[data-role="sync-info"][data-sku]');
+    if (logInfo) { e.preventDefault(); hargaBukaLogSync(logInfo.dataset.sku); return; }
     const semua = e.target.closest('a.harga-terapkan-semua');
     if (semua) { e.preventDefault(); hargaTerapkanSemuaBaris(semua.dataset.sku); return; }
     const rekomBtn = e.target.closest('.harga-rekom-line .harga-rekom-btn');
@@ -28795,9 +28853,8 @@ function hargaJadwalkanAutoSimpan(sku) {
   clearTimeout(hargaAutoSimpan.timer);
   hargaAutoSimpan.timer = setTimeout(hargaJalankanAutoSimpan, 450); // klik beruntun digabung jadi 1 request
 }
-async function hargaJalankanAutoSimpan() {
-  if (hargaAutoSimpan.jalan) return; // diulang otomatis di finally
-  if (hargaSkuSedangSimpan.size > 0) { clearTimeout(hargaAutoSimpan.timer); hargaAutoSimpan.timer = setTimeout(hargaJalankanAutoSimpan, 800); return; }
+function hargaJalankanAutoSimpan() {
+  // Simpan otomatis setelah klik box Rekomendasi -> OPTIMISTIS: tampilan sudah berubah, server di latar
   const skus = Array.from(hargaAutoSimpan.antre);
   hargaAutoSimpan.antre.clear();
   const daftar = [];
@@ -28808,27 +28865,125 @@ async function hargaJalankanAutoSimpan() {
     daftar.push(r);
   });
   if (daftar.length === 0) { hargaUpdateTombolSimpanSemua(); return; }
-  hargaAutoSimpan.jalan = true;
+  hargaSimpanOptimis(daftar, daftar.length > 1 ? `Simpan harga ${daftar.length} produk` : `Simpan harga ${daftar[0].sku}`);
+}
+
+/* ---------- SIMPAN OPTIMISTIS (UI Assumed Success) - satuan & massal ----------
+   1. Klik simpan -> box rekomendasi LANGSUNG hijau lalu fade-out, angka di tabel langsung berubah,
+      baris berkedip hijau. Tidak ada loading yang ditunggu.
+   2. Penyimpanan ke server berjalan di antrean latar (1 request berjalan pada satu waktu supaya tidak
+      rebutan ScriptLock) & dipantau di Log Tindakan. idPermintaan tetap -> kirim ulang tidak dobel.
+   3. Kalau server menolak: angka tersimpan dikembalikan, perubahan TIDAK hilang (kembali jadi draft
+      "belum disimpan") + tombol "Coba lagi" di Log Tindakan. */
+var hargaAntreOptimis = Promise.resolve();
+var hargaOptimisTertunda = new Map(); // sku -> payload yang sudah tampil tapi belum dikonfirmasi server
+function hargaTerapkanPayloadKeItem(item, t) {
+  if (t.hpp !== undefined) item.hpp = Number(t.hpp);
+  if (t.marginCustom !== undefined) item.marginCustom = t.marginCustom === '' ? null : Number(t.marginCustom);
+  HARGA_CHANNEL.forEach(ch => {
+    if (t[ch.field] !== undefined) item[ch.field] = Number(t[ch.field]);
+    if (ch.coretField && t[ch.coretField] !== undefined) item[ch.coretField] = t[ch.coretField] === '' ? 0 : Number(t[ch.coretField]);
+  });
+}
+function hargaDraftDariPayload(sku, t) {
+  const d = hargaAmbilDraft(sku);
+  if (!d) return;
+  if (t.hpp !== undefined) d.hpp = hargaFmtAngka(t.hpp);
+  if (t.marginCustom !== undefined) d.margin = t.marginCustom === '' ? '' : hargaTeksPersen(Number(t.marginCustom));
+  HARGA_CHANNEL.forEach(ch => {
+    if (t[ch.field] !== undefined) d.final[ch.key] = hargaFmtAngka(t[ch.field]);
+    if (ch.coretField && t[ch.coretField] !== undefined) d.coret[ch.key] = t[ch.coretField] === '' ? '' : hargaFmtAngka(t[ch.coretField]);
+  });
+}
+function hargaSimpanCacheLokalHarga() {
+  simpanCacheLokal('katalog_harga_v7', { daftar: katalogHargaCache, marginGlobal: katalogMarginGlobalCache, paramBiaya: Object.assign({ versi: 4, grup: hargaParamTersimpan }, hargaParamMeta) });
+}
+function hargaTerapkanOptimisLokal(items) {
+  items.forEach(it => {
+    const tr = hargaBarisEl(it.sku);
+    if (!tr) return;
+    // Box rekomendasi yang nilainya sama dengan yang disimpan -> hijau "✓ Tersimpan" lalu fade-out
+    HARGA_CHANNEL.forEach(ch => {
+      if (it[ch.field] === undefined) return;
+      const cell = tr.querySelector(`.harga-ch-cell[data-ch="${ch.key}"]`);
+      const btn = cell && cell.querySelector('.harga-rekom-line .harga-rekom-btn');
+      if (btn && Math.round(Number(btn.dataset.nilai)) === Math.round(Number(it[ch.field]))) {
+        hargaAnimasiRekomSelesai(cell, btn);
+        cell.classList.remove('baru-diterapkan'); void cell.offsetWidth; cell.classList.add('baru-diterapkan');
+      }
+    });
+  });
+  items.forEach(it => hargaOptimisTertunda.set(it.sku, Object.assign({}, hargaOptimisTertunda.get(it.sku) || {}, it)));
+  hargaTerapkanHasilSimpan(items); // cache diperbarui seolah server sudah menyimpan; draft yang sama dihapus
+  hargaSimpanCacheLokalHarga();
+  items.forEach(it => {
+    hargaHitungBaris(it.sku);
+    const tr = hargaBarisEl(it.sku);
+    if (!tr) return;
+    const st = tr.querySelector('[data-role="aksi-status"]');
+    if (st) { delete st.dataset.lock; st.className = 'harga-aksi-status'; st.textContent = ''; }
+    tr.classList.remove('harga-row-tersimpan'); void tr.offsetWidth; tr.classList.add('harga-row-tersimpan');
+  });
   hargaUpdateTombolSimpanSemua();
-  daftar.forEach(r => hargaSetStatusBaris(r.sku, 'Menyimpan otomatis…', ''));
+}
+function hargaSimpanOptimis(daftar, judul) {
+  const items = daftar.map(r => r.payload);
+  const cadangan = {};
+  items.forEach(it => {
+    const item = katalogHargaCache.find(p => p.sku === it.sku);
+    if (!item) return;
+    const c = {};
+    Object.keys(it).forEach(k => { if (k !== 'sku') c[k] = item[k]; });
+    cadangan[it.sku] = c;
+  });
+  hargaTerapkanOptimisLokal(items);
+  const job = { items, cadangan, judul, idPermintaan: buatIdPermintaan('hrg-'), logId: logTindakan.tambah(judul) };
+  hargaAntreOptimis = hargaAntreOptimis.then(() => hargaJalankanOptimis(job)).catch(() => { });
+  return job;
+}
+async function hargaJalankanOptimis(job) {
+  logTindakan.ubah(job.logId, 'proses', 'Menyimpan di latar…');
   try {
-    const items = daftar.map(r => r.payload);
-    const data = await postJsonTulis({ aksi: 'simpan_harga_jual_final', items, email: currentUserEmail() }, 120000);
+    const data = await postJsonTulis({ aksi: 'simpan_harga_jual_final', items: job.items, idPermintaan: job.idPermintaan, email: currentUserEmail() }, 120000,
+      { onCoba: (n, t) => logTindakan.ubah(job.logId, 'proses', t) });
     if (!data || !data.success) {
+      job.ditolakServer = true;
       const dt = (data && data.errorDetail) || {};
       throw new Error(((data && data.error) || 'Gagal menyimpan') + (dt.fungsi ? ` [${dt.fungsi}${dt.baris ? ' baris ' + dt.baris : ''}]` : ''));
     }
-    hargaTerapkanHasilSimpan(data.tersimpan || items);
-    simpanCacheLokal('katalog_harga_v7', { daftar: katalogHargaCache, marginGlobal: katalogMarginGlobalCache, paramBiaya: Object.assign({ versi: 4, grup: hargaParamTersimpan }, hargaParamMeta) });
-    daftar.forEach(r => { hargaHitungBaris(r.sku); hargaSetStatusBaris(r.sku, '✓ Tersimpan otomatis', 'ok'); });
+    job.items.forEach(it => hargaOptimisTertunda.delete(it.sku));
+    hargaTerapkanHasilSimpan(data.tersimpan || job.items); // nilai final dari server (otoritatif)
+    hargaSimpanCacheLokalHarga();
+    job.items.forEach(it => hargaHitungBaris(it.sku));
+    logTindakan.ubah(job.logId, 'ok', job.items.length > 1 ? `${job.items.length} produk tersimpan` : 'Tersimpan');
   } catch (err) {
     const pesan = String(err.message || err).replace(/^Error:\s*/, '');
-    daftar.forEach(r => { hargaHitungBaris(r.sku); hargaSetStatusBaris(r.sku, '✗ Auto-simpan gagal: ' + pesan, 'err'); });
+    hargaBatalkanOptimis(job);
+    logTindakan.ubah(job.logId, 'gagal', pesan + ' - perubahan masih ada di layar (belum tersimpan)', [
+      { label: 'Coba lagi', fn: () => {
+        if (job.ditolakServer) { job.idPermintaan = buatIdPermintaan('hrg-'); job.ditolakServer = false; }
+        hargaTerapkanOptimisLokal(job.items);
+        hargaAntreOptimis = hargaAntreOptimis.then(() => hargaJalankanOptimis(job)).catch(() => { });
+      } }
+    ]);
   } finally {
-    hargaAutoSimpan.jalan = false;
     hargaUpdateTombolSimpanSemua();
-    if (hargaAutoSimpan.antre.size > 0) { clearTimeout(hargaAutoSimpan.timer); hargaAutoSimpan.timer = setTimeout(hargaJalankanAutoSimpan, 250); }
   }
+}
+// Server gagal: kembalikan angka tersimpan, perubahan dikembalikan jadi draft (tidak hilang)
+function hargaBatalkanOptimis(job) {
+  job.items.forEach(it => {
+    hargaOptimisTertunda.delete(it.sku);
+    const item = katalogHargaCache.find(p => p.sku === it.sku);
+    const cad = job.cadangan[it.sku];
+    if (!item || !cad) return;
+    const adaDraft = !!hargaDraft[it.sku];
+    Object.keys(cad).forEach(k => { item[k] = cad[k]; });
+    if (!adaDraft) hargaDraftDariPayload(it.sku, it);
+    hargaHitungBaris(it.sku);
+  });
+  hargaSimpanCacheLokalHarga();
+  hargaUpdateTombolSimpanSemua();
 }
 
 /* ---------- Tooltip rincian rumus (melayang, position:fixed supaya tidak terpotong scroll tabel) ---------- */
@@ -28952,14 +29107,11 @@ function hargaSetStatusBaris(sku, teks, jenis) {
   st.dataset.lock = '1';
 }
 
-async function hargaSimpanBaris(sku) {
-  if (hargaSkuSedangSimpan.has(sku)) return;
+function hargaSimpanBaris(sku) {
   const r = hargaPerubahanBaris(sku);
   if (r.jumlah === 0) return;
   if (r.error) { hargaSetStatusBaris(sku, r.error, 'err'); return; }
-  const hasil = await hargaKirimPerubahan([r]);
-  if (hasil.ok) { hargaRenderUlangBaris(sku); hargaSetStatusBaris(sku, '✓ Tersimpan', 'ok'); }
-  else { hargaHitungBaris(sku); hargaSetStatusBaris(sku, '✗ ' + hasil.pesan, 'err'); }
+  hargaSimpanOptimis([r], `Simpan harga ${sku}`); // optimistis: langsung tampil, server di latar
 }
 
 // Simpan daftar perubahan (dipakai tombol "Simpan Semua" & Aksi Massal) + laporan di statusEl
@@ -28976,14 +29128,11 @@ async function hargaSimpanDaftarPerubahan(dirty, statusEl) {
     statusEl.textContent = `✗ Terlalu banyak perubahan (${dirty.length}). Maksimal ${HARGA_MAKS_ITEM_SIMPAN} produk per simpan.`;
     return false;
   }
-  setLoadingDots(statusEl, `Menyimpan ${dirty.length} produk`);
-  const hasil = await hargaKirimPerubahan(dirty); // 1x request untuk semua baris
-  stopLoadingDots(statusEl);
-  katalogHargaRenderHalaman();
-  if (hasil.ok) { statusEl.className = 'status-text ok'; statusEl.textContent = `✓ ${hasil.jumlahTersimpan} produk tersimpan`; return true; }
-  statusEl.className = 'status-text err';
-  statusEl.textContent = `✗ ${hasil.pesan}${hasil.jumlahTersimpan > 0 ? ` (${hasil.jumlahTersimpan} produk sempat tersimpan sebelum gagal)` : ''}`;
-  return false;
+  // OPTIMISTIS: semua baris langsung berubah (box hijau -> fade-out), 1 request batch berjalan di latar
+  hargaSimpanOptimis(dirty, `Simpan harga ${dirty.length} produk`);
+  statusEl.className = 'status-text ok';
+  statusEl.textContent = `✓ ${dirty.length} produk diterapkan - disimpan di latar (Log Tindakan)`;
+  return true;
 }
 
 async function hargaSimpanSemuaPerubahan() {
@@ -29088,12 +29237,15 @@ function hargaFmtWaktu(tgl) {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
+// "Terakhir Sync" = tombol kecil: klik -> popup riwayat Log Sync Harga produk ini (grid tetap ringkas)
 function hargaSyncInfoHtml(p) {
+  const a = `data-role="sync-info" data-sku="${escapeHtml(p.sku)}" role="button" tabindex="0" title="Klik untuk melihat riwayat log Sync Harga produk ini"`;
+  const log = '<span class="harga-sync-log-ikon" aria-hidden="true">📜 Log</span>';
   if (p.syncSimulasi) {
-    return `<div class="harga-sync-info simulasi" data-role="sync-info">Terakhir Sync:<b>${escapeHtml(hargaFmtWaktu(p.syncSimulasi))}</b><span class="harga-sync-tag" title="Mode DRY-RUN: payload sudah disusun & dicatat di sheet Log Sync Harga, belum dikirim ke marketplace">dry-run</span></div>`;
+    return `<div class="harga-sync-info simulasi" ${a}>Terakhir Sync:${log}<b>${escapeHtml(hargaFmtWaktu(p.syncSimulasi))}</b><span class="harga-sync-tag" title="Mode DRY-RUN: payload sudah disusun & dicatat di sheet Log Sync Harga, belum dikirim ke marketplace">dry-run</span></div>`;
   }
-  if (p.terakhirSync) return `<div class="harga-sync-info" data-role="sync-info">Terakhir Sync:<b>${escapeHtml(p.terakhirSync)}</b></div>`;
-  return `<div class="harga-sync-info belum" data-role="sync-info">Terakhir Sync:<b>Belum pernah</b></div>`;
+  if (p.terakhirSync) return `<div class="harga-sync-info" ${a}>Terakhir Sync:${log}<b>${escapeHtml(p.terakhirSync)}</b></div>`;
+  return `<div class="harga-sync-info belum" ${a}>Terakhir Sync:${log}<b>Belum pernah</b></div>`;
 }
 
 function hargaHppDraftValid(sku) {
@@ -29124,11 +29276,29 @@ const hargaHasilSync = {}; // sku -> { shopee: {...}, tiktok: {...} } - hasil te
 function syncShopeeOnly(skuGudang) { return hargaSyncSatuKanal(skuGudang, 'shopee'); }
 function syncTikTokOnly(skuGudang) { return hargaSyncSatuKanal(skuGudang, 'tiktok'); }
 
+var hargaLogSesi = []; // riwayat percobaan sync di sesi ini (terbaru di depan) -> popup Log Sync
+const HARGA_PF_PENDEK = { shopee: 'Shopee', tiktok: 'TikTok' };
+const HARGA_LOG_MAKS_ENTRI = 6; // maks entri Log Tindakan per klik (sisanya diringkas, rincian di popup)
+
+function hargaCatatLogSesi(sku, kanal, entri) {
+  hargaLogSesi.unshift(Object.assign({ sku, kanal, waktu: Date.now() }, entri));
+  if (hargaLogSesi.length > 300) hargaLogSesi.length = 300;
+}
+// 1 entri Log Tindakan dengan judul SINGKAT, contoh "TikTok SKU1234 Berhasil".
+// Sukses hilang sendiri; gagal / dijadwalkan tetap tampil + tombol "Detail" (buka popup Log Sync).
+function hargaLogSingkat(sku, judul, status, kecil) {
+  const id = logTindakan.tambah(judul);
+  logTindakan.ubah(id, status, kecil || '', status === 'ok' ? [] : [{ label: 'Detail', fn: () => hargaBukaLogSync(sku) }]);
+  return id;
+}
+function hargaPotong(t, n) { t = String(t || ''); return t.length > n ? t.slice(0, n - 1) + '…' : t; }
+
 async function hargaSyncSatuKanal(sku, kanal) {
   const cfg = HARGA_SYNC_KANAL[kanal];
   const tr = hargaBarisEl(sku);
   const link = tr && tr.querySelector(`a.harga-link-sync-kanal[data-kanal="${kanal}"]`);
   if (!cfg || !link || link.dataset.proses === '1') return;
+  const pf = HARGA_PF_PENDEK[kanal] || cfg.label;
 
   // Validasi di browser - HANYA data baris & marketplace ini
   const item = katalogHargaCache.find(p => p.sku === sku);
@@ -29141,54 +29311,82 @@ async function hargaSyncSatuKanal(sku, kanal) {
   else if (!(final >= HARGA_MIN_WAJAR)) alasan = `Harga Jual ${cfg.label} belum diisi`;
   else if (!(coret >= HARGA_MIN_WAJAR)) alasan = `Harga Coret ${cfg.label} belum diisi`;
   else if (coret < final) alasan = `Harga Coret ${cfg.label} lebih kecil dari Harga Jual`;
-  if (alasan) { hargaSimpanHasilKanal(sku, kanal, { teks: `✗ ${cfg.label}: ${alasan}`, ok: false, detail: [`${cfg.label}: ${alasan}`] }); return; }
+  if (alasan) {
+    hargaCatatLogSesi(sku, kanal, { label: cfg.label, ringkas: 'Tidak dikirim', baris: [{ jenis: 'gagal', kode: sku, utama: 'Tidak dikirim: ' + alasan }] });
+    hargaLogSingkat(sku, `${pf} ${sku} Gagal`, 'gagal', alasan);
+    return;
+  }
 
   link.dataset.proses = '1';
   link.classList.add('proses');
   const teksAsli = link.textContent;
   link.textContent = '[⏳ Proses...]';
+  const logId = logTindakan.tambah(`Sync ${pf} ${sku}`);
+  logTindakan.ubah(logId, 'proses', 'Mengirim harga…');
   try {
-    const r = await postJsonTulis({ aksi: cfg.aksi, sku, hargaCoret: coret, email: currentUserEmail() }, 300000);
+    const r = await postJsonTulis({ aksi: cfg.aksi, sku, hargaCoret: coret, email: currentUserEmail() }, 300000, { onCoba: (n, t) => logTindakan.ubah(logId, 'proses', t) });
     const dryRun = r.mode !== 'LIVE';
-    const detail = [];
-    if (r.sumberSku) detail.push(`${cfg.label} - dibaca dari ${r.sumberSku}: "${r.isiKolom || ''}"`);
-    if (r.peringatan) detail.push(`⚠ ${r.peringatan}`);
-    if (r.infoPlatformLain && r.infoPlatformLain.length) detail.push(`ℹ Kode berlabel platform lain (tidak dikirim ke ${cfg.label}): ${r.infoPlatformLain.join(', ')}`);
-    let teks, ok;
-    // Rincian per listing - DITAMPILKAN di bawah tombol Sync (bukan hanya di log tersembunyi)
-    const baris = [];
-    if (r.infoPlatformLain && r.infoPlatformLain.length && !r.gagalKanal) baris.push({ jenis: 'lewat', sku: '', utama: `Kode platform lain tidak dikirim: ${r.infoPlatformLain.join(', ')}`, pesan: 'Kalau sebenarnya kode ' + cfg.label + ', perbaiki label platformnya lewat [✎ SKU].' });
+    // Rincian lengkap (untuk popup Log Sync) + entri SINGKAT (untuk Log Tindakan)
+    const baris = [], singkat = [];
+    if (r.sumberSku) baris.push({ jenis: 'lewat', kode: '', utama: `Dibaca dari ${r.sumberSku}: "${r.isiKolom || ''}"` });
+    if (r.peringatan) baris.push({ jenis: 'lewat', kode: '', utama: '⚠ ' + r.peringatan });
+    if (r.infoPlatformLain && r.infoPlatformLain.length && !r.gagalKanal) baris.push({ jenis: 'lewat', kode: '', utama: `Kode platform lain tidak dikirim: ${r.infoPlatformLain.join(', ')}`, pesan: 'Kalau sebenarnya kode ' + cfg.label + ', perbaiki label platformnya lewat [✎ SKU].' });
+    let ringkas;
     if (r.gagalKanal || !r.jumlahListing) {
-      teks = `✗ ${cfg.label}`; ok = false;
-      detail.push(`${cfg.label}: ${r.pesan || r.error || 'Gagal'}`);
-      baris.push({ jenis: 'gagal', sku: '', alasan: r.alasanSingkat || '', pesan: r.alasanSingkat && r.alasanSingkat !== r.pesan ? r.pesan : '' , utama: r.alasanSingkat || r.pesan || r.error || 'Gagal' });
+      const pesan = r.alasanSingkat || r.pesan || r.error || 'Gagal';
+      const tidakAda = !r.gagalKanal && !r.jumlahListing;
+      baris.push({ jenis: 'gagal', kode: '', utama: pesan, pesan: r.alasanSingkat && r.alasanSingkat !== r.pesan ? (r.pesan || '') : '' });
+      singkat.push({ judul: `${pf} ${sku} ${tidakAda ? 'Tidak Ditemukan' : 'Gagal'}`, status: 'gagal', kecil: hargaPotong(pesan, 90) });
+      ringkas = tidakAda ? 'Tidak ada listing' : 'Gagal';
     } else {
-      const nDilewati = r.jumlahDilewati || 0;
-      const nJadwal = r.jumlahDijadwalkan || 0;
-      const ikon = r.jumlahGagal === 0 ? (r.jumlahSukses > 0 ? '✓' : (nJadwal ? '⏰' : '⏭')) : (r.jumlahSukses > 0 ? '⚠️' : '✗');
-      teks = `${ikon} ${cfg.label} ${r.jumlahSukses}/${r.jumlahListing} ter-update${nDilewati ? ` · ${nDilewati} dilewati` : ''}${nJadwal ? ` · ${nJadwal} dijadwalkan (promo)` : ''}${r.jumlahGagal ? ` · ${r.jumlahGagal} ditolak` : ''}${dryRun && r.jumlahSukses ? ' (dry-run)' : ''}`;
-      ok = r.jumlahGagal === 0;
       (r.perListing || []).forEach(l => {
-        // SKU duplikat -> tiap listing tampil sendiri (mis. "ABC1 (listing 2/2)")
-        const labelSku = l.skuMarketplace + (l.listingKe ? ` (listing ${l.listingKe})` : '');
-        detail.push(`${cfg.label} #${l.urutan} ${labelSku}${l.target ? ' [' + l.target + ']' : ''}${l.asalKolom && kanal === 'tiktok' ? ' (kolom ' + l.asalKolom + ')' : ''} [Rp ${Number(l.originalPrice).toLocaleString('id-ID')}]: ${l.success ? '✓' : (l.dilewati ? '⏭' : (l.dijadwalkan ? '⏰' : '✗'))} ${l.pesan}`);
-        if (l.success) baris.push({ jenis: 'ok', sku: labelSku, utama: `Rp ${Number(l.originalPrice).toLocaleString('id-ID')} terkirim` });
-        else if (l.dilewati) baris.push({ jenis: 'lewat', sku: labelSku, utama: 'Dilewati - tidak ada / tidak aktif di marketplace' });
-        else if (l.dijadwalkan) baris.push({ jenis: 'jadwal', sku: labelSku, utama: l.alasanSingkat || 'Terkunci promo - dijadwalkan ulang otomatis', pesan: l.pesanAsli || '' });
-        else baris.push({ jenis: 'gagal', sku: labelSku, utama: l.alasanSingkat || 'Ditolak marketplace', pesan: l.pesanAsli || (l.alasanSingkat ? '' : l.pesan) });
+        const kode = l.skuMarketplace + (l.listingKe ? ` (${l.listingKe})` : '');
+        const rp = `Rp ${Number(l.originalPrice).toLocaleString('id-ID')}`;
+        if (l.success) {
+          baris.push({ jenis: 'ok', kode, utama: `${rp} terkirim${dryRun ? ' (dry-run)' : ''}` });
+          singkat.push({ judul: `${pf} ${kode} Berhasil${dryRun ? ' (dry-run)' : ''}`, status: 'ok', kecil: rp });
+        } else if (l.dilewati) {
+          baris.push({ jenis: 'lewat', kode, utama: 'Dilewati - tidak ada / tidak aktif di marketplace', pesan: l.pesan || '' });
+          singkat.push({ judul: `${pf} ${kode} Tidak Ditemukan`, status: 'gagal', kecil: 'Listing tidak ada / tidak aktif' });
+        } else if (l.dijadwalkan) {
+          baris.push({ jenis: 'jadwal', kode, utama: l.alasanSingkat || 'Terkunci promo - dijadwalkan ulang otomatis', pesan: l.pesanAsli || '' });
+          singkat.push({ judul: `${pf} ${kode} Dijadwalkan`, status: 'info', kecil: hargaPotong(l.alasanSingkat || 'Terkunci promo', 90) });
+        } else {
+          baris.push({ jenis: 'gagal', kode, utama: l.alasanSingkat || 'Ditolak marketplace', pesan: l.pesanAsli || (l.alasanSingkat ? '' : l.pesan) });
+          singkat.push({ judul: `${pf} ${kode} Ditolak`, status: 'gagal', kecil: hargaPotong(l.alasanSingkat || 'Ditolak marketplace', 90) });
+        }
       });
+      ringkas = `${r.jumlahSukses}/${r.jumlahListing} berhasil${r.jumlahDijadwalkan ? ` · ${r.jumlahDijadwalkan} dijadwalkan` : ''}${r.jumlahGagal ? ` · ${r.jumlahGagal} ditolak` : ''}${dryRun ? ' (dry-run)' : ''}`;
     }
-    hargaSimpanHasilKanal(sku, kanal, { teks, ok, detail, baris, label: cfg.label, waktu: Date.now() });
+    hargaCatatLogSesi(sku, kanal, { label: cfg.label, ringkas, baris });
+    hargaHasilSync[sku] = hargaHasilSync[sku] || {};
+    hargaHasilSync[sku][kanal] = { ringkas, waktu: Date.now() };
+    logTindakan.hapus(logId);
+    // Log Tindakan: 1 baris singkat per listing (maks HARGA_LOG_MAKS_ENTRI, sisanya diringkas)
+    const tampil = singkat.length > HARGA_LOG_MAKS_ENTRI ? singkat.slice(0, HARGA_LOG_MAKS_ENTRI - 1) : singkat;
+    tampil.forEach(x => hargaLogSingkat(sku, x.judul, x.status, x.kecil));
+    if (singkat.length > tampil.length) {
+      const sisa = singkat.slice(tampil.length), nGagal = sisa.filter(x => x.status !== 'ok').length;
+      hargaLogSingkat(sku, `${pf} ${sku}: +${sisa.length} listing lainnya`, nGagal ? 'gagal' : 'ok', nGagal ? `${nGagal} perlu dicek - klik Detail` : 'Semua berhasil');
+    }
     if (r.jumlahSukses > 0) {
       playBeep();
       if (item) {
         if (dryRun) item.syncSimulasi = Date.now(); else { item.terakhirSync = hargaFmtWaktu(Date.now()); delete item.syncSimulasi; }
-        const info = tr.querySelector('[data-role="sync-info"]');
+        const trNow = hargaBarisEl(sku);
+        const info = trNow && trNow.querySelector('[data-role="sync-info"]');
         if (info) { const tmp = document.createElement('div'); tmp.innerHTML = hargaSyncInfoHtml(item); const b2 = tmp.firstElementChild; b2.classList.add('baru'); info.replaceWith(b2); }
       }
     }
+    // SINGLE SYNC: langsung tarik Harga Live Aktual KHUSUS produk ini (bukan sync global)
+    if (r.jumlahListing > 0 && !r.gagalKanal) hargaLiveSyncSku(sku, kanal, dryRun ? 0 : coret);
   } catch (err) {
-    hargaSimpanHasilKanal(sku, kanal, { teks: `✗ ${cfg.label}: gagal terhubung`, ok: false, detail: [`${cfg.label}: ${err.message}`] });
+    const pesan = String(err.message || err).replace(/^Error:\s*/, '');
+    hargaCatatLogSesi(sku, kanal, { label: cfg.label, ringkas: 'Gagal terhubung', baris: [{ jenis: 'gagal', kode: '', utama: 'Gagal terhubung', pesan }] });
+    logTindakan.ubah(logId, 'gagal', `${pf} ${sku} Gagal terhubung`, [
+      { label: 'Coba lagi', fn: () => { logTindakan.hapus(logId); hargaSyncSatuKanal(sku, kanal); } },
+      { label: 'Detail', fn: () => hargaBukaLogSync(sku) }
+    ]);
   } finally {
     delete link.dataset.proses;
     link.classList.remove('proses');
@@ -29196,34 +29394,133 @@ async function hargaSyncSatuKanal(sku, kanal) {
   }
 }
 
-// Status baris = gabungan hasil TERAKHIR tiap marketplace, contoh "✓ Shopee 2/2 · ✓ TikTok 1/1 · ✓ Tokopedia 1/1"
-function hargaSimpanHasilKanal(sku, kanal, hasil) {
-  hargaHasilSync[sku] = hargaHasilSync[sku] || {};
-  hargaHasilSync[sku][kanal] = hasil;
-  const semua = ['shopee', 'tiktok'].map(k => hargaHasilSync[sku][k]).filter(Boolean);
-  hargaSetStatusBaris(sku, semua.map(h => h.teks).join(' · '), semua.every(h => h.ok) ? 'ok' : 'err');
-  const tr = hargaBarisEl(sku);
-  const st = tr && tr.querySelector('[data-role="aksi-status"]');
-  if (!st) return;
-  st.title = semua.map(h => (h.detail || []).join('\n')).join('\n');
-  const wadah = tr.querySelector('[data-role="sync-hasil"]');
-  if (wadah) wadah.innerHTML = hargaSyncHasilHtml(sku);
+/* ---------- SINGLE SYNC Harga Live Aktual (1 produk, real-time) ----------
+   Dipanggil otomatis setelah tombol [☁️ Shopee] / [☁️ TikTok & Tokopedia] berhasil. Server hanya membaca
+   listing produk ini, mengganti baris SKU ini di sheet "Harga Live Marketplace", lalu menghitung ulang
+   ringkasan + alert "di bawah batas aman" dari seluruh data -> reminder langsung ikut segar. */
+var hargaLiveSkuJalan = new Set();
+function hargaLiveSelEl(sku) {
+  return Array.from(document.querySelectorAll('#katalog-harga-body td[data-role="live"]')).find(td => td.dataset.liveSku === sku) || null;
+}
+async function hargaLiveSyncSku(sku, kanal, hargaHarap) {
+  if (hargaLiveSkuJalan.has(sku)) return;
+  hargaLiveSkuJalan.add(sku);
+  const pf = HARGA_PF_PENDEK[kanal] || 'Marketplace';
+  const td0 = hargaLiveSelEl(sku);
+  if (td0) td0.classList.add('memuat');
+  try {
+    const d = await postJson({ aksi: 'sync_harga_live_sku', sku, kanal: kanal || '', hargaHarap: hargaHarap || 0, email: currentUserEmail() }, 90000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal membaca harga live');
+    hargaLiveMap[sku] = d.data || [];
+    if (d.ringkas) hargaLiveRingkas = d.ringkas;
+    const td = hargaLiveSelEl(sku);
+    if (td) { td.innerHTML = hargaLiveSelHtml(sku); td.classList.remove('baru'); void td.offsetWidth; td.classList.add('baru'); }
+    hargaLiveRenderInfo(); // alert "di bawah batas aman" ikut dihitung ulang
+    const pfNama = kanal === 'shopee' ? 'Shopee' : kanal === 'tiktok' ? 'TikTok Shop' : '';
+    const gagal = Object.keys(d.platform || {}).filter(k => (!pfNama || k === pfNama) && d.platform[k] && !d.platform[k].ok);
+    if (gagal.length) {
+      hargaLogSingkat(sku, `Harga Live ${pf} ${sku} Gagal Dibaca`, 'gagal', hargaPotong(d.platform[gagal[0]].pesan || '', 90));
+    } else {
+      const rows = (d.data || []).filter(x => !pfNama || x.platform === pfNama);
+      const bahaya = rows.some(x => x.status === 'DI BAWAH BATAS AMAN');
+      hargaLogSingkat(sku, `Harga Live ${pf} ${sku} ${bahaya ? 'Di Bawah Batas' : 'Diperbarui'}`, bahaya ? 'gagal' : 'ok',
+        rows.length ? rows.slice(0, 3).map(x => (HARGA_LIVE_IKON[x.platform] || '🛒') + ' ' + (Number(x.hargaLive) ? ocRp(Number(x.hargaLive)) : '-')).join(' · ') : 'Tidak ada listing');
+    }
+  } catch (e) {
+    const pesan = String(e.message || e).replace(/^Error:\s*/, '');
+    const id = logTindakan.tambah(`Harga Live ${pf} ${sku} Gagal`);
+    logTindakan.ubah(id, 'gagal', hargaPotong(pesan, 90), [{ label: 'Coba lagi', fn: () => { logTindakan.hapus(id); hargaLiveSyncSku(sku, kanal, 0); } }]);
+  } finally {
+    hargaLiveSkuJalan.delete(sku);
+    const td = hargaLiveSelEl(sku);
+    if (td) td.classList.remove('memuat');
+  }
 }
 
-// Rincian hasil Sync TERLIHAT di baris: per marketplace -> per listing (✓ terkirim / ⏭ dilewati / ✗ alasan penolakan).
-// Pesan asli dari marketplace ditampilkan kecil di bawah alasan (dan bisa disalin).
-function hargaSyncHasilHtml(sku) {
-  const h = hargaHasilSync[sku];
-  if (!h) return '';
+/* ---------- POPUP LOG SYNC HARGA (detail riwayat per produk) ---------- */
+function hargaPastikanModalLog() {
+  if (el('harga-modal-log')) return;
+  const m = document.createElement('div');
+  m.id = 'harga-modal-log';
+  m.className = 'kat-modal';
+  m.setAttribute('role', 'dialog');
+  m.setAttribute('aria-modal', 'true');
+  m.setAttribute('aria-labelledby', 'harga-log-judul');
+  m.addEventListener('mousedown', e => { if (e.target === m) hargaTutupLogSync(); });
+  m.innerHTML = `
+    <div class="web-panel kat-modal-card" style="max-width:640px;">
+      <div class="web-panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <span id="harga-log-judul">📜 Log Sync Harga</span>
+        <span style="display:flex; gap:6px;">
+          <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" id="harga-log-btn-segar" title="Muat ulang riwayat">↻</button>
+          <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="hargaTutupLogSync()" aria-label="Tutup">✕</button>
+        </span>
+      </div>
+      <div id="harga-log-produk" class="hsl-produk"></div>
+      <div id="harga-log-sesi"></div>
+      <div class="hsl-judul">Riwayat tersimpan (sheet Log Sync Harga)</div>
+      <div id="harga-log-server"></div>
+    </div>`;
+  (el('app-web') || document.body).appendChild(m);
+  el('harga-log-btn-segar').addEventListener('click', () => { if (m.dataset.sku) hargaMuatLogServer(m.dataset.sku); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && m.classList.contains('show')) hargaTutupLogSync(); });
+}
+function hargaTutupLogSync() {
+  const m = el('harga-modal-log');
+  if (!m) return;
+  m.classList.remove('show');
+  setTimeout(() => { m.style.display = 'none'; }, 240);
+}
+function hargaHtmlBarisLog(b) {
   const IKON = { ok: '✓', lewat: '⏭', gagal: '✗', jadwal: '⏰' };
-  return ['shopee', 'tiktok'].map(k => h[k]).filter(x => x && x.baris && x.baris.length).map(x => `
-    <div class="harga-sync-hasil-kanal">
-      <div class="harga-sync-hasil-judul">${escapeHtml(x.label || '')}</div>
-      ${x.baris.map(b => `<div class="harga-sync-hasil-baris ${b.jenis}">
-        <span class="ikon" aria-hidden="true">${IKON[b.jenis]}</span>
-        <div class="isi">${b.sku ? `<b>${escapeHtml(b.sku)}</b> · ` : ''}${escapeHtml(b.utama)}${b.pesan ? `<small title="Pesan asli marketplace">${escapeHtml(b.pesan)}</small>` : ''}</div>
-      </div>`).join('')}
-    </div>`).join('');
+  return `<div class="hsl-baris ${b.jenis}"><span class="ikon" aria-hidden="true">${IKON[b.jenis] || '•'}</span>
+    <div class="isi">${b.kode ? `<b>${escapeHtml(b.kode)}</b> · ` : ''}${escapeHtml(b.utama || '')}${b.pesan ? `<small title="Pesan asli marketplace">${escapeHtml(b.pesan)}</small>` : ''}</div></div>`;
+}
+function hargaRenderLogSesi(sku) {
+  const daftar = hargaLogSesi.filter(x => x.sku === sku);
+  el('harga-log-sesi').innerHTML = daftar.length
+    ? '<div class="hsl-judul">Sesi ini</div>' + daftar.map(x => `<div class="hsl-grup">
+        <div class="hsl-grup-head">${escapeHtml(x.label || '')} · ${escapeHtml(x.ringkas || '')}<span>${escapeHtml(hargaFmtWaktu(x.waktu))}</span></div>
+        ${(x.baris || []).map(hargaHtmlBarisLog).join('')}</div>`).join('')
+    : '';
+}
+function hargaJenisStatusLog(st) {
+  const t = String(st || '');
+  if (/jadwal|promo|tunda/i.test(t)) return 'jadwal';
+  if (/lewat|skip|tidak ada|tidak ditemukan/i.test(t)) return 'lewat';
+  if (/gagal|tolak|reject|error|fatal/i.test(t)) return 'gagal';
+  if (/sukses|berhasil|terkirim|ok|dry/i.test(t)) return 'ok';
+  return 'lewat';
+}
+async function hargaMuatLogServer(sku) {
+  const wadah = el('harga-log-server');
+  wadah.innerHTML = '<div class="hsl-kosong"><span class="per-spinner" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span>Memuat riwayat…</div>';
+  try {
+    const d = await postJson({ aksi: 'lihat_log_sync_harga', sku, limit: 50, segar: true, email: currentUserEmail() }, 30000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat');
+    if (el('harga-modal-log').dataset.sku !== sku) return;
+    const rows = d.data || [];
+    wadah.innerHTML = rows.length ? rows.map(r => {
+      const rp = Number(String(r.coret || '').replace(/[^\d]/g, '')) || 0;
+      return `<div class="hsl-grup">
+        <div class="hsl-grup-head">${escapeHtml(r.channel || '-')} · ${escapeHtml(r.kodeMp || '-')}<span>${escapeHtml(r.waktu || '')}${r.mode ? ' · ' + escapeHtml(r.mode) : ''}</span></div>
+        ${hargaHtmlBarisLog({ jenis: hargaJenisStatusLog(r.status), kode: ({ OK: 'Berhasil', GAGAL: 'Gagal', DILEWATI: 'Tidak Ditemukan', DIJADWALKAN: 'Dijadwalkan' })[String(r.status || '').toUpperCase()] || r.status || '', utama: rp ? 'Harga Coret Rp ' + rp.toLocaleString('id-ID') : '', pesan: r.pesan || '' })}
+      </div>`;
+    }).join('') : '<div class="hsl-kosong">Belum ada riwayat sync untuk produk ini.</div>';
+  } catch (e) {
+    wadah.innerHTML = `<div class="hsl-kosong" style="color:var(--web-danger);">✗ ${escapeHtml(String(e.message || e))}</div>`;
+  }
+}
+function hargaBukaLogSync(sku) {
+  hargaPastikanModalLog();
+  const m = el('harga-modal-log');
+  m.dataset.sku = sku;
+  const item = katalogHargaCache.find(p => p.sku === sku) || {};
+  el('harga-log-produk').innerHTML = `<b>${escapeHtml(sku)}</b> — ${escapeHtml(item.nama || '')}`;
+  hargaRenderLogSesi(sku);
+  m.style.display = 'flex';
+  requestAnimationFrame(() => requestAnimationFrame(() => m.classList.add('show')));
+  hargaMuatLogServer(sku);
 }
 
 // Susun 1 item sync dari 1 baris (HANYA data SKU itu). Return { item } atau { alasan } kalau tidak layak.
