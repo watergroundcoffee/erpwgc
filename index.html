@@ -19635,6 +19635,7 @@ async function agkSimpan() {
     if (Object.keys(x).length) { agents[a.role] = x; ada = true; }
   });
   if (!ada) { st.className = 'status-text'; st.textContent = 'Tidak ada perubahan.'; return; }
+  const perluTes = Object.keys(agents).filter(r => agents[r].key || agents[r].model != null);
   el('agk-simpan').disabled = true;
   setLoadingDots(st, 'Menyimpan konfigurasi');
   try {
@@ -19646,9 +19647,10 @@ async function agkSimpan() {
     agkRender();
     aiaPerbaruiAgenHeader(agkData);
     st.className = 'status-text ok';
-    st.textContent = '✓ Tersimpan' + (d.diubah && d.diubah.length ? ': ' + d.diubah.join(', ') : '') + '. Tekan Test Connection untuk memastikan.' +
+    st.textContent = '✓ Tersimpan' + (d.diubah && d.diubah.length ? ': ' + d.diubah.join(', ') : '') + (perluTes.length ? '. Menguji koneksi otomatis…' : '.') +
       (d.peringatan && d.peringatan.length ? ' ⚠️ ' + d.peringatan.join(' ') : '');
     if (typeof playBeep === 'function') playBeep();
+    for (const r of perluTes) { if (agkData.some(a => a.role === r && a.keyTersamar)) await agkTes(r); } // status langsung jadi Active/Connected/Ready
     if (typeof aiaMuatHealth === 'function') aiaMuatHealth(true);
   } catch (e) { stopLoadingDots(st); st.className = 'status-text err'; st.textContent = '✗ ' + String(e.message || e).replace(/^Error:\s*/, ''); }
   finally { el('agk-simpan').disabled = false; }
