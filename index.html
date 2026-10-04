@@ -24638,8 +24638,15 @@ async function intOtorisasi(opsi) {
   const kunci = opsi.idKoneksi || ('baru:' + opsi.platform);
   let jendela = null;
   if (INT_OAUTH_MODE === 'tab-baru') {
-    jendela = window.open('', 'omni_oauth', 'width=520,height=720,left=' + Math.max(0, (screen.width - 520) / 2) + ',top=' + Math.max(0, (screen.height - 720) / 2));
-    if (jendela) jendela.document.write('<body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:90vh;color:#64748b;">Menyiapkan halaman login resmi...</body>');
+    // Tutup popup otorisasi lama yang masih tertinggal (mis. halaman error TikTok) supaya tidak "dipakai ulang" diam-diam
+    try { if (intOAuthMenunggu && intOAuthMenunggu.jendela && !intOAuthMenunggu.jendela.closed) intOAuthMenunggu.jendela.close(); } catch (e) { }
+    // Nama jendela UNIK per klik: kalau memakai nama tetap, browser memakai ulang popup lama yang sudah berada di domain
+    // TikTok/Google (beda origin) -> akses document-nya error -> fungsi berhenti tanpa popup & tanpa pesan.
+    jendela = window.open('', 'omni_oauth_' + Date.now(), 'width=520,height=720,left=' + Math.max(0, (screen.width - 520) / 2) + ',top=' + Math.max(0, (screen.height - 720) / 2));
+    if (jendela) {
+      try { jendela.document.write('<body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:90vh;color:#64748b;">Menyiapkan halaman login resmi...</body>'); } catch (e) { }
+      try { jendela.focus(); } catch (e) { }
+    }
   }
   if (opsi.idKoneksi) { intSibuk[opsi.idKoneksi] = 'oauth'; intPesan[opsi.idKoneksi] = { teks: 'Membuka halaman login resmi...', kelas: 'info' }; intRender(); }
   try {
@@ -24648,6 +24655,7 @@ async function intOtorisasi(opsi) {
     const id = d.idKoneksi;
     if (jendela && !jendela.closed) {
       jendela.location.href = d.url;
+      try { jendela.focus(); } catch (e) { }
       intOAuthMenunggu = { idKoneksi: id, jendela };
       if (intPesan[id] || opsi.idKoneksi) intPesan[id] = { teks: 'Selesaikan login di jendela yang terbuka...', kelas: 'info' };
       const cek = setInterval(() => {
