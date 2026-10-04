@@ -1511,6 +1511,7 @@
   .imp-badge.warn, .imp-chip.warn b { color: #b45309; } .imp-badge.warn { background: rgba(245,158,11,.14); }
   .imp-badge.err, .imp-chip.err b { color: #b91c1c; } .imp-badge.err { background: rgba(239,68,68,.10); }
   .imp-kaki { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .imp-pesanan { font-size: 11px; color: #047857; margin-top: 3px; white-space: nowrap; }
   .int-app { margin-top: 16px; border: 1px solid var(--web-border); border-radius: 14px; padding: 14px; }
   .int-app-judul { font-size: var(--fs-base); font-weight: 700; margin-bottom: 2px; }
   .int-app-sub { font-size: var(--fs-xs); color: var(--web-text-dim); line-height: 1.5; margin-bottom: 12px; }
@@ -19052,9 +19053,11 @@ function impTanggal(s) {
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
   return 0;
 }
-// Jenis sel: 'hp' | 'tgl' | 'buang' (uang, invoice, persen, error Excel, SKU, komisi) | 'teks'
+// Jenis sel: 'hp' | 'tgl' | 'inv' (No Invoice / Order ID marketplace) | 'buang' (uang, persen, error Excel, SKU, komisi) | 'teks'
 function impJenisSel(s) {
   if (!s) return 'buang';
+  if (/^\d{15,20}$/.test(s)) return 'inv';
+  if (/^\d+(\.\d+)?E\+1[5-9]$/i.test(s)) return 'invRusak';
   if (/^\(\+?62\)|^\+62|^62\d{8,12}$|^0[1-9][\d\s-]{7,15}$/.test(s) && impNormHp(s)) return 'hp';
   if (impTanggal(s)) return 'tgl';
   if (/^#[A-Z\/0!?]+$/i.test(s) || /%$/.test(s) || /^-?[\d.]+E\+\d+$/i.test(s)) return 'buang';
@@ -19068,7 +19071,7 @@ function impJenisSel(s) {
 
 function impSiapkanGrup(rows) {
   const grup = [], peta = {};
-  let header = null, iBuang = new Set(), nTersamar = 0, nKosong = 0;
+  let header = null, iBuang = new Set(), nTersamar = 0, nKosong = 0, nInvRusak = 0;
   rows.forEach(r0 => {
     const r = r0.map(v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim());
     if (!r.some(Boolean)) return;
@@ -19078,10 +19081,12 @@ function impSiapkanGrup(rows) {
       return;
     }
     if (r.join(' ').includes('***')) { nTersamar++; return; }
-    let hp = '', tgl = 0; const teks = [];
+    let hp = '', tgl = 0; const teks = [], inv = [];
     r.forEach((s, i) => {
       if (!s) return;
       const j = impJenisSel(s);
+      if (j === 'inv') { inv.push(s); return; }
+      if (j === 'invRusak') { nInvRusak++; return; }
       if (j === 'hp') { if (!hp) hp = impNormHp(s); return; }
       if (j === 'tgl') { const t = impTanggal(s); if (t && (!tgl || t < tgl)) tgl = t; return; }
       if (j === 'buang' || iBuang.has(i)) return;
@@ -19089,11 +19094,11 @@ function impSiapkanGrup(rows) {
     });
     if (!teks.length) { nKosong++; return; }
     const kunci = hp || ('n:' + teks.slice(0, 2).join('|').toLowerCase());
-    if (peta[kunci]) { const g = peta[kunci]; g.n++; if (tgl && (!g.tgl || tgl < g.tgl)) g.tgl = tgl; return; }
-    peta[kunci] = { id: 'g' + grup.length, hp, tgl, n: 1, teks: teks.join(' | '), mentah: teks };
+    if (peta[kunci]) { const g = peta[kunci]; g.n++; inv.forEach(v => { if (!g.inv.includes(v)) g.inv.push(v); }); if (tgl && (!g.tgl || tgl < g.tgl)) g.tgl = tgl; return; }
+    peta[kunci] = { id: 'g' + grup.length, hp, tgl, n: 1, teks: teks.join(' | '), mentah: teks, inv: inv.slice() };
     grup.push(peta[kunci]);
   });
-  return { grup, header: header ? header.filter(Boolean).join(' | ') : '', nTersamar, nKosong };
+  return { grup, header: header ? header.filter(Boolean).join(' | ') : '', nTersamar, nKosong, nInvRusak };
 }
 
 function impProgres(teks, persen) {
@@ -19109,7 +19114,8 @@ async function impMulai() {
   const siap = impSiapkanGrup(rows);
   if (!siap.grup.length) { el('imp-status').className = 'status-text err'; el('imp-status').textContent = '✗ Tidak ada baris pelanggan yang terbaca. Paste data (Ctrl+A → Ctrl+C di Excel) atau pilih file dulu.'; return; }
   impState.grup = siap.grup; impState.header = siap.header; impState.batal = false; impState.sedang = true;
-  impState.info = { nTersamar: siap.nTersamar, nKosong: siap.nKosong };
+  impState.info = { nTersamar: siap.nTersamar, nKosong: siap.nKosong, nInvRusak: siap.nInvRusak };
+  impState.cocok = {};
   el('imp-status').textContent = '';
   el('imp-mulai').disabled = true;
   const total = siap.grup.length, nBatch = Math.ceil(total / IMP_PER_BATCH);
@@ -19133,6 +19139,17 @@ async function impMulai() {
         potong.forEach(g => { if (peta[g.id]) g.ai = peta[g.id]; else g.aiGagal = 'AI tidak mengembalikan baris ini'; });
       }
       if (b < nBatch - 1) await impTidur(1500); // jeda kecil supaya aman di kuota gratis
+    }
+    // Cocokkan No Invoice di file dengan pesanan TikTok Shop yang sudah ada di ERP
+    const semuaInv = [...new Set(siap.grup.flatMap(g => g.inv || []))];
+    if (semuaInv.length && !impState.batal) {
+      impProgres(`Mencocokkan ${semuaInv.length} No Invoice dengan pesanan TikTok Shop...`, 97);
+      try {
+        for (let i = 0; i < semuaInv.length; i += 2000) {
+          const r = await postJson({ aksi: 'cek_invoice_import_pembeli', invoices: semuaInv.slice(i, i + 2000), email: currentUserEmail() }, 90000, true);
+          if (r && r.success) Object.assign(impState.cocok, r.cocok || {});
+        }
+      } catch (e) { pgrToast('Pencocokan No Invoice gagal: ' + e.message); }
     }
     impProgres('Selesai - periksa hasilnya di bawah.', 100);
     impSusunHasil();
@@ -19163,7 +19180,12 @@ function impSusunHasil() {
     else if (g.aiGagal || !g.nama) g.status = 'cek';
     else if (!g.hp) g.status = 'tanpahp';
     else g.status = 'baru';
-    g.pilih = g.status === 'baru' || g.status === 'tanpahp';
+    const ck = (g.inv || []).map(v => impState.cocok[v]).filter(Boolean);
+    g.pesananTT = ck.filter(c => c.s === 'tiktok').length;
+    g.pesananKosong = ck.filter(c => c.s === 'tiktok' && !c.terisi).length;
+    g.pesananConner = ck.filter(c => c.s === 'conner').length;
+    g.username = a.username || '';
+    g.pilih = g.status === 'baru' || g.status === 'tanpahp' || (g.pesananKosong > 0 && g.status !== 'cek');
   });
   el('imp-langkah-2').hidden = false;
   impRender();
@@ -19177,12 +19199,13 @@ function impRender() {
   el('imp-ringkas').innerHTML =
     `<button class="imp-chip ${f === 'semua' ? 'aktif' : ''}" onclick="impFilter('semua')">Semua <b>${g.length}</b></button>` +
     Object.keys(IMP_LABEL).filter(s => hitung(s)).map(s => `<button class="imp-chip ${IMP_LABEL[s][1]} ${f === s ? 'aktif' : ''}" onclick="impFilter('${s}')">${IMP_LABEL[s][0]} <b>${hitung(s)}</b></button>`).join('') +
-    `<span class="imp-ket">${info.nTersamar ? `${info.nTersamar} baris tersamar (***) dilewati. ` : ''}Baris dengan No HP sama sudah digabung.</span>`;
-  const tampil = g.map((x, i) => [x, i]).filter(([x]) => f === 'semua' || x.status === f);
+    (g.some(x => x.pesananTT) ? `<button class="imp-chip ok ${f === 'pesanan' ? 'aktif' : ''}" onclick="impFilter('pesanan')">🔗 Cocok pesanan TikTok <b>${g.filter(x => x.pesananTT).length}</b></button>` : '') +
+    `<span class="imp-ket">${info.nTersamar ? `${info.nTersamar} baris tersamar (***) dilewati. ` : ''}${info.nInvRusak ? `${info.nInvRusak} No Invoice rusak format Excel (5.8E+17) tidak bisa dicocokkan. ` : ''}Baris dengan No HP sama sudah digabung.</span>`;
+  const tampil = g.map((x, i) => [x, i]).filter(([x]) => f === 'semua' || (f === 'pesanan' ? x.pesananTT > 0 : x.status === f));
   el('imp-body').innerHTML = tampil.map(([x, i]) => `
     <tr class="${x.pilih ? '' : 'imp-mati'}">
       <td><input type="checkbox" data-imp-i="${i}" data-imp-f="pilih" ${x.pilih ? 'checked' : ''}></td>
-      <td><span class="imp-badge ${IMP_LABEL[x.status][1]}" title="${escapeHtml(x.aiGagal || '')}">${IMP_LABEL[x.status][0]}</span>${x.n > 1 ? `<div class="imp-kecil">×${x.n} baris</div>` : ''}</td>
+      <td><span class="imp-badge ${IMP_LABEL[x.status][1]}" title="${escapeHtml(x.aiGagal || '')}">${IMP_LABEL[x.status][0]}</span>${x.n > 1 ? `<div class="imp-kecil">×${x.n} baris</div>` : ''}${impTeksPesanan(x)}</td>
       <td><input class="imp-in" data-imp-i="${i}" data-imp-f="nama" value="${escapeHtml(x.nama)}"><div class="imp-kecil">${escapeHtml(x.kategori || '')}</div></td>
       <td><input class="imp-in" data-imp-i="${i}" data-imp-f="pic" value="${escapeHtml(x.pic)}"></td>
       <td class="imp-hp">${x.hp ? escapeHtml(formatNoHpOtomatis('+' + x.hp)) : '<span class="imp-kecil">-</span>'}</td>
@@ -19190,6 +19213,15 @@ function impRender() {
       <td><textarea class="imp-in" rows="2" data-imp-i="${i}" data-imp-f="keterangan">${escapeHtml(x.keterangan)}</textarea></td>
     </tr>`).join('') || '<tr><td colspan="7" style="text-align:center; color:var(--web-text-dim);">Tidak ada baris.</td></tr>';
   impHitungPilih();
+}
+function impTeksPesanan(x) {
+  const inv = (x.inv || []).length;
+  if (!inv) return '';
+  if (!x.pesananTT && !x.pesananConner) return `<div class="imp-kecil" title="${escapeHtml(x.inv.join(', '))}">${inv} invoice belum ada di ERP</div>`;
+  let t = '';
+  if (x.pesananTT) t += `<div class="imp-pesanan" title="${escapeHtml(x.inv.join(', '))}">🔗 ${x.pesananTT}/${inv} pesanan TikTok${x.pesananKosong ? ` · ${x.pesananKosong} dilengkapi` : ' · sudah berisi'}</div>`;
+  if (x.pesananConner) t += `<div class="imp-kecil">${x.pesananConner} pesanan Conner (belum didukung)</div>`;
+  return t;
 }
 function impFilter(f) { impState.filter = f; impRender(); }
 function impHitungPilih() {
@@ -19210,10 +19242,11 @@ async function impSimpan() {
   const sumber = el('imp-sumber').value || 'Import';
   const daftar = pilih.map(x => ({
     nama: x.nama.trim(), pic: (x.pic || '').trim(), alamat: (x.alamat || '').trim(), keterangan: (x.keterangan || '').trim(),
-    noHp: x.hp ? formatNoHpOtomatis('+' + x.hp) : '', kategori: x.kategori || '', sumberKontak: sumber, tanggalMs: x.tgl || 0
+    noHp: x.hp ? formatNoHpOtomatis('+' + x.hp) : '', kategori: x.kategori || '', sumberKontak: sumber, tanggalMs: x.tgl || 0,
+    username: x.username || '', invoices: (x.inv || []).filter(v => impState.cocok[v] && impState.cocok[v].s === 'tiktok')
   }));
   el('imp-simpan').disabled = true; impState.sedang = true;
-  const tot = { ditambah: 0, diperbarui: 0, sudahAda: 0, dilewati: 0 };
+  const tot = { ditambah: 0, diperbarui: 0, sudahAda: 0, dilewati: 0, pesananDilengkapi: 0, pesananSudahTerisi: 0 };
   try {
     for (let i = 0; i < daftar.length; i += 300) {
       setLoadingDots(st, `Menyimpan ${Math.min(i + 300, daftar.length)} dari ${daftar.length}`);
@@ -19224,10 +19257,12 @@ async function impSimpan() {
     }
     st.className = 'status-text ok';
     st.textContent = `✓ ${tot.ditambah} pelanggan baru ditambahkan` + (tot.diperbarui ? `, ${tot.diperbarui} data lama dilengkapi` : '') +
-      (tot.sudahAda ? `, ${tot.sudahAda} sudah lengkap (tidak diubah)` : '') + (tot.dilewati ? `, ${tot.dilewati} dilewati` : '') + '.';
+      (tot.sudahAda ? `, ${tot.sudahAda} sudah lengkap (tidak diubah)` : '') + (tot.dilewati ? `, ${tot.dilewati} dilewati` : '') + '.' +
+      (tot.pesananDilengkapi ? ` 🔗 ${tot.pesananDilengkapi} pesanan TikTok Shop dilengkapi data pembelinya.` : '') +
+      (tot.pesananSudahTerisi ? ` ${tot.pesananSudahTerisi} pesanan sudah berisi data pembeli (tidak ditimpa).` : '');
     if (typeof playBeep === 'function') playBeep();
     pgrToast(`✓ Import selesai: ${tot.ditambah} pelanggan baru`);
-    impState.grup.forEach(x => { if (x.pilih) { x.pilih = false; x.status = 'ada'; } });
+    impState.grup.forEach(x => { if (x.pilih) { x.pilih = false; x.status = 'ada'; x.pesananKosong = 0; } });
     impRender();
     wpFetchPelanggan();
   } catch (e) {
