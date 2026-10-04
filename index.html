@@ -5692,6 +5692,163 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
   .aia-msg-user { max-width: 90%; }
 }
 @media (prefers-reduced-motion: reduce) { .aia-side { transition: none; } .aia-log { scroll-behavior: auto; } }
+/* =====================================================================================
+   PEMBARUAN UI/UX v2026.10 - Dashboard Loader · Kapsul Sync Harga · Pembelian & PO Terpadu
+   ===================================================================================== */
+
+/* ---------- 1) DASHBOARD: loader tarik-data-penuh (offline > 1 jam) ---------- */
+#ov-view-dashboard { position: relative; }
+.ov-loader {
+  position: absolute; inset: 0; z-index: 30; display: flex; justify-content: center; align-items: flex-start;
+  padding-top: clamp(40px, 12vh, 140px); min-height: 460px;
+  background: color-mix(in srgb, var(--web-bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: 0; visibility: hidden; transition: opacity .32s ease, visibility 0s linear .32s;
+}
+.ov-loader.tampil { opacity: 1; visibility: visible; transition: opacity .25s ease, visibility 0s; }
+.ov-loader-kartu {
+  width: min(380px, calc(100% - 32px)); padding: 26px 24px 20px; border-radius: 18px; text-align: center;
+  background: var(--web-panel); border: 1px solid var(--web-border);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .06);
+  transform: translateY(10px) scale(.98); transition: transform .35s cubic-bezier(.2, .8, .2, 1);
+}
+.ov-loader.tampil .ov-loader-kartu { transform: none; }
+.ov-loader-orbit { position: relative; width: 74px; height: 74px; margin: 0 auto 16px; }
+.ov-loader-orbit i {
+  position: absolute; inset: 0; border-radius: 50%; border: 3px solid transparent;
+  will-change: transform; transform: translateZ(0);
+}
+.ov-loader-orbit i:nth-child(1) { border-top-color: var(--web-accent, #4f46e5); border-right-color: var(--web-accent, #4f46e5); animation: ovLdrPutar 1.1s cubic-bezier(.55, .15, .45, .85) infinite; }
+.ov-loader-orbit i:nth-child(2) { inset: 11px; border-bottom-color: #14b8a6; border-left-color: #14b8a6; animation: ovLdrPutar 1.5s cubic-bezier(.55, .15, .45, .85) infinite reverse; }
+.ov-loader-orbit i:nth-child(3) { inset: 26px; border: none; background: radial-gradient(circle at 35% 35%, #a5b4fc, var(--web-accent, #4f46e5)); animation: ovLdrDenyut 1.2s ease-in-out infinite; }
+.ov-loader-judul { font-size: 15px; font-weight: 700; color: var(--web-text); margin-bottom: 4px; }
+.ov-loader-sub { font-size: 12px; color: var(--web-text-dim); line-height: 1.5; margin-bottom: 14px; }
+.ov-loader-bar { position: relative; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--web-border) 80%, transparent); overflow: hidden; margin-bottom: 14px; }
+.ov-loader-bar::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--web-accent, #4f46e5), #14b8a6, transparent);
+  will-change: transform; animation: ovLdrGeser 1.25s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+.ov-loader-langkah { list-style: none; margin: 0; padding: 0; text-align: left; display: grid; gap: 7px; }
+.ov-loader-langkah li { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--web-text-dim); transition: color .25s ease, opacity .25s ease; opacity: .55; }
+.ov-loader-langkah li::before {
+  content: ''; flex: none; width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box;
+  border: 2px solid var(--web-border); transition: background-color .25s ease, border-color .25s ease;
+}
+.ov-loader-langkah li.aktif { opacity: 1; color: var(--web-text); font-weight: 600; }
+.ov-loader-langkah li.aktif::before { border-color: var(--web-accent, #4f46e5); border-right-color: transparent; animation: ovLdrPutar .8s linear infinite; }
+.ov-loader-langkah li.selesai { opacity: 1; color: var(--web-text); }
+.ov-loader-langkah li.selesai::before { border-color: #16a34a; background: #16a34a radial-gradient(circle, #fff 0 2px, transparent 2.5px); }
+.ov-loader-gagal { display: none; margin-top: 14px; font-size: 12px; color: var(--web-danger); line-height: 1.5; }
+.ov-loader.gagal .ov-loader-gagal { display: block; }
+.ov-loader.gagal .ov-loader-orbit i, .ov-loader.gagal .ov-loader-bar::after { animation-play-state: paused; opacity: .4; }
+.ov-loader-gagal button { margin-top: 8px; }
+@keyframes ovLdrPutar { to { transform: rotate(360deg); } }
+@keyframes ovLdrDenyut { 0%, 100% { transform: scale(.82); opacity: .75; } 50% { transform: scale(1); opacity: 1; } }
+@keyframes ovLdrGeser { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ov-loader-orbit i:nth-child(1), .ov-loader-orbit i:nth-child(2) { animation-duration: 2.6s; }
+  .ov-loader-orbit i:nth-child(3), .ov-loader-bar::after { animation: none; }
+}
+
+/* ---------- 2) KATALOG > HARGA: logo asli marketplace & tombol kapsul sync ---------- */
+.omni-logo-mp { display: inline-block; flex: none; object-fit: contain; border-radius: 4px; vertical-align: middle; background: #fff; }
+.omni-logo-duo { display: inline-flex; align-items: center; flex: none; }
+.omni-logo-duo .omni-logo-mp + .omni-logo-mp { margin-left: -5px; box-shadow: 0 0 0 1.5px var(--web-panel); border-radius: 50%; }
+.omni-logo-supplier { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 4px; background: rgba(100, 116, 139, .14); color: #64748b; }
+.harga-sku-ikon { width: 18px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; padding-top: 1px; }
+.harga-sku-ikon .omni-logo-mp, .harga-sku-ikon .omni-logo-supplier { width: 16px; height: 16px; }
+.harga-live-pf { display: inline-flex; align-items: center; flex: none; }
+.harga-live-pf .omni-logo-mp { width: 16px; height: 16px; }
+.harga-live-alert li .omni-logo-mp { width: 14px; height: 14px; margin-right: 2px; }
+
+.harga-sync-kapsul-grup { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.harga-kapsul {
+  --kapsul-warna: #64748b;
+  position: relative; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 5px;
+  border-radius: 999px; border: 1.5px solid var(--web-border); background: var(--web-panel); color: var(--web-text);
+  font: inherit; cursor: pointer; white-space: nowrap; user-select: none;
+  transition: border-color .2s ease, box-shadow .25s ease, transform .15s ease, background-color .2s ease;
+}
+.harga-kapsul:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(15, 23, 42, .1); }
+.harga-kapsul:active:not(:disabled) { transform: translateY(0) scale(.98); }
+.harga-kapsul:focus-visible { outline: 2px solid var(--web-accent, #4f46e5); outline-offset: 2px; }
+.harga-kapsul:disabled { cursor: progress; }
+.harga-kapsul-logo { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .08); flex: none; }
+.harga-kapsul-logo .omni-logo-mp { width: 20px; height: 20px; border-radius: 4px; }
+.harga-kapsul-logo .omni-logo-duo .omni-logo-mp { width: 17px; height: 17px; }
+.harga-kapsul-logo::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid transparent;
+  border-top-color: var(--kapsul-warna); opacity: 0; transition: opacity .2s ease; will-change: transform;
+}
+.harga-kapsul-teks { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; text-align: left; }
+.harga-kapsul-teks b { font-size: 12.5px; font-weight: 700; }
+.harga-kapsul-teks small { font-size: 10.5px; color: var(--web-text-dim); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 4px; }
+.harga-kapsul-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; flex: none; }
+.harga-kapsul.terhubung { --kapsul-warna: #16a34a; border-color: rgba(22, 163, 74, .55); box-shadow: 0 0 0 3px rgba(22, 163, 74, .10), 0 0 16px rgba(22, 163, 74, .16); }
+.harga-kapsul.terhubung .harga-kapsul-dot { background: #16a34a; box-shadow: 0 0 0 0 rgba(22, 163, 74, .55); animation: hargaKapsulDenyut 2.4s ease-out infinite; }
+.harga-kapsul.peringatan { --kapsul-warna: #d97706; border-color: rgba(217, 119, 6, .6); box-shadow: 0 0 0 3px rgba(217, 119, 6, .10); }
+.harga-kapsul.peringatan .harga-kapsul-dot { background: #d97706; }
+.harga-kapsul.putus { border-style: dashed; background: color-mix(in srgb, var(--web-bg) 70%, var(--web-panel)); }
+.harga-kapsul.putus .harga-kapsul-logo { filter: grayscale(1); opacity: .6; }
+.harga-kapsul.putus .harga-kapsul-dot { background: #cbd5e1; }
+.harga-kapsul.sinkron { --kapsul-warna: var(--web-accent, #4f46e5); border-color: color-mix(in srgb, var(--web-accent, #4f46e5) 60%, transparent); }
+.harga-kapsul.sinkron .harga-kapsul-logo::after { opacity: 1; animation: ovLdrPutar .9s linear infinite; }
+.harga-kapsul.sinkron .harga-kapsul-dot { background: var(--web-accent, #4f46e5); animation: ovLdrDenyut .9s ease-in-out infinite; }
+.harga-kapsul-semua { padding: 0 14px; gap: 6px; height: 34px; font-size: 12px; font-weight: 600; color: var(--web-text-dim); border-style: solid; }
+.harga-kapsul-semua svg { flex: none; }
+.harga-kapsul-semua.sinkron svg { animation: ovLdrPutar .9s linear infinite; }
+@keyframes hargaKapsulDenyut { 0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, .5); } 70%, 100% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); } }
+@media (prefers-reduced-motion: reduce) { .harga-kapsul.terhubung .harga-kapsul-dot { animation: none; } }
+
+/* ---------- 3) PEMBELIAN: Pembelian Stok + Pesanan PO dalam SATU tab ---------- */
+.bel-seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--web-border) 45%, transparent); margin: 0 0 12px; }
+.bel-seg button { border: none; background: transparent; color: var(--web-text-dim); font: inherit; font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background-color .18s ease, color .18s ease, box-shadow .18s ease; }
+.bel-seg button.aktif { background: var(--web-panel); color: var(--web-text); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+.bel-seg button:focus-visible { outline: 2px solid var(--web-accent, #4f46e5); outline-offset: 1px; }
+.bel-seg-hint { font-size: 11.5px; color: var(--web-text-dim); margin: -4px 0 10px; line-height: 1.5; }
+.po-nota-terhubung { font-size: 10.5px; color: var(--web-text-dim); margin-top: 2px; }
+
+.pmx-po-blok { border: 1px solid var(--web-border); border-radius: 12px; padding: 10px 12px; margin: 4px 0 12px; background: color-mix(in srgb, var(--web-bg) 60%, var(--web-panel)); transition: border-color .2s ease, background-color .2s ease; }
+.pmx-po-blok.aktif { border-color: color-mix(in srgb, #c9822f 60%, transparent); background: color-mix(in srgb, #c9822f 7%, var(--web-panel)); }
+.pmx-switch { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 12.5px; line-height: 1.4; }
+.pmx-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.pmx-switch-rel { position: relative; flex: none; width: 36px; height: 20px; border-radius: 999px; background: #cbd5e1; margin-top: 1px; transition: background-color .2s ease; }
+.pmx-switch-rel::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
+.pmx-switch input:checked + .pmx-switch-rel { background: #c9822f; }
+.pmx-switch input:checked + .pmx-switch-rel::after { transform: translateX(16px); }
+.pmx-switch input:focus-visible + .pmx-switch-rel { outline: 2px solid var(--web-accent, #4f46e5); outline-offset: 2px; }
+.pmx-switch small { display: block; font-size: 11px; color: var(--web-text-dim); font-weight: 400; }
+.pmx-po-pilih { margin-top: 10px; }
+.pmx-po-pilih label { font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; }
+.pmx-po-pilih select { margin: 0; }
+.pmx-po-info { font-size: 11.5px; color: var(--web-text-dim); margin-top: 6px; line-height: 1.5; }
+.pmx-po-info .pmx-po-barang { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pmx-po-info .pmx-po-barang span { padding: 2px 8px; border-radius: 999px; background: var(--web-panel); border: 1px solid var(--web-border); color: var(--web-text); font-size: 11px; }
+.pm-tabel-barang col.c-po { width: 168px; }
+.pm-tabel-barang .pmx-col-po { display: none; }
+.pm-tabel-barang.pmx-mode-po .pmx-col-po { display: table-cell; }
+.pm-tabel-barang:not(.pmx-mode-po) col.c-po { width: 0; }
+.pmx-col-po select { margin: 0; font-size: 11.5px; padding: 6px 4px; width: 100%; }
+.pmx-tag-stok { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: rgba(79, 70, 229, .1); color: var(--web-accent, #4f46e5); white-space: nowrap; }
+.pmx-sku-baru { box-shadow: 0 0 0 2px rgba(217, 119, 6, .55) !important; }
+.pmx-sku-ok { box-shadow: 0 0 0 2px rgba(22, 163, 74, .35) !important; }
+
+/* Dialog konfirmasi generik (di atas modal) */
+.omni-dlg-latar { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .18s ease; }
+.omni-dlg-latar.tampil { opacity: 1; }
+.omni-dlg { width: min(440px, 100%); max-height: 90vh; overflow-y: auto; background: var(--web-panel); color: var(--web-text); border: 1px solid var(--web-border); border-radius: 16px; padding: 20px 20px 16px; box-shadow: 0 24px 60px rgba(15, 23, 42, .25); transform: translateY(8px) scale(.98); transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+.omni-dlg-latar.tampil .omni-dlg { transform: none; }
+.omni-dlg-ikon { font-size: 26px; line-height: 1; margin-bottom: 8px; }
+.omni-dlg h4 { margin: 0 0 6px; font-size: 15.5px; font-weight: 700; }
+.omni-dlg-isi { font-size: 12.5px; color: var(--web-text-dim); line-height: 1.55; }
+.omni-dlg-isi b { color: var(--web-text); }
+.omni-dlg-isi label { display: block; font-size: 11.5px; font-weight: 600; color: var(--web-text); margin: 10px 0 3px; }
+.omni-dlg-isi .web-form-input { margin: 0; }
+.omni-dlg-isi code { font-size: 11.5px; padding: 1px 6px; border-radius: 5px; background: var(--web-bg); border: 1px solid var(--web-border); color: var(--web-text); }
+.omni-dlg-tombol { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.omni-dlg-tombol button { margin: 0; }
+
 </style>
 </head>
 <body>
@@ -6823,8 +6980,7 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
         <div class="web-nav-group">
           <a href="#pembelian/transaksi" class="web-nav-item" data-tab="pembelian" onclick="toggleNavGroup(this); belBukaSubMenu('transaksi')">Pembelian</a>
           <div class="web-submenu-wrap">
-            <a href="#pembelian/transaksi" class="web-nav-item web-nav-sub" data-belsub="transaksi" onclick="belBukaSubMenu('transaksi')">Transaksi Pembelian</a>
-            <a href="#pembelian/po" class="web-nav-item web-nav-sub" data-belsub="po" onclick="belBukaSubMenu('po')">Pesanan PO</a>
+            <a href="#pembelian/transaksi" class="web-nav-item web-nav-sub" data-belsub="transaksi" onclick="belBukaSubMenu('transaksi')">Transaksi Pembelian &amp; PO</a>
             <a href="#pembelian/kontak" class="web-nav-item web-nav-sub" data-belsub="kontak" onclick="belBukaSubMenu('kontak')">Kontak Pemasok</a>
             <a href="#pembelian/laporan" class="web-nav-item web-nav-sub" data-belsub="laporan" onclick="belBukaSubMenu('laporan')">Laporan</a>
             <a href="#pembelian/claim" class="web-nav-item web-nav-sub" data-belsub="claim" onclick="belBukaSubMenu('claim')">Claim Kurang/Rusak</a>
@@ -6923,6 +7079,25 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
       <!-- TAB: OVERVIEW -->
       <div class="web-tab-content" id="web-tab-overview">
         <div id="ov-view-dashboard">
+          <!-- Loader tarik-data-penuh: tampil saat dasbor dibuka setelah offline > 1 jam (cache lama TIDAK ditampilkan) -->
+          <div class="ov-loader" id="ov-loader" role="status" aria-live="polite" aria-hidden="true">
+            <div class="ov-loader-kartu">
+              <div class="ov-loader-orbit" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="ov-loader-judul" id="ov-loader-judul">Menyiapkan data terbaru…</div>
+              <div class="ov-loader-sub" id="ov-loader-sub">Anda offline lebih dari 1 jam, jadi data lama tidak ditampilkan. Mengambil data langsung dari server.</div>
+              <div class="ov-loader-bar" aria-hidden="true"></div>
+              <ul class="ov-loader-langkah" id="ov-loader-langkah">
+                <li data-ldr="1">Menghubungi server OmniAI</li>
+                <li data-ldr="2">Menarik rekap penjualan terbaru</li>
+                <li data-ldr="3">Menghitung ulang angka terkini</li>
+                <li data-ldr="4">Menyusun tampilan Beranda</li>
+              </ul>
+              <div class="ov-loader-gagal" id="ov-loader-gagal">
+                <span id="ov-loader-gagal-teks">Gagal memuat data.</span><br />
+                <button type="button" class="web-btn-primary" onclick="ovMuatPenuhDenganLoader()">↻ Coba Lagi</button>
+              </div>
+            </div>
+          </div>
           <div class="app-header-hierarki">
             <div class="app-header-submenu">Ringkasan Aktivitas</div>
           </div>
@@ -8061,8 +8236,7 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
           <div class="app-header-submenu" id="bel-judul-sub">Transaksi Pembelian</div>
         </div>
         <div class="web-toolbar-row" style="border-bottom:1px solid var(--web-border); margin-bottom:16px; padding-bottom:0;">
-          <button class="web-nav-sub-tab active" id="belsub-transaksi" onclick="belBukaSubMenu('transaksi')">Transaksi Pembelian</button>
-          <button class="web-nav-sub-tab" id="belsub-po" onclick="belBukaSubMenu('po')">Pesanan PO <span class="bel-badge" id="po-n-kurang" style="margin-left:4px;"></span></button>
+          <button class="web-nav-sub-tab active" id="belsub-transaksi" onclick="belBukaSubMenu('transaksi')">Transaksi Pembelian &amp; PO</button>
           <button class="web-nav-sub-tab" id="belsub-kontak" onclick="belBukaSubMenu('kontak')">Kontak Pemasok</button>
           <button class="web-nav-sub-tab" id="belsub-laporan" onclick="belBukaSubMenu('laporan')">Laporan</button>
           <button class="web-nav-sub-tab" id="belsub-claim" onclick="belBukaSubMenu('claim')">Claim Kurang/Rusak</button>
@@ -8115,12 +8289,18 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
         <!-- ===== SUB: TRANSAKSI PEMBELIAN ===== -->
         <div id="bel-view-transaksi">
           <div class="bel-aksi-atas">
-            <button class="web-btn-primary" onclick="belBukaModalPembelianManual()" style="font-size:12px; margin:0;">+ Input Pembelian Baru</button>
+            <button class="web-btn-primary" onclick="belBukaModalPembelianManual()" style="font-size:12px; margin:0;" title="Satu form untuk pembelian stok (ber-SKU) maupun pembelian untuk Pesanan PO (tanpa SKU)">+ Input Pembelian Baru</button>
+            <button class="web-btn-secondary" onclick="poBuka()" style="font-size:12px; margin:0;" title="Buat pesanan pembeli untuk barang yang tidak ada di gudang">+ Pesanan PO Baru</button>
             <div style="flex:1;"></div>
             <button type="button" class="bel-btn-bening" id="bel-btn-memo" onclick="bmmBuka()" title="Lihat semua memo dari Admin Gudang (Minta Stock, Barang Masuk, Hilang/Rusak, Stock Opname)">
               <span aria-hidden="true">📋</span> Cek Memo Gudang <span class="bel-badge" id="bel-memo-badge" hidden></span>
             </button>
           </div>
+          <div class="bel-seg" role="tablist" aria-label="Jenis transaksi pembelian">
+            <button type="button" role="tab" id="bel-seg-btn-stok" class="aktif" aria-selected="true" onclick="belSegmen('stok')">📦 Pembelian Stok</button>
+            <button type="button" role="tab" id="bel-seg-btn-po" aria-selected="false" onclick="belSegmen('po')">🧾 Pesanan PO <span class="bel-badge" id="po-n-kurang" style="margin-left:2px;"></span></button>
+          </div>
+          <div id="bel-seg-stok" role="tabpanel">
           <div class="web-panel" style="margin-top:0;">
             <div class="web-toolbar-row" style="margin-bottom:10px;">
               <span style="font-size:13px; font-weight:600;">📝 List Pembelian</span>
@@ -8162,14 +8342,10 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
             <div class="web-placeholder" id="bel-manual-nihil" style="display:none;">Tidak ada pembelian yang cocok dengan pencarian/filter. <button type="button" class="bel-f-reset" onclick="belFilterReset()">Reset filter</button></div>
             <div id="bel-manual-paginasi"></div>
           </div>
-        </div>
-
-        <!-- ===== SUB: PESANAN PO (barang tidak ada di gudang, tanpa SKU, wajib 3 dokumen) ===== -->
-        <div id="bel-view-po" style="display:none;">
-          <div class="bel-aksi-atas">
-            <button class="web-btn-primary" onclick="poBuka()" style="font-size:12px; margin:0;">+ Pesanan PO Baru</button>
-            <span class="po-info">Barang yang tidak ada di gudang &amp; dibelikan khusus untuk pembeli. Tanpa SKU, stok tidak berubah. Wajib 3 dokumen: 📄 Invoice Penjualan · 🧾 Nota Pembelian · 💸 Bukti Transfer Pembeli.</span>
           </div>
+          <!-- ===== PESANAN PO (dalam tab yang sama): barang tidak ada di gudang, tanpa SKU, wajib 3 dokumen ===== -->
+          <div id="bel-seg-po" role="tabpanel" hidden>
+          <div class="bel-seg-hint">Barang yang tidak ada di gudang &amp; dibelikan khusus untuk pembeli. Tanpa SKU, stok tidak berubah. Wajib 3 dokumen: 📄 Invoice Penjualan · 🧾 Nota Pembelian · 💸 Bukti Transfer Pembeli. Nota belanja dicatat lewat <b>+ Input Pembelian Baru</b> (aktifkan "Pembelian untuk Pesanan PO") atau tombol <b>🧾 Nota</b> di baris PO - modal &amp; laba PO ikut diperbarui otomatis.</div>
           <div class="web-panel" style="margin-top:0;">
             <div class="bel-filter">
               <div class="bmm-seg" role="tablist" aria-label="Filter pesanan PO">
@@ -8188,6 +8364,7 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
               </table>
             </div>
             <div class="web-placeholder" id="po-kosong" style="display:none;">Belum ada Pesanan PO di filter ini.</div>
+          </div>
           </div>
         </div>
 
@@ -8278,7 +8455,7 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
         <div id="bel-modal-pembelian-manual" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:250; align-items:center; justify-content:center; padding:16px;">
           <div class="web-panel pm-modal-panel" style="max-width:720px; width:100%; max-height:92vh; overflow-y:auto; overflow-x:hidden;">
             <div class="web-panel-header" style="display:flex; justify-content:space-between; align-items:center;">
-              <span>📝 Input Pembelian Manual</span>
+              <span id="pm-judul-modal">📝 Input Pembelian</span>
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="belTutupModalPembelianManual()">✕</button>
             </div>
             <div class="sp-hint">✨ <b>Smart Paste:</b> buka invoice di Shopee / Tokopedia → <kbd>Ctrl</kbd>+<kbd>A</kbd> → <kbd>Ctrl</kbd>+<kbd>C</kbd>, lalu <kbd>Ctrl</kbd>+<kbd>V</kbd> di mana saja di form ini. Supplier, No Invoice, tanggal, barang, harga &amp; ongkir terisi otomatis.</div>
@@ -8316,11 +8493,25 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
               </div>
             </div>
 
+            <!-- Pembelian Biasa & Pembelian untuk Pesanan PO dalam SATU form -->
+            <div class="pmx-po-blok" id="pmx-po-blok">
+              <label class="pmx-switch">
+                <input type="checkbox" id="pmx-po-toggle" onchange="pmxSetModePo(this.checked)" />
+                <span class="pmx-switch-rel" aria-hidden="true"></span>
+                <span><b>Pembelian untuk Pesanan PO</b><small>Aktifkan bila sebagian/semua barang dibelikan khusus untuk Pesanan PO (barang tanpa SKU). Baris yang ber-SKU tetap dicatat sebagai pembelian stok.</small></span>
+              </label>
+              <div class="pmx-po-pilih" id="pmx-po-pilih" hidden>
+                <label for="pmx-po-select">ID Pesanan PO</label>
+                <select id="pmx-po-select" class="web-form-input" onchange="pmxPilihPo(this.value)"><option value="">- Pilih Pesanan PO -</option></select>
+                <div class="pmx-po-info" id="pmx-po-info"></div>
+              </div>
+            </div>
+
             <div style="font-size:12px; font-weight:600; margin-top:10px; margin-bottom:6px;">Daftar Barang</div>
             <div class="web-table-wrap pm-barang-wrap">
-              <table class="web-table pm-tabel-barang" style="font-size:12px;">
-                <colgroup><col class="c-sku"><col class="c-nama"><col class="c-qty"><col class="c-harga"><col class="c-sub"><col class="c-hapus"></colgroup>
-                <thead><tr><th>SKU</th><th>Nama Produk</th><th>Qty</th><th>Harga Satuan</th><th>Subtotal</th><th></th></tr></thead>
+              <table class="web-table pm-tabel-barang" id="pm-tabel-barang" style="font-size:12px;">
+                <colgroup><col class="c-sku"><col class="c-nama"><col class="c-qty"><col class="c-harga"><col class="c-sub"><col class="c-po"><col class="c-hapus"></colgroup>
+                <thead><tr><th>SKU</th><th>Nama Produk</th><th>Qty</th><th>Harga Satuan</th><th>Subtotal</th><th class="pmx-col-po">Untuk Barang PO</th><th></th></tr></thead>
                 <tbody id="pm-item-body"></tbody>
               </table>
             </div>
@@ -10344,7 +10535,7 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
             </div>
             <div class="web-toolbar-row" style="margin-bottom:10px;">
               <input id="harga-cari-input" type="search" class="web-search-input" placeholder="Cari nama produk, SKU, atau SKU terhubung (Shopee / TikTok / Tokopedia / Supplier)" oninput="hargaCariBerubah()" />
-              <button type="button" class="web-btn-secondary" id="harga-btn-sync-live" onclick="hargaSyncLive()" title="Tarik harga yang benar-benar tayang (harga normal & harga promo) dari API Shopee & TikTok Shop">🔄 Sync Harga Aktual</button>
+              <div class="harga-sync-kapsul-grup" id="harga-sync-kapsul-grup" role="group" aria-label="Sync Harga Aktual per marketplace"></div>
               <span class="harga-live-info" id="harga-live-info">Harga live belum dimuat</span>
               <div style="flex:1;"></div>
               <span class="status-text" id="harga-simpan-semua-status" style="text-align:right;"></span>
@@ -12575,6 +12766,7 @@ async function ovAmbilRekap(opsi) {
           produk: Object.assign({}, base.produk, d.produk), nama: Object.assign({}, base.nama, d.nama)
         });
       } else {
+        d._diambil = Date.now(); // waktu browser menerima data ini (dipakai aturan "offline > 1 jam")
         ovRekap = d;
         ovRekapSimpanLokal(d);
       }
@@ -12599,6 +12791,139 @@ async function ovPerbaruiRekap(manual) {
   }
 }
 
+/* ===== ATURAN OFFLINE > 1 JAM =====
+   Waktu aktif terakhir dicatat ke localStorage tiap menit selama halaman terlihat & online (juga saat tab
+   disembunyikan / ditutup). Saat dasbor dibuka dan jeda sejak aktif terakhir > 1 jam (aplikasi ditutup,
+   laptop sleep, tab tersembunyi, atau koneksi putus), cache lama TIDAK ditampilkan: rekap di memori &
+   localStorage dibuang, loader CSS ditampilkan, lalu data ditarik langsung dari server. */
+const OV_BATAS_OFFLINE_MS = 60 * 60 * 1000;
+const OV_KUNCI_AKTIF = 'omni_terakhir_aktif_v1';
+function ovBacaAktifTerakhir() { try { return parseInt(localStorage.getItem(OV_KUNCI_AKTIF) || '0', 10) || 0; } catch (e) { return 0; } }
+let ovAktifTerakhirMs = ovBacaAktifTerakhir();
+let ovJedaOfflineMs = ovAktifTerakhirMs ? Date.now() - ovAktifTerakhirMs : 0;
+let ovPerluSegarPenuh = !ovAktifTerakhirMs || ovJedaOfflineMs > OV_BATAS_OFFLINE_MS;
+let ovMuatPenuhToken = 0;
+let ovMuatPenuhBerjalan = false;
+let ovDetakTerakhir = 0; // detak terakhir DI SESI INI (bukan dari sesi sebelumnya)
+function ovCatatAktif() {
+  if (document.hidden || navigator.onLine === false) return;
+  const sekarang = Date.now();
+  // Interval berhenti saat laptop sleep -> jeda panjang antar detak = pengguna offline
+  if (ovDetakTerakhir && sekarang - ovDetakTerakhir > OV_BATAS_OFFLINE_MS) ovTandaiOfflineLama(sekarang - ovDetakTerakhir);
+  ovDetakTerakhir = sekarang;
+  ovAktifTerakhirMs = sekarang;
+  try { localStorage.setItem(OV_KUNCI_AKTIF, String(sekarang)); } catch (e) { }
+}
+function ovDasborSedangTerlihat() {
+  const v = el('ov-view-dashboard');
+  return typeof tabWebAktif !== 'undefined' && tabWebAktif === 'overview' && !!v && v.style.display !== 'none' && !!v.offsetParent;
+}
+function ovTandaiOfflineLama(jedaMs) {
+  ovPerluSegarPenuh = true;
+  if (jedaMs) ovJedaOfflineMs = jedaMs;
+  // Dasbor sedang terbuka di layar -> langsung tarik ulang penuh (tanpa menampilkan angka lama)
+  if (ovDasborSedangTerlihat()) setTimeout(() => { if (ovPerluSegarPenuh && ovDasborSedangTerlihat()) fetchDashboardWeb(); }, 0);
+}
+function ovCekJedaSetelahKembali() {
+  const terakhir = ovAktifTerakhirMs || ovBacaAktifTerakhir();
+  if (terakhir && Date.now() - terakhir > OV_BATAS_OFFLINE_MS) ovTandaiOfflineLama(Date.now() - terakhir);
+  ovDetakTerakhir = 0; // jeda sudah dinilai di atas - jangan dihitung dobel oleh detak berikutnya
+  ovCatatAktif();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { ovAktifTerakhirMs = Date.now(); try { if (navigator.onLine !== false) localStorage.setItem(OV_KUNCI_AKTIF, String(ovAktifTerakhirMs)); } catch (e) { } return; }
+  ovCekJedaSetelahKembali();
+});
+window.addEventListener('pagehide', () => { try { if (navigator.onLine !== false) localStorage.setItem(OV_KUNCI_AKTIF, String(Date.now())); } catch (e) { } });
+window.addEventListener('online', ovCekJedaSetelahKembali);
+setInterval(ovCatatAktif, 60000);
+setTimeout(ovCatatAktif, 1500); // catat sesi ini (setelah keputusan ovPerluSegarPenuh di atas dibuat)
+
+function ovUmurCacheMs(d) {
+  if (!d) return Infinity;
+  const t = Number(d._diambil) || Number(d.diperbarui) || 0;
+  return t ? Date.now() - t : Infinity;
+}
+function ovLoaderTampil(tampil) {
+  const box = el('ov-loader');
+  if (!box) return;
+  if (tampil) {
+    box.classList.remove('gagal');
+    box.querySelectorAll('[data-ldr]').forEach(li => li.classList.remove('aktif', 'selesai'));
+    box.setAttribute('aria-hidden', 'false');
+    // reflow sekali supaya transisi opacity selalu jalan mulus
+    void box.offsetWidth;
+    box.classList.add('tampil');
+  } else {
+    box.classList.remove('tampil');
+    box.setAttribute('aria-hidden', 'true');
+  }
+}
+function ovLoaderLangkah(n) {
+  const box = el('ov-loader');
+  if (!box) return;
+  box.querySelectorAll('[data-ldr]').forEach(li => {
+    const k = Number(li.dataset.ldr);
+    li.classList.toggle('selesai', k < n);
+    li.classList.toggle('aktif', k === n);
+  });
+}
+function ovLoaderGagal(pesan) {
+  const box = el('ov-loader');
+  if (!box) return;
+  el('ov-loader-gagal-teks').textContent = 'Gagal memuat data: ' + (pesan || 'tidak diketahui');
+  box.classList.add('gagal');
+}
+function ovLoaderSubteks(teks) { const s = el('ov-loader-sub'); if (s) s.textContent = teks; }
+
+async function ovMuatPenuhDenganLoader() {
+  const token = ++ovMuatPenuhToken;
+  ovMuatPenuhBerjalan = true;
+  // Buang cache lama sepenuhnya (memori + localStorage) - yang tampil berikutnya HANYA data server
+  ovRekap = null; ovDataOverviewCache = null; ovStokTerakhirKey = '';
+  try { localStorage.removeItem(ovRekapKunciLokal()); } catch (e) { }
+  if (!el('ov-kpi-grid-utama').children.length) ovRenderKpiGrid(null);
+  el('ov-kpi-grid-utama').classList.add('ov-memuat');
+  const jedaMenit = Math.round((ovJedaOfflineMs || 0) / 60000);
+  ovLoaderSubteks(jedaMenit > 60
+    ? `Anda offline sekitar ${jedaMenit >= 120 ? Math.floor(jedaMenit / 60) + ' jam' : jedaMenit + ' menit'}, jadi data lama tidak ditampilkan. Mengambil data langsung dari server.`
+    : 'Data lama tidak ditampilkan. Mengambil data langsung dari server.');
+  ovLoaderTampil(true);
+  ovSetStatusData('Mengambil data terbaru dari server...', 'info');
+  ovLoaderLangkah(1);
+  try {
+    await new Promise(r => requestAnimationFrame(() => r())); // biarkan loader ter-render dulu (anti freeze)
+    ovLoaderLangkah(2);
+    const d = await ovAmbilRekap();
+    if (token !== ovMuatPenuhToken) return;
+    // Rekap di server sudah lama (trigger otomatis telat) -> hitung ulang dulu sebelum ditampilkan
+    if (d && d.umurMenit >= Math.max(30, d.basiMenit || 5)) {
+      ovLoaderLangkah(3);
+      try { await ovAmbilRekap({ perbarui: true }); }
+      catch (eP) { ovSetStatusData('Gagal menghitung ulang: ' + eP.message, 'err', true); }
+      if (token !== ovMuatPenuhToken) return;
+    }
+    ovLoaderLangkah(4);
+    await new Promise(r => requestAnimationFrame(() => r()));
+    ovPerluSegarPenuh = false;
+    ovJedaOfflineMs = 0;
+    ovRenderDariRekap();
+    ovSetStatusData(ovTeksUmur(ovRekap), 'ok', true);
+    ovLoaderLangkah(5);
+    // Rekap masih sedikit basi (< 30 menit) -> perbarui diam-diam seperti biasa, tampilan tetap bisa dipakai
+    if (ovRekap && ovRekap.umurMenit >= (ovRekap.basiMenit || 5) && ovRekap.umurMenit < 30) ovPerbaruiRekap(false);
+    setTimeout(() => { if (token === ovMuatPenuhToken) ovLoaderTampil(false); }, 220);
+  } catch (err) {
+    if (token !== ovMuatPenuhToken) return;
+    el('ov-kpi-grid-utama').classList.remove('ov-memuat');
+    ovSetStatusData('Gagal memuat: ' + err.message, 'err', true);
+    ovLoaderGagal(err.message);
+  } finally {
+    if (token === ovMuatPenuhToken) ovMuatPenuhBerjalan = false;
+  }
+  tampilkanSaranAIUntukHalamanIni();
+}
+
 async function fetchDashboardWeb() {
   if (!ovTanggalMulaiAktif) {
     ovTanggalMulaiAktif = ovTglLokal();
@@ -12606,6 +12931,14 @@ async function fetchDashboardWeb() {
   }
   el('ov-periode-label').textContent = ovTanggalMulaiAktif === ovTanggalAkhirAktif ? ovTanggalMulaiAktif : (ovTanggalMulaiAktif + ' s/d ' + ovTanggalAkhirAktif);
   ovRenderTugasHarian();
+
+  // 0) Offline > 1 jam ATAU data di browser sudah > 1 jam -> JANGAN tampilkan cache lama: loader + tarik penuh
+  if (ovMuatPenuhBerjalan) return;
+  if (!ovPerluSegarPenuh) {
+    const kandidat = ovRekap || ovRekapMuatLokal();
+    if (kandidat && ovUmurCacheMs(kandidat) > OV_BATAS_OFFLINE_MS) ovPerluSegarPenuh = true;
+  }
+  if (ovPerluSegarPenuh) { await ovMuatPenuhDenganLoader(); return; }
 
   // 1) Tampil INSTAN dari memori / localStorage (kalau rekap lokal masih hari yang sama)
   if (!ovRekap) {
@@ -24638,15 +24971,8 @@ async function intOtorisasi(opsi) {
   const kunci = opsi.idKoneksi || ('baru:' + opsi.platform);
   let jendela = null;
   if (INT_OAUTH_MODE === 'tab-baru') {
-    // Tutup popup otorisasi lama yang masih tertinggal (mis. halaman error TikTok) supaya tidak "dipakai ulang" diam-diam
-    try { if (intOAuthMenunggu && intOAuthMenunggu.jendela && !intOAuthMenunggu.jendela.closed) intOAuthMenunggu.jendela.close(); } catch (e) { }
-    // Nama jendela UNIK per klik: kalau memakai nama tetap, browser memakai ulang popup lama yang sudah berada di domain
-    // TikTok/Google (beda origin) -> akses document-nya error -> fungsi berhenti tanpa popup & tanpa pesan.
-    jendela = window.open('', 'omni_oauth_' + Date.now(), 'width=520,height=720,left=' + Math.max(0, (screen.width - 520) / 2) + ',top=' + Math.max(0, (screen.height - 720) / 2));
-    if (jendela) {
-      try { jendela.document.write('<body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:90vh;color:#64748b;">Menyiapkan halaman login resmi...</body>'); } catch (e) { }
-      try { jendela.focus(); } catch (e) { }
-    }
+    jendela = window.open('', 'omni_oauth', 'width=520,height=720,left=' + Math.max(0, (screen.width - 520) / 2) + ',top=' + Math.max(0, (screen.height - 720) / 2));
+    if (jendela) jendela.document.write('<body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:90vh;color:#64748b;">Menyiapkan halaman login resmi...</body>');
   }
   if (opsi.idKoneksi) { intSibuk[opsi.idKoneksi] = 'oauth'; intPesan[opsi.idKoneksi] = { teks: 'Membuka halaman login resmi...', kelas: 'info' }; intRender(); }
   try {
@@ -24655,7 +24981,6 @@ async function intOtorisasi(opsi) {
     const id = d.idKoneksi;
     if (jendela && !jendela.closed) {
       jendela.location.href = d.url;
-      try { jendela.focus(); } catch (e) { }
       intOAuthMenunggu = { idKoneksi: id, jendela };
       if (intPesan[id] || opsi.idKoneksi) intPesan[id] = { teks: 'Selesaikan login di jendela yang terbuka...', kelas: 'info' };
       const cek = setInterval(() => {
@@ -29105,6 +29430,7 @@ function hargaDaftarDirty() {
 /* ---------- Fetch ---------- */
 async function katalogFetchHarga() {
   hargaGantiTab(hargaTabAktif);
+  hargaRenderKapsul();
   if (katalogHargaCache.length === 0) {
     const dataLokal = ambilCacheLokal('katalog_harga_v7');
     if (dataLokal) hargaTerapkanDataServer(dataLokal);
@@ -29208,10 +29534,53 @@ function hargaSelChannelHtml(sku, ch, d) {
     </td>`;
 }
 
+/* ===================== LOGO ASLI MARKETPLACE (sumber: ICON_CHANNEL_MAP - aset yang sama dengan Katalog > Produk Master) =====================
+   Base64 diubah SEKALI menjadi blob: URL (di-cache) - jadi ratusan <img> di tabel tidak mengulang string base64 besar
+   di DOM (render tabel tetap ringan & cepat). */
+const OMNI_LOGO_URL_CACHE = {};
+function omniLogoMpUrl(platform) {
+  if (OMNI_LOGO_URL_CACHE[platform] !== undefined) return OMNI_LOGO_URL_CACHE[platform];
+  let url = '';
+  try {
+    const b64 = (typeof ICON_CHANNEL_MAP !== 'undefined' && ICON_CHANNEL_MAP) ? ICON_CHANNEL_MAP[platform] : '';
+    if (b64) {
+      const biner = atob(b64), arr = new Uint8Array(biner.length);
+      for (let i = 0; i < biner.length; i++) arr[i] = biner.charCodeAt(i);
+      url = URL.createObjectURL(new Blob([arr], { type: 'image/png' }));
+    }
+  } catch (e) { url = ''; }
+  OMNI_LOGO_URL_CACHE[platform] = url;
+  return url;
+}
+function omniLogoMpImg(platform, ukuran) {
+  const u = ukuran || 16, url = omniLogoMpUrl(platform);
+  if (!url) return '';
+  return `<img src="${url}" class="omni-logo-mp" width="${u}" height="${u}" alt="${escapeHtml(platform)}" title="${escapeHtml(platform)}" decoding="async" draggable="false" />`;
+}
+// TikTok Shop & Tokopedia = 1 Seller Center gabungan -> tampil sebagai pasangan logo
+function omniLogoPlatformHtml(platform, ukuran) {
+  if (platform === 'TikTok Shop' || platform === 'TikTok Shop & Tokopedia') {
+    return `<span class="omni-logo-duo" title="TikTok Shop &amp; Tokopedia">${omniLogoMpImg('TikTok Shop', ukuran)}${omniLogoMpImg('Tokopedia', ukuran)}</span>`;
+  }
+  return omniLogoMpImg(platform, ukuran) || '';
+}
+function omniLogoSupplierHtml(ukuran) {
+  const u = ukuran || 16;
+  return `<span class="omni-logo-supplier" style="width:${u}px;height:${u}px;" title="Supplier"><svg viewBox="0 0 24 24" width="${Math.round(u * 0.75)}" height="${Math.round(u * 0.75)}" aria-hidden="true"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>`;
+}
+
 /* ===================== HARGA LIVE AKTUAL (harga yang benar-benar tayang di marketplace) ===================== */
 let hargaLiveMap = {};          // sku -> [{ platform, hargaLive, hargaList, status, ... }]
 let hargaLiveRingkas = null;
 let hargaLiveSedangSync = false;
+let hargaLiveKanalSync = '';    // 'shopee' | 'tiktok' | 'semua' - kapsul yang sedang berputar
+let hargaLiveKoneksi = null;    // { 'Shopee': bool, 'TikTok Shop': bool, 'Tokopedia': bool }
+let hargaLiveWaktuPf = {};      // { 'Shopee': 'yyyy-MM-dd HH:mm', 'TikTok Shop': ... }
+// Marketplace yang terdaftar untuk Sync Harga Aktual (1 kapsul per marketplace / Seller Center)
+const HARGA_KAPSUL = [
+  { kanal: 'shopee', pf: 'Shopee', label: 'Shopee' },
+  { kanal: 'tiktok', pf: 'TikTok Shop', label: 'TikTok & Tokopedia' }
+];
 const HARGA_LIVE_IKON = { 'Shopee': '🛍️', 'TikTok Shop': '🎵' };
 const HARGA_LIVE_LABEL = { 'AMAN': 'Aman', 'BEDA DENGAN ERP': 'Beda dgn ERP', 'DI BAWAH BATAS AMAN': 'Di bawah batas aman', 'HPP KOSONG': 'HPP kosong', 'HARGA KOSONG': 'Harga kosong', 'TIDAK DITEMUKAN': 'Tidak ditemukan' };
 function hargaLiveKelas(status) {
@@ -29236,7 +29605,7 @@ function hargaLiveSelHtml(sku) {
       `Sync: ${r.waktu || '-'}`
     ].filter(Boolean).join('\n');
     return `<div class="harga-live-item ${hargaLiveKelas(r.status)}" title="${escapeHtml(tip)}">
-        <div class="harga-live-baris"><span class="harga-live-pf" aria-hidden="true">${HARGA_LIVE_IKON[r.platform] || '🛒'}</span><span class="harga-live-angka">${live ? escapeHtml(ocRp(live)) : '-'}</span></div>
+        <div class="harga-live-baris"><span class="harga-live-pf" aria-hidden="true">${omniLogoPlatformHtml(r.platform, 16) || '🛒'}</span><span class="harga-live-angka">${live ? escapeHtml(ocRp(live)) : '-'}</span></div>
         ${list && live && live < list ? `<s class="harga-live-coret">${escapeHtml(ocRp(list))}</s>` : ''}
         <span class="harga-live-status">${escapeHtml(HARGA_LIVE_LABEL[r.status] || r.status || '-')}</span>
       </div>`;
@@ -29245,7 +29614,63 @@ function hargaLiveSelHtml(sku) {
 function hargaLiveRenderSel() {
   document.querySelectorAll('#katalog-harga-body td[data-role="live"]').forEach(td => { td.innerHTML = hargaLiveSelHtml(td.dataset.liveSku); });
 }
+// "2026-10-04 14:30" -> ringkas: "14:30" (hari ini) · "Kmrn 09:12" · "4 Okt" (tahun ini) · "4/10/25"
+function hargaWaktuRingkas(w) {
+  const m = String(w || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if (!m) return '';
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  const hariIni = new Date(); hariIni.setHours(0, 0, 0, 0);
+  const selisih = Math.round((hariIni - d) / 86400000);
+  const jam = m[4] ? `${m[4]}:${m[5]}` : '';
+  const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  if (selisih === 0) return jam || 'Hari ini';
+  if (selisih === 1) return 'Kmrn' + (jam ? ' ' + jam : '');
+  if (d.getFullYear() === hariIni.getFullYear()) return `${d.getDate()} ${BLN[d.getMonth()]}`;
+  return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
+}
+function hargaKapsulStatus(k) {
+  const r = hargaLiveRingkas || {};
+  const koneksi = hargaLiveKoneksi || r.koneksi || null;
+  const terhubung = koneksi ? !!koneksi[k.pf] : null;
+  const hasil = r.platform && r.platform[k.pf];
+  const waktu = (hargaLiveWaktuPf && hargaLiveWaktuPf[k.pf]) || (r.waktuPlatform && r.waktuPlatform[k.pf]) || ((hasil && (hasil.ok || hasil.parsial)) ? r.waktu : '');
+  let kelas = terhubung === false ? 'putus' : (terhubung ? 'terhubung' : '');
+  if (terhubung && hasil && !hasil.ok) kelas = 'peringatan';
+  return { terhubung, hasil, waktu, kelas };
+}
+function hargaRenderKapsul() {
+  const wrap = el('harga-sync-kapsul-grup');
+  if (!wrap) return;
+  const html = HARGA_KAPSUL.map(k => {
+    const st = hargaKapsulStatus(k);
+    const sinkron = hargaLiveSedangSync && (hargaLiveKanalSync === k.kanal || hargaLiveKanalSync === 'semua');
+    const ringkasWaktu = hargaWaktuRingkas(st.waktu);
+    const sub = sinkron ? 'Sync…' : st.terhubung === false ? 'Belum terhubung' : (ringkasWaktu ? '⟳ ' + ringkasWaktu : 'Belum pernah sync');
+    const tip = [
+      `Sync Harga Aktual ${k.label}`,
+      st.terhubung === false ? 'Status: BELUM terhubung dengan OmniAI - hubungkan dulu di Pengaturan > Otorisasi Marketplace' : st.terhubung ? 'Status: Terhubung ✓' : '',
+      st.waktu ? `Sync terakhir: ${st.waktu}` : 'Belum pernah di-sync',
+      st.hasil && !st.hasil.ok && st.hasil.pesan ? `⚠️ ${st.hasil.pesan}` : ''
+    ].filter(Boolean).join('\n');
+    return `<button type="button" class="harga-kapsul ${st.kelas}${sinkron ? ' sinkron' : ''}" data-kanal="${k.kanal}"
+        onclick="hargaSyncLive('${k.kanal}')" ${hargaLiveSedangSync ? 'disabled' : ''} title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}">
+        <span class="harga-kapsul-logo">${omniLogoPlatformHtml(k.pf, 20)}</span>
+        <span class="harga-kapsul-teks"><b>${escapeHtml(k.label)}</b><small><span class="harga-kapsul-dot" aria-hidden="true"></span>${escapeHtml(sub)}</small></span>
+      </button>`;
+  }).join('');
+  const nTerhubung = HARGA_KAPSUL.filter(k => hargaKapsulStatus(k).terhubung !== false).length;
+  const semuaSinkron = hargaLiveSedangSync && hargaLiveKanalSync === 'semua';
+  const tombolSemua = nTerhubung >= 2
+    ? `<button type="button" class="harga-kapsul harga-kapsul-semua${semuaSinkron ? ' sinkron' : ''}" onclick="hargaSyncLive('')" ${hargaLiveSedangSync ? 'disabled' : ''} title="Sync Harga Aktual semua marketplace sekaligus">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.7 5.6M4 12a8 8 0 0 1 13.7-5.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 3v4h-4M6 21v-4h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${semuaSinkron ? 'Sync…' : 'Semua'}
+      </button>`
+    : '';
+  wrap.innerHTML = html + tombolSemua;
+}
+
 function hargaLiveRenderInfo() {
+  hargaRenderKapsul();
   const info = el('harga-live-info'), box = el('harga-live-alert'), r = hargaLiveRingkas;
   if (info) {
     let t = r ? `Harga live: sync ${r.waktu} · ${r.jumlah} listing${r.beda ? ` · ${r.beda} beda dgn ERP` : ''}` : 'Harga live belum pernah di-sync';
@@ -29258,13 +29683,17 @@ function hargaLiveRenderInfo() {
   if (!alerts.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
   box.style.display = 'block';
   box.innerHTML = `<b>🚨 ${r.alert} listing tayang DI BAWAH batas harga aman (HPP + komisi)</b>
-    <ul>${alerts.slice(0, 8).map(a => `<li>${HARGA_LIVE_IKON[a.platform] || '🛒'} <b>${escapeHtml(a.nama || a.sku)}</b> [${escapeHtml(a.sku)}]: tayang ${escapeHtml(ocRp(a.live))} &lt; aman ${escapeHtml(ocRp(a.batas))}</li>`).join('')}</ul>
+    <ul>${alerts.slice(0, 8).map(a => `<li>${omniLogoPlatformHtml(a.platform, 14) || '🛒'} <b>${escapeHtml(a.nama || a.sku)}</b> [${escapeHtml(a.sku)}]: tayang ${escapeHtml(ocRp(a.live))} &lt; aman ${escapeHtml(ocRp(a.batas))}</li>`).join('')}</ul>
     ${r.alert > 8 ? `<div class="harga-live-alert-lagi">…dan ${r.alert - 8} listing lainnya (lihat sheet "Harga Live Marketplace").</div>` : ''}`;
 }
 function hargaLiveTerapkan(data) {
   hargaLiveMap = {};
   (data.data || []).forEach(r => { (hargaLiveMap[r.sku] = hargaLiveMap[r.sku] || []).push(r); });
   hargaLiveRingkas = data.ringkas || null;
+  if (data.koneksi) hargaLiveKoneksi = data.koneksi;
+  else if (hargaLiveRingkas && hargaLiveRingkas.koneksi) hargaLiveKoneksi = hargaLiveRingkas.koneksi;
+  if (data.waktuPlatform) hargaLiveWaktuPf = data.waktuPlatform;
+  else if (hargaLiveRingkas && hargaLiveRingkas.waktuPlatform) hargaLiveWaktuPf = hargaLiveRingkas.waktuPlatform;
   hargaLiveRenderSel();
   hargaLiveRenderInfo();
 }
@@ -29274,22 +29703,39 @@ async function hargaLiveMuat(segar) {
     if (d && d.success) hargaLiveTerapkan(d);
   } catch (e) { /* data live opsional - tabel harga tetap jalan */ }
 }
-async function hargaSyncLive() {
+// kanal: 'shopee' | 'tiktok' | '' (semua marketplace yang terhubung)
+async function hargaSyncLive(kanal) {
   if (hargaLiveSedangSync) return;
+  kanal = kanal === 'shopee' || kanal === 'tiktok' ? kanal : '';
+  const kapsul = HARGA_KAPSUL.find(k => k.kanal === kanal);
+  if (kapsul && hargaKapsulStatus(kapsul).terhubung === false) {
+    pgrToast(`🔌 ${kapsul.label} belum terhubung dengan OmniAI - hubungkan dulu di Pengaturan > Otorisasi Marketplace`);
+    if (el('btn-nav-pengaturan') && el('btn-nav-pengaturan').style.display !== 'none' && typeof pgtBukaSubMenu === 'function') {
+      gantiTabWeb('pengaturan'); pgtBukaSubMenu('marketplace');
+    }
+    return;
+  }
   hargaLiveSedangSync = true;
-  const btn = el('harga-btn-sync-live'), info = el('harga-live-info');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Menarik harga live…'; }
-  if (info) info.textContent = 'Menghubungi Shopee & TikTok Shop… (bisa 1-4 menit, jangan tutup halaman)';
+  hargaLiveKanalSync = kanal || 'semua';
+  const info = el('harga-live-info');
+  hargaRenderKapsul();
+  if (info) info.textContent = `Menghubungi ${kapsul ? kapsul.label : 'semua marketplace'}… (bisa 1-4 menit, jangan tutup halaman)`;
   try {
-    const d = await postJson({ aksi: 'sync_harga_live', email: currentUserEmail() }, 330000);
+    const d = await postJson({ aksi: 'sync_harga_live', kanal, email: currentUserEmail() }, 330000);
     if (!d || !d.success) throw new Error((d && d.error) || 'Sync gagal');
+    hargaLiveSedangSync = false;
     hargaLiveTerapkan(d);
     hargaLiveMuat(true); // segarkan cache baca di browser
+    const hasil = d.ringkas && d.ringkas.platform ? d.ringkas.platform : {};
+    const target = kapsul ? [kapsul] : HARGA_KAPSUL;
+    const gagal = target.filter(k => hasil[k.pf] && !hasil[k.pf].ok);
+    pgrToast(gagal.length ? `⚠️ Sync ${gagal.map(k => k.label).join(', ')} belum sempurna - lihat keterangan di samping tombol` : `✓ Harga Aktual ${kapsul ? kapsul.label : 'semua marketplace'} diperbarui`);
   } catch (e) {
     if (info) info.textContent = '⚠️ Sync Harga Aktual gagal: ' + e.message;
   } finally {
     hargaLiveSedangSync = false;
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Harga Aktual'; }
+    hargaLiveKanalSync = '';
+    hargaRenderKapsul();
   }
 }
 
@@ -29369,7 +29815,11 @@ function hargaDaftarTerhubung(p) {
 // Shopee -> TikTok Shop -> Tokopedia -> Supplier -> lainnya. Kode yang cocok dengan kata kunci pencarian
 // di-highlight. Read-only: perubahan SKU terhubung dilakukan lewat modul Katalog Produk Master.
 const HARGA_SKU_URUTAN = ['Shopee', 'TikTok Shop', 'Tokopedia', 'Supplier'];
-const HARGA_SKU_IKON = { Supplier: '📦', Shopee: '🛍️', 'TikTok Shop': '🎵', Tokopedia: '🟢' };
+const HARGA_SKU_IKON = { Supplier: '📦', Shopee: '🛍️', 'TikTok Shop': '🎵', Tokopedia: '🟢' }; // cadangan teks (log), tampilan tabel memakai logo asli
+function hargaIkonGrupSku(j) {
+  if (j === 'Supplier') return omniLogoSupplierHtml(16);
+  return omniLogoMpImg(j, 16) || (HARGA_SKU_IKON[j] || '🏷️');
+}
 function hargaTerhubungHtml(p) {
   const d = hargaDaftarTerhubung(p);
   if (!d.length) return '<span class="harga-teks-kosong">Belum terhubung</span>';
@@ -29383,7 +29833,7 @@ function hargaTerhubungHtml(p) {
   const kwNorm = hargaNormKode(kw);
   return `<div class="harga-sku-list" title="HPP produk ini berlaku untuk semua SKU terhubung - stok & laporan keuangan dihitung sebagai 1 produk. Untuk mengubah SKU terhubung, silakan lakukan melalui modul Katalog Produk Master.">
     ${kunci.map(j => `<div class="harga-sku-grup">
-        <span class="harga-sku-ikon" title="${escapeHtml(j)}" aria-label="${escapeHtml(j)}">${HARGA_SKU_IKON[j] || '🏷️'}</span>
+        <span class="harga-sku-ikon" title="${escapeHtml(j)}" aria-label="${escapeHtml(j)}">${hargaIkonGrupSku(j)}</span>
         <span class="harga-sku-kode-wrap">${grup[j].map(x => `<code class="${hargaKodeCocok(x.kode, kw, kwNorm) ? 'cocok' : ''}" title="${escapeHtml(x.jenis || j)}">${escapeHtml(x.kode)}</code>`).join('')}</span>
       </div>`).join('')}
   </div>`;
@@ -32184,11 +32634,13 @@ function dashkatFormatRupiah(angka) { return 'Rp ' + Math.round(angka || 0).toLo
 /* ============================================================
    PEMBELIAN - Kontak Pemasok, Transaksi Pembelian, Laporan
    ============================================================ */
-const BEL_SUB = ['transaksi', 'po', 'kontak', 'laporan', 'claim'];
-const BEL_JUDUL = { transaksi: 'Transaksi Pembelian', po: 'Pesanan PO', kontak: 'Kontak Pemasok', laporan: 'Laporan', claim: 'Claim Kurang/Rusak' };
+// Pesanan PO sudah dilebur ke tab Transaksi Pembelian (segmen "Pesanan PO") - 'po' tetap diterima sebagai alias
+const BEL_SUB = ['transaksi', 'kontak', 'laporan', 'claim'];
+const BEL_JUDUL = { transaksi: 'Transaksi Pembelian & PO', kontak: 'Kontak Pemasok', laporan: 'Laporan', claim: 'Claim Kurang/Rusak' };
 function belBukaSubMenu(sub) {
   // Tab lama "Minta Stock (Gudang)" sudah dilebur ke Transaksi Pembelian -> tombol "Cek Memo Gudang"
   const bukaMemo = sub === 'mintastock';
+  const segmen = sub === 'po' ? 'po' : (sub === 'transaksi' ? 'stok' : null);
   if (bukaMemo || !BEL_SUB.includes(sub)) sub = 'transaksi';
   gantiTabWeb('pembelian');
   simpanLokasiTerakhir('pembelian', sub);
@@ -32199,9 +32651,8 @@ function belBukaSubMenu(sub) {
   document.querySelectorAll('.web-nav-sub[data-belsub]').forEach(a => a.classList.toggle('active', a.dataset.belsub === sub));
   if (el('bel-judul-sub')) el('bel-judul-sub').textContent = BEL_JUDUL[sub];
   if (sub === 'kontak') belFetchKontak();
-  else if (sub === 'transaksi') { belFetchPembelianManual(); bmmMuat(false, true); }
+  else if (sub === 'transaksi') { belFetchPembelianManual(); bmmMuat(false, true); belSegmen(segmen || belSegAktif, true); belFetchPo(); }
   else if (sub === 'claim') belFetchClaim();
-  else if (sub === 'po') belFetchPo();
   else if (sub === 'laporan') belFetchLaporan();
   if (bukaMemo) bmmBuka();
 }
@@ -32408,11 +32859,11 @@ function belRenderPo() {
       <td>${escapeHtml(o.pembeli)}</td>
       <td class="po-barang" title="${pgrAttr(barang)}">${escapeHtml(barang)}</td>
       <td class="po-n">Rp ${Math.round(o.jual).toLocaleString('id-ID')}</td>
-      <td class="po-n">Rp ${Math.round(o.modal + o.biayaLain).toLocaleString('id-ID')}</td>
+      <td class="po-n">Rp ${Math.round(o.modal + o.biayaLain).toLocaleString('id-ID')}${(o.pembelian || []).length ? `<div class="po-nota-terhubung" title="${pgrAttr(o.pembelian.map(x => x.noInvoice + ' · ' + x.supplier).join('\n'))}">🧾 ${o.pembelian.length} nota tertaut</div>` : ''}</td>
       <td class="po-n ${o.laba < 0 ? 'po-rugi' : 'po-untung'}">Rp ${Math.round(o.laba).toLocaleString('id-ID')}</td>
       <td><div class="po-dok-badges">${dok}</div></td>
       <td>${batal ? '<span class="web-status-pill batal">🚫 Batal</span>' : o.dokLengkap ? '<span class="web-status-pill dikirim">✓ Lengkap</span>' : `<span class="web-status-pill aktif" title="Dokumen ${o.jumlahDok}/3">⏳ Dokumen ${o.jumlahDok}/3</span>`}${!batal && !o.tanggalBayar ? '<div style="font-size:10.5px; color:#b45309; margin-top:3px;">Belum dibayar</div>' : ''}</td>
-      <td>${batal ? '' : `<button type="button" class="web-btn-secondary" style="padding:4px 10px; font-size:11.5px; margin:0;" onclick="poBuka('${pgrAttr(o.noPo)}')">${o.dokLengkap ? 'Buka' : 'Lengkapi'}</button>`}</td>
+      <td>${batal ? '' : `<div style="display:flex; gap:6px; flex-wrap:wrap;"><button type="button" class="web-btn-secondary" style="padding:4px 10px; font-size:11.5px; margin:0;" onclick="poBuka('${pgrAttr(o.noPo)}')">${o.dokLengkap ? 'Buka' : 'Lengkapi'}</button><button type="button" class="web-btn-secondary" style="padding:4px 10px; font-size:11.5px; margin:0;" onclick="pmxBukaUntukPo('${pgrAttr(o.noPo)}')" title="Catat nota belanja untuk PO ini - modal &amp; laba PO diperbarui otomatis">🧾 Nota</button></div>`}</td>
     </tr>`;
   }).join('');
 }
@@ -33283,6 +33734,407 @@ async function belKonfirmasiBatalkanFinal() {
   }
 }
 
+
+/* =====================================================================================
+   PEMBELIAN TERPADU: Pembelian Stok (ber-SKU) + Pembelian untuk Pesanan PO (tanpa SKU) dalam SATU form
+   - SKU sengaja dikosongkan -> muncul "Apakah ini Pembelian untuk Pesanan PO?" -> Ya = pilih ID PO.
+   - Baris tanpa SKU dipetakan ke barang PO (kolom "Untuk Barang PO") -> server memperbarui modal/laba PO
+     (aksi simpan_pembelian_po) sehingga Laporan Keuangan langsung ikut benar.
+   - SKU yang belum ada di Katalog > Master -> "SKU belum terdaftar. Daftarkan sebagai Katalog Baru?"
+   ===================================================================================== */
+const pmx = { modePo: false, noPo: '', ditolak: false, sedangTanya: false, skuTerdaftar: null, memuatSku: null, skuDitanya: new Set(), idKirimPo: '' };
+function pmxNormSku(s) { return String(s || '').trim().toLowerCase(); }
+function pmxNormNama(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function pmxBuatIdKirim() { return 'bpo-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9); }
+
+/* ---------- Dialog konfirmasi generik (Promise) ---------- */
+function omniDialog(opsi) {
+  opsi = opsi || {};
+  return new Promise(resolve => {
+    const latar = document.createElement('div');
+    latar.className = 'omni-dlg-latar';
+    latar.innerHTML = `<div class="omni-dlg" role="alertdialog" aria-modal="true" aria-labelledby="omni-dlg-judul">
+        ${opsi.ikon ? `<div class="omni-dlg-ikon" aria-hidden="true">${opsi.ikon}</div>` : ''}
+        <h4 id="omni-dlg-judul">${escapeHtml(opsi.judul || 'Konfirmasi')}</h4>
+        <div class="omni-dlg-isi">${opsi.isiHtml || ''}</div>
+        <div class="omni-dlg-tombol">${(opsi.tombol || [{ label: 'OK', nilai: 'ok', kelas: 'web-btn-primary' }]).map((t, i) =>
+          `<button type="button" class="${t.kelas || 'web-btn-secondary'}" data-dlg-i="${i}">${escapeHtml(t.label)}</button>`).join('')}</div>
+      </div>`;
+    const tombol = opsi.tombol || [{ label: 'OK', nilai: 'ok', kelas: 'web-btn-primary' }];
+    const fokusSebelum = document.activeElement;
+    let selesai = false;
+    const tutup = nilai => {
+      if (selesai) return;
+      selesai = true;
+      const input = {};
+      latar.querySelectorAll('[data-dlg-nama]').forEach(x => { input[x.dataset.dlgNama] = x.type === 'checkbox' ? x.checked : x.value; });
+      document.removeEventListener('keydown', onKey, true);
+      latar.classList.remove('tampil');
+      setTimeout(() => latar.remove(), 200);
+      try { if (fokusSebelum && fokusSebelum.focus && document.contains(fokusSebelum)) fokusSebelum.focus({ preventScroll: true }); } catch (e) { }
+      resolve({ nilai, input });
+    };
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); tutup(opsi.nilaiBatal || 'batal'); }
+      else if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
+        e.preventDefault();
+        const utama = tombol.findIndex(t => /primary/.test(t.kelas || ''));
+        if (utama >= 0) tutup(tombol[utama].nilai);
+      }
+    };
+    latar.addEventListener('mousedown', e => { if (e.target === latar) tutup(opsi.nilaiBatal || 'batal'); });
+    latar.querySelectorAll('[data-dlg-i]').forEach(b => b.addEventListener('click', () => tutup(tombol[Number(b.dataset.dlgI)].nilai)));
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(latar);
+    void latar.offsetWidth;
+    latar.classList.add('tampil');
+    setTimeout(() => {
+      const pertama = latar.querySelector('input, select');
+      const utama = latar.querySelector('.web-btn-primary');
+      (pertama || utama || latar.querySelector('button')).focus();
+    }, 30);
+  });
+}
+
+/* ---------- Daftar SKU terdaftar (Master + SKU Supplier + SKU Marketplace terhubung) ---------- */
+async function pmxMuatSkuTerdaftar(paksa) {
+  if (pmx.skuTerdaftar && !paksa) return pmx.skuTerdaftar;
+  if (pmx.memuatSku) return pmx.memuatSku;
+  pmx.memuatSku = (async () => {
+    try {
+      const email = currentUserEmail();
+      const [rp, rs, rm] = await Promise.allSettled([
+        postJson({ aksi: 'lihat_katalog_produk', denganArsip: true, email }, 60000, true),
+        postJson({ aksi: 'lihat_sku_supplier_terhubung', email }, 60000, true),
+        postJson({ aksi: 'lihat_sku_marketplace_terhubung', email }, 60000, true)
+      ]);
+      const dp = rp.status === 'fulfilled' ? rp.value : null;
+      if (!dp || !dp.success) throw new Error('Katalog tidak terbaca');
+      const set = new Set();
+      (dp.daftar || []).forEach(p => { if (p.sku) set.add(pmxNormSku(p.sku)); });
+      const ds = rs.status === 'fulfilled' ? rs.value : null;
+      if (ds && ds.success) (ds.daftar || []).forEach(d => String(d.skuSupplier || '').split(/[\s,]+/).forEach(k => { if (k.trim()) set.add(pmxNormSku(k)); }));
+      const dm = rm.status === 'fulfilled' ? rm.value : null;
+      if (dm && dm.success) (dm.daftar || []).forEach(d => { if (d.skuMarketplace) set.add(pmxNormSku(d.skuMarketplace)); });
+      pmx.skuTerdaftar = set;
+    } catch (e) {
+      if (!pmx.skuTerdaftar) pmx.skuTerdaftar = null; // gagal muat -> pengecekan dilewati (tidak memblokir simpan)
+    } finally {
+      pmx.memuatSku = null;
+    }
+    return pmx.skuTerdaftar;
+  })();
+  return pmx.memuatSku;
+}
+function pmxStatusSku(sku) {
+  if (!pmx.skuTerdaftar || !String(sku || '').trim()) return null;
+  return pmx.skuTerdaftar.has(pmxNormSku(sku));
+}
+
+/* ---------- Daftar Pesanan PO untuk dropdown ---------- */
+async function pmxMuatDaftarPo() {
+  if (!po.daftar.length) {
+    const lokal = ambilCacheLokal('pesanan_po');
+    if (lokal && lokal.length) { po.daftar = lokal; pmxIsiDropdownPo(); }
+  }
+  try {
+    const r = await postJson({ aksi: 'lihat_pesanan_po', email: currentUserEmail() }, 60000, true);
+    if (r && r.success) {
+      po.daftar = r.daftar || [];
+      simpanCacheLokal('pesanan_po', po.daftar);
+      pmxIsiDropdownPo();
+      if (pmx.noPo) pmxRenderInfoPo();
+      if (el('bel-seg-po') && !el('bel-seg-po').hidden) belRenderPo();
+    }
+  } catch (e) { /* dropdown tetap dari cache */ }
+}
+function pmxDaftarPoAktif() { return (po.daftar || []).filter(o => o.status !== 'Batal'); }
+function pmxPoAktif() { return (po.daftar || []).find(o => o.noPo === pmx.noPo) || null; }
+function pmxIsiDropdownPo() {
+  const sel = el('pmx-po-select');
+  if (!sel) return;
+  const aktif = pmxDaftarPoAktif();
+  sel.innerHTML = `<option value="">${aktif.length ? '- Pilih Pesanan PO -' : 'Belum ada Pesanan PO aktif'}</option>` + aktif.map(o => {
+    const barang = (o.items || []).map(i => i.nama).join(', ');
+    const label = `${o.noPo} · ${o.pembeli}${barang ? ' · ' + (barang.length > 46 ? barang.slice(0, 45) + '…' : barang) : ''}`;
+    return `<option value="${escapeHtml(o.noPo)}" ${o.noPo === pmx.noPo ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+  if (pmx.noPo && !aktif.some(o => o.noPo === pmx.noPo)) pmx.noPo = '';
+}
+function pmxRenderInfoPo() {
+  const box = el('pmx-po-info');
+  if (!box) return;
+  const o = pmxPoAktif();
+  if (!o) {
+    box.innerHTML = pmxDaftarPoAktif().length ? 'Pilih Pesanan PO yang dibelanjakan dengan nota ini.' : 'Belum ada Pesanan PO aktif - buat dulu lewat tombol <b>+ Pesanan PO Baru</b>.';
+    return;
+  }
+  const rp = n => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+  const nNota = (o.pembelian || []).length;
+  box.innerHTML = `<b>${escapeHtml(o.pembeli)}</b> · penjualan ${rp(o.jual)} · modal saat ini ${rp((o.modal || 0) + (o.biayaLain || 0))} · laba ${rp(o.laba)}${nNota ? ` · ${nNota} nota sudah tertaut` : ''}
+    <div class="pmx-po-barang">${(o.items || []).map(i => `<span>${escapeHtml(i.nama)} ×${Number(i.qty) || 0}</span>`).join('')}</div>
+    <div style="margin-top:4px;">Barang tanpa SKU dipetakan di kolom <b>Untuk Barang PO</b>: Harga Modal barang PO = total belanja ÷ qty pesanan. Yang tidak dipetakan (plus ongkir/biaya - diskon) masuk <b>Biaya Lain</b> PO. Stok gudang tidak berubah.</div>`;
+}
+
+/* ---------- Mode PO ---------- */
+function pmxSetModePo(on) {
+  pmx.modePo = !!on;
+  if (pmx.modePo) pmx.ditolak = false;
+  const t = el('pmx-po-toggle'); if (t) t.checked = pmx.modePo;
+  const blok = el('pmx-po-blok'); if (blok) blok.classList.toggle('aktif', pmx.modePo);
+  const pilih = el('pmx-po-pilih'); if (pilih) pilih.hidden = !pmx.modePo;
+  const judul = el('pm-judul-modal'); if (judul) judul.textContent = pmx.modePo ? '📝 Input Pembelian · untuk Pesanan PO' : '📝 Input Pembelian';
+  if (pmx.modePo) {
+    pmxIsiDropdownPo();
+    pmxRenderInfoPo();
+    pmxMuatDaftarPo();
+  }
+  pmRenderItemBody();
+}
+function pmxPilihPo(noPo) {
+  pmx.noPo = String(noPo || '');
+  const sel = el('pmx-po-select'); if (sel && sel.value !== pmx.noPo) sel.value = pmx.noPo;
+  pmItemsAktif.forEach(it => { if (!String(it.sku || '').trim()) delete it.poNama; }); // tebak ulang untuk PO yang baru
+  pmxRenderInfoPo();
+  pmRenderItemBody();
+}
+function pmxTebakBarangPo(nama, o) {
+  const items = (o && o.items) || [];
+  const n = pmxNormNama(nama);
+  if (!n || !items.length) return '';
+  const persis = items.find(i => pmxNormNama(i.nama) === n);
+  if (persis) return persis.nama;
+  const a = spToken(nama);
+  let terbaik = '', skor = 0;
+  items.forEach(i => {
+    const b = spToken(i.nama);
+    if (!a.length || !b.length) return;
+    const inter = b.filter(w => a.includes(w)).length;
+    const s = inter / Math.min(a.length, b.length);
+    if (inter >= 1 && s > skor) { skor = s; terbaik = i.nama; }
+  });
+  if (skor >= 0.5) return terbaik;
+  const mengandung = items.find(i => { const m = pmxNormNama(i.nama); return m && (n.includes(m) || m.includes(n)); });
+  return mengandung ? mengandung.nama : '';
+}
+function pmxSelBarangPoHtml(idx, it) {
+  if (String(it.sku || '').trim()) return '<span class="pmx-tag-stok" title="Baris ber-SKU dicatat sebagai pembelian stok gudang">📦 Stok gudang</span>';
+  const o = pmxPoAktif();
+  if (!o) return '<span style="font-size:11px; color:var(--web-text-dim);">Pilih ID PO dulu</span>';
+  if (it.poNama === undefined) it.poNama = pmxTebakBarangPo(it.nama, o);
+  return `<select class="web-form-input" onchange="pmxUbahBarangPo(${idx}, this.value)" aria-label="Barang PO untuk baris ${idx + 1}">
+      <option value="" ${!it.poNama ? 'selected' : ''}>➕ Biaya pendukung PO</option>
+      ${(o.items || []).map(i => `<option value="${escapeHtml(i.nama)}" ${pmxNormNama(i.nama) === pmxNormNama(it.poNama) ? 'selected' : ''}>${escapeHtml(i.nama)} ×${Number(i.qty) || 0}</option>`).join('')}
+    </select>`;
+}
+function pmxRenderSelPo(idx) {
+  const tr = el('pm-item-body') && el('pm-item-body').querySelector(`tr[data-idx="${idx}"]`);
+  const it = pmItemsAktif[idx];
+  if (!tr || !it) return;
+  const td = tr.querySelector('.pmx-col-po');
+  if (td) td.innerHTML = pmxSelBarangPoHtml(idx, it);
+}
+function pmxUbahBarangPo(idx, nilai) { if (pmItemsAktif[idx]) pmItemsAktif[idx].poNama = nilai; }
+
+/* ---------- Deteksi otomatis: SKU sengaja dikosongkan ---------- */
+function pmxBarisSkuInput(idx) {
+  const tr = el('pm-item-body') && el('pm-item-body').querySelector(`tr[data-idx="${idx}"]`);
+  return tr ? tr.querySelector('input') : null;
+}
+function pmxPerluTanyaPo(idx) {
+  const it = pmItemsAktif[idx];
+  if (!it || pmx.modePo || pmx.ditolak || pmx.sedangTanya) return false;
+  if (el('bel-modal-pembelian-manual').style.display === 'none') return false;
+  return !String(it.sku || '').trim() && !!String(it.nama || '').trim();
+}
+function pmxNamaBerubah(idx) {
+  const it = pmItemsAktif[idx];
+  if (it && pmx.modePo && !String(it.sku || '').trim()) { delete it.poNama; pmxRenderSelPo(idx); }
+  setTimeout(() => {
+    if (!pmxPerluTanyaPo(idx)) return;
+    if (document.activeElement === pmxBarisSkuInput(idx)) return; // user sedang mengisi SKU baris ini
+    pmxTanyaPo(1, idx);
+  }, 450);
+}
+function pmxSkuDitinggal(idx) {
+  setTimeout(() => {
+    if (!pmxPerluTanyaPo(idx)) return;
+    if (document.querySelector('.omni-dlg-latar')) return;
+    pmxTanyaPo(1, idx);
+  }, 250);
+}
+async function pmxTanyaPo(jumlah, idx) {
+  if (pmx.sedangTanya) return false;
+  pmx.sedangTanya = true;
+  try {
+    const h = await omniDialog({
+      ikon: '🧾', judul: 'Apakah ini Pembelian untuk Pesanan PO?',
+      isiHtml: `Ada <b>${jumlah} barang tanpa SKU</b>. Barang tanpa SKU tidak menambah stok gudang.<br />Jika barang ini dibelikan khusus untuk pesanan pembeli (<b>Pesanan PO</b>), pilih <b>Ya</b> lalu pilih ID Pesanan PO-nya - modal &amp; laba PO di pembukuan diperbarui otomatis.`,
+      tombol: [{ label: 'Bukan, saya isi SKU', nilai: 'tidak' }, { label: 'Ya, untuk Pesanan PO', nilai: 'ya', kelas: 'web-btn-primary' }],
+      nilaiBatal: 'nanti'
+    });
+    if (h.nilai === 'ya') {
+      pmxSetModePo(true);
+      setTimeout(() => { const s = el('pmx-po-select'); if (s) { s.scrollIntoView({ block: 'center', behavior: 'smooth' }); s.focus({ preventScroll: true }); } }, 60);
+      return true;
+    }
+    if (h.nilai === 'tidak') {
+      pmx.ditolak = true;
+      const inp = idx !== undefined ? pmxBarisSkuInput(idx) : null;
+      if (inp) setTimeout(() => { inp.classList.add('sp-perlu-isi'); inp.focus(); }, 60);
+    }
+    return false;
+  } finally {
+    pmx.sedangTanya = false;
+  }
+}
+
+/* ---------- SKU belum terdaftar -> tawarkan daftar sebagai Katalog Baru ---------- */
+async function pmxCekSku(idx) {
+  const it = pmItemsAktif[idx];
+  if (!it) return;
+  const sku = String(it.sku || '').trim();
+  pmxRenderSelPo(idx);
+  if (!sku) return;
+  const set = await pmxMuatSkuTerdaftar();
+  if (!set || !pmItemsAktif[idx] || String(pmItemsAktif[idx].sku || '').trim() !== sku) return;
+  const inp = pmxBarisSkuInput(idx);
+  const terdaftar = set.has(pmxNormSku(sku));
+  if (inp) { inp.classList.toggle('pmx-sku-baru', !terdaftar); inp.classList.toggle('pmx-sku-ok', terdaftar); inp.title = terdaftar ? 'SKU terdaftar di Katalog' : 'SKU belum terdaftar di Katalog > Master'; }
+  if (terdaftar || pmx.skuDitanya.has(pmxNormSku(sku)) || pmx.sedangTanya) return;
+  pmx.skuDitanya.add(pmxNormSku(sku));
+  await pmxTawarkanDaftarSku([{ sku, nama: it.nama, hpp: it.hargaSatuan }]);
+}
+// rows: [{ sku, nama, hpp }] -> 'ya' (berhasil didaftarkan) | 'nanti' | 'batal' | 'gagal'
+async function pmxTawarkanDaftarSku(rows, opsi) {
+  opsi = opsi || {};
+  if (!rows.length) return 'ya';
+  pmx.sedangTanya = true;
+  let h;
+  try {
+    const satu = rows.length === 1;
+    const isi = satu
+      ? `SKU <code>${escapeHtml(rows[0].sku)}</code> belum ada di <b>Katalog &gt; Master</b>. Daftarkan sekarang supaya stok, HPP &amp; laporan keuangan ikut terhitung.
+         <label>Nama Produk *</label><input type="text" class="web-form-input" data-dlg-nama="nama_0" maxlength="150" value="${escapeHtml(rows[0].nama || '')}" placeholder="Nama produk" />
+         <div class="web-form-row" style="gap:8px;">
+           <div style="flex:1;"><label>Harga Modal / HPP</label><input type="number" min="0" class="web-form-input" data-dlg-nama="hpp_0" value="${Number(rows[0].hpp) || ''}" placeholder="0" /></div>
+           <div style="flex:1;"><label>Harga Jual <span style="font-weight:400;">(opsional)</span></label><input type="number" min="0" class="web-form-input" data-dlg-nama="harga_0" placeholder="0" /></div>
+         </div>`
+      : `${rows.length} SKU belum ada di <b>Katalog &gt; Master</b>. Daftarkan sekaligus (HPP diisi dari harga satuan di form ini, bisa diubah nanti di Produk Master):
+         ${rows.map((r, i) => `<label><code>${escapeHtml(r.sku)}</code> - Nama Produk *</label><input type="text" class="web-form-input" data-dlg-nama="nama_${i}" maxlength="150" value="${escapeHtml(r.nama || '')}" placeholder="Nama produk" />`).join('')}`;
+    const tombol = opsi.saatSimpan
+      ? [{ label: 'Batal', nilai: 'batal' }, { label: 'Simpan tanpa mendaftar', nilai: 'nanti' }, { label: 'Ya, Daftarkan & Simpan', nilai: 'ya', kelas: 'web-btn-primary' }]
+      : [{ label: 'Nanti saja', nilai: 'nanti' }, { label: 'Ya, Daftarkan', nilai: 'ya', kelas: 'web-btn-primary' }];
+    h = await omniDialog({ ikon: '🏷️', judul: 'SKU belum terdaftar. Apakah Anda ingin mendaftarkannya sebagai Katalog Baru?', isiHtml: isi, tombol, nilaiBatal: opsi.saatSimpan ? 'batal' : 'nanti' });
+  } finally {
+    pmx.sedangTanya = false;
+  }
+  if (h.nilai !== 'ya') return h.nilai;
+  const daftar = rows.map((r, i) => ({
+    sku: r.sku,
+    nama: String(h.input['nama_' + i] !== undefined ? h.input['nama_' + i] : r.nama || '').trim(),
+    hpp: h.input['hpp_' + i] !== undefined ? Number(h.input['hpp_' + i]) || 0 : Number(r.hpp) || 0,
+    harga: Number(h.input['harga_' + i]) || 0
+  }));
+  const kosong = daftar.filter(d => !d.nama);
+  if (kosong.length) { pgrToast(`✗ Nama Produk wajib diisi untuk SKU ${kosong.map(d => d.sku).join(', ')}`); return opsi.saatSimpan ? 'batal' : 'gagal'; }
+  return (await pmxDaftarkanSku(daftar)) ? 'ya' : 'gagal';
+}
+async function pmxDaftarkanSku(daftar) {
+  let semuaOk = true;
+  for (const d of daftar) {
+    const logId = logTindakan.tambah(`Katalog Baru ${d.sku}`);
+    logTindakan.ubah(logId, 'proses', 'Mendaftarkan ke Katalog > Master…');
+    try {
+      const r = await postJsonTulis({
+        aksi: 'tambah_produk_baru', sku: d.sku, namaProduk: d.nama, hargaSupplier: d.hpp || 0, harga: d.harga || 0,
+        kategori: '', merk: '', deskripsi: '', tampilWebsite: false, toko: currentToko, email: currentUserEmail()
+      }, 60000);
+      const sudahAda = r && !r.success && /udah dipakai/i.test(String(r.error || ''));
+      if (!r || (!r.success && !sudahAda)) throw new Error((r && r.error) || 'respons kosong');
+      if (pmx.skuTerdaftar) pmx.skuTerdaftar.add(pmxNormSku(d.sku));
+      if (Array.isArray(spKatalogRingan)) spKatalogRingan.push({ sku: d.sku, nama: d.nama, tok: spToken(d.nama) });
+      logTindakan.ubah(logId, 'ok', sudahAda ? 'SKU ternyata sudah terdaftar' : `Terdaftar · ${d.nama}`);
+    } catch (e) {
+      semuaOk = false;
+      logTindakan.ubah(logId, 'gagal', String(e.message || e).replace(/^Error:\s*/, ''));
+    }
+  }
+  // Tandai ulang kolom SKU di form
+  pmItemsAktif.forEach((it, i) => {
+    const inp = pmxBarisSkuInput(i), st = pmxStatusSku(it.sku);
+    if (inp && st !== null) { inp.classList.toggle('pmx-sku-baru', !st); inp.classList.toggle('pmx-sku-ok', st); }
+  });
+  if (semuaOk) pgrToast(`✨ ${daftar.length} SKU didaftarkan sebagai Katalog Baru`);
+  return semuaOk;
+}
+
+/* ---------- Reset form & buka form khusus 1 PO ---------- */
+function pmxReset() {
+  pmx.modePo = false; pmx.noPo = ''; pmx.ditolak = false; pmx.sedangTanya = false;
+  pmx.skuDitanya = new Set();
+  pmx.idKirimPo = pmxBuatIdKirim();
+  const t = el('pmx-po-toggle'); if (t) t.checked = false;
+  const blok = el('pmx-po-blok'); if (blok) blok.classList.remove('aktif');
+  const pilih = el('pmx-po-pilih'); if (pilih) pilih.hidden = true;
+  const sel = el('pmx-po-select'); if (sel) sel.value = '';
+  const info = el('pmx-po-info'); if (info) info.innerHTML = '';
+  const judul = el('pm-judul-modal'); if (judul) judul.textContent = '📝 Input Pembelian';
+  pmxMuatSkuTerdaftar(true); // di latar - untuk deteksi SKU belum terdaftar
+}
+async function pmxBukaUntukPo(noPo) {
+  await belBukaModalPembelianManual();
+  pmxSetModePo(true);
+  pmxPilihPo(noPo);
+}
+
+/* ---------- Simpan bagian Pesanan PO (latar + Log Tindakan, sama seperti pembelian stok) ---------- */
+async function bpoJalankanSimpan(job) {
+  if (!job.logId) job.logId = logTindakan.tambah(`Nota PO ${job.noInvoice} → ${job.noPo}`);
+  try {
+    const sedangUpload = job.berkas.filter(f => f.status === 'upload' && f.janji);
+    if (sedangUpload.length) {
+      logTindakan.ubah(job.logId, 'proses', `Upload ${sedangUpload.length} dokumen…`);
+      await Promise.allSettled(sedangUpload.map(f => f.janji));
+    }
+    logTindakan.ubah(job.logId, 'proses', `Menautkan ${job.items.length} barang ke ${job.noPo}…`);
+    const d = await postJsonTulis({
+      aksi: 'simpan_pembelian_po', noPo: job.noPo, noInvoice: job.noInvoice, namaSupplier: job.namaSupplier, tanggal: job.tanggal,
+      items: job.items, ongkosKirim: job.ongkosKirim, biayaLain: job.biayaLain, diskon: job.diskon,
+      dokumen: job.berkas.filter(f => f.status === 'ok').map(f => f.url), idKirim: job.idKirim, email: currentUserEmail()
+    }, 90000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'respons kosong dari server');
+    const rp = n => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+    logTindakan.ubah(job.logId, 'ok', d.duplikat ? 'Sudah tertaut sebelumnya (tidak dobel)' : `Tertaut · modal PO ${rp((d.modal || 0) + (d.biayaLain || 0))} · laba ${rp(d.laba)}`);
+    const o = (po.daftar || []).find(x => x.noPo === job.noPo);
+    if (o && !d.duplikat) {
+      o.modal = d.modal; o.biayaLain = d.biayaLain; o.laba = d.laba;
+      o.pembelian = (o.pembelian || []).concat([{ noInvoice: job.noInvoice, supplier: job.namaSupplier, tanggal: job.tanggal, total: 0 }]);
+    }
+    pgrToast(`🧾 Nota ${job.noInvoice} ditautkan ke ${job.noPo} - pembukuan PO diperbarui`);
+    belFetchPo();
+  } catch (err) {
+    logTindakan.ubah(job.logId, 'gagal', String(err.message || err).replace(/^Error:\s*/, ''), [
+      { label: 'Coba lagi', fn: () => bpoJalankanSimpan(job) }
+    ]);
+  }
+}
+
+/* ---------- Segmen dalam tab Transaksi Pembelian & PO ---------- */
+let belSegAktif = 'stok';
+function belSegmen(seg, tanpaFetch) {
+  seg = seg === 'po' ? 'po' : 'stok';
+  belSegAktif = seg;
+  ['stok', 'po'].forEach(k => {
+    const b = el('bel-seg-btn-' + k);
+    if (b) { b.classList.toggle('aktif', k === seg); b.setAttribute('aria-selected', k === seg ? 'true' : 'false'); }
+    const p = el('bel-seg-' + k);
+    if (p) p.hidden = k !== seg;
+  });
+  if (typeof tabWebAktif !== 'undefined' && tabWebAktif === 'pembelian') simpanLokasiTerakhir('pembelian', seg === 'po' ? 'po' : 'transaksi');
+  if (seg === 'po' && !tanpaFetch) belFetchPo();
+}
+
 let pmItemsAktif = [];
 // Kunci idempotensi per form Pembelian: tetap SAMA selama form ini belum sukses tersimpan, jadi
 // kalau request pertama sebenarnya sudah masuk tapi browser timeout, klik Simpan lagi TIDAK dobel
@@ -33310,6 +34162,7 @@ async function belBukaModalPembelianManual() {
   dokPasang('pm-dok-zona', 'pembelian');
   dokReset('pm-dok-zona');
   spMuatKatalogRingan(); // di latar - untuk mencocokkan nama produk marketplace ke SKU
+  pmxReset();
   pmItemsAktif = [{ sku: '', nama: '', qty: 1, hargaSatuan: 0 }];
   pmTotalReferensiDariPaste = null;
   pmTanggalTransaksiDariPaste = null;
@@ -33357,20 +34210,35 @@ function pmHapusBarisItem(idx) {
 function pmUpdateField(idx, field, value) {
   if (field === 'qty' || field === 'hargaSatuan') pmItemsAktif[idx][field] = parseFloat(value) || 0;
   else pmItemsAktif[idx][field] = value;
+  if (field === 'sku' && pmx.modePo) {
+    const adaSebelum = pmItemsAktif[idx]._adaSku, adaSekarang = !!String(value || '').trim();
+    if (adaSebelum !== adaSekarang) { pmItemsAktif[idx]._adaSku = adaSekarang; pmxRenderSelPo(idx); }
+  }
   pmHitungTotal();
 }
 
 function pmRenderItemBody() {
-  el('pm-item-body').innerHTML = pmItemsAktif.map((it, idx) => `
-    <tr>
-      <td><input type="text" class="web-form-input${!String(it.sku || '').trim() && it.nama ? ' sp-perlu-isi' : ''}" style="margin:0;" value="${escapeHtml(it.sku)}" oninput="pmUpdateField(${idx}, 'sku', this.value); this.classList.remove('sp-perlu-isi')" onpaste="pmTanganiPaste(event)" placeholder="SKU" title="${it.skuOtomatis ? 'SKU dicocokkan otomatis dari katalog - cek lagi' : ''}" /></td>
-      <td><input type="text" class="web-form-input" style="margin:0;" value="${escapeHtml(it.nama)}" title="${pgrAttr(it.nama || '')}" oninput="pmUpdateField(${idx}, 'nama', this.value)" onpaste="pmTanganiPaste(event)" placeholder="Nama produk" /></td>
+  const tabel = el('pm-tabel-barang');
+  if (tabel) tabel.classList.toggle('pmx-mode-po', !!pmx.modePo);
+  el('pm-item-body').innerHTML = pmItemsAktif.map((it, idx) => {
+    const sku = String(it.sku || '').trim();
+    it._adaSku = !!sku;
+    const st = sku ? pmxStatusSku(sku) : null;
+    const kelasSku = (!sku && it.nama && !pmx.modePo ? ' sp-perlu-isi' : '') + (st === false ? ' pmx-sku-baru' : '');
+    const judulSku = st === false ? 'SKU belum terdaftar di Katalog > Master'
+      : it.skuOtomatis ? 'SKU dicocokkan otomatis dari katalog - cek lagi'
+      : (pmx.modePo && !sku ? 'SKU kosong = barang untuk Pesanan PO (stok tidak berubah)' : '');
+    return `
+    <tr data-idx="${idx}">
+      <td><input type="text" class="web-form-input${kelasSku}" style="margin:0;" value="${escapeHtml(it.sku || '')}" oninput="pmUpdateField(${idx}, 'sku', this.value); this.classList.remove('sp-perlu-isi', 'pmx-sku-baru', 'pmx-sku-ok')" onchange="pmxCekSku(${idx})" onblur="pmxSkuDitinggal(${idx})" onpaste="pmTanganiPaste(event)" placeholder="${pmx.modePo ? 'SKU (kosong = PO)' : 'SKU'}" title="${escapeHtml(judulSku)}" /></td>
+      <td><input type="text" class="web-form-input" style="margin:0;" value="${escapeHtml(it.nama || '')}" title="${pgrAttr(it.nama || '')}" oninput="pmUpdateField(${idx}, 'nama', this.value)" onchange="pmxNamaBerubah(${idx})" onpaste="pmTanganiPaste(event)" placeholder="Nama produk" /></td>
       <td><input type="number" class="web-form-input" style="margin:0;" value="${it.qty}" oninput="pmUpdateField(${idx}, 'qty', this.value)" onpaste="pmTanganiPaste(event)" min="0" /></td>
       <td><input type="number" class="web-form-input" style="margin:0;" value="${it.hargaSatuan}" oninput="pmUpdateField(${idx}, 'hargaSatuan', this.value)" onpaste="pmTanganiPaste(event)" min="0" /></td>
       <td class="pm-sub">Rp ${Number(it.qty * it.hargaSatuan).toLocaleString('id-ID')}</td>
+      <td class="pmx-col-po">${pmx.modePo ? pmxSelBarangPoHtml(idx, it) : ''}</td>
       <td><button class="web-btn-danger" style="padding:4px 8px; font-size:11px; margin:0;" onclick="pmHapusBarisItem(${idx})" aria-label="Hapus baris">🗑️</button></td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
   pmHitungTotal();
 }
 
@@ -33409,7 +34277,8 @@ function pmAmbilSnapshot() {
     ongkosKirim: parseFloat(el('pm-ongkos-kirim').value) || 0, biayaLain: parseFloat(el('pm-biaya-lain').value) || 0, diskon: Math.max(0, parseFloat(el('pm-diskon').value) || 0), tanggal: el('pm-tanggal').value,
     tanggalPaste: pmTanggalTransaksiDariPaste, totalRef: pmTotalReferensiDariPaste,
     items: pmItemsAktif.map(it => ({ ...it })), berkas: ((DOK['pm-dok-zona'] && DOK['pm-dok-zona'].files) || []).slice(),
-    hasilSp: el('pm-sp-hasil').innerHTML
+    hasilSp: el('pm-sp-hasil').innerHTML,
+    pmx: { modePo: pmx.modePo, noPo: pmx.noPo, ditolak: pmx.ditolak }
   };
 }
 async function pmIsiDariSnapshot(sn) {
@@ -33422,48 +34291,121 @@ async function pmIsiDariSnapshot(sn) {
   DOK['pm-dok-zona'].files = sn.berkas.slice(); dokRender('pm-dok-zona');
   if (sn.hasilSp) { el('pm-sp-hasil').innerHTML = sn.hasilSp; el('pm-sp-hasil').classList.add('tampil'); }
   pmRenderItemBody();
+  if (sn.pmx && sn.pmx.modePo) { pmxSetModePo(true); if (sn.pmx.noPo) pmxPilihPo(sn.pmx.noPo); }
+  else if (sn.pmx) pmx.ditolak = !!sn.pmx.ditolak;
 }
-function pmSimpanPembelian() {
+async function pmSimpanPembelian() {
   const btn = el('pm-btn-simpan');
-  if (btn.disabled) return;
+  if (btn.disabled || pmx.sedangTanya) return;
   const statusEl = el('pm-status');
+  const gagal = t => { statusEl.textContent = '✗ ' + t; statusEl.className = 'status-text err'; };
+  statusEl.textContent = '';
   const sn = pmAmbilSnapshot();
-  const itemsValid = sn.items
-    .filter(it => String(it.sku || '').trim() && Number(it.qty) > 0)
-    .map(it => ({ sku: String(it.sku).trim(), nama: String(it.nama || '').trim(), qty: Number(it.qty) || 0, hargaSatuan: Number(it.hargaSatuan) || 0 }));
-  if (!sn.namaSupplier) { statusEl.textContent = '✗ Nama Supplier wajib diisi.'; statusEl.className = 'status-text err'; return; }
-  if (!sn.noInvoice) { statusEl.textContent = '✗ No Invoice wajib diisi.'; statusEl.className = 'status-text err'; return; }
-  if (itemsValid.length === 0) { statusEl.textContent = '✗ Isi minimal 1 barang (SKU & Qty wajib).'; statusEl.className = 'status-text err'; return; }
-  if (sn.diskon > itemsValid.reduce((t, it) => t + it.qty * it.hargaSatuan, 0) + sn.ongkosKirim + (sn.biayaLain || 0)) { statusEl.textContent = '✗ Diskon Supplier lebih besar dari total belanja.'; statusEl.className = 'status-text err'; return; }
-  const tanpaSku = sn.items.filter(it => !String(it.sku || '').trim() && (it.nama || Number(it.hargaSatuan) > 0)).length;
-  if (tanpaSku && !confirm(`${tanpaSku} barang belum punya SKU dan TIDAK akan ikut tersimpan. Lanjut simpan?`)) return;
+  if (!sn.namaSupplier) return gagal('Nama Supplier wajib diisi.');
+  if (!sn.noInvoice) return gagal('No Invoice wajib diisi.');
+
+  const barisStok = sn.items.filter(it => String(it.sku || '').trim() && Number(it.qty) > 0);
+  const barisTanpaSku = sn.items.filter(it => !String(it.sku || '').trim() && (String(it.nama || '').trim() || Number(it.hargaSatuan) > 0));
+
+  // 1) Deteksi PO: ada barang tanpa SKU & mode PO belum dipilih -> tanyakan dulu
+  if (barisTanpaSku.length && !pmx.modePo && !pmx.ditolak) {
+    const ya = await pmxTanyaPo(barisTanpaSku.length);
+    if (ya) { statusEl.textContent = 'Pilih ID Pesanan PO lalu cek kolom "Untuk Barang PO", kemudian klik Simpan lagi.'; statusEl.className = 'status-text'; return; }
+    if (!pmx.ditolak) return; // dialog ditutup tanpa jawaban
+  }
+
+  // 2) Bagian Pesanan PO
+  let barisPo = [];
+  if (pmx.modePo && barisTanpaSku.length) {
+    if (!pmx.noPo) { gagal('Pilih ID Pesanan PO terlebih dahulu.'); const s2 = el('pmx-po-select'); if (s2) s2.focus(); return; }
+    if (barisTanpaSku.some(it => !String(it.nama || '').trim())) return gagal('Barang untuk Pesanan PO wajib punya Nama Produk.');
+    barisPo = barisTanpaSku.filter(it => Number(it.qty) > 0);
+    if (!barisPo.length) return gagal('Qty barang untuk Pesanan PO masih 0.');
+  }
+  if (!barisStok.length && !barisPo.length) return gagal(pmx.modePo ? 'Isi minimal 1 barang (Nama & Qty).' : 'Isi minimal 1 barang (SKU & Qty wajib).');
+
+  const subStok = barisStok.reduce((t, it) => t + Number(it.qty) * Number(it.hargaSatuan || 0), 0);
+  const subPo = barisPo.reduce((t, it) => t + Number(it.qty) * Number(it.hargaSatuan || 0), 0);
+  if (sn.diskon > subStok + subPo + sn.ongkosKirim + (sn.biayaLain || 0)) return gagal('Diskon Supplier lebih besar dari total belanja.');
+
+  // 3) Barang tanpa SKU yang TIDAK ikut tersimpan (bukan mode PO)
+  if (!barisPo.length && barisTanpaSku.length) {
+    const h = await omniDialog({
+      ikon: '⚠️', judul: `${barisTanpaSku.length} barang belum punya SKU`,
+      isiHtml: 'Barang tanpa SKU <b>tidak akan ikut tersimpan</b> sebagai pembelian stok. Lanjut simpan barang yang ber-SKU saja?',
+      tombol: [{ label: 'Kembali', nilai: 'batal' }, { label: 'Ya, lanjut simpan', nilai: 'ya', kelas: 'web-btn-primary' }]
+    });
+    if (h.nilai !== 'ya') return;
+  }
+
+  // 4) No Invoice duplikat (bagian stok)
   const noLower = sn.noInvoice.toLowerCase();
-  if (pmAntre.some(x => x.noInvoice.toLowerCase() === noLower) || belPembelianManualCache.some(x => !x._antre && String(x.noInvoice).toLowerCase() === noLower)) {
-    statusEl.textContent = `✗ No Invoice "${sn.noInvoice}" sudah ada / sedang disimpan.`; statusEl.className = 'status-text err'; return;
+  if (barisStok.length && (pmAntre.some(x => x.noInvoice.toLowerCase() === noLower) || belPembelianManualCache.some(x => !x._antre && String(x.noInvoice).toLowerCase() === noLower))) {
+    return gagal(`No Invoice "${sn.noInvoice}" sudah ada / sedang disimpan.`);
+  }
+
+  // 5) SKU belum terdaftar di Katalog > Master
+  if (barisStok.length) {
+    statusEl.textContent = 'Memeriksa SKU di katalog…'; statusEl.className = 'status-text';
+    const set = await pmxMuatSkuTerdaftar();
+    statusEl.textContent = '';
+    if (set) {
+      const unik = new Map();
+      barisStok.forEach(it => { const k = pmxNormSku(it.sku); if (!set.has(k) && !unik.has(k)) unik.set(k, { sku: String(it.sku).trim(), nama: it.nama, hpp: it.hargaSatuan }); });
+      if (unik.size) {
+        const hasil = await pmxTawarkanDaftarSku(Array.from(unik.values()), { saatSimpan: true });
+        if (hasil === 'batal') return;
+        if (hasil === 'gagal') return gagal('Sebagian SKU gagal didaftarkan - lihat Log Tindakan di kanan bawah, lalu coba Simpan lagi.');
+      }
+    }
   }
   btn.disabled = true; // dibuka lagi saat form baru dibuka
+
+  // 6) Alokasi ongkir / biaya / diskon nota campuran (stok + PO) sesuai porsi subtotal
+  const totalSub = subStok + subPo;
+  const porsiStok = !barisPo.length ? 1 : !barisStok.length ? 0 : (totalSub > 0 ? subStok / totalSub : barisStok.length / (barisStok.length + barisPo.length));
+  const bagi = v => { const a = Math.round((Number(v) || 0) * porsiStok); return [a, (Number(v) || 0) - a]; };
+  const [ongkirS, ongkirP] = bagi(sn.ongkosKirim), [biayaS, biayaP] = bagi(sn.biayaLain || 0);
+  let [diskonS, diskonP] = bagi(sn.diskon || 0);
+  const lebihS = diskonS - (subStok + ongkirS + biayaS);
+  if (lebihS > 0) { diskonS -= lebihS; diskonP += lebihS; }
+  const lebihP = diskonP - (subPo + ongkirP + biayaP);
+  if (lebihP > 0) { diskonP -= lebihP; diskonS += lebihP; }
 
   // Tanggal: dari kolom Tanggal (bisa hasil smart paste). Kosong = hari ini (diisi server).
   let tanggalTransaksi = null;
   if (sn.tanggalPaste && krTgl(new Date(sn.tanggalPaste)) === sn.tanggal) tanggalTransaksi = sn.tanggalPaste;
   else if (sn.tanggal && sn.tanggal !== krTgl(new Date())) { const d = krParse(sn.tanggal); d.setHours(12, 0, 0, 0); tanggalTransaksi = d.toISOString(); }
 
-  const subtotal = itemsValid.reduce((t, it) => t + it.qty * it.hargaSatuan, 0);
-  const job = {
-    sn, itemsValid, tanggalTransaksi, idempotencyKey: pmIdempotencyKey || pmBuatIdempotencyKey(),
-    baris: {
-      _antre: true, noInvoice: sn.noInvoice, namaSupplier: sn.namaSupplier, cabang: sn.cabang || '-', jumlahKoli: sn.jumlahKoli || '-',
-      ongkosKirim: sn.ongkosKirim, biayaLain: sn.biayaLain || 0, diskon: sn.diskon || 0, total: subtotal + sn.ongkosKirim + (sn.biayaLain || 0) - (sn.diskon || 0), dicatatOleh: '-', dokumen: [],
-      tanggal: (sn.tanggal ? fin2TglLabel(sn.tanggal) : 'Hari ini'), statusDicek: 'Belum Dicek', statusPembelian: 'Aktif', _status: 'simpan'
-    }
-  };
-  pmIdempotencyKey = null;
-  pmAntre.unshift(job.baris);
-  belPembelianManualCache = [job.baris].concat(belPembelianManualCache);
-  belRenderPembelianManual();
+  let jobStok = null;
+  if (barisStok.length) {
+    const snStok = Object.assign({}, sn, { ongkosKirim: ongkirS, biayaLain: biayaS, diskon: diskonS });
+    const itemsValid = barisStok.map(it => ({ sku: String(it.sku).trim(), nama: String(it.nama || '').trim(), qty: Number(it.qty) || 0, hargaSatuan: Number(it.hargaSatuan) || 0 }));
+    jobStok = {
+      sn: snStok, snAsli: sn, itemsValid, tanggalTransaksi, idempotencyKey: pmIdempotencyKey || pmBuatIdempotencyKey(),
+      baris: {
+        _antre: true, noInvoice: sn.noInvoice, namaSupplier: sn.namaSupplier, cabang: sn.cabang || '-', jumlahKoli: sn.jumlahKoli || '-',
+        ongkosKirim: ongkirS, biayaLain: biayaS, diskon: diskonS, total: subStok + ongkirS + biayaS - diskonS, dicatatOleh: '-', dokumen: [],
+        tanggal: (sn.tanggal ? fin2TglLabel(sn.tanggal) : 'Hari ini'), statusDicek: 'Belum Dicek', statusPembelian: 'Aktif', _status: 'simpan'
+      }
+    };
+    pmIdempotencyKey = null;
+    pmAntre.unshift(jobStok.baris);
+    belPembelianManualCache = [jobStok.baris].concat(belPembelianManualCache);
+    belRenderPembelianManual();
+  }
+  let jobPo = null;
+  if (barisPo.length) {
+    jobPo = {
+      noPo: pmx.noPo, noInvoice: sn.noInvoice, namaSupplier: sn.namaSupplier, tanggal: sn.tanggal || krTgl(new Date()),
+      items: barisPo.map(it => ({ nama: String(it.nama).trim(), qty: Number(it.qty) || 0, harga: Number(it.hargaSatuan) || 0, poNama: it.poNama || '' })),
+      ongkosKirim: ongkirP, biayaLain: biayaP, diskon: diskonP, berkas: sn.berkas.slice(), idKirim: pmx.idKirimPo || pmxBuatIdKirim()
+    };
+  }
   belTutupModalPembelianManual();
   playBeep();
-  pmJalankanSimpan(job);
+  if (jobStok) pmJalankanSimpan(jobStok);
+  if (jobPo) bpoJalankanSimpan(jobPo);
 }
 async function pmJalankanSimpan(job) {
   if (!job.logId) job.logId = logTindakan.tambah(`Pembelian ${job.sn.noInvoice} · ${job.sn.namaSupplier}`);
@@ -33517,7 +34459,7 @@ function pmBukaLagi(job) {
   belRenderPembelianManual();
   const item = job.logId && document.getElementById(job.logId);
   if (item) item.remove();
-  pmIsiDariSnapshot(job.sn).then(() => { pmIdempotencyKey = job.idempotencyKey; });
+  pmIsiDariSnapshot(job.snAsli || job.sn).then(() => { pmIdempotencyKey = job.idempotencyKey; });
 }
 
 /* ===== Smart Paste invoice marketplace (Shopee / Tokopedia) ke form Pembelian ===== */
