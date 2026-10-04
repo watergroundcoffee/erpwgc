@@ -1475,6 +1475,16 @@
   .int-info-list dt { color: var(--web-text-dim); }
   .int-info-list dd { margin: 0; font-weight: 600; text-align: right; word-break: break-all; }
   .int-keamanan { display: flex; gap: 10px; margin-top: 16px; font-size: var(--fs-xs); color: var(--web-text-dim); line-height: 1.55; }
+  .int-app { margin-top: 16px; border: 1px solid var(--web-border); border-radius: 14px; padding: 14px; }
+  .int-app-judul { font-size: var(--fs-base); font-weight: 700; margin-bottom: 2px; }
+  .int-app-sub { font-size: var(--fs-xs); color: var(--web-text-dim); line-height: 1.5; margin-bottom: 12px; }
+  .int-app-status { font-size: var(--fs-xs); margin-bottom: 12px; padding: 8px 10px; border-radius: 10px; background: rgba(99,102,241,.08); color: #312e81; }
+  .int-app-status.kosong { background: rgba(100,116,139,.08); color: var(--web-text-dim); }
+  .int-app label { display: block; font-size: var(--fs-xs); font-weight: 600; color: var(--web-text-dim); margin: 0 0 4px; }
+  .int-app input { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--web-border); border-radius: 10px; font: inherit; font-size: var(--fs-sm); margin-bottom: 10px; background: transparent; color: inherit; }
+  .int-app input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+  .int-app-aksi { display: flex; gap: 8px; }
+  .int-app-aksi .int-btn { flex: 1; }
   .int-keamanan svg { flex-shrink: 0; margin-top: 1px; }
   .int-modal { display: flex; align-items: center; justify-content: center; padding: 16px; }
   .int-modal-kartu { position: relative; width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--web-panel); border-radius: 20px;
@@ -23919,7 +23929,56 @@ async function intPutuskan(id) {
   await intMuatStatus();
 }
 
-// ---------- Drawer "Settings" = info koneksi + aksi (TANPA form rahasia) ----------
+// ---------- App khusus toko (TikTok Shop) - untuk toko kedua dst. (mis. Conner) ----------
+function intAppKhususHTML(k) {
+  if (!k || !k.bisaAppKhusus) return '';
+  const sibuk = intSibuk[k.idKoneksi] === 'app';
+  const status = k.appKhusus
+    ? `<div class="int-app-status">Terpasang: App Key <b>${escapeHtml(k.appKhususKey)}</b> · Secret tersimpan · Service ID ${k.appKhususAdaServiceId ? 'ada' : 'kosong (link format App Key)'}${k.authVia === 'SENDIRI' ? ' · token aktif dari app ini' : ''}</div>`
+    : `<div class="int-app-status kosong">Belum diisi - toko ini memakai aplikasi master OmniAI.</div>`;
+  return `
+    <section class="int-app">
+      <div class="int-app-judul">Aplikasi TikTok khusus toko ini</div>
+      <div class="int-app-sub">Isi dari Partner Center yang login dengan akun Seller Center <b>${escapeHtml(k.tokoNama)}</b> (App &amp; Service &gt; aplikasi &gt; Credentials). App privat hanya bisa mengotorisasi toko milik akun pembuatnya.</div>
+      ${status}
+      <label for="int-app-key">App Key</label>
+      <input id="int-app-key" type="text" autocomplete="off" spellcheck="false" placeholder="${k.appKhusus ? 'Kosongkan = tidak diubah' : 'mis. 6abc12def345'}">
+      <label for="int-app-secret">App Secret</label>
+      <input id="int-app-secret" type="password" autocomplete="new-password" spellcheck="false" placeholder="${k.appKhususAdaSecret ? 'Kosongkan = pakai secret yang tersimpan' : 'App Secret'}">
+      <label for="int-app-sid">Service ID (opsional)</label>
+      <input id="int-app-sid" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="Angka setelah service_id= di authorization link">
+      <div class="int-app-aksi">
+        <button type="button" class="int-btn int-btn-utama ${sibuk ? 'is-berputar' : ''}" data-int-aksi="simpan-app" data-int-id="${escapeHtml(k.idKoneksi)}" ${sibuk ? 'disabled' : ''}>${sibuk ? 'Menyimpan...' : 'Simpan App'}</button>
+        ${k.appKhusus ? `<button type="button" class="int-btn" data-int-aksi="hapus-app" data-int-id="${escapeHtml(k.idKoneksi)}" ${sibuk ? 'disabled' : ''}>Hapus</button>` : ''}
+      </div>
+    </section>`;
+}
+
+async function intSimpanAppKhusus(id, hapus) {
+  const k = intCari(id);
+  if (!k) return;
+  const payload = { aksi: 'simpan_app_khusus_toko', idKoneksi: id, email: currentUserEmail() };
+  if (hapus) {
+    if (!confirm(`Hapus aplikasi khusus untuk ${k.tokoNama}?\n\nToko ini kembali memakai aplikasi master OmniAI.`)) return;
+    payload.hapus = true;
+  } else {
+    payload.appKey = (el('int-app-key').value || '').trim();
+    payload.appSecret = (el('int-app-secret').value || '').trim();
+    payload.serviceId = (el('int-app-sid').value || '').trim();
+    if (!payload.appKey && k.appKhusus) { intPesan[id] = { teks: 'Isi App Key (ketik ulang App Key lengkap) untuk menyimpan perubahan.', kelas: 'err' }; intRenderDrawer(); return; }
+  }
+  intSibuk[id] = 'app'; intRenderDrawer();
+  try {
+    const d = await postJson(payload, 30000);
+    intPesan[id] = d && d.success ? { teks: d.pesan || 'Tersimpan.', kelas: 'ok' } : { teks: 'Gagal menyimpan: ' + ((d && d.error) || '').replace(/^Error:\s*/, ''), kelas: 'err' };
+    if (d && d.success) ['int-app-key', 'int-app-secret', 'int-app-sid'].forEach(i => { const x = el(i); if (x) x.value = ''; });
+  } catch (e) { intPesan[id] = { teks: 'Gagal menyimpan: ' + e.message, kelas: 'err' }; }
+  delete intSibuk[id];
+  await intMuatStatus();
+  intRenderDrawer();
+}
+
+// ---------- Drawer "Settings" = info koneksi + aksi ----------
 function intBukaDrawer(id) {
   intDrawerId = id;
   intRenderDrawer();
@@ -23954,11 +24013,16 @@ function intRenderDrawer() {
     ['Sync terakhir', k.syncTerakhir || '-'],
     ['Percobaan terakhir gagal', k.gagalTerakhir ? (k.gagalTerakhir.waktu || '') + ' - ' + k.gagalTerakhir.pesan : '']
   ].filter(b => (terhubung || ['Status', 'Sinkronisasi otomatis', 'Percobaan terakhir gagal'].includes(b[0])) && !(b[0] === 'Percobaan terakhir gagal' && !b[1]));
+  // Simpan isian form app khusus supaya tidak hilang kalau drawer dirender ulang (mis. polling)
+  const nilaiForm = {};
+  ['int-app-key', 'int-app-secret', 'int-app-sid'].forEach(i => { const x = el(i); if (x) nilaiForm[i] = x.value; });
   el('int-drawer-info').innerHTML = `
     <div class="int-info-banner ${kd.kode}"><div><b>${escapeHtml(banner[0])}</b>${escapeHtml(banner[1])}</div></div>
     <dl class="int-info-list">${baris.map(b => `<div><dt>${escapeHtml(b[0])}</dt><dd>${escapeHtml(b[1])}</dd></div>`).join('')}</dl>
     ${intPesan[k.idKoneksi] ? `<div class="int-card-pesan ${intPesan[k.idKoneksi].kelas}" style="margin-top:12px;">${escapeHtml(intPesan[k.idKoneksi].teks)}</div>` : ''}
+    ${intAppKhususHTML(k)}
     <div class="int-keamanan">${INT_IKON.perisai}<span>Terhubung lewat aplikasi resmi OmniAI (OAuth 2.0). OmniAI tidak pernah melihat password toko, dan token akses tersimpan di server (Script Properties), bukan di spreadsheet.</span></div>`;
+  Object.keys(nilaiForm).forEach(i => { const x = el(i); if (x) x.value = nilaiForm[i]; });
   const sibuk = intSibuk[k.idKoneksi];
   el('int-drawer-aksi').innerHTML = `
     ${kd.kode === 'terhubung' && INT_AKSI_SYNC[k.idKoneksi] ? `<button type="button" class="int-btn int-btn-lebar ${sibuk === 'sync' ? 'is-berputar' : ''}" data-int-aksi="sync" data-int-id="${escapeHtml(k.idKoneksi)}" ${sibuk ? 'disabled' : ''}>${INT_IKON.sync}Sync Sekarang</button>` : ''}
@@ -24060,6 +24124,8 @@ document.addEventListener('click', e => {
     case 'sync': intSync(id); break;
     case 'settings': intBukaDrawer(id); break;
     case 'putuskan': intPutuskan(id); break;
+    case 'simpan-app': intSimpanAppKhusus(id, false); break;
+    case 'hapus-app': intSimpanAppKhusus(id, true); break;
     case 'hubungkan': intOtorisasi({ idKoneksi: id, platform: (intCari(id) || {}).platform }); break;
     case 'muat-ulang': intMuatStatus(); break;
     case 'tutup-drawer': intTutupDrawer(); break;
