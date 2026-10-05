@@ -6658,6 +6658,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
   #app-web .web-shell { min-height: calc(100vh / var(--web-zoom, 0.85)); }
   /* [PART 4] isi toast boleh multi-baris (pesan lama dari alert() sering pakai \n) */
   .omni-toast-isi { white-space: pre-line; }
+  .okf-pesan { white-space: pre-line; }
   /* [PART 4] pembungkus otomatis tabel: hanya scroll horizontal, tanpa mengubah tampilan */
   .tabel-scroll-otomatis { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   /* [PART 4] baris skeleton di tabel yang sedang dimuat */
@@ -12617,6 +12618,40 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) { }
 });
 
+/* ---------- DIALOG PENGGANTI confirm() & prompt() ----------
+   Keduanya async (mengembalikan Promise), jadi pemanggil memakai: if (!(await omniKonfirm_('...'))) return;
+   omniKonfirm_ -> true/false (seperti confirm). omniTanya_ -> teks atau null kalau Batal (seperti prompt). */
+const OMNI_KATA_BAHAYA_ = /hapus|batal|nonaktif|tolak|kosongkan|buang|putuskan|akhiri|permanen|timpa/i;
+function omniKonfirm_(pesan) {
+  const teks = String(pesan == null ? '' : pesan).trim();
+  const baris = teks.split('\n');
+  // baris pertama yang pendek jadi judul, sisanya isi pesan
+  const judul = baris.length > 1 && baris[0].length <= 90 ? baris[0].replace(/^\s*(⚠️?|❓)\s*/u, '') : 'Konfirmasi';
+  const isi = baris.length > 1 && baris[0].length <= 90 ? baris.slice(1).join('\n').trim() : teks;
+  const bahaya = OMNI_KATA_BAHAYA_.test(judul + ' ' + isi);
+  return omniKonfirmasi({ judul, pesan: isi, ikon: bahaya ? '!' : '?', ya: bahaya ? 'Ya, lanjutkan' : 'Ya', tidak: 'Batal' })
+    .then(v => !!v);
+}
+async function omniTanya_(pesan, nilaiAwal) {
+  const teks = String(pesan == null ? '' : pesan);
+  const r = await omniDialog({
+    judul: 'Masukkan data',
+    isiHtml: `<label style="display:block;font-size:13px;margin-bottom:8px;white-space:pre-line;">${escapeHtml(teks)}</label>
+      <input type="text" class="web-form-input" data-dlg-nama="jawab" value="${escapeHtml(nilaiAwal == null ? '' : String(nilaiAwal))}" style="width:100%;box-sizing:border-box;min-height:44px;">`,
+    tombol: [{ label: 'Batal', nilai: 'batal', kelas: 'web-btn-secondary' }, { label: 'OK', nilai: 'ok', kelas: 'web-btn-primary' }]
+  });
+  return r.nilai === 'ok' ? String(r.input.jawab == null ? '' : r.input.jawab) : null;
+}
+// Tempel teks ke input/textarea secara manual (dipakai saat paste bawaan sudah dicegat)
+function omniTempelTeksBiasa_(elm, teks) {
+  if (!elm || typeof elm.setRangeText !== 'function') return;
+  try {
+    elm.focus();
+    elm.setRangeText(teks, elm.selectionStart, elm.selectionEnd, 'end');
+    elm.dispatchEvent(new Event('input', { bubbles: true }));
+  } catch (e) { }
+}
+
 /* ---------- STATE LOADING TOMBOL ----------
    Tombol yang diklik user dicatat (fase capture). Kalau klik itu memicu request ke server
    (postJson yang tidak terjawab cache / postJsonTulis), tombol otomatis disabled + spinner sampai
@@ -13524,7 +13559,7 @@ function ovRenderResi(daftar) {
 }
 
 async function ovHapusResi(row) {
-  if (!confirm('Yakin mau hapus resi ini?')) return;
+  if (!(await omniKonfirm_('Yakin mau hapus resi ini?'))) return;
   const tipe = el('ov-resi-tipe').value;
   try {
     const data = await postJsonTulis({ aksi: 'hapus', tipe, row, email: currentUserEmail() });
@@ -16487,8 +16522,8 @@ async function ocEksekusiAksi(a, kartu, mode) {
   el('oc-chat-log').scrollTop = el('oc-chat-log').scrollHeight;
 }
 
-function ocSetAutoPilot(nyala) {
-  if (nyala && !confirm('Aktifkan Auto-Pilot?\n\nOmniAI akan langsung mengeksekusi usulan:\n• Update harga (maks ±15%, tetap wajib ≥ HPP + komisi)\n• Menjeda iklan\n\nStok, voucher, bundling & menyalakan iklan tetap butuh klik manual. Semua aksi tercatat di sheet Execution_Logs.')) {
+async function ocSetAutoPilot(nyala) {
+  if (nyala && !(await omniKonfirm_('Aktifkan Auto-Pilot?\n\nOmniAI akan langsung mengeksekusi usulan:\n• Update harga (maks ±15%, tetap wajib ≥ HPP + komisi)\n• Menjeda iklan\n\nStok, voucher, bundling & menyalakan iklan tetap butuh klik manual. Semua aksi tercatat di sheet Execution_Logs.'))) {
     el('oc-autopilot').checked = false; return;
   }
   ocAutoPilot = !!nyala;
@@ -16836,7 +16871,7 @@ function aiaMenuSesi(sid, btn) {
   pop.style.top = Math.min(window.innerHeight - pop.offsetHeight - 8, r.bottom + 4) + 'px';
   btn.setAttribute('aria-expanded', 'true');
   pop.querySelector('button').focus();
-  pop.addEventListener('click', e => {
+  pop.addEventListener('click', async e => {
     const b = e.target.closest('button[data-m]');
     if (!b) return;
     aiaTutupPop();
@@ -16844,13 +16879,13 @@ function aiaMenuSesi(sid, btn) {
     if (m === 'nama') aiaGantiNama(sid);
     else if (m === 'pin') aiaUbahSesi(sid, { pinned: !s.pinned });
     else if (m === 'arsip') aiaUbahSesi(sid, { status: s.status === 'arsip' ? 'aktif' : 'arsip' });
-    else if (m === 'hapus' && confirm(`Hapus thread "${s.judul}"?\n\nRiwayat pesannya tetap tersimpan di sheet AI_Messages untuk audit, tapi thread tidak tampil lagi.`)) aiaUbahSesi(sid, { status: 'hapus' });
+    else if (m === 'hapus' && (await omniKonfirm_(`Hapus thread "${s.judul}"?\n\nRiwayat pesannya tetap tersimpan di sheet AI_Messages untuk audit, tapi thread tidak tampil lagi.`))) aiaUbahSesi(sid, { status: 'hapus' });
   });
 }
-function aiaGantiNama(sid) {
+async function aiaGantiNama(sid) {
   const s = aiaSesi.find(x => x.session_id === sid);
   if (!s) return;
-  const baru = prompt('Nama thread:', s.judul);
+  const baru = (await omniTanya_('Nama thread:', s.judul));
   if (baru === null) return;
   const j = baru.replace(/\s+/g, ' ').trim();
   if (j && j !== s.judul) aiaUbahSesi(sid, { judul: j.slice(0, 80) });
@@ -17467,7 +17502,7 @@ function aiaTutupDrawer() { document.querySelectorAll('.aia-drawer, .aia-drawer-
 async function aiaTcBatalkan(id) {
   const t = aiaTc.tugas.find(x => x.task_id === id);
   if (!t || t.status !== 'PENDING') return;
-  const alasan = prompt(`Batalkan agenda ${id}?\n${AIA_NAMA_AKSI[t.action] || t.action} · ${t.sku}\nJadwal: ${aiaFmtWaktu(t.waktu_ms)}\n\nTulis alasan pembatalan:`, '');
+  const alasan = (await omniTanya_(`Batalkan agenda ${id}?\n${AIA_NAMA_AKSI[t.action] || t.action} · ${t.sku}\nJadwal: ${aiaFmtWaktu(t.waktu_ms)}\n\nTulis alasan pembatalan:`, ''));
   if (alasan === null) return;
   if (!alasan.trim()) { omniNotif('Alasan pembatalan wajib diisi.'); return; }
   const lama = t.status;
@@ -17487,7 +17522,7 @@ async function aiaTcBatalkan(id) {
 async function aiaTcJalankanUlang(id) {
   const t = aiaTc.tugas.find(x => x.task_id === id);
   if (!t || t.status !== 'FAILED') return;
-  if (!confirm(`Jalankan ulang agenda ${id}?\n${AIA_NAMA_AKSI[t.action] || t.action} · ${t.sku}\n\nAgenda masuk antrean dan dijalankan worker dalam ±5 menit. Guardrail harga tetap dicek ulang.`)) return;
+  if (!(await omniKonfirm_(`Jalankan ulang agenda ${id}?\n${AIA_NAMA_AKSI[t.action] || t.action} · ${t.sku}\n\nAgenda masuk antrean dan dijalankan worker dalam ±5 menit. Guardrail harga tetap dicek ulang.`))) return;
   t.status = 'PENDING'; t.waktu_ms = Date.now();
   aiaTcRender();
   try {
@@ -18415,7 +18450,7 @@ async function wpGabunganJalankanAksi(aksi, o) {
     else if (o.rowShopee) wpBukaModalShopee({ row: o.rowShopee, noPesanan: o.noReferensi, usernameManual: o.usernameManual, namaManual: o.namaManual, hpManual: o.hpManual, alamatManual: o.alamatManual, catatan: o.catatan });
   } else if (aksi === 'finalselesai' || aksi === 'finalretur') {
     const statusBaru = aksi === 'finalselesai' ? 'Selesai' : 'Retur';
-    if (!confirm(`Tandai pesanan "${o.noReferensi}" sebagai ${statusBaru}?${statusBaru === 'Retur' ? ' Stock bakal otomatis dikembalikan.' : ' Ini bakal tercatat sebagai dana masuk/penghasilan.'}`)) return;
+    if (!(await omniKonfirm_(`Tandai pesanan "${o.noReferensi}" sebagai ${statusBaru}?${statusBaru === 'Retur' ? ' Stock bakal otomatis dikembalikan.' : ' Ini bakal tercatat sebagai dana masuk/penghasilan.'}`))) return;
     try {
       const data = await postJson({ aksi: 'finalisasi_pengiriman', noInvoice: o.noReferensi, statusBaru, email: currentUserEmail() });
       if (data.success) { playBeep(); wpFetchSemuaGabungan(); } else { omniNotif('Gagal: ' + (data.error || '')); }
@@ -19087,15 +19122,15 @@ function tgsPasangDelegasi() {
   const root = el('pgr-view-transfer-gudang');
   if (!root || root.dataset.tgsDelegasi) return;
   root.dataset.tgsDelegasi = '1';
-  root.addEventListener('click', e => {
+  root.addEventListener('click', async e => {
     const b = e.target.closest('[data-tgs]');
     if (!b) return;
     const t = tgsData.daftar.find(x => x.noReservasi === b.dataset.no);
     const a = b.dataset.tgs;
     if (a === 'edit') tgsBukaForm(t);
     else if (a === 'terima') tgsBukaTerima(t);
-    else if (a === 'kirim' && confirm(`Tandai reservasi ${t.noReservasi} sudah DIKIRIM?\n\nStok ${t.totalQty} unit akan dikurangi dari Gudang Utama (in-transit).`)) tgsUbahStatus(t.noReservasi, 'kirim');
-    else if (a === 'batal' && confirm(`Batalkan reservasi ${t.noReservasi}?${t.status === 'Dikirim' ? '\n\nStok yang sudah dikurangi akan DIKEMBALIKAN ke Gudang Utama.' : ''}`)) tgsUbahStatus(t.noReservasi, 'batal');
+    else if (a === 'kirim' && (await omniKonfirm_(`Tandai reservasi ${t.noReservasi} sudah DIKIRIM?\n\nStok ${t.totalQty} unit akan dikurangi dari Gudang Utama (in-transit).`))) tgsUbahStatus(t.noReservasi, 'kirim');
+    else if (a === 'batal' && (await omniKonfirm_(`Batalkan reservasi ${t.noReservasi}?${t.status === 'Dikirim' ? '\n\nStok yang sudah dikurangi akan DIKEMBALIKAN ke Gudang Utama.' : ''}`))) tgsUbahStatus(t.noReservasi, 'batal');
   });
 }
 
@@ -19508,7 +19543,7 @@ async function pgrTautanCari() {
 
 async function pgrTautanSimpan(btn) {
   const noInvoice = btn.dataset.no, sumber = btn.dataset.sumber, resi = pgrTautan.resi;
-  if (!confirm(`Tautkan resi ${resi} ke pesanan ${noInvoice} (${sumber})?`)) return;
+  if (!(await omniKonfirm_(`Tautkan resi ${resi} ke pesanan ${noInvoice} (${sumber})?`))) return;
   btn.disabled = true; btn.textContent = 'Menyimpan...';
   try {
     const d = await postJsonTulis({ aksi: 'tautkan_resi_manual', noResi: resi, noInvoice, sumber, email: currentUserEmail() }, 30000);
@@ -19877,7 +19912,7 @@ async function rt2HapusResi(noResi, alasan) {
   rt2TutupMenuStatus();
   const d = rt2Data(noResi);
   if (!d) return;
-  if (!confirm(`Hapus resi ${noResi}?\n\nAlasan: ${alasan}\n\nData ID Pesanan, No Laporan & status pengecekannya ikut terhapus (jejaknya tetap tercatat di sheet "Log Hapus Resi Retur").`)) return;
+  if (!(await omniKonfirm_(`Hapus resi ${noResi}?\n\nAlasan: ${alasan}\n\nData ID Pesanan, No Laporan & status pengecekannya ikut terhapus (jejaknya tetap tercatat di sheet "Log Hapus Resi Retur").`))) return;
   const baris = document.querySelector(`[data-rt2="${CSS.escape(noResi)}"]`);
   if (baris) baris.classList.add('rt2-menghapus');
   try {
@@ -19916,7 +19951,7 @@ async function rt2SimpanField(noResi, field, nilai) {
 async function rt2EditKurir(noResi) {
   const d = rt2Data(noResi);
   if (!d) return;
-  const baru = prompt('Kurir untuk resi ' + noResi + ':', d.kurir || '');
+  const baru = (await omniTanya_('Kurir untuk resi ' + noResi + ':', d.kurir || ''));
   if (baru === null || !baru.trim() || baru.trim() === d.kurir) return;
   const lama = { kurir: d.kurir, otomatis: d.kurirOtomatis };
   d.kurir = baru.trim(); d.kurirOtomatis = false; rt2Render();
@@ -20175,7 +20210,7 @@ async function wpFetchPengiriman() {
 }
 
 async function wpFinalisasiPengiriman(noInvoice, statusBaru) {
-  if (statusBaru === 'Retur' && !confirm(`Yakin tandai ${noInvoice} sebagai RETUR? Stock produknya bakal otomatis dikembalikan.`)) return;
+  if (statusBaru === 'Retur' && !(await omniKonfirm_(`Yakin tandai ${noInvoice} sebagai RETUR? Stock produknya bakal otomatis dikembalikan.`))) return;
   try {
     const data = await postJson({ aksi: 'finalisasi_pengiriman', noInvoice, statusBaru, email: currentUserEmail() });
     if (data.success) { playBeep(); wpFetchPengiriman(); }
@@ -21179,7 +21214,7 @@ function aifRenderPanel() {
 }
 
 async function aifAksiJob(jobId, aksiJob) {
-  if (aksiJob === 'batal' && !confirm('Batalkan pekerjaan AI ini? Hasil yang sudah terbaca tetap tersimpan di log.')) return;
+  if (aksiJob === 'batal' && !(await omniKonfirm_('Batalkan pekerjaan AI ini? Hasil yang sudah terbaca tetap tersimpan di log.'))) return;
   try {
     const d = await postJson({ aksi: 'ubah_job_ai', jobId, aksiJob, email: currentUserEmail() }, 30000);
     if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
@@ -21352,10 +21387,10 @@ async function agkUjiPrompt(role) {
   finally { btn.disabled = false; }
 }
 function agkLihatKey(role, btn) { const i = el('agk-key-' + role); if (!i) return; i.type = i.type === 'password' ? 'text' : 'password'; btn.textContent = i.type === 'password' ? '👁' : '🙈'; }
-function agkTandaiHapus(role) {
+async function agkTandaiHapus(role) {
   if (!agkHapus[role]) {
     const a = agkData.find(x => x.role === role);
-    if (!confirm(`Hapus API key ${a ? a.nama : role}? Fitur yang dipakai agent ini akan berhenti${role === 'budi' ? ' (Budi kembali memakai key Jaya)' : ''} setelah disimpan.`)) return;
+    if (!(await omniKonfirm_(`Hapus API key ${a ? a.nama : role}? Fitur yang dipakai agent ini akan berhenti${role === 'budi' ? ' (Budi kembali memakai key Jaya)' : ''} setelah disimpan.`))) return;
   }
   agkHapus[role] = !agkHapus[role];
   agkRender();
@@ -21610,13 +21645,13 @@ async function kmpCariPesanan() {
     playToot();
   }
 }
-function kmpSimpan() {
+async function kmpSimpan() {
   const modalBuka = el('kmp-modal') && el('kmp-modal').style.display === 'flex';
   const f = kmp.form, st = (modalBuka && el('kmp-status')) || { set textContent(t) { pgrToast(t); }, className: '' };
   if (!f.jenis) { st.className = 'status-text err'; st.textContent = '⚠️ Pilih Jenis Kendala'; return; }
   if (f.solusi === 'refund' && !(Number(f.nilaiRefund) > 0)) { st.className = 'status-text err'; st.textContent = '⚠️ Isi nilai refund / kompensasi'; return; }
   if (f.solusi === 'kirim_ulang' && !f.refStok && !(f.kirimUlang || []).length) { st.className = 'status-text err'; st.textContent = '⚠️ Isi jumlah barang yang dikirim ulang'; return; }
-  if (f.solusi === 'kirim_ulang' && !f.refStok && !confirm(`Stok gudang akan dipotong:\n${f.kirimUlang.map(b => '• ' + (b.nama || b.sku) + ' × ' + b.qty).join('\n')}\n\nLanjut simpan?`)) return;
+  if (f.solusi === 'kirim_ulang' && !f.refStok && !(await omniKonfirm_(`Stok gudang akan dipotong:\n${f.kirimUlang.map(b => '• ' + (b.nama || b.sku) + ' × ' + b.qty).join('\n')}\n\nLanjut simpan?`))) return;
   const body = { aksi: 'komplain_simpan', id: f.id, tanggal: f.tanggal, noPesanan: f.noPesanan, channel: f.channel, pembeli: f.pembeli, hp: f.hp,
     barang: f.barang, jenis: f.jenis, keterangan: f.keterangan, solusi: f.solusi, status: f.status, nilaiRefund: f.nilaiRefund,
     kirimUlang: f.kirimUlang, resiKirimUlang: f.resiKirimUlang };
@@ -21791,10 +21826,10 @@ function wpBatalCepat(row) {
     onSelesai: () => { it.status = 'Dibatalkan'; wpRenderListRows(); }
   });
 }
-function wpmHapusPermanen(noInvoice) {
+async function wpmHapusPermanen(noInvoice) {
   const it = wpListCache.find(x => x.noInvoice === noInvoice);
   if (!it || it.status !== 'Dibatalkan') return;
-  if (!confirm(`Hapus PERMANEN pesanan ${noInvoice} (${it.namaPenerima})?\n\nPesanan & barangnya dihapus dari daftar. Salinannya tetap disimpan di sheet "Log Hapus Pesanan".`)) return;
+  if (!(await omniKonfirm_(`Hapus PERMANEN pesanan ${noInvoice} (${it.namaPenerima})?\n\nPesanan & barangnya dihapus dari daftar. Salinannya tetap disimpan di sheet "Log Hapus Pesanan".`))) return;
   wpm.proses[noInvoice] = 'hapus';
   wpRenderListRows();
   aksiLatar({
@@ -21805,16 +21840,16 @@ function wpmHapusPermanen(noInvoice) {
     onGagal: () => { delete wpm.proses[noInvoice]; wpRenderListRows(); }
   });
 }
-function wpmBersihkanBatal() {
+async function wpmBersihkanBatal() {
   const batal = wpListCache.filter(x => x.status === 'Dibatalkan');
   if (!batal.length) return;
   const dobel = batal.filter(x => /dua kali|dobel|double|ganda/i.test(x.alasanBatal || ''));
-  const pilih = prompt(`Bersihkan pesanan yang sudah DIBATALKAN (dihapus permanen, salinan disimpan di "Log Hapus Pesanan"):\n\n1 = Hanya yang alasannya "Terbuat Dua Kali" (${dobel.length} pesanan)\n2 = SEMUA yang dibatalkan (${batal.length} pesanan)\n\nKetik 1 atau 2:`, dobel.length ? '1' : '2');
+  const pilih = (await omniTanya_(`Bersihkan pesanan yang sudah DIBATALKAN (dihapus permanen, salinan disimpan di "Log Hapus Pesanan"):\n\n1 = Hanya yang alasannya "Terbuat Dua Kali" (${dobel.length} pesanan)\n2 = SEMUA yang dibatalkan (${batal.length} pesanan)\n\nKetik 1 atau 2:`, dobel.length ? '1' : '2'));
   if (pilih !== '1' && pilih !== '2') return;
   const mode = pilih === '1' ? 'dobel' : 'semua';
   const target = mode === 'dobel' ? dobel : batal;
   if (!target.length) { pgrToast('Tidak ada pesanan yang cocok'); return; }
-  if ((prompt(`Ketik HAPUS untuk menghapus permanen ${target.length} pesanan.`) || '').trim().toUpperCase() !== 'HAPUS') return;
+  if (((await omniTanya_(`Ketik HAPUS untuk menghapus permanen ${target.length} pesanan.`)) || '').trim().toUpperCase() !== 'HAPUS') return;
   target.forEach(x => { wpm.proses[x.noInvoice] = 'hapus'; });
   wpRenderListRows();
   const jalan = () => aksiLatar({
@@ -22185,10 +22220,10 @@ function wpBRenderRiwayat() {
       ${o.items.length ? '<span class="wp-b-rk-cta">🔁 Repeat Order</span>' : ''}
     </button>`).join('');
 }
-function wpBRepeatOrder(i) {
+async function wpBRepeatOrder(i) {
   const o = wpBRiwayat[i];
   if (!o) return;
-  if (wpCart.length && !confirm('Keranjang berisi ' + wpCart.length + ' produk. Ganti dengan isi pesanan ' + o.noInvoice + '?')) return;
+  if (wpCart.length && !(await omniKonfirm_('Keranjang berisi ' + wpCart.length + ' produk. Ganti dengan isi pesanan ' + o.noInvoice + '?'))) return;
   wpCart = o.items.map(it => ({ sku: it.sku, nama: it.nama || it.sku, qty: it.qty, harga: it.harga }));
   const opsi = Array.from(el('wp-b-kurir').options).map(x => x.value);
   if (o.kurir) el('wp-b-kurir').value = opsi.includes(o.kurir) ? o.kurir : 'Lainnya';
@@ -22633,7 +22668,7 @@ async function wpSimpanPesananBaru() {
 }
 
 // Simpan formulir di LATAR: invoice & label langsung tampil, server mengerjakan lewat Action Log
-function wpSimpanLatar(f) {
+async function wpSimpanLatar(f) {
   const payload = {
     aksi: f.sedangEdit ? 'update_item_pesanan' : 'buat_invoice',
     namaPenerima: f.nama, alamat: f.alamat, noHp: f.noHp, namaPembeli: f.namaPembeli, noHpPembeli: f.noHpPembeli, toko: el('wp-b-toko').value,
@@ -22656,7 +22691,7 @@ function wpSimpanLatar(f) {
   // Cegah pesanan DOBEL: isi sama persis dalam 10 menit terakhir -> konfirmasi
   const sidik = JSON.stringify([payload.namaPenerima, payload.alamat, payload.noHp, payload.items, payload.ongkosKirim, payload.biayaLainnya, payload.diskon, payload.kurir]);
   const kembar = wpm.terbaru.find(x => x.sidik === sidik && Date.now() - x.waktu < 10 * 60000);
-  if (kembar && !confirm(`⚠️ Pesanan yang SAMA PERSIS baru saja dibuat (No ${kembar.noInvoice}).\n\nOK = tetap buat pesanan baru · Batal = jangan`)) return;
+  if (kembar && !(await omniKonfirm_(`⚠️ Pesanan yang SAMA PERSIS baru saja dibuat (No ${kembar.noInvoice}).\n\nOK = tetap buat pesanan baru · Batal = jangan`))) return;
   const noInvoice = buatKodeInvoiceLokal(), sekarang = tglLampau ? new Date((krParse(tglLampau) || new Date()).setHours(12, 0, 0, 0)) : new Date();
   payload.noInvoice = noInvoice; payload.waktuDibuat = sekarang.getTime();
   wpm.terbaru.push({ sidik, waktu: Date.now(), noInvoice });
@@ -23303,7 +23338,7 @@ function kstRenderKartuStaff() {
 async function kstNonaktifkanStaff(row, btn) {
   const staff = kstDaftarStaffCache.find(s => s.row === row);
   if (!staff) return;
-  if (!confirm(`Nonaktifkan ${staff.nama || staff.email}?\n\nAksesnya langsung dicabut. Data & riwayatnya tetap aman, dan bisa diaktifkan lagi lewat menu "Persetujuan Staff Baru".`)) return;
+  if (!(await omniKonfirm_(`Nonaktifkan ${staff.nama || staff.email}?\n\nAksesnya langsung dicabut. Data & riwayatnya tetap aman, dan bisa diaktifkan lagi lewat menu "Persetujuan Staff Baru".`))) return;
   btn.disabled = true; btn.textContent = 'Memproses...';
   try {
     // izin/noHp/alamat sengaja nggak dikirim -> backend cuma ubah status aktif
@@ -23335,7 +23370,7 @@ async function kstApprove(row) {
 }
 
 async function kstTolak(row) {
-  if (!confirm('Yakin mau tolak permintaan akses ini?')) return;
+  if (!(await omniKonfirm_('Yakin mau tolak permintaan akses ini?'))) return;
   try {
     const data = await postJson({ aksi: 'tolak_akses', row, email: currentUserEmail() });
     if (data.success) { playToot(); kstFetchAll(); }
@@ -24785,7 +24820,7 @@ async function fmkSinkronIklan() {
   finally { fmkIklanJalan = false; btn.disabled = false; btn.innerHTML = '⟳ Sinkron Biaya Iklan'; }
 }
 async function fmkHapusBatch(batch, n) {
-  if (!confirm(`Hapus ${n} baris mutasi dari impor ini?\n\nGunakan kalau salah pilih rekening / salah file. Kategori yang sudah dipilih di baris ini ikut terhapus.`)) return;
+  if (!(await omniKonfirm_(`Hapus ${n} baris mutasi dari impor ini?\n\nGunakan kalau salah pilih rekening / salah file. Kategori yang sudah dipilih di baris ini ikut terhapus.`))) return;
   try {
     const r = await postJsonTulis({ aksi: 'fin_hapus_batch_mutasi', batch, email: currentUserEmail() });
     if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
@@ -24947,9 +24982,9 @@ async function fmkoProses() {
   }
 }
 function fmkoCobaLagi() { fmko.jobs.forEach(j => { if (j.status === 'gagal' || j.status === 'antre') { j.status = 'antre'; j.tungguSampai = 0; } }); fmkoSimpan_(); fmkoProses(); }
-function fmkoBuangGagal() {
+async function fmkoBuangGagal() {
   const g = fmko.jobs.filter(j => j.status === 'gagal');
-  if (!g.length || !confirm(`Buang ${g.length} kiriman yang ditolak server? Data itu tidak akan tersimpan.`)) return;
+  if (!g.length || !(await omniKonfirm_(`Buang ${g.length} kiriman yang ditolak server? Data itu tidak akan tersimpan.`))) return;
   fmko.jobs = fmko.jobs.filter(j => j.status !== 'gagal'); fmkoSimpan_(); fmkoRenderStatus(); fmkoProses(); if (fmk.data) fmkRender();
 }
 function fmkoRenderStatus() {
@@ -25014,9 +25049,9 @@ function fmkRenderDraftBar() {
     <button type="button" class="fin2-link" onclick="fmkBatalDraft()">Batalkan</button>
     <button type="button" class="web-btn-primary fin2-btn-kecil" onclick="fmkSimpanDraft()" ${fmk.katBaruProses ? 'disabled title="Menunggu kategori baru tersimpan…"' : ''}>💾 Simpan ${n.toLocaleString('id-ID')} kategori</button>`;
 }
-function fmkBatalDraft() {
+async function fmkBatalDraft() {
   const n = Object.keys(fmk.draft).length;
-  if (!n || (n > 5 && !confirm(`Batalkan ${n} perubahan kategori yang belum disimpan?`))) return;
+  if (!n || (n > 5 && !(await omniKonfirm_(`Batalkan ${n} perubahan kategori yang belum disimpan?`)))) return;
   fmk.draft = {}; fmkDraftSimpan_(); fmkRender();
 }
 function fmkSimpanDraft() {
@@ -25102,9 +25137,9 @@ function fmkSetKategoriDiBaris_(id, k) {
   const sel = el('fmk-list').querySelector(`tr[data-id="${CSS.escape(id)}"] select.fmk-kat`);
   fmkSetKategori(id, k, sel);
 }
-function fmkHapusKategori(k) {
+async function fmkHapusKategori(k) {
   const c = fmkKategori().find(x => x.k === k);
-  if (!c || !confirm(`Hapus kategori "${c.label}"?\n\nHanya bisa kalau belum dipakai mutasi mana pun.`)) return;
+  if (!c || !(await omniKonfirm_(`Hapus kategori "${c.label}"?\n\nHanya bisa kalau belum dipakai mutasi mana pun.`))) return;
   fmkTutupKategoriBaru();
   aksiLatar({
     kunci: 'hpskatmutasi:' + k, judul: `Hapus kategori "${c.label}"`, body: { aksi: 'fin_hapus_kategori_mutasi', k },
@@ -25405,7 +25440,7 @@ function fin2NopRender(L) {
 async function fin2NopHapus(grup, btn) {
   const x = ((fin2.lap && fin2.lap.nonOps) || []).find(i => i.grup === grup);
   if (!x) return;
-  if (!confirm(`Hapus ${x.label} ${fin2Rp(x.jumlah + (x.bunga || 0))} (${fin2TglLabel(x.tanggal)})?\n\nJurnal & semua laporan otomatis ikut berubah. Jejaknya tetap tersimpan di sheet.`)) return;
+  if (!(await omniKonfirm_(`Hapus ${x.label} ${fin2Rp(x.jumlah + (x.bunga || 0))} (${fin2TglLabel(x.tanggal)})?\n\nJurnal & semua laporan otomatis ikut berubah. Jejaknya tetap tersimpan di sheet.`))) return;
   btn.disabled = true;
   try {
     const r = await postJsonTulis({ aksi: 'fin_hapus_nonops', grup, rows: x.rows, email: currentUserEmail() });
@@ -25630,7 +25665,7 @@ function fin2CariNotaSama(nota, jumlah, kecualiRow) {
     .concat(fin2Antre.filter(x => x.status !== 'gagal' && x.status !== 'tolak').map(x => ({ noNota: x.noNota, jumlah: x.jumlah, tanggalLabel: fin2TglLabel(x.tanggal), label: x.label })));
   return sumber.find(d => fin2NotaKunci(d.noNota) === k && Math.round(d.jumlah) === Math.round(jumlah)) || null;
 }
-function fin2SimpanBiaya() {
+async function fin2SimpanBiaya() {
   const st = el('fin2-b-status'), btn = el('fin2-b-simpan');
   if (Date.now() - fin2KunciKlik < 1500) return; // klik ganda / Enter + klik
   const jumlah = fin2AngkaDariInput(el('fin2-b-jumlah'));
@@ -25659,7 +25694,7 @@ function fin2SimpanBiaya() {
   // Kemungkinan DOBEL (tanpa No Nota): nominal + tanggal sama -> minta konfirmasi
   const akunCek = katBaru ? '' : fin2.katDipilih;
   const mirip = fin2CariMiripLokal(akunCek, jumlah, tanggal, keterangan, noNota);
-  if (mirip.length && !confirm('⚠️ Kemungkinan biaya ini SUDAH PERNAH dicatat:\n\n' + mirip.map(m => `• ${m.tanggalLabel} · ${m.label} · ${fin2Rp(m.jumlah)}${m.keterangan ? ' · ' + m.keterangan.slice(0, 50) : ''}  (${m.alasan})`).join('\n') + '\n\nTetap simpan sebagai biaya baru?')) {
+  if (mirip.length && !(await omniKonfirm_('⚠️ Kemungkinan biaya ini SUDAH PERNAH dicatat:\n\n' + mirip.map(m => `• ${m.tanggalLabel} · ${m.label} · ${fin2Rp(m.jumlah)}${m.keterangan ? ' · ' + m.keterangan.slice(0, 50) : ''}  (${m.alasan})`).join('\n') + '\n\nTetap simpan sebagai biaya baru?'))) {
     st.className = 'status-text err'; st.textContent = '✗ Tidak disimpan - terdeteksi mirip dengan biaya yang sudah ada'; return;
   }
   fin2KunciKlik = Date.now();
@@ -25954,10 +25989,10 @@ function fin2KeluarkanBaris(kunci, lanjut) {
   setTimeout(beres, 600);
 }
 /* ---------- HAPUS: instan di layar, server di latar (Action Log) ---------- */
-function fin2HapusBiaya(row) {
+async function fin2HapusBiaya(row) {
   const d = fin2DaftarTampil().find(x => x.row === row);
   if (!d) return;
-  if (!confirm(`Hapus biaya ${d.label} ${fin2Rp(d.jumlah)}?\n\nLaporan keuangan otomatis ikut berubah. Jejaknya tetap tersimpan di sheet.`)) return;
+  if (!(await omniKonfirm_(`Hapus biaya ${d.label} ${fin2Rp(d.jumlah)}?\n\nLaporan keuangan otomatis ikut berubah. Jejaknya tetap tersimpan di sheet.`))) return;
   if (fin2.editRow === row) fin2.editRow = 0;
   fin2.hapusTertunda.add(row);
   playToot();
@@ -26189,7 +26224,7 @@ async function pgtUploadGambarCarousel(row) {
 }
 
 async function pgtHapusGambarCarousel(row) {
-  if (!confirm('Hapus gambar slide ini? (balik ke tampilan emoji)')) return;
+  if (!(await omniKonfirm_('Hapus gambar slide ini? (balik ke tampilan emoji)'))) return;
   try {
     const data = await postJson({ aksi: 'hapus_gambar_carousel', row, email: currentUserEmail() });
     if (data.success) { playBeep(); pgtMuatCarouselAdmin(); } else { omniNotif('Gagal: ' + (data.error || '')); }
@@ -26228,7 +26263,7 @@ async function pgtTambahSlideCarousel() {
 }
 
 async function pgtHapusSlideCarousel(row) {
-  if (!confirm('Hapus slide ini?')) return;
+  if (!(await omniKonfirm_('Hapus slide ini?'))) return;
   try {
     const data = await postJson({ aksi: 'hapus_slide_carousel', row, email: currentUserEmail() });
     if (data.success) { playBeep(); pgtMuatCarouselAdmin(); } else { omniNotif('Gagal: ' + (data.error || '')); }
@@ -26598,7 +26633,7 @@ async function intPutuskan(id) {
   const k = intCari(id);
   if (!k) return;
   const label = `${(INT_PLATFORM[k.platform] || {}).nama || k.platform} - ${k.tokoNama}`;
-  if (!confirm(`Putuskan koneksi ${label}?\n\nToken akses dihapus dan sinkronisasi pesanan, stok & harga berhenti sampai toko dihubungkan lagi. Kamu juga bisa mencabut akses OmniAI dari Seller Center platform.`)) return;
+  if (!(await omniKonfirm_(`Putuskan koneksi ${label}?\n\nToken akses dihapus dan sinkronisasi pesanan, stok & harga berhenti sampai toko dihubungkan lagi. Kamu juga bisa mencabut akses OmniAI dari Seller Center platform.`))) return;
   intSibuk[id] = 'putus'; intRender();
   try {
     const d = await postJson({ aksi: 'putuskan_koneksi_marketplace', idKoneksi: id, konfirmasi: true, email: currentUserEmail() }, 30000);
@@ -26638,7 +26673,7 @@ async function intSimpanAppKhusus(id, hapus) {
   if (!k) return;
   const payload = { aksi: 'simpan_app_khusus_toko', idKoneksi: id, email: currentUserEmail() };
   if (hapus) {
-    if (!confirm(`Hapus aplikasi khusus untuk ${k.tokoNama}?\n\nToko ini kembali memakai aplikasi master OmniAI.`)) return;
+    if (!(await omniKonfirm_(`Hapus aplikasi khusus untuk ${k.tokoNama}?\n\nToko ini kembali memakai aplikasi master OmniAI.`))) return;
     payload.hapus = true;
   } else {
     payload.appKey = (el('int-app-key').value || '').trim();
@@ -26864,7 +26899,7 @@ async function pgtSimpanMargin() {
 }
 
 async function pgtHitungUlangSemuaHarga() {
-  if (!confirm('Ini akan update Harga Default SEMUA produk (yang punya HPP) berdasarkan margin saat ini. Lanjutkan?')) return;
+  if (!(await omniKonfirm_('Ini akan update Harga Default SEMUA produk (yang punya HPP) berdasarkan margin saat ini. Lanjutkan?'))) return;
   const statusEl = el('pgt-hitung-ulang-status');
   setLoadingDots(statusEl, 'Menghitung ulang');
   try {
@@ -27314,12 +27349,12 @@ function katalogPasangHandlerSelectKategori(container) {
   if (!container) return;
   container.querySelectorAll('.katalog-select-kategori').forEach(sel => {
     sel.addEventListener('click', (e) => e.stopPropagation());
-    sel.addEventListener('change', (e) => {
+    sel.addEventListener('change', async (e) => {
       e.stopPropagation();
       const sku = sel.dataset.sku;
       const item = katalogProdukCache.find(p => p.sku === sku);
       if (sel.value === KATALOG_OPSI_TAMBAH_KATEGORI) {
-        const namaBaru = prompt('Nama kategori baru:');
+        const namaBaru = (await omniTanya_('Nama kategori baru:'));
         if (!namaBaru || !namaBaru.trim()) { sel.value = (item && item.kategori) || ''; return; }
         const namaBersih = namaBaru.trim();
         if (!katalogDaftarKategoriCache.includes(namaBersih)) {
@@ -27343,9 +27378,9 @@ function katalogIsiOpsiKategoriModal(kategoriTerpilih) {
   const opsi = daftar.map(k => `<option value="${escapeHtml(k)}" ${k === kategoriTerpilih ? 'selected' : ''}>${escapeHtml(k)}</option>`).join('');
   el('tp-kategori').innerHTML = `<option value="">- Pilih Kategori (opsional) -</option>${opsi}<option value="${KATALOG_OPSI_TAMBAH_KATEGORI}">+ Tambah Kategori Baru...</option>`;
 }
-function katalogTpKategoriBerubah(select) {
+async function katalogTpKategoriBerubah(select) {
   if (select.value !== KATALOG_OPSI_TAMBAH_KATEGORI) return;
-  const namaBaru = prompt('Nama kategori baru:');
+  const namaBaru = (await omniTanya_('Nama kategori baru:'));
   if (!namaBaru || !namaBaru.trim()) { select.value = ''; return; }
   const namaBersih = namaBaru.trim();
   if (!katalogDaftarKategoriCache.includes(namaBersih)) {
@@ -27685,11 +27720,9 @@ async function katalogUbahSkuSpasiJadiTerhubung(skuGabungan, btn) {
   const bagian = skuGabungan.split(/[\s,]+/).map(s => s.trim()).filter(s => s);
   const skuUtama = bagian[0];
   const skuLainnya = bagian.slice(1);
-  const konfirmasi = confirm(
-    `SKU ini keliatan gabungan (ada spasi):\n"${skuGabungan}"\n\n` +
+  const konfirmasi = (await omniKonfirm_(`SKU ini keliatan gabungan (ada spasi):\n"${skuGabungan}"\n\n` +
     `Mau dipecah jadi:\n- SKU utama: ${skuUtama}\n- Terhubung: ${skuLainnya.join(', ')}\n\n` +
-    `SKU produk ini bakal DIGANTI jadi cuma "${skuUtama}" (bukan lagi gabungan). Lanjut?`
-  );
+    `SKU produk ini bakal DIGANTI jadi cuma "${skuUtama}" (bukan lagi gabungan). Lanjut?`));
   if (!konfirmasi) return;
 
   try {
@@ -27911,7 +27944,7 @@ async function katalogSimpanEditField(skuLama, field, nilaiBaru) {
   const namaBaru = field === 'nama' ? nilaiBaru : item.nama;
   const kategoriBaru = field === 'kategori' ? nilaiBaru : item.kategori;
 
-  if (field === 'sku' && skuBaru !== skuLama && !confirm(`Ganti SKU dari "${skuLama}" ke "${skuBaru}"?\n\n⚠️ Ini CUMA update di Master Produk. Riwayat stock/pesanan yang udah tercatat dengan SKU lama TIDAK ikut berubah otomatis.`)) return;
+  if (field === 'sku' && skuBaru !== skuLama && !(await omniKonfirm_(`Ganti SKU dari "${skuLama}" ke "${skuBaru}"?\n\n⚠️ Ini CUMA update di Master Produk. Riwayat stock/pesanan yang udah tercatat dengan SKU lama TIDAK ikut berubah otomatis.`))) return;
 
   try {
     const data = await postJson({ aksi: 'edit_produk_master', skuLama, skuBaru, namaBaru, kategoriBaru, email: currentUserEmail() });
@@ -28437,7 +28470,7 @@ function katalogTerapkanHasilEkstrak(h) {
 
 // Global paste listener (delegasi di document, fase bubble). Sengaja BUBBLE, bukan capture:
 // kotak foto sudah stopPropagation() untuk paste gambar/URL, jadi nggak bentrok.
-document.addEventListener('paste', function (e) {
+document.addEventListener('paste', async function (e) {
   const modal = el('katalog-modal-tambah-produk');
   if (!modal || modal.style.display === 'none' || !modal.contains(e.target)) return;
 
@@ -28454,7 +28487,15 @@ document.addEventListener('paste', function (e) {
   if (kolom.length < 2) return;
 
   // 3) Mode Edit: konfirmasi dulu, soalnya bisa menimpa data produk yang sudah ada
-  if (katalogModalMode === 'edit' && !confirm('Teks yang ditempel terdeteksi sebagai data supplier.\nIsi otomatis field yang cocok? (data lama di field tersebut akan ditimpa)\n\nBatal = tempel sebagai teks biasa.')) return;
+  if (katalogModalMode === 'edit') {
+    // Dialog bersifat async -> paste bawaan dicegat dulu; kalau user pilih Batal, teks ditempel manual sebagai teks biasa
+    e.preventDefault();
+    const targetTempel = e.target;
+    if (!(await omniKonfirm_('Teks yang ditempel terdeteksi sebagai data supplier.\nIsi otomatis field yang cocok? (data lama di field tersebut akan ditimpa)\n\nBatal = tempel sebagai teks biasa.'))) {
+      omniTempelTeksBiasa_(targetTempel, teks);
+      return;
+    }
+  }
 
   // 4) Cegat paste default & isi semua field sekaligus
   e.preventDefault();
@@ -29393,13 +29434,13 @@ function vbUsulanSku(k) {
 /* ===== BUAT & TAUTKAN SKU BARU DI MATRIKS VARIAN - berjalan di latar =====
    Slot langsung terisi (status "sedang dibuat"), jendela tetap bisa dipakai, progres & hasil tampil di
    panel Log Tindakan kanan bawah. Gagal -> slot dikosongkan lagi + alasan di log. */
-function vbBuatSkuBaru(key, btn, tanpaTanya, logBersama) {
+async function vbBuatSkuBaru(key, btn, tanpaTanya, logBersama) {
   const vbIni = vb;
   const k = vbKombinasi().find(c => c.key === key);
   if (!k) return Promise.resolve({ key, ok: false });
   let skuBaru = vbUsulanSku(k);
   if (!tanpaTanya) {
-    skuBaru = prompt(`SKU baru untuk slot "${[k.n1, k.n2].filter(Boolean).join(' - ')}":\n(atribut disalin dari ${vb.skuAsal}; harga & stok diatur di produk itu sendiri)`, skuBaru);
+    skuBaru = (await omniTanya_(`SKU baru untuk slot "${[k.n1, k.n2].filter(Boolean).join(' - ')}":\n(atribut disalin dari ${vb.skuAsal}; harga & stok diatur di produk itu sendiri)`, skuBaru));
     if (!skuBaru) return Promise.resolve({ key, ok: false });
     skuBaru = skuBaru.trim();
   }
@@ -29440,7 +29481,7 @@ function vbBuatSkuBaru(key, btn, tanpaTanya, logBersama) {
 }
 async function vbBuatSemuaKosong(btn) {
   const kosong = vbKombinasi().filter(k => !vb.slot[k.key]);
-  if (!kosong.length || !confirm(`Buat ${kosong.length} produk baru (SKU otomatis, atribut disalin dari ${vb.skuAsal}) untuk semua slot kosong?`)) return;
+  if (!kosong.length || !(await omniKonfirm_(`Buat ${kosong.length} produk baru (SKU otomatis, atribut disalin dari ${vb.skuAsal}) untuk semua slot kosong?`))) return;
   // Satu entri log untuk seluruh proses; dibuat berurutan (1 per 1) supaya ringan untuk server
   const logId = logTindakan.tambah(`Buat ${kosong.length} SKU varian baru`);
   const vbIni = vb;
@@ -29470,7 +29511,7 @@ async function vbSimpan() {
   if (!slot.length) { status.textContent = 'Tautkan minimal 1 SKU ke slot kombinasi.'; return; }
   if (vbSimpanBerjalan.has(vb.skuAsal)) { status.textContent = 'Variasi produk ini masih disimpan - tunggu sampai selesai di Log Tindakan.'; return; }
   const kosong = komb.length - slot.length;
-  if (kosong && !confirm(`${kosong} slot masih kosong (tidak akan tampil sebagai pilihan varian). Simpan sekarang?`)) return;
+  if (kosong && !(await omniKonfirm_(`${kosong} slot masih kosong (tidak akan tampil sebagai pilihan varian). Simpan sekarang?`))) return;
   const job = {
     payload: { aksi: 'simpan_varian_bertingkat', idGrup: vb.idGrup, skuAsal: vb.skuAsal, namaInduk: vb.namaInduk.trim(),
       tipe1: vb.tipe1, opsi1: vb.opsi1.slice(), tipe2: vb.pakaiT2 ? vb.tipe2 : '', opsi2: vb.pakaiT2 ? vb.opsi2.slice() : [], toko: currentToko, email: currentUserEmail() },
@@ -30406,7 +30447,7 @@ function katalogRenderDetailFotoUtama(urlFoto) {
 
 async function katalogHapusFotoUtamaDetail() {
   if (!katalogSkuDetailAktif) return;
-  if (!confirm('Hapus foto utama produk ini?')) return;
+  if (!(await omniKonfirm_('Hapus foto utama produk ini?'))) return;
   el('katalog-detail-foto-wrap').innerHTML = '<span style="font-size:11px; color:var(--web-text-dim);">Menghapus...</span>';
   try {
     const data = await postJson({ aksi: 'hapus_foto_slot', sku: katalogSkuDetailAktif, slotType: 'utama', toko: currentToko, email: currentUserEmail() }, 30000);
@@ -30492,7 +30533,7 @@ function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
 
 async function katalogHapusFotoGaleriDetail(slot) {
   if (!katalogSkuDetailAktif) return;
-  if (!confirm(`Hapus Foto ${slot + 2}?`)) return;
+  if (!(await omniKonfirm_(`Hapus Foto ${slot + 2}?`))) return;
   const statusEl = document.querySelector(`.katalog-detail-galeri-status[data-slot="${slot}"]`);
   if (statusEl) statusEl.style.display = 'flex';
   try {
@@ -32046,7 +32087,7 @@ function hargaTerapkanMassalDefault() {
   statusEl.textContent = `${diisi > 0 ? '✓' : '✗'} Harga Default dihitung ulang untuk ${diisi} produk (pakai Target Margin masing-masing)${dilewati.length ? `, ${dilewati.length} dilewati: ${dilewati.slice(0, 3).join(', ')}${dilewati.length > 3 ? ', ...' : ''}` : ''}.${diisi > 0 ? ' Tekan Simpan Semua Perubahan.' : ''}`;
 }
 
-function hargaTerapkanMassal(chKey) {
+async function hargaTerapkanMassal(chKey) {
   if (chKey === 'default') return hargaTerapkanMassalDefault();
   const statusEl = el('katalog-harga-bulk-status');
   const salah = (t) => { statusEl.className = 'status-text err'; statusEl.textContent = t; };
@@ -32059,7 +32100,7 @@ function hargaTerapkanMassal(chKey) {
   const pakaiCentang = katalogHargaTerpilih.size > 0;
   const target = pakaiCentang ? Array.from(katalogHargaTerpilih) : katalogHargaCache.map(p => p.sku);
   if (target.length === 0) return salah('Belum ada produk.');
-  if (!pakaiCentang && !confirm(`Tidak ada produk yang dicentang. Isi ${ch.label} untuk SEMUA ${target.length} produk dengan margin ${hargaFmtPersen(margin)}?`)) return;
+  if (!pakaiCentang && !(await omniKonfirm_(`Tidak ada produk yang dicentang. Isi ${ch.label} untuk SEMUA ${target.length} produk dengan margin ${hargaFmtPersen(margin)}?`))) return;
 
   const param = hargaParamDipakai();
   let diisi = 0, dilewati = 0;
@@ -32869,7 +32910,7 @@ function katalogToggleArsip(aktif) {
 }
 
 async function katalogPulihkanProduk(sku) {
-  if (!confirm(`Pulihkan produk "${sku}" dari arsip?\nProduk akan tampil lagi di Katalog, Harga, website & pencarian transaksi.`)) return;
+  if (!(await omniKonfirm_(`Pulihkan produk "${sku}" dari arsip?\nProduk akan tampil lagi di Katalog, Harga, website & pencarian transaksi.`))) return;
   try {
     const data = await postJsonTulis({ aksi: 'pulihkan_produk_arsip', skuList: [sku], toko: currentToko, email: currentUserEmail() });
     if (!data.success) { omniNotif(katalogTeksGagal(data.error)); return; }
@@ -32883,7 +32924,7 @@ async function katalogPulihkanProduk(sku) {
 
 async function katalogHapusKategori(idx, kategori) {
   const jml = kategori.jumlahProduk || 0;
-  if (!confirm(`Hapus kategori "${kategori.nama}"?\n\n${jml ? `${jml} produk di dalamnya akan menjadi "Tanpa Kategori" (produknya TIDAK dihapus).` : 'Tidak ada produk di kategori ini.'}`)) return;
+  if (!(await omniKonfirm_(`Hapus kategori "${kategori.nama}"?\n\n${jml ? `${jml} produk di dalamnya akan menjadi "Tanpa Kategori" (produknya TIDAK dihapus).` : 'Tidak ada produk di kategori ini.'}`))) return;
   const statusEl = document.querySelector(`.katalog-status-nama-kategori[data-idx="${idx}"]`);
   if (statusEl) setLoadingDots(statusEl, 'Menghapus');
   try {
@@ -33034,7 +33075,7 @@ async function katalogBukaModalEditMassal() {
     skuList = katalogFilterSortProduk().filter(p => !p.arsip).map(p => p.sku);
     if (!skuList.length) { omniNotif('Tidak ada produk di tampilan saat ini.'); return; }
     if (skuList.length > 1000) { omniNotif(`Hasil filter berisi ${skuList.length} produk (maks 1000 per edit massal).\nPersempit dengan pencarian/filter, atau centang produk yang mau diedit.`); return; }
-    if (!confirm(`Belum ada produk yang dicentang.\n\nEdit massal ${skuList.length} produk dari hasil pencarian/filter saat ini?`)) return;
+    if (!(await omniKonfirm_(`Belum ada produk yang dicentang.\n\nEdit massal ${skuList.length} produk dari hasil pencarian/filter saat ini?`))) return;
   }
   bulkSetMode('edit');
   bulkBaris = [];
@@ -33269,8 +33310,8 @@ async function katalogEksekusiHubungkan(skuTujuan) {
   const label = jenis === 'supplier' ? 'SKU Supplier' : `SKU Marketplace (${platform})`;
   const skuSumber = katHubSku;
   const dariAdaDiMaster = katalogProdukCache.some(p => p.sku === skuSumber);
-  if (!confirm(`Hubungkan "${skuSumber}" sebagai ${label} milik:\n${skuTujuan} — ${tujuan.nama || ''}\n\n` +
-    (dariAdaDiMaster ? `"${skuSumber}" juga terdaftar sebagai produk tersendiri, jadi barisnya akan DIGABUNG ke ${skuTujuan}: SKU Terhubung-nya ikut pindah, riwayat stoknya menyatu, dan baris lamanya disalin dulu ke sheet "Arsip Merge Produk" sebelum dihapus dari Produk Master.` : ''))) return;
+  if (!(await omniKonfirm_(`Hubungkan "${skuSumber}" sebagai ${label} milik:\n${skuTujuan} — ${tujuan.nama || ''}\n\n` +
+    (dariAdaDiMaster ? `"${skuSumber}" juga terdaftar sebagai produk tersendiri, jadi barisnya akan DIGABUNG ke ${skuTujuan}: SKU Terhubung-nya ikut pindah, riwayat stoknya menyatu, dan baris lamanya disalin dulu ke sheet "Arsip Merge Produk" sebelum dihapus dari Produk Master.` : '')))) return;
   // Proses menghubungkan berjalan di LATAR: popover langsung ditutup, progres & hasil di Log Tindakan
   katalogTutupHubungkanSku();
   const logId = logTindakan.tambah(`Hubungkan ${skuSumber} → ${skuTujuan}`);
@@ -33367,7 +33408,7 @@ async function katalogPindaiSapuBersih() {
 
 async function katalogEksekusiSapuBersih() {
   if (!katSapuKandidat.length) return;
-  if (!confirm(`Gabungkan ${katSapuKandidat.length} SKU tak bertuan ke produk induknya?\n\nBaris lamanya disalin dulu ke sheet "Arsip Merge Produk" lalu dihapus dari Produk Master.`)) return;
+  if (!(await omniKonfirm_(`Gabungkan ${katSapuKandidat.length} SKU tak bertuan ke produk induknya?\n\nBaris lamanya disalin dulu ke sheet "Arsip Merge Produk" lalu dihapus dari Produk Master.`))) return;
   const btn = el('kat-sapu-btn');
   const statusEl = el('kat-sapu-status');
   btn.disabled = true;
@@ -33448,15 +33489,15 @@ async function katalogBukaModalBulkProduk() {
   if (pertama) pertama.focus();
 }
 
-function bulkTutupModal() {
+async function bulkTutupModal() {
   if (bulkMode === 'edit') {
     const berubah = bulkBaris.filter(bulkBarisBerubah).length;
-    if (berubah > 0 && !confirm(`Tutup form? Perubahan pada ${berubah} produk belum disimpan.`)) return;
+    if (berubah > 0 && !(await omniKonfirm_(`Tutup form? Perubahan pada ${berubah} produk belum disimpan.`))) return;
     el('katalog-modal-bulk-produk').style.display = 'none';
     return;
   }
   const terisi = bulkBaris.filter(b => !bulkApakahKosong(b)).length;
-  if (terisi > 0 && !confirm(`Tutup form? ${terisi} baris yang sudah diisi akan hilang.`)) return;
+  if (terisi > 0 && !(await omniKonfirm_(`Tutup form? ${terisi} baris yang sudah diisi akan hilang.`))) return;
   el('katalog-modal-bulk-produk').style.display = 'none';
 }
 
@@ -34498,7 +34539,7 @@ async function poSimpan(btn) {
   if (!pembeli) { st.className = 'status-text err'; st.textContent = '✗ Nama pembeli wajib diisi'; el('po-pembeli').focus(); return; }
   if (!items.length) { st.className = 'status-text err'; st.textContent = '✗ Isi minimal 1 barang (nama & qty)'; return; }
   if (!items.some(i => i.hargaJual > 0)) { st.className = 'status-text err'; st.textContent = '✗ Isi harga jual barang'; return; }
-  if (!items.every(i => i.hargaModal > 0) && !confirm('Ada barang yang harga modalnya masih 0 - laba akan terlihat lebih besar. Lanjut simpan?')) return;
+  if (!items.every(i => i.hargaModal > 0) && !(await omniKonfirm_('Ada barang yang harga modalnya masih 0 - laba akan terlihat lebih besar. Lanjut simpan?'))) return;
   btn.disabled = true;
   setLoadingDots(st, 'Menunggu upload dokumen');
   try {
@@ -34526,7 +34567,7 @@ async function poSimpan(btn) {
 }
 async function poBatalkan() {
   const o = po.edit;
-  if (!o || !confirm(`Batalkan ${o.noPo} (${o.pembeli})?\n\nPesanan tidak dihitung lagi di omzet & HPP. Data tetap tersimpan.`)) return;
+  if (!o || !(await omniKonfirm_(`Batalkan ${o.noPo} (${o.pembeli})?\n\nPesanan tidak dihitung lagi di omzet & HPP. Data tetap tersimpan.`))) return;
   try {
     const r = await postJsonTulis({ aksi: 'batalkan_pesanan_po', noPo: o.noPo, email: currentUserEmail() });
     if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
@@ -34692,7 +34733,7 @@ function bmmToggle(no) {
 async function bmmTandai(no, keputusan) {
   const m = bmm.memos.find(x => x.noMemo === no);
   if (!m || bmm.sibuk[no]) return;
-  if (keputusan === 'abaikan' && !confirm(`Abaikan memo ${no}?\n\nMemo ditandai "Diabaikan" dan hilang dari daftar Menunggu. Staff gudang melihat statusnya di Riwayat.`)) return;
+  if (keputusan === 'abaikan' && !(await omniKonfirm_(`Abaikan memo ${no}?\n\nMemo ditandai "Diabaikan" dan hilang dari daftar Menunggu. Staff gudang melihat statusnya di Riwayat.`))) return;
   const lama = { status: m.status, kelompok: m.kelompok, diprosesOleh: m.diprosesOleh, tanggalProses: m.tanggalProses };
   const baru = { dipesan: ['Sudah Dipesan', 'dipesan'], abaikan: ['Diabaikan', 'abaikan'], kembalikan: ['Pending', 'menunggu'] }[keputusan];
   Object.assign(m, { status: baru[0], kelompok: baru[1], diprosesOleh: keputusan === 'kembalikan' ? '' : 'Anda', tanggalProses: keputusan === 'kembalikan' ? '' : 'baru saja' });
@@ -34964,7 +35005,7 @@ async function belSimpanSupplierModal() {
 }
 
 async function belHapusSupplier(row, nama) {
-  if (!confirm(`Hapus supplier "${nama}"? Cabang di bawahnya nggak ikut kehapus otomatis.`)) return;
+  if (!(await omniKonfirm_(`Hapus supplier "${nama}"? Cabang di bawahnya nggak ikut kehapus otomatis.`))) return;
   try {
     const data = await postJson({ aksi: 'hapus_supplier', row, email: currentUserEmail() });
     if (data.success) { playBeep(); belFetchKontak(); } else { omniNotif('Gagal: ' + (data.error || '')); }
@@ -35011,7 +35052,7 @@ async function belSimpanCabangModal() {
 }
 
 async function belHapusCabang(row) {
-  if (!confirm('Hapus cabang ini?')) return;
+  if (!(await omniKonfirm_('Hapus cabang ini?'))) return;
   try {
     const data = await postJson({ aksi: 'hapus_cabang_supplier', row, email: currentUserEmail() });
     if (data.success) { playBeep(); belFetchKontak(); } else { omniNotif('Gagal: ' + (data.error || '')); }
@@ -37362,7 +37403,7 @@ async function mintaStockSimpanEditPO(noPO, containerId) {
 }
 
 async function mintaStockBatalkanPO(noPO) {
-  if (!confirm(`Batalkan PO ${noPO}?\n\nItem yang ada di PO ini akan dikembalikan ke Cart (pending) buat diproses ulang.`)) return;
+  if (!(await omniKonfirm_(`Batalkan PO ${noPO}?\n\nItem yang ada di PO ini akan dikembalikan ke Cart (pending) buat diproses ulang.`))) return;
   try {
     const data = await postJson({ aksi: 'batalkan_po', noPO, email: currentUserEmail() });
     if (data.success) { playBeep(); mintaStockFetchRiwayat(); }
@@ -37837,7 +37878,7 @@ async function p2BomSimpan() {
 }
 async function p2BomHapus() {
   const ed = p2.editor;
-  if (!ed.kode || !confirm('Nonaktifkan formula ' + ed.nama + '? Riwayat SPK yang sudah jalan tetap tersimpan.')) return;
+  if (!ed.kode || !(await omniKonfirm_('Nonaktifkan formula ' + ed.nama + '? Riwayat SPK yang sudah jalan tetap tersimpan.'))) return;
   try {
     const d = await postJsonTulis({ aksi: 'prod2_hapus_formula', kode: ed.kode, email: currentUserEmail() });
     if (!d.success) throw new Error(d.error || 'Gagal');
@@ -37931,7 +37972,7 @@ async function p2WoSelesaikan() {
   const f = d.formula;
   const hasil = parseFloat(el('p2-wo-hasil').value) || d.target;
   const ringkas = d.baris.map(x => `- ${p2Angka(x.aktual)} ${x.satuan} ${x.nama || x.sku}`).join('\n');
-  if (!confirm(`Selesaikan produksi ${f.nama}?\n\nStok yang dipotong:\n${ringkas}\n\nStok bertambah: +${p2Angka(hasil)} ${f.satuanOutput} ${f.namaOutput || f.skuOutput}`)) return;
+  if (!(await omniKonfirm_(`Selesaikan produksi ${f.nama}?\n\nStok yang dipotong:\n${ringkas}\n\nStok bertambah: +${p2Angka(hasil)} ${f.satuanOutput} ${f.namaOutput || f.skuOutput}`))) return;
   const btn = el('p2-wo-btn');
   btn.disabled = true;
   setLoadingDots(st, 'Memproses produksi');
@@ -38156,7 +38197,7 @@ async function prodkatFetch() {
     `).join('');
     el('prodkat-body').querySelectorAll('.prodkat-btn-hapus').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Hapus dari Katalog Kopi?')) return;
+        if (!(await omniKonfirm_('Hapus dari Katalog Kopi?'))) return;
         try {
           const dataHapus = await postJson({ aksi: 'hapus_katalog_kopi', row: btn.dataset.row, email: currentUserEmail() });
           if (dataHapus.success) { playBeep(); prodkatFetch(); }
@@ -38268,7 +38309,7 @@ async function prodFetchResep() {
     `).join('');
     el('prod-resep-body').querySelectorAll('.prod-resep-btn-hapus').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Hapus resep ini?')) return;
+        if (!(await omniKonfirm_('Hapus resep ini?'))) return;
         try {
           const dataHapus = await postJson({ aksi: 'hapus_resep_produksi', row: btn.dataset.row, email: currentUserEmail() });
           if (dataHapus.success) { playBeep(); prodFetchResep(); }
@@ -39142,13 +39183,13 @@ async function mgFetchRiwayat(tab) {
 }
 
 async function mgApproveMintaStock(noMemo) {
-  if (!confirm(`Konfirmasi memo "${noMemo}" jadi "Bisa PO Stock"?`)) return;
+  if (!(await omniKonfirm_(`Konfirmasi memo "${noMemo}" jadi "Bisa PO Stock"?`))) return;
   const data = await postJson({ aksi: 'approve_memo_minta_stock', noMemo, email: currentUserEmail() });
   if (data.success) { playBeep(); mgFetchRiwayat('mintastock'); } else { omniNotif('Gagal: ' + (data.error || '')); }
 }
 
 async function mgApproveHilangRusak(noMemo) {
-  if (!confirm(`Setujui memo "${noMemo}"? Stock bakal otomatis dikurangi sebagai penyesuaian.`)) return;
+  if (!(await omniKonfirm_(`Setujui memo "${noMemo}"? Stock bakal otomatis dikurangi sebagai penyesuaian.`))) return;
   const data = await postJson({ aksi: 'approve_memo_hilang_rusak', noMemo, email: currentUserEmail() });
   if (data.success) { playBeep(); mgFetchRiwayat('hilangrusak'); } else { omniNotif('Gagal: ' + (data.error || '')); }
 }
@@ -39432,7 +39473,7 @@ async function mgbKirimBatal() {
   const alasan = el('mgb-alasan').value.trim();
   if (!pilih || !alasan) return;
   const m = mgb.memo, mode = pilih.value;
-  if (!confirm(mode === 'void' ? `VOID memo ${m.noMemo}? Memo dianggap tidak valid.` : `FORCE CLOSE memo ${m.noMemo}? Barang dianggap sah & stok masuk.`)) return;
+  if (!(await omniKonfirm_(mode === 'void' ? `VOID memo ${m.noMemo}? Memo dianggap tidak valid.` : `FORCE CLOSE memo ${m.noMemo}? Barang dianggap sah & stok masuk.`))) return;
   const statusEl = el('mgb-status');
   await memoKirimAman('batal-' + m.noMemo, 'mgb-btn-konfirmasi', async (idPermintaan) => {
     statusEl.textContent = ''; statusEl.style.color = '';
@@ -39894,7 +39935,7 @@ function perMonRender() {
 }
 
 async function perMonJalankanRekon() {
-  if (!confirm('Jalankan Rekonsiliasi Mutasi sekarang?\n\nTabel "Master Stok" akan ditimpa dengan hasil kalkulasi terbaru (Qty Opname + Masuk - Keluar).')) return;
+  if (!(await omniKonfirm_('Jalankan Rekonsiliasi Mutasi sekarang?\n\nTabel "Master Stok" akan ditimpa dengan hasil kalkulasi terbaru (Qty Opname + Masuk - Keluar).'))) return;
   const statusEl = el('per-mon-rekon-status');
   const btn = el('per-mon-btn-rekon');
   btn.disabled = true;
@@ -40026,9 +40067,9 @@ async function perMonSubmitBulk() {
     .map(p => ({ sku: p.sku, namaProduk: p.nama || '' }));
   if (dataArray.length === 0) { perMonTerpilih.clear(); perMonRender(); return; }
   const tanpaNama = dataArray.filter(d => !d.namaProduk).length;
-  if (!confirm(`Daftarkan ${dataArray.length} SKU ke Produk Master?` +
+  if (!(await omniKonfirm_(`Daftarkan ${dataArray.length} SKU ke Produk Master?` +
     (tanpaNama ? `\n\n${tanpaNama} SKU belum punya nama → sementara memakai SKU sebagai nama (bisa dirapikan nanti di Katalog).` : '') +
-    '\n\nSKU yang ternyata sudah ada di Master tidak akan diduplikasi.')) return;
+    '\n\nSKU yang ternyata sudah ada di Master tidak akan diduplikasi.'))) return;
 
   perMonBulkSedangKirim = true;
   perMonUpdateBulkUI();
@@ -40396,8 +40437,8 @@ function soUbahQty(idx, nilai) {
 }
 function soUbahCatatan(idx, nilai) { if (soKeranjang[idx]) { soKeranjang[idx].catatan = String(nilai || '').trim(); soSimpanDraft(); } }
 function soHapusItem(idx) { soKeranjang.splice(idx, 1); soSimpanDraft(); soRenderKeranjang(); }
-function soKosongkanKeranjang() {
-  if (!soKeranjang.length || !confirm(`Kosongkan ${soKeranjang.length} SKU dari keranjang opname?`)) return;
+async function soKosongkanKeranjang() {
+  if (!soKeranjang.length || !(await omniKonfirm_(`Kosongkan ${soKeranjang.length} SKU dari keranjang opname?`))) return;
   soKeranjang = []; soSimpanDraft(); soRenderKeranjang();
   el('so-status').textContent = '';
 }
@@ -40992,7 +41033,7 @@ function promoRenderKode() {
 }
 
 async function promoAkhiriVoucher(id, kode) {
-  if (!confirm(`Akhiri voucher ${kode} sekarang di Shopee? Voucher tidak bisa dipakai lagi oleh pembeli.`)) return;
+  if (!(await omniKonfirm_(`Akhiri voucher ${kode} sekarang di Shopee? Voucher tidak bisa dipakai lagi oleh pembeli.`))) return;
   try {
     const d = await postJson({ aksi: 'promo_akhiri_voucher', id, email: currentUserEmail() }, 120000);
     if (!d.success) throw new Error(d.error || 'Gagal');
@@ -41120,7 +41161,7 @@ async function promoSimpanKampanye() {
   finally { btn.disabled = false; }
 }
 async function promoHapusKampanye(id) {
-  if (!confirm('Hapus jadwal manual ini?')) return;
+  if (!(await omniKonfirm_('Hapus jadwal manual ini?'))) return;
   try {
     const d = await postJson({ aksi: 'promo_hapus_kampanye', id, email: currentUserEmail() }, 60000);
     if (!d.success) throw new Error(d.error || 'Gagal');
@@ -41239,7 +41280,7 @@ function finBiayaRender() {
 }
 
 async function finHapusBiaya(row, namaBiaya) {
-  if (!confirm(`Hapus jenis biaya "${namaBiaya}"?`)) return;
+  if (!(await omniKonfirm_(`Hapus jenis biaya "${namaBiaya}"?`))) return;
   try {
     const data = await postJson({ aksi: 'hapus_biaya_penjualan', row, email: currentUserEmail() });
     if (data.success) { playBeep(); finFetchBiayaPenjualan(); } else { omniNotif('Gagal: ' + (data.error || '')); }
@@ -41980,7 +42021,7 @@ async function approveAksesStaff(row) {
 }
 
 async function tolakAksesStaff(row) {
-  if (!confirm('Yakin mau tolak permintaan akses ini? Data pendaftarannya akan dihapus.')) return;
+  if (!(await omniKonfirm_('Yakin mau tolak permintaan akses ini? Data pendaftarannya akan dihapus.'))) return;
   try {
     const data = await postJson({ aksi: 'tolak_akses', row, email: currentUserEmail() });
     if (data.success) { playToot(); bukaKelolaAkses(); }
@@ -43528,7 +43569,7 @@ function tampilkanInfoKurirEdit(infoEl, kurir, noResi) {
 
 async function editResiTerakhir() {
   if (!lastScanRow || !lastScanTipe) return;
-  const noResiBaru = prompt('Perbaiki No Resi (kalau salah scan/ketik):');
+  const noResiBaru = (await omniTanya_('Perbaiki No Resi (kalau salah scan/ketik):'));
   if (!noResiBaru || !noResiBaru.trim()) return;
 
   try {
@@ -44431,7 +44472,7 @@ async function rlPulihkan(item) {
 }
 
 async function koreksiKurir(row, kurirSekarang) {
-  const kurirBaru = prompt('Kurir yang benar untuk resi ini:', kurirSekarang === 'Tidak Diketahui' ? '' : kurirSekarang);
+  const kurirBaru = (await omniTanya_('Kurir yang benar untuk resi ini:', kurirSekarang === 'Tidak Diketahui' ? '' : kurirSekarang));
   if (!kurirBaru || !kurirBaru.trim()) return;
   try {
     const data = await postJsonTulis({ aksi: 'update_kurir_resi', tipe: currentMode, row: row, kurir: kurirBaru.trim(), email: currentUserEmail() });
@@ -44447,7 +44488,7 @@ async function koreksiKurir(row, kurirSekarang) {
 }
 
 async function hapusItem(row) {
-  if (!confirm('Yakin mau hapus resi ini? Data akan hilang dari Google Sheets.')) return;
+  if (!(await omniKonfirm_('Yakin mau hapus resi ini? Data akan hilang dari Google Sheets.'))) return;
   try {
     const data = await postJsonTulis({ aksi: 'hapus', tipe: currentMode, row: row, email: currentUserEmail() });
     if (data.success) { playBeep(); fetchList(); }
@@ -44959,7 +45000,7 @@ async function mintaStockSimpanEditPOMobile(noPO, idx) {
 }
 
 async function mintaStockBatalkanPOMobile(noPO) {
-  if (!confirm(`Batalkan PO ${noPO}?\n\nItem di PO ini bakal dikembalikan ke Cart (pending) buat diproses ulang.`)) return;
+  if (!(await omniKonfirm_(`Batalkan PO ${noPO}?\n\nItem di PO ini bakal dikembalikan ke Cart (pending) buat diproses ulang.`))) return;
   try {
     const data = await postJson({ aksi: 'batalkan_po', noPO, email: currentUserEmail() });
     if (data.success) { playBeep(); bukaRiwayatMintaStock(); }
@@ -46400,10 +46441,10 @@ function msoCobaLagi(id) {
   e.status = 'antre'; e.tungguSampai = 0; e.error = '';
   msoSimpan_(); msoRender(); msoProses();
 }
-function msoHapus(id) {
+async function msoHapus(id) {
   const e = msoDaftar.find(x => x.id === id);
   if (!e || e.status === 'kirim') return;
-  if (e.status !== 'terkirim' && !confirm('Hapus memo ini dari antrean?\n\nMemo BELUM terkirim ke sistem dan akan hilang.')) return;
+  if (e.status !== 'terkirim' && !(await omniKonfirm_('Hapus memo ini dari antrean?\n\nMemo BELUM terkirim ke sistem dan akan hilang.'))) return;
   msoDaftar = msoDaftar.filter(x => x.id !== id);
   msoSimpan_(); msoRender();
 }
@@ -46802,7 +46843,7 @@ async function cklistinvKonfirmasiStokMasuk() {
   const btn = el('cklistinv-btn-konfirmasi');
   if (btn.disabled) return; // lagi diproses, abaikan klik tambahan
   const statusEl = el('cklistinv-status');
-  if (!confirm('Konfirmasi stok masuk buat invoice ini? Stock bakal langsung ketambah sesuai qty yang diisi.')) return;
+  if (!(await omniKonfirm_('Konfirmasi stok masuk buat invoice ini? Stock bakal langsung ketambah sesuai qty yang diisi.'))) return;
   btn.disabled = true;
   statusEl.textContent = 'Menyimpan...';
   statusEl.className = 'status-text';
@@ -47157,7 +47198,7 @@ function adjustMinta(idx, delta) {
 async function hapusStockItem(idx) {
   const item = stockOpnameList[idx];
   if (!item) return;
-  if (!confirm('Hapus "SKU ' + item.sku + '" dari daftar & Google Sheets?')) return;
+  if (!(await omniKonfirm_('Hapus "SKU ' + item.sku + '" dari daftar & Google Sheets?'))) return;
   try {
     const data = await postJson({ aksi: 'hapus_stock', row: item.row, email: currentUserEmail() });
     if (data.success) { stockOpnameList.splice(idx, 1); renderStockList(); playBeep(); }
@@ -47545,15 +47586,15 @@ function tambahProdukInvoice() {
 async function isiSkuBarangInvoice(idx) {
   const item = invoiceCart[idx];
   if (!item) return;
-  const sku = (prompt('SKU untuk "' + item.nama + '":', item.sku || '') || '').trim();
+  const sku = ((await omniTanya_('SKU untuk "' + item.nama + '":', item.sku || '')) || '').trim();
   if (!sku) return;
   try {
     const data = await postJson({ aksi: 'cari_produk', sku, email: currentUserEmail() });
     if (data.success && data.ditemukan) {
       item.sku = sku;
-      if (confirm('SKU ' + sku + ' = "' + data.namaProduk + '". Pakai nama dari Master Produk?')) item.nama = data.namaProduk;
+      if ((await omniKonfirm_('SKU ' + sku + ' = "' + data.namaProduk + '". Pakai nama dari Master Produk?'))) item.nama = data.namaProduk;
       renderInvoiceCart(); playBeep();
-    } else if (confirm('SKU "' + sku + '" tidak ada di Master Produk. Tetap pakai SKU ini?')) {
+    } else if ((await omniKonfirm_('SKU "' + sku + '" tidak ada di Master Produk. Tetap pakai SKU ini?'))) {
       item.sku = sku; renderInvoiceCart();
     }
   } catch (err) { item.sku = sku; renderInvoiceCart(); }
@@ -47624,7 +47665,7 @@ function renderInvoiceCart() {
   wrap.querySelectorAll('[data-inv-delete]').forEach(btn => btn.addEventListener('click', () => hapusProdukInvoice(parseInt(btn.dataset.invDelete, 10))));
 }
 
-function buatInvoice() {
+async function buatInvoice() {
   const statusEl = el('inv-buat-status');
   if (invoiceCart.length === 0) {
     statusEl.textContent = '⚠️ Tambahkan minimal 1 produk dulu';
@@ -47650,7 +47691,7 @@ function buatInvoice() {
   // Cegah invoice DOBEL: isi yang sama persis baru saja dibuat (10 menit) -> minta konfirmasi
   const sidik = JSON.stringify([invoiceCustomer.nama, invoiceCustomer.alamat, invoiceCustomer.noHp, items, ongkosKirim, biayaLainnya, diskon, kurir]);
   const kembar = invoDaftar.slice().reverse().find(x => x.sidik === sidik && Date.now() - x.dibuat < 10 * 60000);
-  if (kembar && !confirm(`⚠️ Invoice yang SAMA PERSIS sudah dibuat ${Math.max(1, Math.round((Date.now() - kembar.dibuat) / 60000))} menit lalu (No ${kembar.noInvoice}).\n\nOK = tetap buat invoice BARU\nBatal = buka invoice ${kembar.noInvoice} saja`)) {
+  if (kembar && !(await omniKonfirm_(`⚠️ Invoice yang SAMA PERSIS sudah dibuat ${Math.max(1, Math.round((Date.now() - kembar.dibuat) / 60000))} menit lalu (No ${kembar.noInvoice}).\n\nOK = tetap buat invoice BARU\nBatal = buka invoice ${kembar.noInvoice} saja`))) {
     invoTampilkan(kembar);
     return;
   }
@@ -48627,9 +48668,9 @@ function pmRenderRiwayat() {
 }
 
 // Repeat Order: isi ulang keranjang dengan produk + kurir + ongkir yang sama persis. Tetap bisa diedit.
-function pmRepeatOrder(o) {
+async function pmRepeatOrder(o) {
   if (!o || !o.items.length) return;
-  if (invoiceCart.length && !confirm('Keranjang sekarang berisi ' + invoiceCart.length + ' produk. Ganti dengan isi pesanan ' + o.noInvoice + '?')) return;
+  if (invoiceCart.length && !(await omniKonfirm_('Keranjang sekarang berisi ' + invoiceCart.length + ' produk. Ganti dengan isi pesanan ' + o.noInvoice + '?'))) return;
   invoiceCart = o.items.map(it => ({ sku: it.sku, nama: it.nama || it.sku, qty: it.qty, harga: it.harga }));
   const kurirOpts = Array.from(el('inv-kurir-select').options).map(op => op.value);
   if (o.kurir && kurirOpts.includes(o.kurir) && o.kurir !== 'Lainnya') {
@@ -49115,7 +49156,7 @@ function cetakDariDetail() {
 }
 
 async function batalDariDetail() {
-  if (!confirm('Yakin mau batalkan pesanan ini? (Data tetap tersimpan di Sheets, cuma ditandai batal)')) return;
+  if (!(await omniKonfirm_('Yakin mau batalkan pesanan ini? (Data tetap tersimpan di Sheets, cuma ditandai batal)'))) return;
   try {
     const data = await postJson({ aksi: 'batal_pesanan', row: currentDetailRow, email: currentUserEmail() });
     if (data.success) {
@@ -49276,11 +49317,11 @@ async function simpanKontakKurirBaru() {
 }
 
 async function editKontakKurir(row, namaLama, agenLama, noHpLama) {
-  const namaBaru = prompt('Nama Kurir:', namaLama);
+  const namaBaru = (await omniTanya_('Nama Kurir:', namaLama));
   if (namaBaru === null || !namaBaru.trim()) return;
-  const agenBaru = prompt('Nama Agen/Cabang:', agenLama || '');
+  const agenBaru = (await omniTanya_('Nama Agen/Cabang:', agenLama || ''));
   if (agenBaru === null) return;
-  const noHpBaru = prompt('No HP Kurir:', noHpLama || '');
+  const noHpBaru = (await omniTanya_('No HP Kurir:', noHpLama || ''));
   if (noHpBaru === null) return;
   try {
     const data = await postJson({ aksi: 'simpan_kontak_kurir', row: row, namaKurir: namaBaru.trim(), namaAgen: agenBaru.trim(), noHp: noHpBaru.trim(), email: currentUserEmail() });
@@ -49292,7 +49333,7 @@ async function editKontakKurir(row, namaLama, agenLama, noHpLama) {
 }
 
 async function hapusKontakKurir(row) {
-  if (!confirm('Hapus kontak kurir ini?')) return;
+  if (!(await omniKonfirm_('Hapus kontak kurir ini?'))) return;
   try {
     const data = await postJson({ aksi: 'hapus_kontak_kurir', row: row, email: currentUserEmail() });
     if (data.success) { playToot(); fetchKontakKurir(); }
@@ -49811,7 +49852,7 @@ async function fin2TandaiRembes(nama, dibayar) {
   const daftar = (fin2.biaya && fin2.biaya.daftar) || [];
   const kena = daftar.filter(d => d.rembesOleh === nama && !!d.rembesDibayar !== !!dibayar);
   if (!kena.length) return;
-  if (dibayar && !confirm(`Tandai rembes ${nama} sebesar ${fin2Rp(kena.reduce((t, d) => t + (Number(d.jumlah) || 0), 0))} sudah dibayar balik?`)) return;
+  if (dibayar && !(await omniKonfirm_(`Tandai rembes ${nama} sebesar ${fin2Rp(kena.reduce((t, d) => t + (Number(d.jumlah) || 0), 0))} sudah dibayar balik?`))) return;
   const lama = kena.map(d => [d, d.rembesDibayar, d.statusRembes]);
   kena.forEach(d => { d.rembesDibayar = !!dibayar; d.statusRembes = dibayar ? 'Sudah Dibayar' : 'Belum Dibayar'; }); // optimistic
   fin2.rbsSibuk[nama] = true;
