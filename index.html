@@ -186,7 +186,7 @@
   }
   .cam-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
   /* ===== Kamera Omni: zoom digital 1.5x, tombol Fokus & SCAN ===== */
-  video.kamera-zoom-digital { transform: scale(1.5); transform-origin: center center; }
+  video.kamera-zoom-digital { transform: scale(var(--kamera-zoom, 1.5)); transform-origin: center center; }
   .kamera-kontrol { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px; pointer-events: none; z-index: 3; }
   .kamera-info { font-size: 12px; font-weight: 600; color: #fff; background: rgba(15, 23, 42, .72); padding: 4px 10px; border-radius: 99px; opacity: 0; transition: opacity .2s; text-align: center; max-width: 92%; }
   .kamera-info.tampil { opacity: 1; }
@@ -6321,6 +6321,83 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
 .fin2-rembes-info[hidden] { display: none; }
 .fin2-ai-model { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--web-border); color: var(--web-text-dim); }
 .fin2-ai-model.bayar { color: #b45309; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.08); }
+
+
+/* =====================================================================================
+   PEMBARUAN v2026.10d - Login 2 langkah · Produk instan (cache ringan) · Memo Gudang mobile ringan ·
+   Action Log Stock Opname & Barang Masuk · Foto & Zoom kamera · Edit pra-verifikasi Stock Opname
+   ===================================================================================== */
+/* ----- Login: kartu akun + tombol Masuk ----- */
+.login-konf { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: loginKonfMasuk .18s ease-out; }
+@keyframes loginKonfMasuk { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.login-konf-akun { width: 100%; max-width: 400px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 10px; border-radius: 999px; border: 1px solid var(--panel-border, #dadce0); background: var(--panel, #fff); color: var(--text, #1f1f1f); }
+.login-konf.web .login-konf-akun { border-color: #dadce0; background: #fff; color: #1E2B24; }
+.login-konf-akun img, .login-konf-inisial { width: 40px; height: 40px; border-radius: 50%; flex: none; object-fit: cover; }
+.login-konf-inisial { display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; background: rgba(127,127,127,.18); }
+.login-konf-teks { flex: 1; min-width: 0; text-align: left; display: flex; flex-direction: column; line-height: 1.25; }
+.login-konf-teks b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.login-konf-teks span { font-size: 11.5px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.login-konf-masuk { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 16px 0 18px; border-radius: 999px; border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; color: #fff; background: var(--keluar, #2f9e6e); box-shadow: 0 2px 8px rgba(0,0,0,.18); transition: transform .12s ease, filter .12s ease; }
+.login-konf.web .login-konf-masuk { background: #2A443B; color: #C8A84B; }
+.login-konf-masuk:hover { filter: brightness(1.08); }
+.login-konf-masuk:active { transform: scale(.96); }
+.login-konf-masuk:focus-visible { outline: 3px solid #C8A84B; outline-offset: 2px; }
+.login-konf-masuk svg { transition: transform .15s ease; }
+.login-konf-masuk:hover svg { transform: translateX(2px); }
+.login-konf-masuk.sibuk { pointer-events: none; }
+.login-konf-masuk.sibuk svg { display: none; }
+.login-konf-masuk.sibuk::after { content: ''; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: loginPutar .7s linear infinite; }
+@keyframes loginPutar { to { transform: rotate(360deg); } }
+.login-konf-ganti { background: none; border: 0; font: inherit; font-size: 12px; color: inherit; opacity: .65; cursor: pointer; text-decoration: underline; padding: 4px 8px; }
+
+/* ----- Skeleton pencarian produk ----- */
+.omni-skel { display: block; height: 12px; border-radius: 6px; margin: 10px 12px; background: linear-gradient(90deg, rgba(148,163,184,.16) 25%, rgba(148,163,184,.32) 37%, rgba(148,163,184,.16) 63%); background-size: 400% 100%; animation: ovsShimmer 1.35s ease infinite; }
+.omni-skel.pendek { width: 55%; }
+
+/* ----- Menu mobile: pemisah sebelum Catat Memo Gudang ----- */
+.menu-pemisah { width: 100%; height: 1px; margin: 12px 0 4px; background: var(--panel-border, rgba(127,127,127,.3)); }
+.menu-pemisah:has(+ .menu-btn.stockreq[style*="none"]) { display: none; }
+
+/* ----- Memo Gudang mobile: render ringan saat scan beruntun ----- */
+.mgm-card { position: relative; contain: layout style; }
+#mgm-cart-list > .mgm-card { content-visibility: auto; contain-intrinsic-size: auto 92px; }
+.mgm-card.mgm-card-masuk { max-height: none; opacity: 1; margin-bottom: 0; padding: 10px 12px; border-width: 1px; overflow: visible; animation: mgmMasukRingan .2s ease-out both; }
+.mgm-card.mgm-card-flash { animation: none; }
+.mgm-card.mgm-card-masuk::after, .mgm-card.mgm-card-flash::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: mgmSorot 1.1s ease-out forwards; }
+.mgm-card.mgm-card-masuk::after { background: rgba(63,166,107,.20); box-shadow: inset 0 0 0 2px #3fa66b; }
+.mgm-card.mgm-card-flash::after { background: rgba(250,204,21,.26); box-shadow: inset 0 0 0 2px #facc15; }
+@keyframes mgmMasukRingan { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes mgmSorot { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mgm-card.mgm-card-masuk, .mgm-card.mgm-card-masuk::after, .mgm-card.mgm-card-flash::after { animation: none; } }
+/* drop-shadow di atas video = berat (dihitung ulang tiap frame kamera) -> diganti box-shadow statis */
+.cam-wrap.mgm-kamera-melayang { filter: none; }
+.cam-wrap.mgm-kamera-melayang .cam-frame { box-shadow: 0 12px 28px rgba(0,0,0,.45); }
+.mgm-kirim-bar { width: 100%; box-sizing: border-box; margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--panel-border, rgba(127,127,127,.3)); }
+
+/* ----- Toggle Zoom ----- */
+.mgm-opsi-kanan { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.cam-frame { position: relative; }
+.mgm-zoom-chip { position: absolute; left: 8px; top: 8px; z-index: 3; min-width: 46px; height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.55); color: #fff; font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.mgm-zoom-chip.on { background: var(--keluar, #2f9e6e); border-color: transparent; }
+.mgm-foto-zoom { font-size: 12px; font-weight: 800; }
+.mgm-foto-zoom.on { background: var(--keluar, #2f9e6e); color: #fff; }
+
+/* ----- Input tanpa QR: foto barang & label tanpa SKU ----- */
+.mgm-tqr-foto { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 2px; }
+.mgm-tqr-foto-btn { font: inherit; font-size: 13px; font-weight: 700; padding: 9px 12px; border-radius: 10px; border: 1.5px dashed var(--panel-border, rgba(127,127,127,.4)); background: transparent; color: var(--text, inherit); cursor: pointer; }
+.mgm-tqr-foto-btn:active { background: rgba(127,127,127,.12); }
+.mgm-tqr-foto .mgm-kamera-petunjuk { text-align: left; flex: 1; min-width: 160px; }
+.mgm-tqr-tanpasku { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(224,163,58,.18); color: #e0a33a; margin-right: 6px; vertical-align: 1px; }
+
+/* ----- Log Tindakan di mobile (tema gelap) ----- */
+body:not(.tema-terang) > .log-tindakan { --web-panel: #1a2029; --web-border: #2a323e; --web-text: #eef1f5; --web-text-dim: #a3adbb; }
+body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); right: 10px; }
+
+/* ----- Web: Stock Opname tanpa SKU, foto & ringkasan ----- */
+.mg-tanpa-sku-web { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #fffbeb; color: #b45309; border: 1px solid #fde68a; white-space: nowrap; }
+.mg-so-foto { margin-left: 6px; font-size: 11px; text-decoration: none; }
+.mg-so-badges { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 6px; vertical-align: middle; }
+.mge-tabel input.mge-wajib { border-color: #fbbf24; background: #fffbeb; }
 </style>
 </head>
 <body>
@@ -6405,10 +6482,6 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
         <span class="label">SCAN RESI MASUK</span>
         <span class="count" id="count-masuk-gabungan">-</span>
       </button>
-      <button class="menu-btn stockreq" onclick="bukaMemoGudangMobile()">
-        <span class="icon">📋</span>
-        <span class="label">CATAT MEMO GUDANG</span>
-      </button>
       <button class="menu-btn invoice" onclick="openPesananManual()">
         <span class="icon">🧾</span>
         <span class="label">PROSES PESANAN MANUAL</span>
@@ -6416,6 +6489,12 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
       <button class="menu-btn biayamob" onclick="fbmBuka()">
         <span class="icon">💸</span>
         <span class="label">INPUT BIAYA OPERASIONAL</span>
+      </button>
+      <!-- Dipisah dari tombol scan (Keluar/Masuk) supaya tidak tersentuh saat operasional cepat -->
+      <div class="menu-pemisah" aria-hidden="true"></div>
+      <button class="menu-btn stockreq" onclick="bukaMemoGudangMobile()">
+        <span class="icon">📋</span>
+        <span class="label">CATAT MEMO GUDANG</span>
       </button>
     </div>
 
@@ -7078,11 +7157,18 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
         <button type="button" class="mgm-btn-scan" onclick="mgmTombolScan()">Scan</button>
         <div class="mgm-kamera-opsi">
           <span class="mgm-kamera-petunjuk">Tahan 📷 untuk scan · lepas untuk menutup</span>
+          <span class="mgm-opsi-kanan">
+          <button type="button" class="mgm-flash-toggle mgm-zoom-toggle" id="mgm-zoom-toggle" role="switch" aria-checked="false" onclick="mgmToggleZoom(event)" title="Perbesar kamera 3× untuk barcode kecil / jauh / luntur">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.6-4.6M10.5 7.8v5.4M7.8 10.5h5.4"/></svg>
+            <span>Zoom 3×</span>
+            <span class="mgm-switch" aria-hidden="true"></span>
+          </button>
           <button type="button" class="mgm-flash-toggle" id="mgm-flash-toggle" role="switch" aria-checked="false" onclick="mgmToggleFlash()" title="Nyalakan flash otomatis tiap kamera dibuka">
             <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
             <span>Flash</span>
             <span class="mgm-switch" aria-hidden="true"></span>
           </button>
+          </span>
         </div>
       </div>
       <button type="button" class="mgm-btn-tanpaqr" id="mgm-btn-tanpaqr" onclick="mgmBukaTanpaQr()" style="display:none;">Input Stock tanpa QR</button>
@@ -7093,6 +7179,7 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
           <video id="mgm-camera-video" playsinline autoplay muted></video>
           <div class="cam-guideline"></div>
           <button class="torch-btn" id="mgm-torch-btn" onclick="mgmToggleTorch()" style="display:none;">🔦</button>
+          <button type="button" class="mgm-zoom-chip" onclick="mgmToggleZoom(event)" aria-label="Ganti zoom kamera">1.5×</button>
           <div class="cam-caption">Arahkan ke barcode · lepas tombol untuk menutup</div>
         </div>
         <div class="cam-error" id="mgm-camera-error"></div>
@@ -7132,10 +7219,14 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
         </div>
         <div class="cam-error" id="mgm-sj-camera-error"></div>
       </div>
-      <button class="back-btn" id="mgm-btn-submit" style="width:100%; background:#2f9e6e; color:#fff; border-color:#2f9e6e; margin-top:6px;" onclick="mgmSubmit()">Kirim Memo</button>
+      <!-- Tombol kirim dipisah jelas dari kartu (tombol +/− qty) supaya tidak salah pencet saat scan beruntun -->
+      <div class="mgm-kirim-bar">
+        <button class="back-btn" id="mgm-btn-submit" style="width:100%; background:#2f9e6e; color:#fff; border-color:#2f9e6e; margin:0;" onclick="mgmSubmit()">Kirim Memo</button>
+      </div>
       <div class="status-text" id="mgm-status"></div>
       <div class="mso-panel" id="mso-panel" hidden aria-live="polite"></div>
       <div class="mso-panel" id="hro-panel" hidden aria-live="polite"></div>
+      <div class="mso-panel" id="gal-panel" hidden aria-live="polite"></div>
 
       <!-- Foto bukti Hilang/Rusak: kamera normal (pratinjau + jepret), atau pilih dari galeri -->
       <div class="mgm-foto-latar" id="mgm-foto" style="display:none;">
@@ -7146,6 +7237,7 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
               <b id="mgm-foto-judul">Foto bukti</b>
               <span id="mgm-foto-sku"></span>
             </div>
+            <button type="button" class="mgm-foto-ikon mgm-foto-zoom" id="mgm-foto-zoom" aria-pressed="false" aria-label="Ganti zoom kamera" onclick="mgmToggleZoom(event)">1×</button>
             <button type="button" class="mgm-foto-ikon mgm-foto-flash" id="mgm-foto-flash" aria-pressed="false" aria-label="Flash" onclick="mgmToggleFlash()">
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
             </button>
@@ -7183,6 +7275,7 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
           <input id="mgm-tqr-cari" class="mgm-tqr-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next" placeholder="Contoh: kopi arabica / WG-001" oninput="mgmTqrCari()" onkeydown="mgmTqrCariKeydown(event)" />
           <div id="mgm-tqr-saran" class="mgm-tqr-saran"></div>
           <div id="mgm-tqr-terpilih" class="mgm-tqr-terpilih" style="display:none;"></div>
+          <div class="mgm-tqr-foto" id="mgm-tqr-foto"></div>
           <label class="mgm-tqr-label" for="mgm-tqr-qty" id="mgm-tqr-label-qty">Qty</label>
           <input id="mgm-tqr-qty" class="mgm-tqr-input mgm-tqr-qty" type="number" inputmode="numeric" min="0" step="any" enterkeyhint="done" placeholder="0" onkeydown="if(event.key==='Enter'){event.preventDefault(); mgmTqrSimpan();}" />
           <button type="button" class="mgm-tqr-simpan" onclick="mgmTqrSimpan()">Masukkan ke keranjang</button>
@@ -7437,7 +7530,8 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
           <a href="#persediaan/monitor" class="web-nav-item" data-tab="persediaan" onclick="toggleNavGroup(this); persediaanBukaSub('monitor')">Persediaan</a>
           <div class="web-submenu-wrap">
             <a href="#persediaan/monitor" class="web-nav-item web-nav-sub" data-persub="monitor" onclick="persediaanBukaSub('monitor')">Monitor Stok</a>
-            <a href="#persediaan/barangmasuk" class="web-nav-item web-nav-sub" data-persub="barangmasuk" onclick="persediaanBukaSub('barangmasuk')">Barang Masuk <span id="vm-nav-badge" class="vm-nav-badge" style="display:none;"></span></a>
+            <a href="#persediaan/memogudang" class="web-nav-item web-nav-sub" data-persub="memogudang" onclick="persediaanBukaSub('memogudang')">Memo Gudang</a>
+            <a href="#persediaan/barangmasuk" class="web-nav-item web-nav-sub" data-persub="barangmasuk" onclick="persediaanBukaSub('barangmasuk', perBmTabAktif === 'memo' ? 'validasi' : perBmTabAktif)">Barang Masuk <span id="vm-nav-badge" class="vm-nav-badge" style="display:none;"></span></a>
             <a href="#persediaan/opname" class="web-nav-item web-nav-sub" data-persub="opname" onclick="persediaanBukaSub('opname')">Stock Opname</a>
             <a href="#persediaan/riwayat" class="web-nav-item web-nav-sub" data-persub="riwayat" onclick="persediaanBukaSub('riwayat')">Riwayat &amp; Log</a>
           </div>
@@ -11618,7 +11712,8 @@ tr.mg-baris-selisih-besar td { background: rgba(251,146,60,.09); }
                   <tbody id="mg-so-detail-body"></tbody>
                 </table>
               </div>
-              <button class="web-btn-primary" id="mg-so-detail-btn-verifikasi" style="width:100%; margin-top:14px;" onclick="mgVerifikasiStockOpnameDariModal()">✓ Tandai Terverifikasi</button>
+              <button class="web-btn-secondary" id="mg-so-detail-btn-edit" style="width:100%; margin-top:14px;" onclick="var n = mgSoDetailNoMemoAktif; mgTutupDetailSO(); mgeBuka('stockopname', n);">✏️ Edit No SKU / Nama / Stok Fisik</button>
+              <button class="web-btn-primary" id="mg-so-detail-btn-verifikasi" style="width:100%; margin-top:8px;" onclick="mgVerifikasiStockOpnameDariModal()">✓ Tandai Terverifikasi</button>
               <div class="status-text" id="mg-so-detail-status" style="text-align:left; margin-top:6px;"></div>
             </div>
           </div>
@@ -12181,6 +12276,8 @@ function initApp() {
 
 function tampilkanLayarLogin() {
   const modeWeb = !modeMobileDipilih(); // berdasarkan jenis perangkat / pilihan manual, bukan lebar jendela
+  loginBersihkanKonfirmasi();
+  omniPanaskanServer(); // bangunkan Apps Script selagi user memilih akun -> verifikasi login tidak kena cold start
   el('app').style.display = modeWeb ? 'none' : 'block';
   el('app-web').style.display = 'none';
   el('screen-login').style.display = modeWeb ? 'none' : 'flex';
@@ -12316,29 +12413,97 @@ async function loginSebagaiDeveloper(roleTerpilih) {
   playBeep();
 }
 
-async function handleCredentialResponse(response) {
-  setLoadingDots(el('login-status'), 'Memverifikasi');
+/* ===== LOGIN GOOGLE 2 LANGKAH: pilih akun -> tombol [Masuk →] =====
+   Begitu akun dipilih, kartu akun langsung tampil + verifikasi berjalan DI LATAR (tidak ada layar kosong).
+   Tombol Masuk biasanya langsung membuka aplikasi karena verifikasi sudah selesai saat ditekan. */
+let loginJanji = null, loginHasil = null, loginCredential = null;
+function loginModeWeb() { return !modeMobileDipilih(); }
+function loginStatusEl() { return loginModeWeb() ? el('login-status-web') : el('login-status'); }
+function loginDecodeJwt(t) {
   try {
-    const data = await postJson({ aksi: 'login', idToken: response.credential });
-    stopLoadingDots(el('login-status'));
-    if (!data.success) {
-      el('login-status').textContent = '✗ ' + (data.error || 'Login gagal');
-      el('login-status').className = 'status-text err';
-      return;
-    }
-    currentUser = data;
-    localStorage.setItem('trg_user', JSON.stringify(currentUser));
-
-    if (data.aktif) {
-      terapkanTampilanLogin();
-    } else {
-      tampilkanMenungguApproval();
-    }
-  } catch (err) {
-    stopLoadingDots(el('login-status'));
-    el('login-status').textContent = '✗ Gagal terhubung: ' + err.message;
-    el('login-status').className = 'status-text err';
+    let p = String(t || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    p += '='.repeat((4 - p.length % 4) % 4);
+    const bin = atob(p);
+    const teks = decodeURIComponent(Array.prototype.map.call(bin, c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return JSON.parse(teks);
+  } catch (e) { return {}; }
+}
+function omniPanaskanServer() {
+  if (window._omniPingMs && Date.now() - window._omniPingMs < 240000) return;
+  window._omniPingMs = Date.now();
+  setTimeout(() => { try { kirimKeWebApp({ aksi: 'ping' }, 20000).catch(() => { }); } catch (e) { } }, 0);
+}
+function loginMulaiVerifikasi() {
+  loginHasil = null;
+  loginJanji = postJson({ aksi: 'login', idToken: loginCredential, segar: true }, 45000)
+    .then(d => { loginHasil = d || { success: false, error: 'Respons kosong dari server' }; return loginHasil; },
+      err => { loginHasil = { success: false, error: 'Gagal terhubung: ' + err.message }; return loginHasil; });
+  return loginJanji;
+}
+function handleCredentialResponse(response) {
+  loginCredential = response && response.credential;
+  if (!loginCredential) return;
+  loginMulaiVerifikasi();
+  loginTampilKonfirmasi(loginDecodeJwt(loginCredential));
+}
+function loginTampilKonfirmasi(info) {
+  const web = loginModeWeb();
+  const wadahBtn = el(web ? 'google-signin-button-web' : 'google-signin-button');
+  if (!wadahBtn) return;
+  let k = el('login-konfirmasi');
+  if (!k) { k = document.createElement('div'); k.id = 'login-konfirmasi'; }
+  k.className = 'login-konf' + (web ? ' web' : '');
+  wadahBtn.insertAdjacentElement('afterend', k);
+  wadahBtn.style.display = 'none';
+  const nama = info.name || info.email || 'Akun Google';
+  const foto = info.picture
+    ? `<img src="${pgrAttr(info.picture)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'login-konf-inisial',textContent:'${pgrAttr((nama[0] || '?').toUpperCase())}'}))">`
+    : `<span class="login-konf-inisial">${escapeHtml((nama[0] || '?').toUpperCase())}</span>`;
+  k.innerHTML = `
+    <div class="login-konf-akun">
+      ${foto}
+      <div class="login-konf-teks"><b>${escapeHtml(nama)}</b><span>${escapeHtml(info.email || '')}</span></div>
+      <button type="button" class="login-konf-masuk" id="login-konf-masuk" onclick="loginKonfirmasiMasuk()" aria-label="Masuk sebagai ${pgrAttr(info.email || nama)}">
+        <span>Masuk</span>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <button type="button" class="login-konf-ganti" onclick="loginGantiAkun()">Bukan Anda? Ganti akun</button>`;
+  k.style.display = '';
+  const st = loginStatusEl();
+  if (st) { st.textContent = ''; st.className = 'status-text'; }
+  setTimeout(() => { const b = el('login-konf-masuk'); if (b) b.focus(); }, 60);
+}
+async function loginKonfirmasiMasuk() {
+  const b = el('login-konf-masuk');
+  if (!b || b.disabled) return;
+  const st = loginStatusEl();
+  b.disabled = true; b.classList.add('sibuk');
+  if (loginHasil && !loginHasil.success) loginMulaiVerifikasi(); // percobaan sebelumnya gagal -> ulangi dengan token yang sama
+  if (!loginHasil && st) { st.textContent = 'Memverifikasi akun…'; st.className = 'status-text'; }
+  const data = loginHasil || (loginJanji ? await loginJanji : null);
+  b.classList.remove('sibuk');
+  if (!data || !data.success) {
+    b.disabled = false;
+    if (st) { st.textContent = '✗ ' + String((data && data.error) || 'Login gagal').replace(/^Error:\s*/, ''); st.className = 'status-text err'; }
+    if (typeof playToot === 'function') playToot();
+    return;
   }
+  currentUser = data;
+  localStorage.setItem('trg_user', JSON.stringify(currentUser));
+  loginBersihkanKonfirmasi();
+  if (data.aktif) terapkanTampilanLogin(); else tampilkanMenungguApproval();
+}
+function loginGantiAkun() {
+  loginBersihkanKonfirmasi();
+  try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.prompt(); } catch (e) { }
+}
+function loginBersihkanKonfirmasi() {
+  loginJanji = null; loginHasil = null; loginCredential = null;
+  const k = el('login-konfirmasi');
+  if (k) k.remove();
+  ['google-signin-button', 'google-signin-button-web'].forEach(id => { const w = el(id); if (w) w.style.display = ''; });
+  ['login-status', 'login-status-web'].forEach(id => { const s = el(id); if (s && /Memverifikasi/.test(s.textContent)) s.textContent = ''; });
 }
 
 function tampilkanMenungguApproval() {
@@ -12393,6 +12558,8 @@ function terapkanTampilanLogin() {
   refreshMenuCounts();
   // Profil perusahaan cuma dipakai saat cetak invoice/label -> dimuat belakangan, tidak berebut dengan data menu
   setTimeout(() => muatProfilPerusahaan(), paksaModeMobile ? 6000 : 1500);
+  // Daftar produk ringan (SKU, nama, harga) disiapkan diam-diam -> Pesanan Manual & Memo Gudang langsung instan
+  setTimeout(() => { try { produkRinganSiap(); } catch (e) { } }, 4000);
 
   // HP -> tampilan mobile; tablet, laptop & PC -> tampilan web (berapa pun lebar jendelanya).
   // Pilihan manual lewat "Buka Versi Mobile" / "Buka Versi Web" diingat di perangkat ini & selalu menang.
@@ -21800,35 +21967,35 @@ let wpCariProdukTimer = null;
 function wpCariProdukLive() {
   clearTimeout(wpCariProdukTimer);
   const q = el('wp-b-sku-input').value.trim();
-  if (q.length < 1) { el('wp-b-sku-hasil').innerHTML = ''; el('wp-b-sku-status').textContent = ''; return; }
-
-  const statusEl = el('wp-b-sku-status');
-  setLoadingDots(statusEl, 'Mencari Produk');
-
+  const wrap = el('wp-b-sku-hasil'), statusEl = el('wp-b-sku-status');
+  if (q.length < 1) { wrap.innerHTML = ''; statusEl.textContent = ''; return; }
+  stopLoadingDots(statusEl); statusEl.textContent = '';
+  const tampil = list => {
+    wrap.innerHTML = '';
+    if (!list.length) { wrap.innerHTML = '<div style="font-size:11.5px; color:var(--web-text-dim);">Nggak ketemu produk yang cocok.</div>'; return; }
+    const frag = document.createDocumentFragment();
+    list.forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'web-cari-hasil-item';
+      div.innerHTML = `<b>${escapeHtml(p.nama)}</b><br><span style="color:var(--web-text-dim);">${escapeHtml(p.sku)} • Rp ${Number(p.harga || 0).toLocaleString('id-ID')}</span>`;
+      div.addEventListener('click', () => wpPilihProdukLive(p));
+      frag.appendChild(div);
+    });
+    wrap.appendChild(frag);
+  };
+  // Cache lokal ada -> hasil langsung tampil tanpa menunggu server (disegarkan diam-diam tiap 5 menit)
+  if (produkRingan && produkRingan.d.length) { tampil(produkCariLokal(q, 8)); produkRinganMuat(false); return; }
+  wrap.innerHTML = '<span class="omni-skel"></span><span class="omni-skel pendek"></span><span class="omni-skel"></span>';
   wpCariProdukTimer = setTimeout(async () => {
+    const d = await produkRinganMuat(true);
+    if (el('wp-b-sku-input').value.trim() !== q) return;
+    if (d && d.length) { tampil(produkCariLokal(q, 8)); return; }
     try {
       const data = await postJson({ aksi: 'cari_produk_partial', query: q, email: currentUserEmail() });
-      stopLoadingDots(statusEl);
-      statusEl.textContent = '';
-
-      if (data.success && data.hasil.length > 0) {
-        const wrap = el('wp-b-sku-hasil');
-        wrap.innerHTML = '';
-        data.hasil.forEach(p => {
-          const div = document.createElement('div');
-          div.className = 'web-cari-hasil-item';
-          div.innerHTML = `<b>${escapeHtml(p.nama)}</b><br><span style="color:var(--web-text-dim);">${escapeHtml(p.sku)} • Rp ${Number(p.harga).toLocaleString('id-ID')}</span>`;
-          div.addEventListener('click', () => wpPilihProdukLive(p));
-          wrap.appendChild(div);
-        });
-      } else {
-        el('wp-b-sku-hasil').innerHTML = '<div style="font-size:11.5px; color:var(--web-text-dim);">Nggak ketemu produk yang cocok.</div>';
-      }
-    } catch (err) {
-      stopLoadingDots(statusEl);
-      statusEl.textContent = '';
-    }
-  }, 400);
+      if (el('wp-b-sku-input').value.trim() !== q) return;
+      tampil((data && data.success && data.hasil) || []);
+    } catch (err) { wrap.innerHTML = ''; }
+  }, 120);
 }
 
 function wpPilihProdukLive(p) {
@@ -37705,8 +37872,10 @@ async function mgCariProdukLive(tab) {
   const saranEl = el('mg-' + p + '-saran');
   const kata = inputEl.value.toLowerCase().trim();
   if (kata.length < 2) { saranEl.style.display = 'none'; return; }
-  if (katalogProdukCache.length === 0) await katalogFetchProduk();
-  const hasil = katalogProdukCache.filter(pr => pr.sku.toLowerCase().includes(kata) || pr.nama.toLowerCase().includes(kata)).slice(0, 8);
+  if (!mgmDaftarProduk().length) { saranEl.innerHTML = '<span class="omni-skel"></span><span class="omni-skel pendek"></span>'; saranEl.style.display = 'block'; }
+  await mgmPastikanKatalog();
+  if (inputEl.value.toLowerCase().trim() !== kata) return;
+  const hasil = mgmDaftarProduk().filter(pr => String(pr.sku).toLowerCase().includes(kata) || String(pr.nama || '').toLowerCase().includes(kata)).slice(0, 8);
   if (hasil.length === 0) { saranEl.innerHTML = '<div class="mg-saran-item" style="color:var(--web-text-dim);">Nggak ketemu produk cocok.</div>'; saranEl.style.display = 'block'; return; }
   saranEl.innerHTML = hasil.map(pr => `<div class="mg-saran-item" onclick="mgPilihSaran('${tab}', '${pr.sku.replace(/'/g, "\\'")}')"><b>${escapeHtml(pr.sku)}</b>${escapeHtml(pr.nama)}</div>`).join('');
   saranEl.style.display = 'block';
@@ -37729,12 +37898,12 @@ async function mgTambahItemDariInput(tab) {
   const inputEl = el('mg-' + p + '-input-sku');
   const skuInput = inputEl.value.trim();
   if (!skuInput) return;
-  if (katalogProdukCache.length === 0) await katalogFetchProduk();
+  await mgmPastikanKatalog();
 
   // Coba cocokkan ke Master Produk dulu (buat auto-isi nama) - TAPI kalau nggak
   // ketemu, tetap lanjut pakai SKU yang diketik apa adanya, bukan ditolak.
-  let produk = katalogProdukCache.find(pr => pr.sku.toLowerCase() === skuInput.toLowerCase());
-  if (!produk) produk = katalogProdukCache.find(pr => pr.sku.toLowerCase().includes(skuInput.toLowerCase()) || pr.nama.toLowerCase().includes(skuInput.toLowerCase()));
+  let produk = mgmDaftarProduk().find(pr => String(pr.sku).toLowerCase() === skuInput.toLowerCase());
+  if (!produk) produk = mgmDaftarProduk().find(pr => String(pr.sku).toLowerCase().includes(skuInput.toLowerCase()) || String(pr.nama || '').toLowerCase().includes(skuInput.toLowerCase()));
 
   mgTambahItemKeCart(tab, produk ? produk.sku : skuInput);
   inputEl.value = '';
@@ -37743,6 +37912,7 @@ async function mgTambahItemDariInput(tab) {
 }
 
 function mgTambahItemKeCart(tab, sku) {
+  const katalogProdukCache = mgmDaftarProduk(); // katalog lengkap, atau daftar ringan bila katalog belum termuat
   const cart = mgCarts[tab];
   const sudahAda = cart.find(it => it.sku === sku);
   if (sudahAda) {
@@ -38535,9 +38705,9 @@ function mgRenderStockOpname() {
       <tr style="${selesai ? 'opacity:0.55;' : ''}">
         <td><a href="javascript:void(0)" onclick="mgBukaDetailSO('${m.noMemo.replace(/'/g,"\\'")}')" style="color:var(--web-info); font-weight:600; text-decoration:none;">${escapeHtml(m.noMemo)}</a></td>
         <td style="font-size:11px; color:var(--web-text-dim);">${escapeHtml(m.tanggal)}</td>
-        <td><span class="web-status-pill ${selesai ? 'dikirim' : 'aktif'}">${escapeHtml(m.status)}</span></td>
+        <td><span class="web-status-pill ${selesai ? 'dikirim' : 'aktif'}">${escapeHtml(m.status)}</span><span class="mg-so-badges">${m.nSelisih ? `<span class="mg-selisih besar" title="Stok fisik berbeda dengan stok sistem">⚠️ ${m.nSelisih} selisih</span>` : (m.jumlahItem ? '<span class="mg-selisih cocok">✓ Sesuai</span>' : '')}${m.nTanpaSku ? `<span class="mg-tanpa-sku-web" title="Isi No SKU lewat Edit sebelum verifikasi">${m.nTanpaSku} tanpa SKU</span>` : ''}${m.nFoto ? `<span class="mg-selisih tanpa">📷 ${m.nFoto}</span>` : ''}</span></td>
         <td style="font-size:11px;">${escapeHtml(m.dicatatOleh)}</td>
-        <td><button class="web-chart-toggle-btn" style="font-size:11px;" onclick="mgBukaDetailSO('${m.noMemo.replace(/'/g,"\\'")}')">Lihat Detail</button></td>
+        <td style="white-space:nowrap;"><button class="web-chart-toggle-btn" style="font-size:11px;" onclick="mgBukaDetailSO('${m.noMemo.replace(/'/g,"\\'")}')">Lihat Detail</button>${!selesai ? ` <button type="button" class="mgb-btn-edit" onclick="mgeBuka('stockopname', '${pgrAttr(m.noMemo)}')" title="Edit No SKU, Nama Produk & stok fisik sebelum verifikasi">✏️ Edit</button>` : ''}</td>
       </tr>`;
   }).join('');
   renderPaginasi('mg-so-riwayat-paginasi', mgStockOpnameCache.length, mgStockOpnamePaginasiState, mgRenderStockOpname);
@@ -38552,24 +38722,30 @@ async function mgBukaDetailSO(noMemo) {
 
   const memoInfo = mgStockOpnameCache.find(m => m.noMemo === noMemo);
   el('mg-so-detail-btn-verifikasi').style.display = (memoInfo && memoInfo.status === 'Terverifikasi') ? 'none' : 'block';
+  if (el('mg-so-detail-btn-edit')) el('mg-so-detail-btn-edit').style.display = (memoInfo && memoInfo.status === 'Terverifikasi') ? 'none' : 'block';
 
   try {
     const data = await postJson({ aksi: 'lihat_detail_memo_stock_opname', noMemo, email: currentUserEmail() });
     if (!data.success) { el('mg-so-detail-body').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error||'')}</td></tr>`; return; }
-    let nSelSo = 0;
+    let nSelSo = 0, nTanpaSo = 0;
     el('mg-so-detail-body').innerHTML = (data.daftar || []).map(it => {
-      const sel = mgSelisihInfo(Number(it.stokFisik), Number(it.stokSistem));
+      const tanpa = !String(it.sku || '').trim();
+      const adaSistem = !tanpa && it.stokSistem !== null && it.stokSistem !== undefined && it.stokSistem !== '';
+      const sel = adaSistem ? mgSelisihInfo(Number(it.stokFisik), Number(it.stokSistem)) : { kelas: 'tanpa', html: '' };
       if (sel.kelas === 'kecil' || sel.kelas === 'besar') nSelSo++;
+      if (tanpa) nTanpaSo++;
+      const foto = (it.foto || []).map((u, k) => `<a class="mg-so-foto" href="${pgrAttr(u)}" target="_blank" rel="noopener" title="Foto barang ${k + 1}">📷${(it.foto || []).length > 1 ? k + 1 : ''}</a>`).join('');
       return `
         <tr class="${sel.kelas === 'besar' ? 'mg-baris-selisih-besar' : (sel.kelas === 'kecil' ? 'mg-baris-selisih' : '')}">
-          <td>${escapeHtml(it.sku)}</td>
-          <td>${escapeHtml(it.nama)}</td>
-          <td>${it.stokSistem}</td>
+          <td>${tanpa ? '<span class="mg-tanpa-sku-web">Tanpa SKU</span>' : escapeHtml(it.sku)}</td>
+          <td>${escapeHtml(it.nama)}${foto}</td>
+          <td>${adaSistem ? it.stokSistem : '-'}</td>
           <td style="font-weight:600;">${it.stokFisik}</td>
-          <td>${sel.html || '-'}</td>
+          <td>${sel.html || (tanpa ? '<span class="mg-selisih tanpa">isi SKU dulu</span>' : '-')}</td>
           <td style="font-size:11.5px; color:var(--web-text-dim);">${escapeHtml(it.catatan || '-')}</td>
         </tr>`;
-    }).join('') + (nSelSo ? `<tr><td colspan="6"><div class="mg-selisih-ringkas" style="margin:4px 0 0;">⚠️ <b>${nSelSo} SKU</b> tidak sesuai antara stok fisik & sistem.</div></td></tr>` : '');
+    }).join('') + (nSelSo ? `<tr><td colspan="6"><div class="mg-selisih-ringkas" style="margin:4px 0 0;">⚠️ <b>${nSelSo} SKU</b> tidak sesuai antara stok fisik & sistem.</div></td></tr>` : '')
+      + (nTanpaSo ? `<tr><td colspan="6"><div class="mg-selisih-ringkas" style="margin:4px 0 0;">🏷️ <b>${nTanpaSo} barang</b> dicatat tanpa SKU (nama manual) - isi No SKU lewat tombol Edit sebelum diverifikasi.</div></td></tr>` : '');
   } catch (err) {
     el('mg-so-detail-body').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--web-danger);">Gagal terhubung: ${escapeHtml(err.message)}</td></tr>`;
   }
@@ -38973,6 +39149,10 @@ function perMonGantiTab(tab) {
 
 function perBmGantiTab(tab) {
   perBmTabAktif = tab;
+  // Sidebar: tab Memo Gudang -> sub-menu "Memo Gudang" aktif; Validasi / PO -> "Barang Masuk" aktif
+  document.querySelectorAll('.web-nav-sub[data-persub="memogudang"], .web-nav-sub[data-persub="barangmasuk"]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.persub === (tab === 'memo' ? 'memogudang' : 'barangmasuk'));
+  });
   perSetTab('per-bm', ['memo', 'validasi', 'po'], tab);
   el('persediaan-view-memogudang').style.display = tab === 'memo' ? 'block' : 'none';
   el('persediaan-view-validasi').style.display = tab === 'validasi' ? 'block' : 'none';
@@ -42605,16 +42785,23 @@ function kameraTrack(videoEl) {
 // Terapkan zoom 1.5x + fokus kontinu ke kamera yang sedang aktif di videoEl
 async function kameraTerapkanZoomFokus(videoEl) {
   const track = kameraTrack(videoEl);
+  // Target zoom per kamera (data-zoom-target), default KAMERA_ZOOM. Target <= 1 = tanpa zoom.
+  const target = Number(videoEl.dataset.zoomTarget) || KAMERA_ZOOM;
+  const tanpaZoom = target <= 1;
   let zoomHw = false;
   if (track) {
     const cap = track.getCapabilities ? track.getCapabilities() : {};
     const advanced = [];
     if (cap.focusMode && cap.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
-    if (cap.zoom && cap.zoom.max >= KAMERA_ZOOM) advanced.push({ zoom: Math.max(cap.zoom.min || 1, KAMERA_ZOOM) });
-    for (const c of advanced) { try { await track.applyConstraints({ advanced: [c] }); if (c.zoom) zoomHw = true; } catch (e) { /* tidak didukung - lanjut */ } }
+    if (cap.zoom) {
+      if (tanpaZoom) advanced.push({ zoom: cap.zoom.min || 1 });
+      else if (cap.zoom.max >= target) advanced.push({ zoom: Math.max(cap.zoom.min || 1, target) });
+    }
+    for (const c of advanced) { try { await track.applyConstraints({ advanced: [c] }); if (c.zoom && !tanpaZoom) zoomHw = true; } catch (e) { /* tidak didukung - lanjut */ } }
   }
-  videoEl.dataset.zoomHw = zoomHw ? '1' : '';
-  videoEl.classList.toggle('kamera-zoom-digital', !zoomHw); // cadangan: perbesar tampilan 1.5x
+  videoEl.dataset.zoomHw = (zoomHw || tanpaZoom) ? '1' : '';
+  videoEl.style.setProperty('--kamera-zoom', String(target));
+  videoEl.classList.toggle('kamera-zoom-digital', !zoomHw && !tanpaZoom); // cadangan: perbesar tampilan
   if (videoEl.parentElement) videoEl.parentElement.style.overflow = 'hidden';
   return zoomHw;
 }
@@ -42640,9 +42827,9 @@ async function kameraFokusUlang(videoEl, btn, titik) {
     else if (mode.includes('continuous')) { await coba({ focusMode: 'manual' }); await coba({ focusMode: 'continuous' }); }
     else if (cap.zoom && videoEl.dataset.zoomHw) {
       // Perangkat tanpa kontrol fokus: sentil zoom sedikit supaya kamera mengukur fokus ulang
-      await coba({ zoom: Math.min(cap.zoom.max, KAMERA_ZOOM + 0.1) });
+      await coba({ zoom: Math.min(cap.zoom.max, (Number(videoEl.dataset.zoomTarget) || KAMERA_ZOOM) + 0.1) });
       await new Promise(r => setTimeout(r, 150));
-      await coba({ zoom: KAMERA_ZOOM });
+      await coba({ zoom: Number(videoEl.dataset.zoomTarget) || KAMERA_ZOOM });
     }
   } finally {
     if (btn) setTimeout(() => { btn.classList.remove('memfokus'); btn.disabled = false; }, 500);
@@ -42707,11 +42894,12 @@ function buatPenangkapBarcode(videoEl, onHasil) {
 function kameraAmbilKanvas(videoEl) {
   const w = videoEl.videoWidth, h = videoEl.videoHeight;
   const canvas = document.createElement('canvas');
-  if (videoEl.dataset.zoomHw === '1' || !w || !h) {
+  if (videoEl.dataset.zoomHw === '1' || !w || !h || !videoEl.classList.contains('kamera-zoom-digital')) {
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(videoEl, 0, 0);
   } else {
-    const cw = Math.round(w / KAMERA_ZOOM), ch = Math.round(h / KAMERA_ZOOM);
+    const zf = Number(videoEl.dataset.zoomTarget) || KAMERA_ZOOM;
+    const cw = Math.round(w / zf), ch = Math.round(h / zf);
     canvas.width = cw; canvas.height = ch;
     canvas.getContext('2d').drawImage(videoEl, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, cw, ch);
   }
@@ -44421,10 +44609,20 @@ let kameraTahanSj = null;
 function mgmPastikanKatalog() {
   if (katalogProdukCache.length) return Promise.resolve();
   if (!mgmKatalogJanji) {
-    mgmKatalogJanji = Promise.resolve()
-      .then(() => katalogFetchProduk())
-      .catch(() => {})
-      .finally(() => { mgmKatalogJanji = null; });
+    mgmKatalogJanji = (async () => {
+      // 1) Katalog dari cache perangkat (IndexedDB / localStorage) -> instan
+      try {
+        let isiIdb = null;
+        try { const r = await katalogCacheIdb.ambil(); isiIdb = r && r.daftar; } catch (e) { }
+        const dataLokal = (isiIdb && isiIdb.daftar && isiIdb.daftar.length) ? isiIdb : ambilCacheLokal('katalog_produk');
+        if (dataLokal && !katalogProdukCache.length) katalogTerapkanCacheLokal(dataLokal);
+      } catch (e) { }
+      // 2) Tidak ada cache katalog -> daftar ringan (1 request kecil yang di-cache server)
+      if (!katalogProdukCache.length && !(produkRingan && produkRingan.d.length)) await produkRinganMuat(true);
+      else produkRinganMuat(false);
+      // 3) Katalog lengkap disegarkan di latar, tidak ditunggu
+      setTimeout(() => { Promise.resolve().then(() => katalogFetchProduk()).catch(() => { }); }, 1500);
+    })().catch(() => { }).finally(() => { mgmKatalogJanji = null; });
   }
   return mgmKatalogJanji;
 }
@@ -44454,6 +44652,7 @@ function mgmGantiTab(tab) {
   mgmKameraTahanLepas(false);
   mgmRenderCart();
   if (typeof msoRender === 'function') msoRender();
+  if (typeof galRender === 'function') galRender();
 }
 
 /* ===== Kamera HOLD-TO-OPEN (tombol kamera di kanan input SKU) =====
@@ -44472,9 +44671,10 @@ let mgmFlashOn = (() => { try { return localStorage.getItem('mgm_flash_on') === 
 
 function mgmRenderFlashToggle() {
   // Semua switch Flash (Memo Gudang, Scan Resi, Pesanan Manual) berbagi 1 pengaturan yang sama
-  document.querySelectorAll('.mgm-flash-toggle').forEach(b => {
+  document.querySelectorAll('.mgm-flash-toggle:not(.mgm-zoom-toggle)').forEach(b => {
     b.classList.toggle('on', mgmFlashOn); b.setAttribute('aria-checked', mgmFlashOn ? 'true' : 'false');
   });
+  if (typeof mgmRenderZoomToggle === 'function') mgmRenderZoomToggle();
   const f = el('mgm-foto-flash');
   if (f) { f.classList.toggle('on', mgmFlashOn); f.setAttribute('aria-pressed', mgmFlashOn ? 'true' : 'false'); }
 }
@@ -44587,6 +44787,7 @@ async function mgmStartCamera(sesi) {
     try {
       const stream = videoEl.srcObject;
       mgmCurrentTrack = stream.getVideoTracks()[0];
+      videoEl.dataset.zoomTarget = mgmZoomFaktor(); // Toggle Zoom (1.5× normal / 3× kuat)
       await kameraTerapkanZoomFokus(videoEl);
       if (sesi === mgmKameraSesi) await mgmTerapkanFlash(mgmCurrentTrack); // flash ikut toggle
     } catch (capErr) { /* getCapabilities nggak didukung - aman */ }
@@ -44777,11 +44978,12 @@ async function mgmCariProdukLiveSekarang_() {
   const kata = el('mgm-sku-input').value.toLowerCase().trim();
   const saranEl = el('mgm-saran');
   if (kata.length < 2) { saranEl.style.display = 'none'; return; }
+  if (!mgmDaftarProduk().length) { saranEl.innerHTML = '<span class="omni-skel"></span><span class="omni-skel pendek"></span>'; saranEl.style.display = 'block'; }
   await mgmPastikanKatalog();
   if (el('mgm-sku-input').value.toLowerCase().trim() !== kata) return; // input sudah berubah / sudah di-Enter
-  const hasil = katalogProdukCache.filter(pr => pr.sku.toLowerCase().includes(kata) || pr.nama.toLowerCase().includes(kata)).slice(0, 6);
+  const hasil = mgmDaftarProduk().filter(pr => pr.sku.toLowerCase().includes(kata) || pr.nama.toLowerCase().includes(kata)).slice(0, 6);
   const kataBaru = (el('mgm-sku-input') ? el('mgm-sku-input').value : '').replace(/\s+/g, ' ').trim();
-  const opsiBaru = mgmTabAktif === 'mintastock' && kataBaru.length >= 3 && !hasil.some(pr => pr.sku.toLowerCase() === kataBaru.toLowerCase())
+  const opsiBaru = (mgmTabAktif === 'mintastock' || mgmTabAktif === 'stockopname') && kataBaru.length >= 3 && !hasil.some(pr => pr.sku.toLowerCase() === kataBaru.toLowerCase())
     ? `<div class="mg-saran-item mgm-saran-baru" data-nama="${pgrAttr(kataBaru)}" onclick="el('mgm-sku-input').value=''; el('mgm-saran').style.display='none'; mgmTambahTanpaSku(this.dataset.nama)">➕ Catat "${escapeHtml(kataBaru)}" sebagai produk baru (tanpa SKU)</div>` : '';
   if (hasil.length === 0) { saranEl.innerHTML = opsiBaru || '<div class="mg-saran-item" style="color:var(--text-dim);">Nggak ketemu produk cocok.</div>'; saranEl.style.display = 'block'; return; }
   saranEl.innerHTML = hasil.map(pr => `<div class="mg-saran-item" onclick="mgmPilihSaran('${pr.sku.replace(/'/g, "\\'")}')"><b>${escapeHtml(pr.sku)}</b>${escapeHtml(pr.nama)}</div>`).join('') + opsiBaru;
@@ -44802,26 +45004,36 @@ async function mgmTambahItemDariInput() {
   clearTimeout(mgmCariTimer); // saran yang masih antre nggak perlu muncul lagi
   el('mgm-sku-input').value = ''; // kosongkan DULU supaya scan berikutnya langsung bisa masuk
   await mgmPastikanKatalog();
-  let produk = katalogProdukCache.find(pr => pr.sku.toLowerCase() === skuInput.toLowerCase());
-  if (!produk) produk = katalogProdukCache.find(pr => pr.sku.toLowerCase().includes(skuInput.toLowerCase()) || pr.nama.toLowerCase().includes(skuInput.toLowerCase()));
+  let produk = mgmDaftarProduk().find(pr => pr.sku.toLowerCase() === skuInput.toLowerCase());
+  if (!produk) produk = mgmDaftarProduk().find(pr => pr.sku.toLowerCase().includes(skuInput.toLowerCase()) || pr.nama.toLowerCase().includes(skuInput.toLowerCase()));
   el('mgm-saran').style.display = 'none';
-  // Minta Stock: produk belum terdaftar & bukan kode -> simpan pakai NAMA PRODUK saja (SKU diisi Admin dari web)
-  if (!produk && mgmTabAktif === 'mintastock' && !mgmMiripKodeSku(skuInput)) { mgmTambahTanpaSku(skuInput); return; }
+  // Minta Stock & Stock Opname: produk belum terdaftar & bukan kode -> simpan sebagai NAMA BARANG (tanpa SKU).
+  // Nama yang diketik manual TIDAK PERNAH disimpan sebagai SKU - SKU diisi Admin dari web.
+  if (!produk && (mgmTabAktif === 'mintastock' || mgmTabAktif === 'stockopname') && !mgmMiripKodeSku(skuInput)) { mgmTambahTanpaSku(skuInput); return; }
   mgmTambahItemKeCart(produk ? produk.sku : skuInput);
 }
 function mgmMiripKodeSku(t) { return /^[A-Za-z0-9][A-Za-z0-9\-_.\/]{2,}$/.test(t) && /\d/.test(t); }
 function mgmTambahTanpaSku(nama) {
   nama = String(nama || '').replace(/\s+/g, ' ').trim().slice(0, 150);
   if (!nama) return;
-  const cart = mgmCarts.mintastock;
-  const ada = cart.find(it => it.tanpaSku && it.nama.toLowerCase() === nama.toLowerCase());
+  window.mgmSentuhTerakhir = Date.now();
+  const tab = mgmTabAktif === 'stockopname' ? 'stockopname' : 'mintastock';
+  const cart = mgmCarts[tab];
+  const ada = cart.find(it => it.tanpaSku && String(it.nama || '').toLowerCase() === nama.toLowerCase());
   if (ada) { ada.qty = (parseFloat(ada.qty) || 0) + 1; mgmSimpanDraftLokal(); mgmRenderCart(); playBeep(); return; }
-  cart.unshift({ sku: '', nama, tanpaSku: true, qty: 1, catatan: '', fotoUrl: '' });
+  cart.unshift({ sku: '', nama, tanpaSku: true, qty: 1, catatan: '', fotoUrl: '', tanpaQr: tab === 'stockopname' });
   mgmSimpanDraftLokal(); mgmRenderCart(true); playBeep();
-  const st = el('mgm-status'); if (st) { st.textContent = `➕ "${nama}" dicatat sebagai produk baru (tanpa SKU) - SKU diisi Admin dari web.`; st.className = 'status-text ok'; }
+  const st = el('mgm-status');
+  if (st) {
+    st.textContent = tab === 'stockopname'
+      ? `➕ "${nama}" dicatat sebagai nama barang (tanpa SKU) · tekan 📷 Foto di kartunya bila barcode luntur.`
+      : `➕ "${nama}" dicatat sebagai produk baru (tanpa SKU) - SKU diisi Admin dari web.`;
+    st.className = 'status-text ok';
+  }
 }
 
 function mgmTambahItemKeCart(sku) {
+  window.mgmSentuhTerakhir = Date.now();
   const cart = mgmCarts[mgmTabAktif];
   const idxAda = cart.findIndex(it => it.sku === sku);
   if (idxAda !== -1) {
@@ -44841,14 +45053,14 @@ function mgmTambahItemKeCart(sku) {
       playBeep();
     }
   } else {
-    const produk = katalogProdukCache.find(pr => pr.sku === sku);
+    const produk = mgmDaftarProduk().find(pr => pr.sku === sku);
     cart.unshift({ sku, nama: produk ? produk.nama : sku, qty: 1, catatan: '', fotoUrl: '' }); // PREPEND - item baru selalu di urutan paling atas
     if (mgmTabAktif === 'mintastock') mgmMintaStokRealtime();
     mgmSimpanDraftLokal();
     mgmRenderCart(true); // true = ada item baru di posisi paling atas, kasih animasi masuk
     // Lagi pakai checklist tapi SKU-nya nggak ada di invoice manapun -> bunyi peringatan
     const pakaiChecklist = mgmTabAktif === 'barangmasuk' && cart.some(it => it.dariChecklist);
-    const skuTakDikenal = !produk && katalogProdukCache.length > 0;
+    const skuTakDikenal = !produk && mgmDaftarProduk().length > 0;
     if (pakaiChecklist || skuTakDikenal) playToot(); else playBeep();
   }
 }
@@ -44894,27 +45106,96 @@ function mgmRenderCartAman_() {
 
 function mgmUbahQty(idx, delta) {
   const cart = mgmCarts[mgmTabAktif];
+  if (!cart[idx]) return;
+  window.mgmSentuhTerakhir = Date.now();
   const qtyBaru = (parseFloat(cart[idx].qty) || 0) + delta;
   cart[idx].qty = qtyBaru < 0 ? 0 : qtyBaru;
   mgmSimpanDraftLokal();
   mgmRenderCart();
 }
 function mgmSetQtyLangsung(idx, value) {
+  const it = mgmCarts[mgmTabAktif][idx];
+  if (!it) return;
   const qty = parseFloat(value) || 0;
-  mgmCarts[mgmTabAktif][idx].qty = qty < 0 ? 0 : qty;
+  it.qty = qty < 0 ? 0 : qty;
   mgmSimpanDraftLokal();
 }
 function mgmUbahCatatan(idx, value) {
-  mgmCarts[mgmTabAktif][idx].catatan = value;
+  const it = mgmCarts[mgmTabAktif][idx];
+  if (!it) return;
+  it.catatan = value;
   mgmSimpanDraftLokal();
 }
 function mgmHapusItem(idx) {
+  if (idx < 0 || !mgmCarts[mgmTabAktif][idx]) return;
   mgmCarts[mgmTabAktif].splice(idx, 1);
   mgmSimpanDraftLokal();
   mgmRenderCart();
 }
 
-/* ===== Render cart - kartu compact, dipakai bareng 4 tab ===== */
+/* ===== Render cart - kartu compact, dipakai bareng 4 tab =====
+   RENDER RINGAN (anti patah-patah saat scan beruntun): tiap kartu punya kunci tetap (it._k). Yang berubah
+   hanya kartu yang isinya berubah; kartu lain tidak disentuh (dulu SEMUA kartu - termasuk foto base64 -
+   ditulis ulang setiap scan). Handler kartu memakai posisi kartu (mgmIdx) sehingga sisip di atas tidak
+   memaksa kartu lain dirender ulang. */
+let mgmKunciNo = 0;
+function mgmKunciItem(it) { if (!it._k) it._k = 'k' + Date.now().toString(36) + (++mgmKunciNo); return it._k; }
+function mgmIdx(node) {
+  const kartu = node && node.closest ? node.closest('.mgm-card') : null;
+  const list = el('mgm-cart-list');
+  return kartu && list ? Array.prototype.indexOf.call(list.children, kartu) : -1;
+}
+function mgmKartuHtml(it, jumlahInvoiceChecklist) {
+  // Meta info di baris qty - beda-beda per tab, tapi tetap 1 baris ringkas
+  let meta = '';
+  if (mgmTabAktif === 'mintastock') {
+    const sisaStok = !it.tanpaSku && mgmStokRealtimeCache[it.sku] ? mgmStokRealtimeCache[it.sku].stockSaatIni : '-';
+    meta = `<span class="mgm-card-meta">Sisa: ${sisaStok}</span>`;
+  } else if (mgmTabAktif === 'barangmasuk' && it.dariChecklist) {
+    const q = parseFloat(it.qty) || 0;
+    const kelasTarget = q === it.qtyTarget ? ' mgm-target-pas' : (q > it.qtyTarget ? ' mgm-target-lebih' : '');
+    meta = `<span class="mgm-card-meta${kelasTarget}">/ ${it.qtyTarget}${q === it.qtyTarget ? ' ✓' : ''}</span>`;
+    if (jumlahInvoiceChecklist > 1 && it.noInvoiceAsal) meta += `<span class="mgm-card-meta mgm-asal-inv" title="${escapeHtml(it.noInvoiceAsal)}">${escapeHtml(it.noInvoiceAsal)}</span>`;
+  } else if (mgmTabAktif === 'stockopname') {
+    // Blind count: staff cuma mencatat stok aktual, stok sistem/selisih TIDAK ditampilkan di mobile
+    meta = it.tanpaSku ? '<span class="mgm-card-meta">Nama manual · tanpa SKU</span>' : (it.tanpaQr ? '<span class="mgm-card-meta">Input tanpa QR</span>' : '');
+  }
+  const fotos = mgmFotoDaftar(it);
+  const bolehFoto = mgmTabAktif === 'hilangrusak' || (mgmTabAktif === 'stockopname' && (it.tanpaSku || it.tanpaQr || fotos.length));
+  let blokFoto = '';
+  if (bolehFoto) {
+    if (!fotos.length) blokFoto = `<button class="toggle-btn mgm-card-foto-btn" onclick="mgmAmbilFotoBukti(mgmIdx(this))">📷 ${mgmTabAktif === 'hilangrusak' ? 'Ambil Foto Bukti' : 'Foto Barang (barcode luntur / tanpa SKU)'}</button>`;
+    else {
+      const thumbs = fotos.map((b, k) => `
+        <div class="mgm-foto-thumb">
+          <img src="data:image/jpeg;base64,${b}" alt="Foto ${k + 1} ${escapeHtml(it.sku || it.nama)}" loading="lazy" decoding="async" />
+          <button type="button" onclick="mgmHapusFoto(mgmIdx(this), ${k})" aria-label="Hapus foto ${k + 1}">✕</button>
+        </div>`).join('');
+      const tambah = fotos.length < MGM_FOTO_MAKS_PER_ITEM
+        ? `<button type="button" class="mgm-foto-tambah" onclick="mgmAmbilFotoBukti(mgmIdx(this))" aria-label="Tambah foto"><span>＋</span>Foto</button>` : '';
+      blokFoto = `<div class="mgm-foto-galeri-row">${thumbs}${tambah}</div>
+              <div class="mgm-foto-ket">${fotos.length} foto · diunggah ke Drive saat memo dikirim</div>`;
+    }
+  }
+  return `
+        <div class="mgm-card-main-row">
+          <button class="mgm-card-hapus-kiri" onclick="mgmHapusItem(mgmIdx(this))" title="Hapus item">🗑️</button>
+          <div class="mgm-card-detail">
+            <div class="mgm-card-title">
+              <b>${it.tanpaSku ? '<span class="mgm-tanpa-sku">Tanpa SKU</span>' : escapeHtml(it.sku)}</b>
+              <span class="mgm-card-nama">${escapeHtml(it.nama)}${it.tanpaSku ? ' · SKU diisi Admin di web' : ''}</span>
+            </div>
+            <div class="mgm-card-meta-row">${meta}</div>
+          </div>
+          <div class="mgm-qty-inline">
+            <button class="mgm-qty-btn" onclick="mgmUbahQty(mgmIdx(this),-1)">−</button>
+            <input class="mgm-qty-input-sm" type="number" inputmode="decimal" value="${escapeHtml(String(it.qty))}" onchange="mgmSetQtyLangsung(mgmIdx(this),this.value)" />
+            <button class="mgm-qty-btn" onclick="mgmUbahQty(mgmIdx(this),1)">+</button>
+          </div>
+        </div>
+        <input class="mgm-card-catatan" type="text" value="${escapeHtml(it.catatan || '')}" placeholder="${mgmTabAktif === 'hilangrusak' ? 'Kenapa hilang/rusak?' : 'Catatan (opsional)'}" onchange="mgmUbahCatatan(mgmIdx(this),this.value)" />
+        ${blokFoto}`;
+}
 function mgmRenderCart(animasikanItemBaru, flashItemTeratas) {
   const cart = mgmCarts[mgmTabAktif];
   const jumlahInvoiceChecklist = new Set(cart.filter(it => it.dariChecklist).map(it => it.noInvoiceAsal)).size;
@@ -44931,58 +45212,32 @@ function mgmRenderCart(animasikanItemBaru, flashItemTeratas) {
     progresEl.style.display = 'none';
   }
 
-  el('mgm-cart-list').innerHTML = cart.map((it, idx) => {
-    const ghost = it.dariChecklist && (parseFloat(it.qty) || 0) <= 0;
-
-    // Meta info di baris qty - beda-beda per tab, tapi tetap 1 baris ringkas
-    let meta = '';
-    if (mgmTabAktif === 'mintastock') {
-      const sisaStok = !it.tanpaSku && mgmStokRealtimeCache[it.sku] ? mgmStokRealtimeCache[it.sku].stockSaatIni : '-';
-      meta = `<span class="mgm-card-meta">Sisa: ${sisaStok}</span>`;
-    } else if (mgmTabAktif === 'barangmasuk' && it.dariChecklist) {
-      const q = parseFloat(it.qty) || 0;
-      const kelasTarget = q === it.qtyTarget ? ' mgm-target-pas' : (q > it.qtyTarget ? ' mgm-target-lebih' : '');
-      meta = `<span class="mgm-card-meta${kelasTarget}">/ ${it.qtyTarget}${q === it.qtyTarget ? ' ✓' : ''}</span>`;
-      // Kalau checklist gabungan dari >1 invoice, tunjukin SKU ini asalnya dari invoice mana
-      if (jumlahInvoiceChecklist > 1 && it.noInvoiceAsal) meta += `<span class="mgm-card-meta mgm-asal-inv" title="${escapeHtml(it.noInvoiceAsal)}">${escapeHtml(it.noInvoiceAsal)}</span>`;
-    } else if (mgmTabAktif === 'stockopname') {
-      // Blind count: staff cuma mencatat stok aktual, stok sistem/selisih TIDAK ditampilkan di mobile
-      meta = it.tanpaQr ? '<span class="mgm-card-meta">Input tanpa QR</span>' : '';
+  const list = el('mgm-cart-list');
+  if (list.dataset.tab !== mgmTabAktif) { list.innerHTML = ''; list.dataset.tab = mgmTabAktif; }
+  const lama = new Map();
+  Array.from(list.children).forEach(n => { if (n.dataset && n.dataset.k) lama.set(n.dataset.k, n); else n.remove(); });
+  const aktif = document.activeElement;
+  cart.forEach((it, idx) => {
+    const k = mgmKunciItem(it);
+    let n = lama.get(k);
+    const baru = !n;
+    if (baru) { n = document.createElement('div'); n.dataset.k = k; n.className = 'mgm-card'; }
+    lama.delete(k);
+    const html = mgmKartuHtml(it, jumlahInvoiceChecklist);
+    const sedangKetik = aktif && aktif.tagName === 'INPUT' && n.contains(aktif);
+    if (n._html !== html && !sedangKetik) { n.innerHTML = html; n._html = html; }
+    n.classList.toggle('mgm-ghost', !!(it.dariChecklist && (parseFloat(it.qty) || 0) <= 0));
+    if (list.children[idx] !== n) list.insertBefore(n, list.children[idx] || null);
+    if (idx === 0 && ((animasikanItemBaru && baru) || flashItemTeratas)) {
+      const kelas = baru && animasikanItemBaru ? 'mgm-card-masuk' : 'mgm-card-flash';
+      n.classList.remove('mgm-card-masuk', 'mgm-card-flash');
+      void n.offsetWidth; // ulang animasi kalau SKU yang sama discan lagi
+      n.classList.add(kelas);
+      clearTimeout(n._animTimer);
+      n._animTimer = setTimeout(() => n.classList.remove('mgm-card-masuk', 'mgm-card-flash'), 1300);
     }
-
-    return `
-      <div class="mgm-card ${ghost ? 'mgm-ghost' : ''} ${idx === 0 && animasikanItemBaru ? 'mgm-card-masuk' : ''} ${idx === 0 && flashItemTeratas ? 'mgm-card-flash' : ''}">
-        <div class="mgm-card-main-row">
-          <button class="mgm-card-hapus-kiri" onclick="mgmHapusItem(${idx})" title="Hapus item">🗑️</button>
-          <div class="mgm-card-detail">
-            <div class="mgm-card-title">
-              <b>${it.tanpaSku ? '<span class="mgm-tanpa-sku">Tanpa SKU</span>' : escapeHtml(it.sku)}</b>
-              <span class="mgm-card-nama">${escapeHtml(it.nama)}${it.tanpaSku ? ' · produk baru, SKU diisi Admin di web' : ''}</span>
-            </div>
-            <div class="mgm-card-meta-row">${meta}</div>
-          </div>
-          <div class="mgm-qty-inline">
-            <button class="mgm-qty-btn" onclick="mgmUbahQty(${idx},-1)">−</button>
-            <input class="mgm-qty-input-sm" type="number" value="${it.qty}" onchange="mgmSetQtyLangsung(${idx},this.value)" />
-            <button class="mgm-qty-btn" onclick="mgmUbahQty(${idx},1)">+</button>
-          </div>
-        </div>
-        <input class="mgm-card-catatan" type="text" value="${escapeHtml(it.catatan)}" placeholder="${mgmTabAktif === 'hilangrusak' ? 'Kenapa hilang/rusak?' : 'Catatan (opsional)'}" onchange="mgmUbahCatatan(${idx},this.value)" />
-        ${mgmTabAktif === 'hilangrusak' ? (() => {
-          const fotos = mgmFotoDaftar(it);
-          if (!fotos.length) return `<button class="toggle-btn mgm-card-foto-btn" onclick="mgmAmbilFotoBukti(${idx})">📷 Ambil Foto Bukti</button>`;
-          const thumbs = fotos.map((b, k) => `
-            <div class="mgm-foto-thumb">
-              <img src="data:image/jpeg;base64,${b}" alt="Foto bukti ${k + 1} ${escapeHtml(it.sku)}" />
-              <button type="button" onclick="mgmHapusFoto(${idx}, ${k})" aria-label="Hapus foto ${k + 1}">✕</button>
-            </div>`).join('');
-          const tambah = fotos.length < MGM_FOTO_MAKS_PER_ITEM
-            ? `<button type="button" class="mgm-foto-tambah" onclick="mgmAmbilFotoBukti(${idx})" aria-label="Tambah foto"><span>＋</span>Foto</button>` : '';
-          return `<div class="mgm-foto-galeri-row">${thumbs}${tambah}</div>
-                  <div class="mgm-foto-ket">${fotos.length} foto · diunggah ke Drive saat memo dikirim</div>`;
-        })() : ''}
-      </div>`;
-  }).join('');
+  });
+  lama.forEach(n => n.remove());
 }
 
 // Dipanggil setelah auto-pin: pastikan kartu teratas kelihatan di layar (tanpa ganggu fokus input scanner)
@@ -45002,10 +45257,18 @@ const MGM_FOTO_MAKS_PX = 1600;
 let mgmFotoStream = null, mgmFotoTrack = null, mgmFotoBase64 = null, mgmFotoSesi = 0;
 
 async function mgmAmbilFotoBukti(idx) {
+  if (idx !== 'tqr' && (idx === null || idx === undefined || idx < 0)) return;
   mgmFotoTargetIdx = idx;
   mgmKameraTahanLepas(false);
-  const it = mgmCarts.hilangrusak[idx];
-  el('mgm-foto-sku').textContent = it ? (it.sku + (it.nama && it.nama !== it.sku ? ' · ' + it.nama : '')) : '';
+  if (idx === 'tqr') {
+    const t = mgmTqrTerpilih;
+    el('mgm-foto-judul').textContent = 'Foto barang';
+    el('mgm-foto-sku').textContent = t ? (t.tanpaSku ? t.nama : t.sku) : (el('mgm-tqr-cari').value.trim() || 'Barang tanpa SKU');
+  } else {
+    const it = mgmCarts[mgmTabAktif][idx];
+    el('mgm-foto-judul').textContent = mgmTabAktif === 'hilangrusak' ? 'Foto bukti' : 'Foto barang';
+    el('mgm-foto-sku').textContent = it ? ((it.tanpaSku ? it.nama : it.sku) + (!it.tanpaSku && it.nama && it.nama !== it.sku ? ' · ' + it.nama : '')) : '';
+  }
   el('mgm-foto').style.display = 'flex';
   document.body.classList.add('mgm-tqr-terbuka');
   mgmRenderFlashToggle();
@@ -45040,6 +45303,9 @@ async function mgmFotoMulaiKamera() {
       if (caps.focusMode && caps.focusMode.includes('continuous')) await mgmFotoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
     } catch (e) { /* fokus otomatis opsional */ }
     await mgmTerapkanFlash(mgmFotoTrack, 'mgm-foto-info');
+    // Toggle Zoom: ON = 3× (barcode/label kecil), OFF = normal tanpa zoom
+    video.dataset.zoomTarget = mgmZoomOn ? MGM_ZOOM_KUAT : 1;
+    try { await kameraTerapkanZoomFokus(video); } catch (e) { }
   } catch (err) {
     el('mgm-foto-info').textContent = 'Kamera tidak bisa dibuka (' + err.message + '). Pakai tombol Galeri untuk memilih foto.';
   }
@@ -45065,7 +45331,8 @@ function mgmFotoKeJpeg(sumber, w, h) {
 function mgmJepretFoto() {
   const video = el('mgm-foto-video');
   if (!video.videoWidth) { el('mgm-foto-info').textContent = 'Kamera belum siap - tunggu sebentar.'; return; }
-  const dataUrl = mgmFotoKeJpeg(video, video.videoWidth, video.videoHeight);
+  const kanvas = kameraAmbilKanvas(video); // zoom digital -> bagian tengah dipotong sesuai tampilan
+  const dataUrl = mgmFotoKeJpeg(kanvas, kanvas.width, kanvas.height);
   playBeep();
   mgmFotoStop();
   mgmFotoTampilHasil(dataUrl);
@@ -45115,7 +45382,14 @@ function mgmFotoDaftar(it) {
 }
 
 function mgmPakaiFoto() {
-  const it = mgmCarts.hilangrusak[mgmFotoTargetIdx];
+  if (mgmFotoTargetIdx === 'tqr') {
+    if (mgmFotoBase64 && mgmTqrFotos.length < MGM_FOTO_MAKS_PER_ITEM) mgmTqrFotos.push(mgmFotoBase64);
+    mgmTqrRenderFoto();
+    pgrToast(`Foto ${mgmTqrFotos.length} siap · ikut tersimpan saat barang dimasukkan`);
+    mgmTutupFoto();
+    return;
+  }
+  const it = mgmCarts[mgmTabAktif][mgmFotoTargetIdx];
   let sisaSlot = 0;
   if (it && mgmFotoBase64) {
     const daftar = mgmFotoDaftar(it);
@@ -45131,7 +45405,8 @@ function mgmPakaiFoto() {
 }
 
 function mgmHapusFoto(idx, k) {
-  const it = mgmCarts.hilangrusak[idx];
+  const it = mgmCarts[mgmTabAktif][idx];
+  if (!it) return;
   const daftar = mgmFotoDaftar(it);
   daftar.splice(k, 1);
   it.fotoUrl = daftar.length ? 'data:image/jpeg;base64,' + daftar[0] : '';
@@ -45151,8 +45426,9 @@ function mgmTutupFoto() {
    Untuk barang gudang yang belum punya QR/barcode SKU: cari nama atau SKU -> pilih -> isi Qty -> Enter.
    Qty yang diketik = hasil hitung (MENGGANTI qty lama kalau SKU sudah ada di keranjang, bukan menambah).
    Panel tetap terbuka setelah simpan, jadi bisa input banyak barang beruntun. */
-let mgmTqrTerpilih = null; // { sku, nama, dikenal }
+let mgmTqrTerpilih = null; // { sku, nama, dikenal, tanpaSku }
 let mgmTqrHasil = [];
+let mgmTqrFotos = []; // foto barang (base64) yang ikut masuk keranjang
 
 async function mgmBukaTanpaQr() {
   mgmKameraTahanLepas(false);
@@ -45161,7 +45437,7 @@ async function mgmBukaTanpaQr() {
   el('mgm-tqr-label-qty').textContent = mgmTabAktif === 'stockopname' ? 'Qty fisik (hasil hitung)' : 'Qty';
   mgmTqrReset();
   setTimeout(() => el('mgm-tqr-cari').focus(), 60);
-  if (!katalogProdukCache.length) {
+  if (!mgmDaftarProduk().length) {
     el('mgm-tqr-status').textContent = 'Memuat daftar produk…';
     await mgmPastikanKatalog();
     el('mgm-tqr-status').textContent = '';
@@ -45177,26 +45453,61 @@ function mgmTutupTanpaQr() {
 function mgmTqrReset() {
   mgmTqrTerpilih = null;
   mgmTqrHasil = [];
+  mgmTqrFotos = [];
   el('mgm-tqr-cari').value = '';
   el('mgm-tqr-qty').value = '';
   el('mgm-tqr-saran').innerHTML = '';
   mgmTqrRenderTerpilih();
+  mgmTqrRenderFoto();
+}
+
+// Teks bebas -> item. Hanya teks berbentuk KODE (tanpa spasi, ada angka) yang boleh dianggap SKU;
+// nama barang yang diketik manual SELALU dicatat sebagai item tanpa SKU (kolom SKU kosong).
+function mgmTqrDariTeks(teks) {
+  teks = String(teks || '').replace(/\s+/g, ' ').trim();
+  const persis = mgmDaftarProduk().find(pr => String(pr.sku).toLowerCase() === teks.toLowerCase());
+  if (persis) return { sku: persis.sku, nama: persis.nama || persis.sku, dikenal: true };
+  if (!/\s/.test(teks) && mgmMiripKodeSku(teks)) return { sku: teks.toUpperCase(), nama: teks.toUpperCase(), dikenal: false };
+  return { sku: '', nama: teks.slice(0, 150), dikenal: false, tanpaSku: true };
+}
+function mgmTqrLabel(t) { return t ? (t.tanpaSku ? t.nama : t.sku) : ''; }
+function mgmTqrIdxKeranjang(t) {
+  const cart = mgmCarts[mgmTabAktif] || [];
+  if (!t) return -1;
+  return t.tanpaSku
+    ? cart.findIndex(it => it.tanpaSku && String(it.nama || '').toLowerCase() === String(t.nama).toLowerCase())
+    : cart.findIndex(it => !it.tanpaSku && it.sku === t.sku);
 }
 
 function mgmTqrRenderTerpilih() {
   const box = el('mgm-tqr-terpilih');
   if (!mgmTqrTerpilih) { box.style.display = 'none'; box.innerHTML = ''; return; }
   const t = mgmTqrTerpilih;
-  const diKeranjang = (mgmCarts[mgmTabAktif] || []).find(it => it.sku === t.sku);
+  const idx = mgmTqrIdxKeranjang(t);
+  const diKeranjang = idx >= 0 ? mgmCarts[mgmTabAktif][idx] : null;
   box.innerHTML = `
     <div class="mgm-tqr-terpilih-teks">
-      <b>${escapeHtml(t.sku)}</b>
-      <span>${t.dikenal ? escapeHtml(t.nama) : 'Tidak ada di Master Produk - dicatat apa adanya'}</span>
+      <b>${t.tanpaSku ? '<span class="mgm-tqr-tanpasku">Tanpa SKU</span>' + escapeHtml(t.nama) : escapeHtml(t.sku)}</b>
+      <span>${t.dikenal ? escapeHtml(t.nama) : (t.tanpaSku ? 'Dicatat sebagai nama barang - SKU diisi Admin di web' : 'Kode belum ada di Master Produk - dicatat apa adanya')}</span>
       ${diKeranjang ? `<span class="mgm-tqr-sudah">Sudah di keranjang (qty ${escapeHtml(String(diKeranjang.qty))}) - akan diganti</span>` : ''}
     </div>
     <button type="button" onclick="mgmTqrGanti()" aria-label="Ganti produk">Ganti</button>`;
   box.style.display = 'flex';
 }
+
+function mgmTqrRenderFoto() {
+  const w = el('mgm-tqr-foto');
+  if (!w) return;
+  const thumbs = mgmTqrFotos.map((b, k) => `
+    <div class="mgm-foto-thumb">
+      <img src="data:image/jpeg;base64,${b}" alt="Foto barang ${k + 1}" />
+      <button type="button" onclick="mgmTqrHapusFoto(${k})" aria-label="Hapus foto ${k + 1}">✕</button>
+    </div>`).join('');
+  w.innerHTML = thumbs +
+    (mgmTqrFotos.length < MGM_FOTO_MAKS_PER_ITEM ? `<button type="button" class="mgm-tqr-foto-btn" onclick="mgmAmbilFotoBukti('tqr')">📷 ${mgmTqrFotos.length ? 'Tambah foto' : 'Foto barang'}</button>` : '') +
+    (mgmTqrFotos.length ? '' : '<span class="mgm-kamera-petunjuk">Tanpa SKU / barcode luntur? Foto supaya Admin mudah mengenali.</span>');
+}
+function mgmTqrHapusFoto(k) { mgmTqrFotos.splice(k, 1); mgmTqrRenderFoto(); }
 
 function mgmTqrGanti() {
   mgmTqrTerpilih = null;
@@ -45209,10 +45520,10 @@ function mgmTqrGanti() {
 function mgmTqrCari() {
   const kata = el('mgm-tqr-cari').value.toLowerCase().trim();
   const saranEl = el('mgm-tqr-saran');
-  if (mgmTqrTerpilih && mgmTqrTerpilih.sku.toLowerCase() !== kata) { mgmTqrTerpilih = null; mgmTqrRenderTerpilih(); }
+  if (mgmTqrTerpilih && mgmTqrLabel(mgmTqrTerpilih).toLowerCase() !== kata) { mgmTqrTerpilih = null; mgmTqrRenderTerpilih(); }
   if (!kata) { saranEl.innerHTML = ''; mgmTqrHasil = []; return; }
   const skor = pr => {
-    const sku = pr.sku.toLowerCase(), nama = String(pr.nama || '').toLowerCase();
+    const sku = String(pr.sku).toLowerCase(), nama = String(pr.nama || '').toLowerCase();
     if (sku === kata) return 0;
     if (sku.startsWith(kata)) return 1;
     if (nama.startsWith(kata)) return 2;
@@ -45221,7 +45532,7 @@ function mgmTqrCari() {
   };
   // Semua kata harus ada (urutan bebas): "arabica 1kg" cocok dengan "Kopi Arabica Gayo 1kg"
   const potongan = kata.split(/\s+/).filter(Boolean);
-  mgmTqrHasil = katalogProdukCache
+  mgmTqrHasil = mgmDaftarProduk()
     .filter(pr => {
       const gabung = (pr.sku + ' ' + (pr.nama || '')).toLowerCase();
       return potongan.every(k => gabung.includes(k));
@@ -45229,7 +45540,9 @@ function mgmTqrCari() {
     .sort((a, b) => skor(a) - skor(b))
     .slice(0, 8);
   if (!mgmTqrHasil.length) {
-    saranEl.innerHTML = `<div class="mgm-tqr-kosong">Produk tidak ditemukan. Tekan Enter untuk memakai "<b>${escapeHtml(el('mgm-tqr-cari').value.trim())}</b>" sebagai SKU.</div>`;
+    const teksAsli = el('mgm-tqr-cari').value.trim();
+    const t = mgmTqrDariTeks(teksAsli);
+    saranEl.innerHTML = `<div class="mgm-tqr-kosong">Tidak ada di katalog. Tekan Enter untuk mencatat "<b>${escapeHtml(teksAsli)}</b>" sebagai ${t.tanpaSku ? '<b>nama barang (tanpa SKU)</b>' : '<b>kode SKU</b>'}. Tambahkan foto bila barcode luntur.</div>`;
     return;
   }
   saranEl.innerHTML = mgmTqrHasil.map((pr, i) => `
@@ -45254,11 +45567,11 @@ function mgmTqrCariKeydown(e) {
   const teks = el('mgm-tqr-cari').value.trim();
   if (!teks) return;
   if (!mgmTqrTerpilih) {
-    const persis = katalogProdukCache.find(pr => pr.sku.toLowerCase() === teks.toLowerCase());
+    const persis = mgmDaftarProduk().find(pr => String(pr.sku).toLowerCase() === teks.toLowerCase());
     if (persis) mgmTqrTerpilih = { sku: persis.sku, nama: persis.nama || persis.sku, dikenal: true };
     else if (mgmTqrHasil.length) { mgmTqrPilih(0); return; }
-    else mgmTqrTerpilih = { sku: teks, nama: teks, dikenal: false };
-    el('mgm-tqr-cari').value = mgmTqrTerpilih.sku;
+    else mgmTqrTerpilih = mgmTqrDariTeks(teks);
+    el('mgm-tqr-cari').value = mgmTqrLabel(mgmTqrTerpilih);
     el('mgm-tqr-saran').innerHTML = '';
     mgmTqrRenderTerpilih();
   }
@@ -45271,8 +45584,7 @@ function mgmTqrSimpan() {
   if (!mgmTqrTerpilih) {
     const teks = el('mgm-tqr-cari').value.trim();
     if (!teks) { statusEl.textContent = 'Pilih produk dulu - ketik nama atau SKU.'; statusEl.classList.add('err'); el('mgm-tqr-cari').focus(); return; }
-    const persis = katalogProdukCache.find(pr => pr.sku.toLowerCase() === teks.toLowerCase());
-    mgmTqrTerpilih = persis ? { sku: persis.sku, nama: persis.nama || persis.sku, dikenal: true } : { sku: teks, nama: teks, dikenal: false };
+    mgmTqrTerpilih = mgmTqrDariTeks(teks);
   }
   const qtyTeks = el('mgm-tqr-qty').value.trim();
   const qty = parseFloat(qtyTeks);
@@ -45285,22 +45597,25 @@ function mgmTqrSimpan() {
 
   const t = mgmTqrTerpilih;
   const cart = mgmCarts[mgmTabAktif];
-  const idxAda = cart.findIndex(it => it.sku === t.sku);
+  const idxAda = mgmTqrIdxKeranjang(t);
+  const nFoto = mgmTqrFotos.length;
   let diganti = false;
   if (idxAda !== -1) {
     const item = cart.splice(idxAda, 1)[0];
     item.qty = qty;
+    item.tanpaQr = true;
+    if (nFoto) { const d = mgmFotoDaftar(item); mgmTqrFotos.forEach(f => { if (d.length < MGM_FOTO_MAKS_PER_ITEM) d.push(f); }); }
     cart.unshift(item);
     diganti = true;
   } else {
-    cart.unshift({ sku: t.sku, nama: t.nama, qty, catatan: '', fotoUrl: '', tanpaQr: true });
+    cart.unshift({ sku: t.tanpaSku ? '' : t.sku, nama: t.nama, qty, catatan: '', fotoUrl: '', tanpaQr: true, tanpaSku: !!t.tanpaSku, fotos: mgmTqrFotos.slice(0, MGM_FOTO_MAKS_PER_ITEM) });
   }
   if (mgmTabAktif === 'mintastock') mgmMintaStokRealtime();
   mgmSimpanDraftLokal();
   mgmRenderCart(!diganti, diganti);
   if (t.dikenal) playBeep(); else playToot();
 
-  statusEl.textContent = `✓ ${t.sku} · qty ${qty} ${diganti ? '(qty lama diganti)' : 'masuk keranjang'}`;
+  statusEl.textContent = `✓ ${mgmTqrLabel(t)}${t.tanpaSku ? ' (tanpa SKU)' : ''} · qty ${qty}${nFoto ? ' · ' + nFoto + ' foto' : ''} ${diganti ? '(qty lama diganti)' : 'masuk keranjang'}`;
   statusEl.classList.add('ok');
   mgmTqrReset();
   el('mgm-tqr-cari').focus();
@@ -45680,6 +45995,10 @@ setTimeout(() => {
 async function mgmSubmit() {
   // 1 tombol "Kirim Memo" untuk semua tab -> dikunci selama proses (anti dobel-klik)
   const tab = mgmTabAktif;
+  // Pengaman salah pencet: tombol Kirim yang tersentuh < 0,7 dtk setelah scan / ubah qty diabaikan sekali
+  if (Date.now() - (window.mgmSentuhTerakhir || 0) < 700) { pgrToast('Baru saja scan / ubah qty - tekan Kirim sekali lagi bila memang mau mengirim.'); window.mgmSentuhTerakhir = 0; return; }
+  // Stock Opname & Barang Masuk: ACTION LOG - dikirim di latar, keranjang langsung kosong, bisa lanjut scan
+  if (tab === 'stockopname' || tab === 'barangmasuk') return galKirimDariKeranjang(tab);
   // Minta Stock & Hilang/Rusak: antrean kirim instan (optimistic UI) - keranjang langsung dikosongkan, anti dobel
   if (tab === 'mintastock') return mgmSubmitMintaStock();
   if (tab === 'hilangrusak') return mgmSubmitHilangRusakAntre();
@@ -46419,6 +46738,7 @@ function openPesananManual() {
   el('pm-tab-laporan').style.display = hanyaLabel ? 'none' : '';
   if (hanyaLabel) { bukaDaftarPesanan(); return; }
   el('screen-invoice').style.display = 'flex';
+  produkRinganSiap(); // daftar produk siap sebelum user scan/ketik SKU
   pmGantiTab('baru');
   pmPembeliLama = null;
   el('inv-nama').value = '';
@@ -46656,6 +46976,11 @@ el('inv-sku-input').addEventListener('keydown', (e) => {
 
 async function cariProdukSku(sku) {
   const infoEl = el('inv-produk-info');
+  const saranInv = el('inv-sku-saran'); if (saranInv) saranInv.style.display = 'none';
+  // INSTAN: cari di daftar produk lokal dulu - server hanya dipanggil bila SKU tidak ada di cache
+  const kunciLokal = String(sku || '').trim().toUpperCase();
+  const lokal = produkRingan && Array.isArray(produkRingan.d) ? produkRingan.d.find(p => String(p.sku).toUpperCase() === kunciLokal) : null;
+  if (lokal) { invTerapkanProduk(lokal); return; }
   infoEl.textContent = 'Mencari produk...';
   try {
     const data = await postJson({ aksi: 'cari_produk', sku: sku, email: currentUserEmail() });
@@ -49984,10 +50309,10 @@ function mgSelSkuNama(tab, idx, it) {
     '<input class="mg-inline-input nama" value="' + pgrAttr(it.nama && it.nama !== it.sku ? it.nama : '') + '" placeholder="Nama produk" aria-label="Nama produk" onchange="mgUbahNama(\'' + tab + '\',' + idx + ',this.value)" />';
 }
 function mgPastikanDatalistSku() {
-  if (el('mg-daftar-sku') || !Array.isArray(katalogProdukCache) || !katalogProdukCache.length) return;
+  if (el('mg-daftar-sku') || !mgmDaftarProduk().length) return;
   var dl = document.createElement('datalist');
   dl.id = 'mg-daftar-sku';
-  dl.innerHTML = katalogProdukCache.slice(0, 3000).map(function (pr) { return '<option value="' + pgrAttr(pr.sku) + '">' + escapeHtml(pr.nama || '') + '</option>'; }).join('');
+  dl.innerHTML = mgmDaftarProduk().slice(0, 3000).map(function (pr) { return '<option value="' + pgrAttr(pr.sku) + '">' + escapeHtml(pr.nama || '') + '</option>'; }).join('');
   document.body.appendChild(dl);
 }
 function mgUbahSku(tab, idx, nilai) {
@@ -49996,7 +50321,7 @@ function mgUbahSku(tab, idx, nilai) {
   var baru = String(nilai || '').replace(/\s+/g, '').toUpperCase().slice(0, 60);
   var lama = it.sku;
   it.sku = baru;
-  var produk = baru && Array.isArray(katalogProdukCache) ? katalogProdukCache.find(function (pr) { return String(pr.sku).toUpperCase() === baru; }) : null;
+  var produk = baru ? mgmDaftarProduk().find(function (pr) { return String(pr.sku).toUpperCase() === baru; }) : null;
   if (produk) { if (produk.sku !== baru) it.sku = produk.sku; if (!it.nama || it.nama === lama) it.nama = produk.nama; }
   // SKU sama dengan baris lain -> gabungkan qty-nya (tidak ada baris kembar)
   var kembar = baru ? mgCarts[tab].findIndex(function (x, i) { return i !== idx && String(x.sku).toUpperCase() === it.sku.toUpperCase(); }) : -1;
@@ -50023,7 +50348,7 @@ function mgSetStokFisik(tab, idx, nilai) {
   mgRenderCart(tab);
 }
 async function mgTambahBarisManual(tab) {
-  if (Array.isArray(katalogProdukCache) && !katalogProdukCache.length) { try { await katalogFetchProduk(); } catch (e) { } }
+  try { await mgmPastikanKatalog(); } catch (e) { }
   mgPastikanDatalistSku();
   mgCarts[tab].push({ sku: '', nama: '', qty: 1, catatan: '', fotoUrl: '', manual: true });
   mgSimpanDraftLokal();
@@ -50035,26 +50360,27 @@ async function mgTambahBarisManual(tab) {
 
 /* ----- Editor memo yang SUDAH terkirim (selama belum diproses) ----- */
 var mge = { jenis: '', noMemo: '', baris: [] };
-var MGE_JUDUL = { mintastock: 'Memo Minta Stock', barangmasuk: 'Memo Catat Barang Masuk', hilangrusak: 'Memo Lapor Hilang/Rusak' };
+var MGE_JUDUL = { mintastock: 'Memo Minta Stock', barangmasuk: 'Memo Catat Barang Masuk', hilangrusak: 'Memo Lapor Hilang/Rusak', stockopname: 'Memo Stock Opname' };
 async function mgeBuka(jenis, noMemo) {
   mge = { jenis: jenis, noMemo: noMemo, baris: [] };
   mgb.dari = 'web';
   mgbDom().hidden = false;
   el('mgb-judul').textContent = '✏️ Edit ' + noMemo;
-  el('mgb-sub').textContent = MGE_JUDUL[jenis] + ' · ubah No SKU, Nama Produk & jumlah. Hanya bisa selama memo belum diproses.';
+  el('mgb-sub').textContent = MGE_JUDUL[jenis] + (jenis === 'stockopname' ? ' · ubah No SKU, Nama Produk & stok fisik. Hanya bisa selama memo belum diverifikasi.' : ' · ubah No SKU, Nama Produk & jumlah. Hanya bisa selama memo belum diproses.');
   el('mgb-isi').innerHTML = '<div style="text-align:center; padding:24px 0;"><span class="wp-sync-chip"><span class="putar"></span>Memuat isi memo...</span></div>';
   el('mgb-foot').innerHTML = '<button type="button" class="mgb-btn" onclick="mgbTutup()">Tutup</button>';
   try {
-    if (Array.isArray(katalogProdukCache) && !katalogProdukCache.length) { try { await katalogFetchProduk(); } catch (e) { } }
+    try { await mgmPastikanKatalog(); } catch (e) { }
     mgPastikanDatalistSku();
-    var aksi = { mintastock: 'lihat_detail_memo_minta_stock', barangmasuk: 'lihat_detail_memo_barang_masuk', hilangrusak: 'lihat_detail_memo_hilang_rusak' }[jenis];
+    var aksi = { mintastock: 'lihat_detail_memo_minta_stock', barangmasuk: 'lihat_detail_memo_barang_masuk', hilangrusak: 'lihat_detail_memo_hilang_rusak', stockopname: 'lihat_detail_memo_stock_opname' }[jenis];
     var tunggu = [postJson({ aksi: aksi, noMemo: noMemo, email: currentUserEmail(), segar: true }, 30000)];
-    if (jenis === 'mintastock') tunggu.push(mgPastikanStokSistem());
+    if (jenis === 'mintastock' || jenis === 'stockopname') tunggu.push(mgPastikanStokSistem());
     var hasil = await Promise.all(tunggu), d = hasil[0];
     if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat memo');
-    var namaMaster = function (sku) { var pr = (katalogProdukCache || []).find(function (x) { return x.sku === sku; }); return pr ? pr.nama : ''; };
+    var namaMaster = function (sku) { var pr = mgmDaftarProduk().find(function (x) { return x.sku === sku; }); return pr ? pr.nama : ''; };
     if (jenis === 'mintastock') mge.baris = (d.daftar || []).map(function (it) { return { sku: String(it.sku || ''), nama: String(it.nama || ''), stokFisik: it.sisaStokSaatItu, qty: Number(it.qtyMinta) || 0, catatan: String(it.catatan || '') }; });
     else if (jenis === 'barangmasuk') mge.baris = (d.item || []).map(function (it) { return { sku: it.sku, nama: it.nama || namaMaster(it.sku), qty: Number(it.qty) || 0, catatan: it.catatan || '' }; });
+    else if (jenis === 'stockopname') mge.baris = (d.daftar || []).map(function (it) { return { sku: String(it.sku || ''), nama: String(it.nama || ''), qty: Number(it.stokFisik) || 0, catatan: String(it.catatan || ''), asal: it.row, skuAwal: String(it.sku || ''), sistemAwal: it.stokSistem, foto: (it.foto || []).length ? 'ada' : '' }; });
     else mge.baris = (d.daftar || []).map(function (it) { return { sku: String(it.sku || ''), nama: namaMaster(String(it.sku || '')), qty: Number(it.qty) || 0, catatan: String(it.catatan || ''), foto: it.fotoUrl || '' }; });
     if (!mge.baris.length) mge.baris.push({ sku: '', nama: '', qty: 1, catatan: '' });
     mgeRender();
@@ -50063,25 +50389,34 @@ async function mgeBuka(jenis, noMemo) {
   }
 }
 function mgeRender() {
-  var ms = mge.jenis === 'mintastock';
-  var nSel = 0;
+  var ms = mge.jenis === 'mintastock', so = mge.jenis === 'stockopname';
+  var nSel = 0, nTanpa = 0;
   var baris = mge.baris.map(function (b, i) {
-    var sistem = ms ? mgStokSistem(b.sku) : null;
-    var sel = ms ? mgSelisihInfo(b.stokFisik === '' || b.stokFisik === null || b.stokFisik === undefined ? null : Number(b.stokFisik), sistem) : { kelas: '', html: '' };
+    var sistem = null, sel = { kelas: '', html: '' };
+    if (ms) {
+      sistem = mgStokSistem(b.sku);
+      sel = mgSelisihInfo(b.stokFisik === '' || b.stokFisik === null || b.stokFisik === undefined ? null : Number(b.stokFisik), sistem);
+    } else if (so) {
+      sistem = !b.sku ? null : (b.sku === b.skuAwal && b.sistemAwal !== null && b.sistemAwal !== undefined && b.sistemAwal !== '' ? Number(b.sistemAwal) : mgStokSistem(b.sku));
+      sel = mgSelisihInfo(Number(b.qty), sistem);
+      if (!b.sku) nTanpa++;
+    }
     if (sel.kelas === 'kecil' || sel.kelas === 'besar') nSel++;
+    var wajibSku = so && !b.sku;
     return '<tr class="' + (sel.kelas === 'besar' ? 'mg-baris-selisih-besar' : (sel.kelas === 'kecil' ? 'mg-baris-selisih' : '')) + '">' +
-      '<td><input value="' + pgrAttr(b.sku) + '" placeholder="No SKU" list="mg-daftar-sku" style="text-transform:uppercase; font-weight:700;" oninput="mgeUbah(' + i + ',\'sku\',this.value)" onchange="mgeUbah(' + i + ',\'sku\',this.value,true)" /></td>' +
+      '<td><input value="' + pgrAttr(b.sku) + '" placeholder="' + (wajibSku ? 'Isi No SKU' : 'No SKU') + '"' + (wajibSku ? ' class="mge-wajib"' : '') + ' list="mg-daftar-sku" style="text-transform:uppercase; font-weight:700;" oninput="mgeUbah(' + i + ',\'sku\',this.value)" onchange="mgeUbah(' + i + ',\'sku\',this.value,true)" /></td>' +
       '<td><input value="' + pgrAttr(b.nama) + '" placeholder="Nama produk" oninput="mgeUbah(' + i + ',\'nama\',this.value)" /></td>' +
-      (ms ? '<td style="white-space:nowrap; text-align:right; color:var(--web-text-dim, #6b7280);">' + (sistem === null ? '-' : Number(sistem).toLocaleString('id-ID')) + '</td>' +
-        '<td><input type="number" min="0" value="' + (b.stokFisik === null || b.stokFisik === undefined ? '' : b.stokFisik) + '" style="width:76px;" onchange="mgeUbah(' + i + ',\'stokFisik\',this.value,true)" />' + (sel.html ? '<div style="margin-top:3px;">' + sel.html + '</div>' : '') + '</td>' : '') +
-      '<td><input type="number" min="0" value="' + b.qty + '" style="width:76px;" oninput="mgeUbah(' + i + ',\'qty\',this.value)" /></td>' +
+      ((ms || so) ? '<td style="white-space:nowrap; text-align:right; color:var(--web-text-dim, #6b7280);">' + (sistem === null ? '-' : Number(sistem).toLocaleString('id-ID')) + '</td>' : '') +
+      (ms ? '<td><input type="number" min="0" value="' + (b.stokFisik === null || b.stokFisik === undefined ? '' : b.stokFisik) + '" style="width:76px;" onchange="mgeUbah(' + i + ',\'stokFisik\',this.value,true)" />' + (sel.html ? '<div style="margin-top:3px;">' + sel.html + '</div>' : '') + '</td>' : '') +
+      '<td><input type="number" min="0" value="' + b.qty + '" style="width:76px;" oninput="mgeUbah(' + i + ',\'qty\',this.value)" onchange="mgeUbah(' + i + ',\'qty\',this.value,true)" />' + (so && sel.html ? '<div style="margin-top:3px;">' + sel.html + '</div>' : '') + '</td>' +
       '<td><input value="' + pgrAttr(b.catatan) + '" placeholder="Catatan" oninput="mgeUbah(' + i + ',\'catatan\',this.value)" />' + (b.foto ? '<div style="font-size:10.5px; margin-top:2px;">📷 foto tetap tersimpan</div>' : '') + '</td>' +
       '<td><button type="button" class="mge-hapus" title="Hapus baris" onclick="mgeHapus(' + i + ')">✕</button></td></tr>';
   }).join('');
   el('mgb-isi').innerHTML =
     (nSel ? '<div class="mg-selisih-ringkas">⚠️ <b>' + nSel + ' SKU</b> stok fisiknya berbeda dengan stok sistem.</div>' : '') +
-    '<div style="overflow-x:auto;"><table class="mgb-tabel mge-tabel"><thead><tr><th>No SKU</th><th>Nama Produk</th>' + (ms ? '<th style="text-align:right;">Sistem</th><th>Stok Fisik</th>' : '') +
-    '<th>' + (ms ? 'Qty Minta' : 'Jumlah') + '</th><th>Catatan</th><th></th></tr></thead><tbody>' + baris + '</tbody></table></div>' +
+    (nTanpa ? '<div class="mg-selisih-ringkas">🏷️ <b>' + nTanpa + ' barang</b> belum punya SKU - isi No SKU supaya memo bisa diverifikasi.</div>' : '') +
+    '<div style="overflow-x:auto;"><table class="mgb-tabel mge-tabel"><thead><tr><th>No SKU</th><th>Nama Produk</th>' + ((ms || so) ? '<th style="text-align:right;">Sistem</th>' : '') + (ms ? '<th>Stok Fisik</th>' : '') +
+    '<th>' + (ms ? 'Qty Minta' : (so ? 'Stok Fisik' : 'Jumlah')) + '</th><th>Catatan</th><th></th></tr></thead><tbody>' + baris + '</tbody></table></div>' +
     '<button type="button" class="mge-tambah" onclick="mgeTambah()">➕ Tambah baris manual</button>' +
     '<div class="mgb-status" id="mge-status" aria-live="polite"></div>';
   el('mgb-foot').innerHTML = '<button type="button" class="mgb-btn" onclick="mgbTutup()">Batal</button><button type="button" class="mgb-btn utama" id="mge-btn-simpan" onclick="mgeSimpan()">💾 Simpan Perubahan</button>';
@@ -50091,20 +50426,21 @@ function mgeUbah(i, kolom, nilai, renderUlang) {
   if (!b) return;
   if (kolom === 'sku') {
     b.sku = String(nilai || '').replace(/\s+/g, '').toUpperCase();
-    var pr = b.sku && (katalogProdukCache || []).find(function (x) { return String(x.sku).toUpperCase() === b.sku; });
+    var pr = b.sku && mgmDaftarProduk().find(function (x) { return String(x.sku).toUpperCase() === b.sku; });
     if (pr && renderUlang && !b.nama) b.nama = pr.nama;
   } else if (kolom === 'qty') b.qty = Math.max(0, parseFloat(nilai) || 0);
   else if (kolom === 'stokFisik') b.stokFisik = nilai === '' ? '' : Math.max(0, parseFloat(nilai) || 0);
   else b[kolom] = String(nilai || '');
   if (renderUlang) mgeRender();
 }
-function mgeTambah() { mge.baris.push({ sku: '', nama: '', qty: 1, catatan: '', stokFisik: '' }); mgeRender(); var inp = el('mgb-isi').querySelectorAll('tbody tr:last-child input')[0]; if (inp) inp.focus(); }
+function mgeTambah() { mge.baris.push({ sku: '', nama: '', qty: mge.jenis === 'stockopname' ? 0 : 1, catatan: '', stokFisik: '', asal: 0 }); mgeRender(); var inp = el('mgb-isi').querySelectorAll('tbody tr:last-child input')[0]; if (inp) inp.focus(); }
 function mgeHapus(i) { mge.baris.splice(i, 1); if (!mge.baris.length) mge.baris.push({ sku: '', nama: '', qty: 1, catatan: '' }); mgeRender(); }
 async function mgeSimpan() {
   var st = el('mge-status');
-  var items = mge.baris.filter(function (b) { return (String(b.sku).trim() || String(b.nama).trim()) && Number(b.qty) > 0; });
-  if (!items.length) { st.style.color = '#b45309'; st.textContent = 'Minimal 1 baris berisi SKU/Nama dengan jumlah > 0.'; return; }
-  if (mge.jenis !== 'mintastock' && items.some(function (b) { return !String(b.sku).trim(); })) { st.style.color = '#b45309'; st.textContent = 'No SKU wajib diisi untuk memo jenis ini.'; return; }
+  var soEdit = mge.jenis === 'stockopname';
+  var items = mge.baris.filter(function (b) { return (String(b.sku).trim() || String(b.nama).trim()) && (soEdit ? Number(b.qty) >= 0 : Number(b.qty) > 0); });
+  if (!items.length) { st.style.color = '#b45309'; st.textContent = soEdit ? 'Minimal 1 baris berisi SKU/Nama.' : 'Minimal 1 baris berisi SKU/Nama dengan jumlah > 0.'; return; }
+  if (mge.jenis !== 'mintastock' && !soEdit && items.some(function (b) { return !String(b.sku).trim(); })) { st.style.color = '#b45309'; st.textContent = 'No SKU wajib diisi untuk memo jenis ini.'; return; }
   var jenis = mge.jenis, noMemo = mge.noMemo;
   await memoKirimAman('edit-' + noMemo, 'mge-btn-simpan', async function (idPermintaan) {
     st.style.color = ''; st.textContent = '';
@@ -50115,7 +50451,7 @@ async function mgeSimpan() {
       playBeep();
       st.style.color = '#4f46e5';
       st.textContent = '✓ Memo ' + noMemo + ' diperbarui (' + d.jumlahBaris + ' baris).';
-      setTimeout(function () { mgbTutup(); mgFetchRiwayat(jenis); }, 700);
+      setTimeout(function () { mgbTutup(); if (jenis === 'stockopname') { if (typeof mgFetchStockOpname === 'function') mgFetchStockOpname(); } else mgFetchRiwayat(jenis); }, 700);
     } catch (err) { st.style.color = '#b45309'; st.textContent = '✗ ' + err.message; }
   });
 }
@@ -50170,6 +50506,331 @@ function omniOdometerTerapkan(wadah, petaLama) {
     if (petaLama) petaLama[k] = target;
   });
 }
+
+
+/* =====================================================================================
+   PEMBARUAN v2026.10d
+   (1) DAFTAR PRODUK RINGAN - SKU, nama, harga dari 1 request kecil yang di-cache server (5-10 menit)
+       + localStorage. Pesanan Manual (mobile & web) & Memo Gudang mencari di sini: instan, tanpa
+       menunggu server tiap ketikan. Cache disegarkan diam-diam di latar.
+   ===================================================================================== */
+var PRODUK_RINGAN_KUNCI = 'omni_produk_ringan_v1';
+var PRODUK_RINGAN_UMUR_MS = 5 * 60000;
+var produkRingan = (function () {
+  try { var x = JSON.parse(localStorage.getItem(PRODUK_RINGAN_KUNCI) || 'null'); return x && Array.isArray(x.d) ? x : null; } catch (e) { return null; }
+})();
+var produkRinganJanji = null;
+function produkRinganMuat(paksa) {
+  var segar = produkRingan && Date.now() - (produkRingan.t || 0) < PRODUK_RINGAN_UMUR_MS;
+  if (!paksa && segar) return Promise.resolve(produkRingan.d);
+  if (produkRinganJanji) return produkRinganJanji;
+  if (!currentUser) return Promise.resolve(produkRingan ? produkRingan.d : []);
+  produkRinganJanji = postJson({ aksi: 'lihat_produk_ringan', email: currentUserEmail(), segar: !!paksa }, 45000, true)
+    .then(function (d) {
+      if (d && d.success && Array.isArray(d.daftar)) {
+        produkRingan = { t: Date.now(), d: d.daftar.map(function (p) { return { sku: String(p.sku || ''), nama: String(p.nama || ''), harga: Number(p.harga) || 0 }; }) };
+        try { localStorage.setItem(PRODUK_RINGAN_KUNCI, JSON.stringify(produkRingan)); } catch (e) { }
+      }
+      return produkRingan ? produkRingan.d : [];
+    })
+    .catch(function () { return produkRingan ? produkRingan.d : []; })
+    .finally(function () { produkRinganJanji = null; });
+  return produkRinganJanji;
+}
+// Resolve SEGERA bila ada cache (disegarkan di latar); hanya menunggu server bila cache benar-benar kosong
+function produkRinganSiap() {
+  if (produkRingan && produkRingan.d.length) { produkRinganMuat(false); return Promise.resolve(produkRingan.d); }
+  return produkRinganMuat(true);
+}
+function produkCariLokal(q, maks) {
+  var kata = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!kata.length || !produkRingan) return [];
+  var kunci = kata.join(' ');
+  var hasil = [];
+  produkRingan.d.forEach(function (p) {
+    var g = p._g || (p._g = (p.sku + ' ' + p.nama).toLowerCase());
+    if (kata.every(function (k) { return g.indexOf(k) !== -1; })) hasil.push(p);
+  });
+  var skor = function (p) {
+    var s = p.sku.toLowerCase(), n = p.nama.toLowerCase();
+    if (s === kunci) return 0; if (s.indexOf(kunci) === 0) return 1; if (n.indexOf(kunci) === 0) return 2; return 3;
+  };
+  hasil.sort(function (a, b) { return skor(a) - skor(b); });
+  return hasil.slice(0, maks || 8);
+}
+// Katalog untuk Memo Gudang: katalog lengkap kalau sudah termuat, kalau belum pakai daftar ringan
+function mgmDaftarProduk() {
+  if (Array.isArray(katalogProdukCache) && katalogProdukCache.length) return katalogProdukCache;
+  return produkRingan && Array.isArray(produkRingan.d) ? produkRingan.d : [];
+}
+
+/* ----- Pesanan Manual mobile: isi produk instan + saran saat mengetik ----- */
+function invTerapkanProduk(p) {
+  var infoEl = el('inv-produk-info');
+  var harga = Number(p.harga) || 0;
+  infoEl.textContent = '✓ ' + p.nama + (harga > 0 ? ' (harga master: Rp ' + harga.toLocaleString('id-ID') + ')' : ' - harga belum ada di master, isi manual');
+  el('inv-sku-input').value = p.sku;
+  el('inv-sku-input').dataset.namaProduk = p.nama;
+  el('inv-sku-input').dataset.skuTakDikenal = '';
+  el('inv-nama-input').value = p.nama;
+  if (harga > 0) el('inv-harga-input').value = harga;
+  var sb = el('inv-sku-saran'); if (sb) sb.style.display = 'none';
+  (harga > 0 ? el('inv-qty-input') : el('inv-harga-input')).focus();
+}
+(function pasangSaranPesananManual() {
+  var inp = el('inv-sku-input');
+  if (!inp) return;
+  var wrap = el('inv-sku-input-wrap');
+  var box = document.createElement('div');
+  box.id = 'inv-sku-saran'; box.className = 'mgm-saran-box'; box.style.display = 'none';
+  var baris = wrap ? wrap.querySelector('.mgm-input-baris') : null;
+  if (baris) baris.insertAdjacentElement('afterend', box); else inp.insertAdjacentElement('afterend', box);
+  var timer = null;
+  inp.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      var q = inp.value.trim();
+      if (q.length < 2 || !produkRingan) { box.style.display = 'none'; return; }
+      var hasil = produkCariLokal(q, 6);
+      if (!hasil.length) { box.style.display = 'none'; return; }
+      box._hasil = hasil;
+      box.innerHTML = hasil.map(function (p, i) {
+        return '<div class="mg-saran-item" data-i="' + i + '"><b>' + escapeHtml(p.sku) + '</b>' + escapeHtml(p.nama) + (p.harga > 0 ? ' · Rp ' + Number(p.harga).toLocaleString('id-ID') : '') + '</div>';
+      }).join('');
+      box.style.display = 'block';
+    }, 90);
+  });
+  box.addEventListener('click', function (e) {
+    var it = e.target.closest('[data-i]');
+    if (!it || !box._hasil) return;
+    var p = box._hasil[Number(it.dataset.i)];
+    if (p) { playBeep(); invTerapkanProduk(p); }
+  });
+  var wpInp = el('wp-b-sku-input');
+  if (wpInp) wpInp.addEventListener('focus', function () { produkRinganSiap(); });
+})();
+
+/* =====================================================================================
+   (2) TOGGLE ZOOM KAMERA (Memo Gudang: scan SKU & foto barang). Diingat per HP.
+       OFF = scan 1.5× / foto 1× (seperti sebelumnya) · ON = 3× untuk barcode kecil, jauh, atau luntur.
+   ===================================================================================== */
+var mgmZoomOn = (function () { try { return localStorage.getItem('mgm_zoom_on') === '1'; } catch (e) { return false; } })();
+var MGM_ZOOM_KUAT = 3;
+function mgmZoomFaktor() { return mgmZoomOn ? MGM_ZOOM_KUAT : KAMERA_ZOOM; }
+function mgmRenderZoomToggle() {
+  document.querySelectorAll('.mgm-zoom-toggle').forEach(function (b) { b.classList.toggle('on', mgmZoomOn); b.setAttribute('aria-checked', mgmZoomOn ? 'true' : 'false'); });
+  document.querySelectorAll('.mgm-zoom-chip').forEach(function (b) { b.classList.toggle('on', mgmZoomOn); b.textContent = mgmZoomOn ? MGM_ZOOM_KUAT + '×' : KAMERA_ZOOM + '×'; });
+  var f = el('mgm-foto-zoom');
+  if (f) { f.classList.toggle('on', mgmZoomOn); f.textContent = mgmZoomOn ? MGM_ZOOM_KUAT + '×' : '1×'; f.setAttribute('aria-pressed', mgmZoomOn ? 'true' : 'false'); }
+}
+function mgmToggleZoom(e) {
+  if (e) { try { e.preventDefault(); e.stopPropagation(); } catch (x) { } }
+  mgmZoomOn = !mgmZoomOn;
+  try { localStorage.setItem('mgm_zoom_on', mgmZoomOn ? '1' : '0'); } catch (x) { }
+  mgmRenderZoomToggle();
+  // Kamera yang sedang menyala langsung ikut berubah
+  var v = el('mgm-camera-video');
+  if (v && v.srcObject) { v.dataset.zoomTarget = mgmZoomFaktor(); kameraTerapkanZoomFokus(v).catch(function () { }); }
+  var fv = el('mgm-foto-video');
+  if (fv && fv.srcObject) { fv.dataset.zoomTarget = mgmZoomOn ? MGM_ZOOM_KUAT : 1; kameraTerapkanZoomFokus(fv).catch(function () { }); }
+  pgrToast(mgmZoomOn ? 'Zoom 3× ON - untuk barcode kecil / jauh / luntur' : 'Zoom normal');
+}
+setTimeout(function () { try { mgmRenderZoomToggle(); } catch (e) { } }, 0);
+
+/* =====================================================================================
+   (3) ACTION LOG - Stock Opname & Barang Masuk (mobile)
+       Kirim = keranjang langsung kosong, admin lanjut scan. Memo dikirim di latar, tersimpan permanen
+       di HP (aman walau sinyal putus / aplikasi tertutup), progres tampil di Log Tindakan + panel status.
+       idPermintaan tetap -> kirim ulang TIDAK membuat memo dobel (server menyimpan "ID Kirim").
+       Foto barang Stock Opname diunggah ke Drive setelah memo tercatat.
+   ===================================================================================== */
+var GAL_KUNCI = 'gal_antrean_v1';
+var GAL_LABEL = { stockopname: 'Stock Opname', barangmasuk: 'Barang Masuk' };
+var galDaftar = (function () { try { var x = JSON.parse(localStorage.getItem(GAL_KUNCI) || '[]'); return Array.isArray(x) ? x : []; } catch (e) { return []; } })();
+var galJalan = false, galTimer = null, galTerakhirKirim = 0;
+function galSimpan_() {
+  try { localStorage.setItem(GAL_KUNCI, JSON.stringify(galDaftar)); }
+  catch (e) { throw new Error('Memori HP penuh - hapus beberapa foto lalu coba lagi'); }
+}
+function galSimpanAman_() { try { galSimpan_(); } catch (e) { } }
+function galBelum() { return Array.isArray(galDaftar) ? galDaftar.filter(function (x) { return x.status !== 'terkirim'; }) : []; }
+function galJam(ms) { if (!ms) return '-'; var d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+function galKirimDariKeranjang(tab) {
+  var st = el('mgm-status');
+  var cart = mgmCarts[tab] || [];
+  var items = tab === 'stockopname' ? cart.slice() : cart.filter(function (it) { return (parseFloat(it.qty) || 0) > 0; });
+  if (!items.length) {
+    if (Date.now() - galTerakhirKirim < 2500) return; // ketukan kedua setelah kirim - abaikan
+    st.textContent = tab === 'stockopname' ? '✗ Keranjang kosong.' : '✗ Keranjang kosong atau semua qty 0.'; st.className = 'status-text err'; return;
+  }
+  var body;
+  if (tab === 'stockopname') {
+    // Stok sistem TIDAK dikirim dari HP (blind count) - server mengambilnya sendiri saat memo disimpan
+    body = { aksi: 'simpan_memo_stock_opname', items: items.map(function (it) { return { sku: it.tanpaSku ? '' : it.sku, nama: it.nama, catatan: it.catatan || '', stokFisik: it.qty, tanpaSku: !!it.tanpaSku }; }) };
+  } else {
+    var semuaInvoiceAsal = [];
+    cart.forEach(function (it) { mgmPecahNoInvoice(it.noInvoiceAsal).forEach(function (no) { if (semuaInvoiceAsal.indexOf(no) === -1) semuaInvoiceAsal.push(no); }); });
+    body = { aksi: 'simpan_memo_barang_masuk', items: items.map(function (it) { return { sku: it.sku, qtyMasuk: it.qty, catatan: it.catatan || '' }; }),
+      noInvoiceTerkait: semuaInvoiceAsal.join(', '), noSuratJalan: ((el('mgm-no-sj') && el('mgm-no-sj').value) || '').trim() };
+  }
+  var fotos = tab === 'stockopname' ? items.map(function (it) { return mgmFotoDaftar(it).slice(); }) : [];
+  var e = {
+    id: buatIdPermintaan(tab === 'stockopname' ? 'so-' : 'bm-'), jenis: tab, dibuat: Date.now(), email: currentUserEmail(),
+    status: 'antre', percobaan: 0, error: '', noMemo: '', barisDetail: null, body: body,
+    fotos: fotos, fotoOk: fotos.map(function (f) { return f.map(function () { return false; }); }),
+    // cadangan isi keranjang (tanpa foto - foto ada di e.fotos) untuk tombol "Kembalikan" bila ditolak server
+    cadangan: items.map(function (it) { var c = Object.assign({}, it); delete c.fotos; delete c.fotoUrl; delete c._k; return c; }),
+    ringkas: { n: items.length, qty: items.reduce(function (t, it) { return t + (parseFloat(it.qty) || 0); }, 0) }
+  };
+  galDaftar.push(e);
+  try { galSimpan_(); } catch (err) { galDaftar.pop(); st.textContent = '✗ ' + err.message; st.className = 'status-text err'; return; }
+  galTerakhirKirim = Date.now();
+  mgmCarts[tab] = tab === 'stockopname' ? [] : cart.filter(function (it) { return !((parseFloat(it.qty) || 0) > 0); });
+  mgmSimpanDraftLokal(); mgmRenderCart();
+  if (tab === 'barangmasuk' && el('mgm-no-sj')) { el('mgm-no-sj').value = ''; try { localStorage.removeItem('mgm_no_sj'); } catch (x) { } }
+  playBeep();
+  st.textContent = '📤 ' + GAL_LABEL[tab] + ' (' + e.ringkas.n + ' SKU) dikirim di latar - lanjut scan saja.';
+  st.className = 'status-text ok';
+  galLog(e); galRender(); galProses();
+}
+
+function galLog(e) {
+  if (typeof logTindakan === 'undefined' || !e) return;
+  var judul = GAL_LABEL[e.jenis] + ' · ' + e.ringkas.n + ' SKU';
+  if (!e._logId || !document.getElementById(e._logId)) {
+    if (e.status === 'terkirim') return; // yang sudah terkirim tidak perlu dimunculkan lagi
+    e._logId = logTindakan.tambah(judul);
+  }
+  if (e.status === 'kirim') logTindakan.ubah(e._logId, 'proses', e.noMemo ? 'Mengunggah foto barang…' : (e.percobaan > 1 ? 'Mengirim ulang (ke-' + e.percobaan + ')…' : 'Mengirim di latar…'));
+  else if (e.status === 'antre') logTindakan.ubah(e._logId, 'antre', e.error || 'Menunggu antrean…');
+  else if (e.status === 'terkirim') logTindakan.ubah(e._logId, 'ok', 'Memo ' + (e.noMemo || '') + ' diterima sistem');
+  else if (e.status === 'gagal') logTindakan.ubah(e._logId, 'gagal', e.error || 'Ditolak server', [
+    { label: 'Coba lagi', fn: function () { galCobaLagi(e.id); } },
+    { label: 'Kembalikan', fn: function () { galKembalikan(e.id); } }
+  ]);
+}
+
+async function galProses() {
+  if (galJalan || !Array.isArray(galDaftar)) return;
+  galJalan = true; clearTimeout(galTimer);
+  try {
+    for (var a = 0; a < galDaftar.length; a++) {
+      var e = galDaftar[a];
+      if (e.status === 'terkirim' || e.status === 'gagal') continue;
+      if (e.tungguSampai && Date.now() < e.tungguSampai) continue;
+      if (navigator.onLine === false) { e.status = 'antre'; e.error = 'Tidak ada sinyal - dikirim otomatis saat online'; e.tungguSampai = Date.now() + 5000; galLog(e); continue; }
+      e.status = 'kirim'; e.percobaan = (e.percobaan || 0) + 1; e.error = '';
+      galSimpanAman_(); galLog(e); galRender();
+      try {
+        if (!e.noMemo) {
+          var r = await kirimKeWebApp(Object.assign({ toko: currentToko }, e.body, { idPermintaan: e.id, waktuDibuat: e.dibuat, email: e.email || currentUserEmail() }), 60000);
+          if (r && r.success === false && r.duplikat) throw Object.assign(new Error('Server masih memproses…'), { sementara: true });
+          if (!r || !r.success) throw Object.assign(new Error((r && r.error) || 'Ditolak server'), { sementara: webAppErrorSementara(r && r.error) || /Sistem sibuk/i.test((r && r.error) || '') });
+          e.noMemo = r.noMemo || '-'; e.barisDetail = Array.isArray(r.barisDetail) ? r.barisDetail : [];
+          galSimpanAman_();
+          try { webAppBuangCacheBaca(); } catch (x) { }
+        }
+        var fotos = e.fotos || [];
+        for (var i = 0; i < fotos.length; i++) {
+          for (var k = 0; k < fotos[i].length; k++) {
+            if (e.fotoOk[i][k]) continue;
+            var row = e.barisDetail && e.barisDetail[i];
+            if (!row) { e.fotoOk[i][k] = 'lewat'; continue; }
+            galLog(e);
+            var up = await kirimKeWebApp({ aksi: 'upload_foto_memo_stock_opname', toko: currentToko, row: row, noMemo: e.noMemo, fotoKe: k + 1, base64: fotos[i][k], mimeType: 'image/jpeg',
+              idPermintaan: e.id + '-f' + i + '-' + k, email: e.email || currentUserEmail() }, 90000);
+            if (up && up.success === false && up.duplikat) throw Object.assign(new Error('Foto sedang diproses server…'), { sementara: true });
+            if (!up || !up.success) throw Object.assign(new Error('Foto barang gagal diunggah: ' + ((up && up.error) || '')), { sementara: true });
+            e.fotoOk[i][k] = true; fotos[i][k] = ''; // base64 dibuang setelah terkirim -> memori HP lega
+            galSimpanAman_();
+          }
+        }
+        e.status = 'terkirim'; e.terkirimMs = Date.now(); e.error = ''; e.cadangan = null; delete e.tungguSampai;
+        galSimpanAman_();
+      } catch (err) {
+        var sementara = err.sementara !== false && (err.sementara || webAppErrorSementara(err.message));
+        e.error = String(err.message || err).replace(/^Error:\s*/, '');
+        if (sementara) { e.status = 'antre'; e.tungguSampai = Date.now() + Math.min(60000, 4000 * e.percobaan); }
+        else e.status = 'gagal';
+        galSimpanAman_();
+      }
+      galLog(e); galRender();
+    }
+  } finally {
+    galJalan = false;
+    // Simpan maksimal 10 riwayat terkirim
+    var terkirim = galDaftar.filter(function (x) { return x.status === 'terkirim'; });
+    if (terkirim.length > 10) {
+      var buang = {}; terkirim.slice(0, terkirim.length - 10).forEach(function (x) { buang[x.id] = 1; });
+      galDaftar = galDaftar.filter(function (x) { return !buang[x.id]; }); galSimpanAman_();
+    }
+    if (galBelum().some(function (x) { return x.status === 'antre'; })) galTimer = setTimeout(galProses, 4000);
+    galRender();
+  }
+}
+function galCobaLagi(id) {
+  var e = galDaftar.find(function (x) { return x.id === id; });
+  if (!e) return;
+  e.status = 'antre'; e.tungguSampai = 0; e.error = '';
+  galSimpanAman_(); galLog(e); galRender(); galProses();
+}
+function galKembalikan(id) {
+  var e = galDaftar.find(function (x) { return x.id === id; });
+  if (!e || e.status !== 'gagal' || e.noMemo) return;
+  var cart = mgmCarts[e.jenis];
+  (e.cadangan || []).forEach(function (it, i) {
+    var item = Object.assign({}, it);
+    var sisaFoto = (e.fotos && e.fotos[i]) ? e.fotos[i].filter(Boolean) : [];
+    if (sisaFoto.length) item.fotos = sisaFoto;
+    cart.push(item);
+  });
+  galDaftar = galDaftar.filter(function (x) { return x.id !== id; });
+  galSimpanAman_(); mgmSimpanDraftLokal();
+  if (e._logId) { var n = document.getElementById(e._logId); if (n) n.remove(); }
+  if (mgmTabAktif !== e.jenis) mgmGantiTab(e.jenis); else mgmRenderCart();
+  galRender();
+  pgrToast('Isi memo dikembalikan ke keranjang - perbaiki lalu kirim lagi');
+}
+function galHapus(id) { galDaftar = galDaftar.filter(function (x) { return x.id !== id || x.status !== 'terkirim'; }); galSimpanAman_(); galRender(); }
+function galRender() {
+  if (!Array.isArray(galDaftar)) return;
+  var pn = el('gal-panel');
+  if (!pn) return;
+  var jenis = mgmTabAktif;
+  var tampil = galDaftar.filter(function (x) { return x.jenis === jenis; }).slice().reverse();
+  if (!(jenis === 'stockopname' || jenis === 'barangmasuk') || !tampil.length) { pn.hidden = true; return; }
+  pn.hidden = false;
+  var belum = tampil.filter(function (x) { return x.status !== 'terkirim'; });
+  var label = function (e) {
+    if (e.status === 'terkirim') return '<span class="mso-st ok">✓ Terkirim</span>';
+    if (e.status === 'kirim') return '<span class="mso-st kirim"><i class="mso-putar"></i> Mengirim…</span>';
+    if (e.status === 'gagal') return '<span class="mso-st gagal">✗ Ditolak server</span>';
+    return '<span class="mso-st antre">⏳ Dalam antrean</span>';
+  };
+  pn.innerHTML = '<div class="mso-judul"><b>Action Log · ' + GAL_LABEL[jenis] + '</b><span>' + (belum.length ? belum.length + ' diproses di latar · aman walau sinyal putus' : 'Semua memo sudah diterima sistem') + '</span></div>' +
+    tampil.map(function (e) {
+      var nFoto = (e.fotos || []).reduce(function (t, f) { return t + f.length; }, 0);
+      var det = e.status === 'terkirim'
+        ? 'No Memo <b>' + escapeHtml(e.noMemo || '-') + '</b> · diterima ' + galJam(e.terkirimMs)
+        : (e.error ? escapeHtml(e.error) : (e.status === 'kirim' ? (e.noMemo ? 'Mengunggah foto…' : 'Menghubungi server…') : 'Akan dikirim otomatis')) + (e.percobaan > 1 && e.status !== 'gagal' ? ' · percobaan ke-' + e.percobaan : '');
+      var tombol = e.status === 'antre' ? '<button type="button" class="mso-btn" onclick="galCobaLagi(\'' + e.id + '\')">Kirim sekarang</button>'
+        : e.status === 'gagal' ? '<button type="button" class="mso-btn" onclick="galCobaLagi(\'' + e.id + '\')">Coba lagi</button>' + (e.noMemo ? '' : '<button type="button" class="mso-btn" onclick="galKembalikan(\'' + e.id + '\')">Edit</button>')
+        : e.status === 'terkirim' ? '<button type="button" class="mso-btn tipis" onclick="galHapus(\'' + e.id + '\')" aria-label="Sembunyikan">✕</button>' : '';
+      return '<div class="mso-item ' + e.status + '">' +
+        '<div class="mso-baris1">' + label(e) + '<span class="mso-ringkas">' + e.ringkas.n + ' SKU · ' + Number(e.ringkas.qty).toLocaleString('id-ID') + ' pcs' + (nFoto ? ' · ' + nFoto + ' foto' : '') + ' · dibuat ' + galJam(e.dibuat) + '</span></div>' +
+        '<div class="mso-baris2"><span>' + det + '</span><span class="mso-tombol">' + tombol + '</span></div></div>';
+    }).join('');
+}
+// Pemicu kirim ulang: aplikasi dibuka, kembali online, kembali ke tab, dan berkala selama ada antrean
+window.addEventListener('online', function () { galDaftar.forEach(function (x) { if (x.status === 'antre') x.tungguSampai = 0; }); galProses(); });
+document.addEventListener('visibilitychange', function () { if (!document.hidden && galBelum().length) galProses(); });
+setTimeout(function () {
+  galDaftar.forEach(function (x) { if (x.status === 'kirim') x.status = 'antre'; }); // tertutup saat mengirim -> kirim ulang (aman, ID sama)
+  galSimpanAman_();
+  if (galBelum().length) { galBelum().forEach(galLog); galProses(); }
+  galRender();
+}, 1800);
 
 </script>
 </body>
