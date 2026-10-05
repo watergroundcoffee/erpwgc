@@ -6656,6 +6656,12 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
   /* Layout memenuhi layar walau .web-shell di-zoom (Pengaturan > Tampilan): ukuran dikoreksi
      dengan nilai zoom aktif (--web-zoom diisi JS saat zoom diterapkan; default 0.85). */
   #app-web .web-shell { min-height: calc(100vh / var(--web-zoom, 0.85)); }
+  /* [PART 4] isi toast boleh multi-baris (pesan lama dari alert() sering pakai \n) */
+  .omni-toast-isi { white-space: pre-line; }
+  /* [PART 4] pembungkus otomatis tabel: hanya scroll horizontal, tanpa mengubah tampilan */
+  .tabel-scroll-otomatis { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* [PART 4] baris skeleton di tabel yang sedang dimuat */
+  .omni-skeleton-baris td .omni-skeleton { height: 12px; }
   /* ================================ AKHIR PART 3 ================================ */
 </style>
 </head>
@@ -12507,6 +12513,205 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
 /* ======================================================
    ISI URL WEB APP APPS SCRIPT KAMU DI SINI
    ====================================================== */
+/* =====================================================================================
+   [PART 4] UTILITAS UI GLOBAL: Toast, state loading tombol, debounce, tabel responsif
+   ===================================================================================== */
+
+// Jeda debounce untuk pencarian yang MENEMBAK SERVER (cari produk/pembeli/pesanan).
+// Pencarian yang hanya menyaring data lokal tetap cepat (100-180 ms) karena tidak menyentuh server.
+const OMNI_JEDA_CARI_SERVER_MS = 500;
+
+function omniDebounce(fn, jedaMs) {
+  let t = null;
+  const d = function (...arg) {
+    clearTimeout(t);
+    t = setTimeout(() => { t = null; fn.apply(this, arg); }, jedaMs == null ? OMNI_JEDA_CARI_SERVER_MS : jedaMs);
+  };
+  d.batal = () => clearTimeout(t);
+  return d;
+}
+
+/* ---------- TOAST ---------- */
+const OMNI_TOAST_MAKS = 4;
+const OMNI_TOAST_SIMPAN = 'omni_toast_tertunda';
+function omniToastWadah_() {
+  let w = document.getElementById('omni-toast-wadah');
+  if (!w) {
+    w = document.createElement('div');
+    w.id = 'omni-toast-wadah';
+    w.className = 'omni-toast-wadah';
+    w.setAttribute('aria-live', 'polite');
+    w.setAttribute('role', 'status');
+    document.body.appendChild(w);
+  }
+  return w;
+}
+// jenis: 'sukses' | 'error' | 'peringatan' | 'info'
+function omniToast(pesan, jenis, opsi) {
+  opsi = opsi || {};
+  jenis = ['sukses', 'error', 'peringatan', 'info'].includes(jenis) ? jenis : 'info';
+  const teks = String(pesan == null ? '' : pesan).replace(/^Error:\s*/, '').trim();
+  if (!teks || !document.body) return null;
+  const wadah = omniToastWadah_();
+  // pesan identik yang masih tampil -> tidak ditumpuk
+  for (const t of wadah.children) if (t._teks === teks && !t._tutup) { t._perpanjang && t._perpanjang(); return t; }
+  while (wadah.children.length >= OMNI_TOAST_MAKS) wadah.firstElementChild.remove();
+  const ikon = { sukses: '✓', error: '!', peringatan: '!', info: 'i' }[jenis];
+  const t = document.createElement('div');
+  t.className = 'omni-toast ' + jenis;
+  t.setAttribute('role', jenis === 'error' ? 'alert' : 'status');
+  t.innerHTML = '<span class="omni-toast-ikon" aria-hidden="true"></span><div class="omni-toast-isi"></div>' +
+    '<button type="button" class="omni-toast-tutup" aria-label="Tutup notifikasi">×</button>';
+  t.querySelector('.omni-toast-ikon').textContent = ikon;
+  const isi = t.querySelector('.omni-toast-isi');
+  if (opsi.judul) { const j = document.createElement('div'); j.className = 'omni-toast-judul'; j.textContent = opsi.judul; isi.appendChild(j); }
+  isi.appendChild(document.createTextNode(teks));
+  t._teks = teks; t._jenis = jenis;
+  const durasi = opsi.durasi || Math.min(12000, (jenis === 'error' ? 7000 : 4000) + Math.floor(teks.length / 40) * 1000);
+  let timer = null;
+  const tutup = () => {
+    if (t._tutup) return;
+    t._tutup = true; clearTimeout(timer);
+    t.classList.remove('tampil');
+    setTimeout(() => t.remove(), 220);
+  };
+  const jalan = () => { clearTimeout(timer); timer = setTimeout(tutup, durasi); };
+  t._perpanjang = jalan;
+  t.addEventListener('mouseenter', () => clearTimeout(timer));
+  t.addEventListener('mouseleave', jalan);
+  t.querySelector('.omni-toast-tutup').addEventListener('click', tutup);
+  wadah.appendChild(t);
+  void t.offsetWidth;
+  t.classList.add('tampil');
+  jalan();
+  return t;
+}
+// Pengganti alert(): jenis ditebak dari isi pesan (dipakai oleh semua bekas alert lama)
+function omniJenisDariPesan_(teks) {
+  const s = String(teks || '').toLowerCase();
+  if (/^\s*(✗|❌|⛔)|gagal|error|tidak bisa|tidak punya izin|tidak valid|tidak ditemukan|salah|ditolak|timeout|kadaluarsa|kedaluwarsa|berakhir/.test(s)) return 'error';
+  if (/^\s*⚠|wajib|belum|pilih |isi |minimal|maksimal|harus|perhatian|tidak boleh|kosong/.test(s)) return 'peringatan';
+  if (/^\s*(✓|✅|✔|🎉)|berhasil|tersimpan|disimpan|sukses|selesai|disalin|terkirim|dihapus|diperbarui|diupdate|ditambahkan/.test(s)) return 'sukses';
+  return 'info';
+}
+function omniNotif(pesan) {
+  const jenis = omniJenisDariPesan_(pesan);
+  // ikon status di awal pesan lama (✓ ✗ ⚠) dibuang karena toast sudah punya ikon sendiri
+  return omniToast(String(pesan == null ? '' : pesan).replace(/^\s*(✓|✅|✔️?|✗|❌|⛔|⚠️?)\s*/u, ''), jenis);
+}
+// Jaring pengaman: alert() yang masih tersisa (mis. di atribut onclick) ikut jadi toast
+window.alert = function (pesan) { omniNotif(pesan); };
+// Toast yang masih tampil saat halaman di-reload/pindah tidak hilang begitu saja
+window.addEventListener('pagehide', () => {
+  try {
+    const w = document.getElementById('omni-toast-wadah');
+    const daftar = w ? [...w.children].filter(t => !t._tutup).map(t => ({ p: t._teks, j: t._jenis })) : [];
+    if (daftar.length) sessionStorage.setItem(OMNI_TOAST_SIMPAN, JSON.stringify(daftar));
+  } catch (e) { }
+});
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(OMNI_TOAST_SIMPAN) || '[]');
+    sessionStorage.removeItem(OMNI_TOAST_SIMPAN);
+    d.forEach(x => omniToast(x.p, x.j));
+  } catch (e) { }
+});
+
+/* ---------- STATE LOADING TOMBOL ----------
+   Tombol yang diklik user dicatat (fase capture). Kalau klik itu memicu request ke server
+   (postJson yang tidak terjawab cache / postJsonTulis), tombol otomatis disabled + spinner sampai
+   request selesai. Proses otomatis/polling tidak berasal dari klik -> tetap senyap.
+   Tombol yang sudah di-disable sendiri oleh handler-nya tidak disentuh.
+   Kecualikan tombol tertentu dengan atribut data-tanpa-loading. */
+let omniTombolPemicu_ = null;
+const OMNI_TOMBOL_TANPA_SPINNER_ = '.web-nav-item, [role="tab"], .web-chart-toggle-btn, .toko-switcher-btn, .omni-toast-tutup, [data-tanpa-loading]';
+document.addEventListener('click', e => {
+  const b = e.target && e.target.closest ? e.target.closest('button, input[type="button"], input[type="submit"]') : null;
+  if (!b || b.matches(OMNI_TOMBOL_TANPA_SPINNER_) || /(^|\s|-)tab(\s|-|$)/.test(b.className || '')) return;
+  omniTombolPemicu_ = b;
+  setTimeout(() => { if (omniTombolPemicu_ === b) omniTombolPemicu_ = null; }, 0);
+}, true);
+function omniPasangSibuk_() {
+  const b = omniTombolPemicu_;
+  if (!b || !document.contains(b)) return () => { };
+  if (b.disabled && !b._omniSibuk) return () => { }; // sudah dikendalikan handler-nya sendiri
+  b._omniSibuk = (b._omniSibuk || 0) + 1;
+  if (b._omniSibuk === 1) {
+    b.disabled = true;
+    b.classList.add('omni-sibuk');
+    b.setAttribute('aria-busy', 'true');
+  }
+  let selesai = false;
+  return () => {
+    if (selesai) return;
+    selesai = true;
+    b._omniSibuk = Math.max(0, (b._omniSibuk || 1) - 1);
+    if (!b._omniSibuk) {
+      b.classList.remove('omni-sibuk');
+      b.removeAttribute('aria-busy');
+      b.disabled = false;
+    }
+  };
+}
+// Untuk aksi yang tidak lewat postJson: omniDenganLoading(tombol, async () => { ... })
+async function omniDenganLoading(tombol, fn) {
+  if (!tombol || tombol.disabled) return fn();
+  tombol.disabled = true; tombol.classList.add('omni-sibuk'); tombol.setAttribute('aria-busy', 'true');
+  try { return await fn(); }
+  finally { tombol.classList.remove('omni-sibuk'); tombol.removeAttribute('aria-busy'); tombol.disabled = false; }
+}
+
+/* ---------- SKELETON TABEL ---------- */
+function omniSkeletonTabel(idBody, kolom, baris) {
+  const tb = typeof idBody === 'string' ? document.getElementById(idBody) : idBody;
+  if (!tb) return;
+  const n = Math.max(1, Math.min(parseInt(kolom, 10) || 1, 12));
+  const lebar = [72, 55, 88, 64, 46, 80];
+  let h = '';
+  for (let r = 0; r < (baris || 5); r++) {
+    h += '<tr class="omni-skeleton-baris" aria-hidden="true">';
+    for (let c = 0; c < n; c++) h += `<td><span class="omni-skeleton" style="width:${lebar[(r + c) % lebar.length]}%"></span></td>`;
+    h += '</tr>';
+  }
+  tb.innerHTML = h;
+}
+
+/* ---------- TABEL RESPONSIF ----------
+   Tabel yang belum berada di wadah scroll horizontal dibungkus <div class="tabel-scroll-otomatis">
+   supaya bisa digeser ke samping di layar HP. Tabel dengan header sticky dilewati (sticky akan
+   rusak kalau dibungkus wadah scroll baru). */
+function omniBungkusTabel_(akar) {
+  const daftar = (akar && akar.querySelectorAll ? akar : document).querySelectorAll('table:not([data-omni-scroll])');
+  daftar.forEach(t => {
+    t.setAttribute('data-omni-scroll', '1');
+    if (!t.closest('#app-web, #app')) return;
+    const p = t.parentElement;
+    if (!p || p.matches('.web-table-wrap, .tabel-scroll, .tabel-scroll-otomatis')) return;
+    for (let a = p, i = 0; a && i < 3; a = a.parentElement, i++) {
+      const ox = getComputedStyle(a).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return;
+    }
+    const th = t.querySelector('th');
+    if (th && getComputedStyle(th).position === 'sticky') return;
+    const w = document.createElement('div');
+    w.className = 'tabel-scroll-otomatis';
+    p.insertBefore(w, t);
+    w.appendChild(t);
+  });
+}
+let omniTabelAntre_ = false;
+function omniJadwalBungkusTabel_() {
+  if (omniTabelAntre_) return;
+  omniTabelAntre_ = true;
+  (window.requestIdleCallback || (f => setTimeout(f, 120)))(() => { omniTabelAntre_ = false; omniBungkusTabel_(document); });
+}
+document.addEventListener('DOMContentLoaded', () => {
+  omniBungkusTabel_(document);
+  new MutationObserver(m => { for (const x of m) if (x.addedNodes.length) { omniJadwalBungkusTabel_(); break; } })
+    .observe(document.body, { childList: true, subtree: true });
+});
+/* ================================ AKHIR UTILITAS PART 4 ================================ */
+
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwscY0Z2ECnEAoHTYWa3BchrfGkLSAxa4ZJAexHnLJJWmGtwbM_hUB0e7TvQT5ERa-j/exec";
 const GOOGLE_CLIENT_ID = "50839351926-94bjqb78trho7eqetj8igvapqken15qi.apps.googleusercontent.com";
 
@@ -12795,7 +13000,7 @@ async function ceklagiStatusAkses(silent) {
     const sidikBaru = JSON.stringify([currentUser.role, currentUser.nama, currentUser.isOwner, currentUser.izin]);
     if (!silent || sidikLama !== sidikBaru) terapkanTampilanLogin();
   } catch (err) {
-    if (!silent) alert('Gagal cek status: ' + err.message);
+    if (!silent) omniNotif('Gagal cek status: ' + err.message);
   }
 }
 
@@ -13324,9 +13529,9 @@ async function ovHapusResi(row) {
   try {
     const data = await postJsonTulis({ aksi: 'hapus', tipe, row, email: currentUserEmail() });
     if (data.success) { playToot(); ovFetchResi(); }
-    else alert('Gagal: ' + (data.error || ''));
+    else omniNotif('Gagal: ' + (data.error || ''));
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -13705,7 +13910,7 @@ function ovRenderTugasHarian() {
         item.sudahSelesai = true;
         playBeep();
         ovRenderTugasHarian();
-      } catch (err) { chk.disabled = false; chk.checked = false; alert('Gagal menandai selesai: ' + err.message); }
+      } catch (err) { chk.disabled = false; chk.checked = false; omniNotif('Gagal menandai selesai: ' + err.message); }
     });
   });
   el('ov-tugas-harian-list').querySelectorAll('button[data-idx]').forEach(btn => {
@@ -16663,7 +16868,7 @@ async function aiaUbahSesi(sid, ubah) {
     if (ubah.status !== 'hapus') Object.assign(s, r.sesi);
   } catch (e) {
     if (ubah.status === 'hapus') aiaSesi.push(lama); else Object.assign(s, lama);
-    alert('Perubahan thread tidak tersimpan: ' + e.message);
+    omniNotif('Perubahan thread tidak tersimpan: ' + e.message);
   }
   simpanCacheLokal('ai_sesi_v1', aiaSesi);
   aiaRenderSidebar(); aiaRenderHead();
@@ -17264,7 +17469,7 @@ async function aiaTcBatalkan(id) {
   if (!t || t.status !== 'PENDING') return;
   const alasan = prompt(`Batalkan agenda ${id}?\n${AIA_NAMA_AKSI[t.action] || t.action} · ${t.sku}\nJadwal: ${aiaFmtWaktu(t.waktu_ms)}\n\nTulis alasan pembatalan:`, '');
   if (alasan === null) return;
-  if (!alasan.trim()) { alert('Alasan pembatalan wajib diisi.'); return; }
+  if (!alasan.trim()) { omniNotif('Alasan pembatalan wajib diisi.'); return; }
   const lama = t.status;
   t.status = 'CANCELLED'; t.hasil = 'Dibatalkan: ' + alasan.trim();
   aiaTcRender();
@@ -17276,7 +17481,7 @@ async function aiaTcBatalkan(id) {
   } catch (e) {
     t.status = lama;
     aiaTcRender();
-    alert('Agenda belum dibatalkan: ' + e.message);
+    omniNotif('Agenda belum dibatalkan: ' + e.message);
   }
 }
 async function aiaTcJalankanUlang(id) {
@@ -17293,7 +17498,7 @@ async function aiaTcJalankanUlang(id) {
   } catch (e) {
     t.status = 'FAILED';
     aiaTcRender();
-    alert('Agenda belum masuk antrean: ' + e.message);
+    omniNotif('Agenda belum masuk antrean: ' + e.message);
   }
 }
 
@@ -17360,12 +17565,12 @@ async function omniAITerapkanOutputLLM(output) {
 }
 
 async function omniAISalin(jenis) {
-  if (!window.omniAIDataLayer) { alert('Data layer belum dimuat.'); return; }
+  if (!window.omniAIDataLayer) { omniNotif('Data layer belum dimuat.'); return; }
   let teks;
   if (jenis === 'prompt') { const p = omniAIBuatPrompt(); teks = '### SYSTEM\n' + p.system + '\n\n### USER\n' + p.user; }
   else teks = JSON.stringify(window.omniAIDataLayer, null, 2);
   try { await navigator.clipboard.writeText(teks); playBeep(); }
-  catch (e) { console.log(teks); alert('Clipboard diblokir browser - isi sudah dicetak ke Console (F12).'); }
+  catch (e) { console.log(teks); omniNotif('Clipboard diblokir browser - isi sudah dicetak ke Console (F12).'); }
 }
 
 // API publik ringkas untuk agen / integrasi berikutnya
@@ -17530,7 +17735,7 @@ async function updateAISuggestionStatus(taskId, status) {
   } catch (err) {
     Object.keys(t).forEach(k => delete t[k]);
     Object.assign(t, lama);
-    alert('Status saran gagal disimpan: ' + err.message);
+    omniNotif('Status saran gagal disimpan: ' + err.message);
   } finally {
     delete t.__menyimpan;
     aiTrackerHitungPengingat(); aiTrackerRender(); aiTrackerRenderPanel();
@@ -17987,11 +18192,11 @@ function wpGabunganUpdateBulkBar() {
 
 async function wpGabunganAksiMassal(aksi) {
   const daftarTerpilih = wpGabunganCache.filter(o => wpGabunganTerpilih.has(wpGabunganKunciUnik(o)));
-  if (daftarTerpilih.length === 0) { alert('Pilih minimal 1 pesanan dulu.'); return; }
+  if (daftarTerpilih.length === 0) { omniNotif('Pilih minimal 1 pesanan dulu.'); return; }
 
   if (aksi === 'pembeli') {
     const daftarTiktok = daftarTerpilih.filter(o => o.rowTiktok);
-    if (daftarTiktok.length === 0) { alert('Nggak ada pesanan TikTok Shop yang dipilih (fitur ini cuma buat TikTok Shop).'); return; }
+    if (daftarTiktok.length === 0) { omniNotif('Nggak ada pesanan TikTok Shop yang dipilih (fitur ini cuma buat TikTok Shop).'); return; }
     wpBukaModalBulkPembeli(daftarTiktok);
     return;
   }
@@ -18213,8 +18418,8 @@ async function wpGabunganJalankanAksi(aksi, o) {
     if (!confirm(`Tandai pesanan "${o.noReferensi}" sebagai ${statusBaru}?${statusBaru === 'Retur' ? ' Stock bakal otomatis dikembalikan.' : ' Ini bakal tercatat sebagai dana masuk/penghasilan.'}`)) return;
     try {
       const data = await postJson({ aksi: 'finalisasi_pengiriman', noInvoice: o.noReferensi, statusBaru, email: currentUserEmail() });
-      if (data.success) { playBeep(); wpFetchSemuaGabungan(); } else { alert('Gagal: ' + (data.error || '')); }
-    } catch (err) { alert('Gagal terhubung: ' + err.message); }
+      if (data.success) { playBeep(); wpFetchSemuaGabungan(); } else { omniNotif('Gagal: ' + (data.error || '')); }
+    } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
   }
 }
 
@@ -18903,7 +19108,7 @@ async function tgsUbahStatus(noReservasi, aksiStatus, qtyDiterima) {
     tgsTutupModal();
     await tgsMuat();
     wpPengirimanAktifCache = null; // relasi resi di tab lain ikut diperbarui saat dibuka
-  } catch (err) { alert('Gagal: ' + err.message); }
+  } catch (err) { omniNotif('Gagal: ' + err.message); }
 }
 
 function tgsModalDom() {
@@ -18954,7 +19159,7 @@ function tgsBukaForm(t) {
       const list = (d && d.hasil) || [];
       hasil.hidden = false;
       hasil.innerHTML = list.length ? list.map(p => `<div data-sku="${pgrAttr(p.sku)}" data-nama="${pgrAttr(p.nama)}"><b>${escapeHtml(p.sku)}</b> - ${escapeHtml(p.nama)}</div>`).join('') : '<div style="cursor:default; color:var(--web-text-dim);">Tidak ditemukan</div>';
-    }, 300);
+    }, OMNI_JEDA_CARI_SERVER_MS);
   });
   el('tgs-f-hasil').addEventListener('click', e => {
     const r = e.target.closest('[data-sku]');
@@ -18994,8 +19199,8 @@ async function tgsSimpanForm() {
     noReservasi: el('tgs-f-no').value.trim(), gudang: el('tgs-f-gudang').value.trim(), noResi: el('tgs-f-resi').value.trim(),
     catatan: el('tgs-f-catatan').value.trim(), item: tgsForm.item.filter(it => it.qty > 0)
   };
-  if (!payload.noReservasi) { alert('No Reservasi wajib diisi.'); return; }
-  if (!payload.item.length) { alert('Tambahkan minimal 1 produk.'); return; }
+  if (!payload.noReservasi) { omniNotif('No Reservasi wajib diisi.'); return; }
+  if (!payload.item.length) { omniNotif('Tambahkan minimal 1 produk.'); return; }
   btn.disabled = true; btn.textContent = 'Menyimpan...';
   try {
     const d = await postJsonTulis(payload, 45000);
@@ -19005,7 +19210,7 @@ async function tgsSimpanForm() {
     tgsTutupModal();
     await tgsMuat();
     wpPengirimanAktifCache = null; hapusCacheTTL('log_resi_riwayat'); wpPengirimanRiwayatCache = null;
-  } catch (err) { alert('Gagal: ' + err.message); }
+  } catch (err) { omniNotif('Gagal: ' + err.message); }
   finally { btn.disabled = false; btn.textContent = 'Simpan Reservasi'; }
 }
 
@@ -19066,7 +19271,7 @@ async function tgsSinkronBooking() {
     if (d.jumlahBooking && !d.produkTerisi && !d.baru && d.contohMentah) console.log('Contoh booking mentah:', d.contohMentah);
     await tgsMuat();
     wpPengirimanAktifCache = null; hapusCacheTTL('log_resi_riwayat'); wpPengirimanRiwayatCache = null;
-  } catch (err) { alert('Sinkron Booking Shopee gagal: ' + err.message); }
+  } catch (err) { omniNotif('Sinkron Booking Shopee gagal: ' + err.message); }
   finally { memoTombolSibuk(btn, false); }
 }
 
@@ -19105,7 +19310,7 @@ async function sbsDiagnostik() {
     };
   } catch (err) {
     omniLoader.selesai(idL);
-    alert('Cek API Gudang Shopee gagal: ' + err.message);
+    omniNotif('Cek API Gudang Shopee gagal: ' + err.message);
   }
 }
 
@@ -19228,7 +19433,7 @@ function pgrTautanDom() {
   el('pgr-tautan-tutup').addEventListener('click', pgrTautanTutup);
   el('pgr-kilat-simpan').addEventListener('click', pgrTandaiKilat);
   el('pgr-kilat-no').addEventListener('keydown', e => { if (e.key === 'Enter') pgrTandaiKilat(); });
-  el('pgr-tautan-cari').addEventListener('input', () => { clearTimeout(pgrTautan.timer); pgrTautan.timer = setTimeout(pgrTautanCari, 350); });
+  el('pgr-tautan-cari').addEventListener('input', () => { clearTimeout(pgrTautan.timer); pgrTautan.timer = setTimeout(pgrTautanCari, OMNI_JEDA_CARI_SERVER_MS); });
   el('pgr-tautan-list').addEventListener('click', e => {
     const b = e.target.closest('button[data-no]');
     if (b) pgrTautanSimpan(b);
@@ -19273,7 +19478,7 @@ async function pgrTandaiKilat() {
       : `Resi ${noResi} ditandai ⚡ Pengiriman Kilat (${noReservasi}) - stok sudah dipindah ke in-transit.`);
     wpMuatAktifPengiriman().then(() => { wpRenderPengirimanTab(); pgrUpdateTombolLengkapi(); });
   } catch (err) {
-    alert('Gagal menandai: ' + err.message);
+    omniNotif('Gagal menandai: ' + err.message);
   } finally { btn.disabled = false; btn.textContent = 'Tandai'; }
 }
 
@@ -19323,7 +19528,7 @@ async function pgrTautanSimpan(btn) {
     wpMuatAktifPengiriman().then(() => { wpRenderPengirimanTab(); pgrUpdateTombolLengkapi(); });
   } catch (err) {
     btn.disabled = false; btn.textContent = 'Tautkan';
-    alert('Gagal menautkan: ' + err.message);
+    omniNotif('Gagal menautkan: ' + err.message);
   }
 }
 
@@ -19974,8 +20179,8 @@ async function wpFinalisasiPengiriman(noInvoice, statusBaru) {
   try {
     const data = await postJson({ aksi: 'finalisasi_pengiriman', noInvoice, statusBaru, email: currentUserEmail() });
     if (data.success) { playBeep(); wpFetchPengiriman(); }
-    else alert('Gagal: ' + (data.error || ''));
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    else omniNotif('Gagal: ' + (data.error || ''));
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 /* ===== Diagnosis Bisnis (Laporan): kondisi penjualan + skor kesehatan katalog + saran AI ===== */
@@ -20288,19 +20493,19 @@ function wpTiktokUpdateBulkBar() {
 
 async function wpCetakDokumenTikTok() {
   const packageIds = Array.from(wpTiktokTerpilih);
-  if (packageIds.length === 0) { alert('Pilih minimal 1 pesanan dulu.'); return; }
+  if (packageIds.length === 0) { omniNotif('Pilih minimal 1 pesanan dulu.'); return; }
   try {
     const data = await postJson({ aksi: 'cetak_dokumen_tiktok', packageIds, email: currentUserEmail() }, 60000);
-    if (!data.success) { alert('Gagal: ' + (data.error || '')); return; }
+    if (!data.success) { omniNotif('Gagal: ' + (data.error || '')); return; }
     let berhasil = 0, gagal = 0;
     data.hasil.forEach(h => {
       if (h.berhasil && h.docUrl) { window.open(h.docUrl, '_blank'); berhasil++; }
       else gagal++;
     });
-    alert(`${berhasil} dokumen berhasil dibuka, ${gagal} gagal.` + (gagal > 0 ? ' Cek console/log buat detail errornya.' : ''));
+    omniNotif(`${berhasil} dokumen berhasil dibuka, ${gagal} gagal.` + (gagal > 0 ? ' Cek console/log buat detail errornya.' : ''));
     if (gagal > 0) console.log('Detail hasil cetak dokumen TikTok:', data.hasil);
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -21906,7 +22111,7 @@ function wpSaranPembeli() {
       if (seq !== wpSaranSeq) return;
       wpRenderSaran(data.success ? (data.hasil || []) : [], 'Hasil pencarian "' + q + '"');
     } catch (err) {}
-  }, 250);
+  }, OMNI_JEDA_CARI_SERVER_MS);
 }
 
 function wpRenderSaran(daftar, judul) {
@@ -22082,7 +22287,7 @@ function wpCariPembeli() {
         el('wp-b-hasil-cari').innerHTML = '';
       }
     } catch (err) {}
-  }, 350);
+  }, OMNI_JEDA_CARI_SERVER_MS);
 }
 
 function wpPilihPembeli(nama, alamat, noHp) {
@@ -22263,7 +22468,7 @@ function wpCariProdukLive() {
       if (el('wp-b-sku-input').value.trim() !== q) return;
       tampil((data && data.success && data.hasil) || []);
     } catch (err) { wrap.innerHTML = ''; }
-  }, 120);
+  }, OMNI_JEDA_CARI_SERVER_MS);
 }
 
 function wpPilihProdukLive(p) {
@@ -22288,11 +22493,11 @@ async function wpTambahItemCart() {
       else { wpCart.push({ sku, nama: data.namaProduk, harga: data.harga, qty: 1 }); }
       playBeep();
     } else {
-      alert('SKU "' + sku + '" tidak ditemukan di Master Produk.');
+      omniNotif('SKU "' + sku + '" tidak ditemukan di Master Produk.');
       playToot();
     }
   } catch (err) {
-    alert('Gagal cari produk: ' + err.message);
+    omniNotif('Gagal cari produk: ' + err.message);
   }
   el('wp-b-sku-input').value = '';
   el('wp-b-sku-input').focus();
@@ -22470,7 +22675,7 @@ function wpSimpanLatar(f) {
     onBerhasil: r => {
       if (r.noInvoice && r.noInvoice !== noInvoice) {
         order.noInvoice = r.noInvoice;
-        if (wdoc.order === order && !el('wdoc-latar').hidden) { wdocBuka(order); alert('No Invoice disesuaikan sistem menjadi ' + r.noInvoice + '. Kalau sudah terlanjur dicetak, cetak ulang ya.'); }
+        if (wdoc.order === order && !el('wdoc-latar').hidden) { wdocBuka(order); omniNotif('No Invoice disesuaikan sistem menjadi ' + r.noInvoice + '. Kalau sudah terlanjur dicetak, cetak ulang ya.'); }
       }
       if (wdoc.order === order) wdocSetStatus('ok', 'No ' + r.noInvoice);
       wpListCache = wpListCache.filter(x => x !== baris);
@@ -22579,7 +22784,7 @@ async function wpBukaDetail(row) {
     if (seq !== wpDetailSeq) return;
     stopLoadingDots(el('wp-detail-status'));
     el('wp-detail-status').textContent = '';
-    if (!data.success) { if (!c) { alert('Gagal memuat: ' + (data.error || '')); wpKembaliKeList(); } return; }
+    if (!data.success) { if (!c) { omniNotif('Gagal memuat: ' + (data.error || '')); wpKembaliKeList(); } return; }
     wpCurrentDetailOrder = data.order;
     wpRenderDetail_(data.order);
     fetchRiwayatPembeli(data.order.namaPenerima, data.order.noHp);
@@ -22587,7 +22792,7 @@ async function wpBukaDetail(row) {
     if (seq !== wpDetailSeq) return;
     stopLoadingDots(el('wp-detail-status'));
     if (c) { el('wp-detail-status').textContent = '⚠️ Gagal memperbarui - menampilkan data terakhir'; return; }
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
     wpKembaliKeList();
   }
 }
@@ -22709,7 +22914,7 @@ function bukaPrintDiTabBaru(idSumber, judul) {
 
   const jendelaBaru = window.open('', '_blank');
   if (!jendelaBaru) {
-    alert('Browser memblokir pop-up. Izinkan pop-up buat situs ini biar bisa buka tab print.');
+    omniNotif('Browser memblokir pop-up. Izinkan pop-up buat situs ini biar bisa buka tab print.');
     return;
   }
   jendelaBaru.document.write(`
@@ -22813,7 +23018,7 @@ function perLapRenderHalaman() {
       try {
         await postJson({ aksi: 'simpan_batas_stok_menipis_satu_sku', sku: inp.dataset.sku, batas: parseFloat(inp.value) || 0, email: currentUserEmail() });
         playBeep();
-      } catch (err) { alert('Gagal simpan: ' + err.message); }
+      } catch (err) { omniNotif('Gagal simpan: ' + err.message); }
     });
   });
   el('li-body').querySelectorAll('.li-btn-catat').forEach(btn => {
@@ -23108,24 +23313,24 @@ async function kstNonaktifkanStaff(row, btn) {
       if (kstStaffEditSaatIni && kstStaffEditSaatIni.row === row) kstTutupEditStaff();
       kstFetchAll();
     } else {
-      alert('Gagal: ' + (data.error || ''));
+      omniNotif('Gagal: ' + (data.error || ''));
       btn.disabled = false; btn.textContent = 'Nonaktifkan';
     }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
     btn.disabled = false; btn.textContent = 'Nonaktifkan';
   }
 }
 
 async function kstApprove(row) {
   const role = el('kst-role-' + row).value;
-  if (!role) { alert('Pilih role dulu sebelum approve.'); return; }
+  if (!role) { omniNotif('Pilih role dulu sebelum approve.'); return; }
   try {
     const data = await postJson({ aksi: 'approve_akses', row, role, email: currentUserEmail() });
     if (data.success) { playBeep(); kstFetchAll(); }
-    else alert('Gagal: ' + (data.error || ''));
+    else omniNotif('Gagal: ' + (data.error || ''));
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -23134,9 +23339,9 @@ async function kstTolak(row) {
   try {
     const data = await postJson({ aksi: 'tolak_akses', row, email: currentUserEmail() });
     if (data.success) { playToot(); kstFetchAll(); }
-    else alert('Gagal: ' + (data.error || ''));
+    else omniNotif('Gagal: ' + (data.error || ''));
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -25987,8 +26192,8 @@ async function pgtHapusGambarCarousel(row) {
   if (!confirm('Hapus gambar slide ini? (balik ke tampilan emoji)')) return;
   try {
     const data = await postJson({ aksi: 'hapus_gambar_carousel', row, email: currentUserEmail() });
-    if (data.success) { playBeep(); pgtMuatCarouselAdmin(); } else { alert('Gagal: ' + (data.error || '')); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    if (data.success) { playBeep(); pgtMuatCarouselAdmin(); } else { omniNotif('Gagal: ' + (data.error || '')); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 async function pgtCarouselUbahField(row, field, value) {
@@ -25998,7 +26203,7 @@ async function pgtCarouselUbahField(row, field, value) {
   try {
     await postJson({ aksi: 'simpan_slide_carousel', row, judul: s.judul, deskripsi: s.deskripsi, emoji: s.emoji, urutan: s.urutan, email: currentUserEmail() });
     playBeep();
-  } catch (err) { alert('Gagal simpan: ' + err.message); }
+  } catch (err) { omniNotif('Gagal simpan: ' + err.message); }
 }
 
 async function pgtTambahSlideCarousel() {
@@ -26026,8 +26231,8 @@ async function pgtHapusSlideCarousel(row) {
   if (!confirm('Hapus slide ini?')) return;
   try {
     const data = await postJson({ aksi: 'hapus_slide_carousel', row, email: currentUserEmail() });
-    if (data.success) { playBeep(); pgtMuatCarouselAdmin(); } else { alert('Gagal: ' + (data.error || '')); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    if (data.success) { playBeep(); pgtMuatCarouselAdmin(); } else { omniNotif('Gagal: ' + (data.error || '')); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 async function muatLogoPerusahaan() {
@@ -26345,7 +26550,7 @@ async function intOtorisasi(opsi) {
     if (jendela && !jendela.closed) jendela.close();
     const id = opsi.idKoneksi;
     if (id) intPesan[id] = { teks: err.message, kelas: 'err' };
-    else alert(err.message);
+    else omniNotif(err.message);
     return err.message;
   } finally {
     if (opsi.idKoneksi) delete intSibuk[opsi.idKoneksi];
@@ -26932,7 +27137,7 @@ async function katalogSortBerubah(sel) {
     const opt = sel.options[sel.selectedIndex], teksAsli = opt.text;
     opt.text = '⏳ Menghitung penjualan...'; sel.disabled = true;
     try { await katalogMuatTerlaris(); }
-    catch (e) { alert('Data terlaris belum bisa dimuat: ' + e.message); sel.value = 'terbaru'; }
+    catch (e) { omniNotif('Data terlaris belum bisa dimuat: ' + e.message); sel.value = 'terbaru'; }
     finally { opt.text = teksAsli; sel.disabled = false; }
   }
   katalogProdukRenderHalaman();
@@ -27495,8 +27700,8 @@ async function katalogUbahSkuSpasiJadiTerhubung(skuGabungan, btn) {
       if (item) item.sku = data.skuUtama;
       katalogSkuTerhubungMap[data.skuUtama] = (katalogSkuTerhubungMap[data.skuUtama] || []).concat(data.skuTerhubung);
       katalogProdukRenderHalaman();
-    } else { alert('Gagal: ' + (data.error || '')); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    } else { omniNotif('Gagal: ' + (data.error || '')); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 async function katalogBukaPopupLinkSkuSupplier(btn) {
@@ -27697,8 +27902,8 @@ async function katalogSimpanEditField(skuLama, field, nilaiBaru) {
     try {
       const data = await postJson({ aksi: 'simpan_atribut_produk', sku: skuLama, brand: nilaiBaru, tipe: item.tipe || '', material: item.material || '', volume: item.volume || '', warna: item.warna || '', email: currentUserEmail() });
       if (data.success) { playBeep(); item.brand = nilaiBaru; katalogProdukRenderHalaman(); }
-      else { alert('Gagal: ' + (data.error || '')); katalogProdukRenderHalaman(); }
-    } catch (err) { alert('Gagal terhubung: ' + err.message); katalogProdukRenderHalaman(); }
+      else { omniNotif('Gagal: ' + (data.error || '')); katalogProdukRenderHalaman(); }
+    } catch (err) { omniNotif('Gagal terhubung: ' + err.message); katalogProdukRenderHalaman(); }
     return;
   }
 
@@ -27715,8 +27920,8 @@ async function katalogSimpanEditField(skuLama, field, nilaiBaru) {
       item.sku = skuBaru; item.nama = namaBaru; item.kategori = kategoriBaru;
       if (field === 'kategori') katalogMuatDaftarKategori();
       katalogProdukRenderHalaman();
-    } else { alert('Gagal: ' + (data.error || '')); katalogProdukRenderHalaman(); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); katalogProdukRenderHalaman(); }
+    } else { omniNotif('Gagal: ' + (data.error || '')); katalogProdukRenderHalaman(); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); katalogProdukRenderHalaman(); }
 }
 
 let katalogDaftarKategoriCache = [];
@@ -29483,8 +29688,8 @@ async function katalogUploadFoto(sku, event) {
         const item = katalogProdukCache.find(p => p.sku === sku);
         if (item) item.urlFoto = data.urlFoto;
         katalogProdukRenderHalaman();
-      } else { alert('Gagal upload: ' + (data.error || '')); katalogFetchProduk(); }
-    } catch (err) { alert('Gagal terhubung: ' + err.message); katalogFetchProduk(); }
+      } else { omniNotif('Gagal upload: ' + (data.error || '')); katalogFetchProduk(); }
+    } catch (err) { omniNotif('Gagal terhubung: ' + err.message); katalogFetchProduk(); }
   };
   reader.readAsDataURL(file);
 }
@@ -30011,10 +30216,10 @@ async function katalogUploadFotoUtamaDetail(file) {
     try {
       const data = await postJson({ aksi: 'upload_foto_produk', sku: katalogSkuDetailAktif, base64, mimeType: file.type, email: currentUserEmail() }, 30000);
       if (data.success) { katalogRenderDetailFotoUtama(data.urlFoto); }
-      else { katalogRenderDetailFotoUtama(katalogVarianDataAktif ? katalogVarianDataAktif.urlFoto : null); alert('Gagal upload: ' + (data.error || '')); }
+      else { katalogRenderDetailFotoUtama(katalogVarianDataAktif ? katalogVarianDataAktif.urlFoto : null); omniNotif('Gagal upload: ' + (data.error || '')); }
     } catch (err) {
       katalogRenderDetailFotoUtama(katalogVarianDataAktif ? katalogVarianDataAktif.urlFoto : null);
-      alert('Gagal terhubung: ' + err.message);
+      omniNotif('Gagal terhubung: ' + err.message);
     } finally {
       URL.revokeObjectURL(urlPreview);
     }
@@ -30206,8 +30411,8 @@ async function katalogHapusFotoUtamaDetail() {
   try {
     const data = await postJson({ aksi: 'hapus_foto_slot', sku: katalogSkuDetailAktif, slotType: 'utama', toko: currentToko, email: currentUserEmail() }, 30000);
     if (data.success) { playBeep(); katalogRenderDetailFotoUtama(''); }
-    else { alert('Gagal hapus: ' + (data.error || '')); katalogRenderDetailFotoUtama(''); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    else { omniNotif('Gagal hapus: ' + (data.error || '')); katalogRenderDetailFotoUtama(''); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
@@ -30293,8 +30498,8 @@ async function katalogHapusFotoGaleriDetail(slot) {
   try {
     const data = await postJson({ aksi: 'hapus_foto_slot', sku: katalogSkuDetailAktif, slotType: 'galeri', slotIndex: slot, toko: currentToko, email: currentUserEmail() }, 30000);
     if (data.success) { playBeep(); katalogBukaDetailProduk(katalogSkuDetailAktif); }
-    else { if (statusEl) statusEl.style.display = 'none'; alert('Gagal hapus: ' + (data.error || '')); }
-  } catch (err) { if (statusEl) statusEl.style.display = 'none'; alert('Gagal terhubung: ' + err.message); }
+    else { if (statusEl) statusEl.style.display = 'none'; omniNotif('Gagal hapus: ' + (data.error || '')); }
+  } catch (err) { if (statusEl) statusEl.style.display = 'none'; omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 function katalogUploadKeSlotGaleriDetail(slot, file) {
@@ -30313,10 +30518,10 @@ function katalogUploadKeSlotGaleriDetail(slot, file) {
     try {
       const data = await postJson({ aksi: 'update_foto_galeri_slot', sku: katalogSkuDetailAktif, slotIndex: slot, base64, mimeType: file.type, toko: currentToko, email: currentUserEmail() }, 30000);
       if (data.success) { katalogBukaDetailProduk(katalogSkuDetailAktif); }
-      else { katalogRenderDetailGaleriGrid((katalogVarianDataAktif && katalogVarianDataAktif.galeriFotoTambahan) || []); alert('Gagal upload: ' + (data.error || '')); }
+      else { katalogRenderDetailGaleriGrid((katalogVarianDataAktif && katalogVarianDataAktif.galeriFotoTambahan) || []); omniNotif('Gagal upload: ' + (data.error || '')); }
     } catch (err) {
       katalogRenderDetailGaleriGrid((katalogVarianDataAktif && katalogVarianDataAktif.galeriFotoTambahan) || []);
-      alert('Gagal terhubung: ' + err.message);
+      omniNotif('Gagal terhubung: ' + err.message);
     } finally { URL.revokeObjectURL(urlPreview); }
   };
   reader.readAsDataURL(file);
@@ -30334,7 +30539,7 @@ async function katalogUploadUrlKeSlotGaleriDetail(slot, url) {
     katalogUploadKeSlotGaleriDetail(slot, file);
   } catch (err) {
     if (statusEl) statusEl.style.display = 'none';
-    alert('Gagal ambil gambar dari URL itu (kemungkinan situs sumbernya memblokir akses langsung). Coba download gambarnya dulu, baru drag/paste filenya.');
+    omniNotif('Gagal ambil gambar dari URL itu (kemungkinan situs sumbernya memblokir akses langsung). Coba download gambarnya dulu, baru drag/paste filenya.');
   }
 }
 
@@ -32321,7 +32526,7 @@ async function hargaSimpanEditorSku() {
 /* ---------- Pengaturan AI (PLACEHOLDER - popup dibangun nanti) ---------- */
 function hargaBukaPengaturanAI() {
   console.log('[Pengaturan AI] placeholder - popup belum dibuat');
-  alert('⚙️ Pengaturan AI akan tersedia di update berikutnya.');
+  omniNotif('⚙️ Pengaturan AI akan tersedia di update berikutnya.');
 }
 
 /* ---------- URL Supplier inline ---------- */
@@ -32667,13 +32872,13 @@ async function katalogPulihkanProduk(sku) {
   if (!confirm(`Pulihkan produk "${sku}" dari arsip?\nProduk akan tampil lagi di Katalog, Harga, website & pencarian transaksi.`)) return;
   try {
     const data = await postJsonTulis({ aksi: 'pulihkan_produk_arsip', skuList: [sku], toko: currentToko, email: currentUserEmail() });
-    if (!data.success) { alert(katalogTeksGagal(data.error)); return; }
+    if (!data.success) { omniNotif(katalogTeksGagal(data.error)); return; }
     playBeep();
     const p = katalogProdukCache.find(x => x.sku === sku);
     if (p) p.arsip = false;
     katalogProdukRenderHalaman();
     if (typeof katToast === 'function') katToast(`♻️ <b>${escapeHtml(sku)}</b> dipulihkan dari arsip.`);
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 async function katalogHapusKategori(idx, kategori) {
@@ -32827,8 +33032,8 @@ async function katalogBukaModalEditMassal() {
   let skuList = Array.from(katalogProdukTerpilih);
   if (!skuList.length) {
     skuList = katalogFilterSortProduk().filter(p => !p.arsip).map(p => p.sku);
-    if (!skuList.length) { alert('Tidak ada produk di tampilan saat ini.'); return; }
-    if (skuList.length > 1000) { alert(`Hasil filter berisi ${skuList.length} produk (maks 1000 per edit massal).\nPersempit dengan pencarian/filter, atau centang produk yang mau diedit.`); return; }
+    if (!skuList.length) { omniNotif('Tidak ada produk di tampilan saat ini.'); return; }
+    if (skuList.length > 1000) { omniNotif(`Hasil filter berisi ${skuList.length} produk (maks 1000 per edit massal).\nPersempit dengan pencarian/filter, atau centang produk yang mau diedit.`); return; }
     if (!confirm(`Belum ada produk yang dicentang.\n\nEdit massal ${skuList.length} produk dari hasil pencarian/filter saat ini?`)) return;
   }
   bulkSetMode('edit');
@@ -33837,7 +34042,7 @@ async function katalogSimpanKategoriProduk(namaKategori) {
     await postJson({ aksi: 'simpan_produk_kategori', namaKategori, skuList: dipilih, email: currentUserEmail() });
     playBeep();
     katalogFetchKategori();
-  } catch (err) { alert('Gagal simpan: ' + err.message); }
+  } catch (err) { omniNotif('Gagal simpan: ' + err.message); }
 }
 
 function katalogRenderInputGridKategori() {
@@ -34762,8 +34967,8 @@ async function belHapusSupplier(row, nama) {
   if (!confirm(`Hapus supplier "${nama}"? Cabang di bawahnya nggak ikut kehapus otomatis.`)) return;
   try {
     const data = await postJson({ aksi: 'hapus_supplier', row, email: currentUserEmail() });
-    if (data.success) { playBeep(); belFetchKontak(); } else { alert('Gagal: ' + (data.error || '')); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    if (data.success) { playBeep(); belFetchKontak(); } else { omniNotif('Gagal: ' + (data.error || '')); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 let belCabangRowAktif = null;
@@ -34809,8 +35014,8 @@ async function belHapusCabang(row) {
   if (!confirm('Hapus cabang ini?')) return;
   try {
     const data = await postJson({ aksi: 'hapus_cabang_supplier', row, email: currentUserEmail() });
-    if (data.success) { playBeep(); belFetchKontak(); } else { alert('Gagal: ' + (data.error || '')); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    if (data.success) { playBeep(); belFetchKontak(); } else { omniNotif('Gagal: ' + (data.error || '')); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 
@@ -37161,8 +37366,8 @@ async function mintaStockBatalkanPO(noPO) {
   try {
     const data = await postJson({ aksi: 'batalkan_po', noPO, email: currentUserEmail() });
     if (data.success) { playBeep(); mintaStockFetchRiwayat(); }
-    else alert('Gagal: ' + (data.error || ''));
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    else omniNotif('Gagal: ' + (data.error || ''));
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 async function mintaStockFetchCart() {
@@ -37219,14 +37424,14 @@ function mintaStockCariProdukLive() {
         });
       });
     } catch (err) {}
-  }, 300);
+  }, OMNI_JEDA_CARI_SERVER_MS);
 }
 
 function mintaStockTambahBarangManual() {
   const sku = el('ms-tambah-sku').value.trim();
   const nama = el('ms-tambah-sku').dataset.namaTerpilih || sku;
   const qty = parseFloat(el('ms-tambah-qty').value) || 0;
-  if (!sku || qty <= 0) { alert('Isi SKU dan Qty dulu'); return; }
+  if (!sku || qty <= 0) { omniNotif('Isi SKU dan Qty dulu'); return; }
   mintaStockCartCache.push({ row: null, sku, nama, qty, dariRequest: false });
   mintaStockRenderCart();
   el('ms-tambah-sku').value = ''; el('ms-tambah-sku').dataset.namaTerpilih = ''; el('ms-tambah-qty').value = '';
@@ -37907,7 +38112,7 @@ function prodkatCariProdukLive() {
         });
       });
     } catch (err) {}
-  }, 300);
+  }, OMNI_JEDA_CARI_SERVER_MS);
 }
 
 async function prodkatTambah() {
@@ -37955,8 +38160,8 @@ async function prodkatFetch() {
         try {
           const dataHapus = await postJson({ aksi: 'hapus_katalog_kopi', row: btn.dataset.row, email: currentUserEmail() });
           if (dataHapus.success) { playBeep(); prodkatFetch(); }
-          else alert('Gagal: ' + (dataHapus.error || ''));
-        } catch (err) { alert('Gagal terhubung: ' + err.message); }
+          else omniNotif('Gagal: ' + (dataHapus.error || ''));
+        } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
       });
     });
   } catch (err) {
@@ -37992,8 +38197,8 @@ async function prodFetchBahanBaku() {
         try {
           const dataUpdate = await postJson({ aksi: 'update_stock_bahan_baku', row, jenis, jumlah, email: currentUserEmail() });
           if (dataUpdate.success) { playBeep(); prodFetchBahanBaku(); }
-          else alert('Gagal: ' + (dataUpdate.error || ''));
-        } catch (err) { alert('Gagal terhubung: ' + err.message); }
+          else omniNotif('Gagal: ' + (dataUpdate.error || ''));
+        } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
       });
     });
   } catch (err) {
@@ -38037,7 +38242,7 @@ function prodResepCariProdukLive() {
         });
       });
     } catch (err) {}
-  }, 300);
+  }, OMNI_JEDA_CARI_SERVER_MS);
 }
 
 async function prodFetchResep() {
@@ -38067,8 +38272,8 @@ async function prodFetchResep() {
         try {
           const dataHapus = await postJson({ aksi: 'hapus_resep_produksi', row: btn.dataset.row, email: currentUserEmail() });
           if (dataHapus.success) { playBeep(); prodFetchResep(); }
-          else alert('Gagal: ' + (dataHapus.error || ''));
-        } catch (err) { alert('Gagal terhubung: ' + err.message); }
+          else omniNotif('Gagal: ' + (dataHapus.error || ''));
+        } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
       });
     });
   } catch (err) {
@@ -38372,14 +38577,14 @@ async function mgPilihInvoiceChecklist(noInvoice) {
   el('mg-checklist-list').innerHTML = '<div style="text-align:center; color:var(--web-text-dim); padding:20px 0; font-size:12.5px;">Memuat item invoice...</div>';
   try {
     const data = await postJson({ aksi: 'lihat_detail_invoice_manual_checklist', noInvoice, email: currentUserEmail() });
-    if (!data.success) { alert('Gagal ambil detail invoice: ' + (data.error || '')); mgRenderDaftarChecklist(); return; }
+    if (!data.success) { omniNotif('Gagal ambil detail invoice: ' + (data.error || '')); mgRenderDaftarChecklist(); return; }
     mgCarts.barangmasuk = (data.daftar || []).map(it => ({
       sku: it.sku, nama: it.nama, qty: 0, catatan: '', qtyTarget: it.qtyInvoice, dariChecklist: true, noInvoiceAsal: noInvoice
     }));
     mgSimpanDraftLokal();
     mgTutupChecklist();
     mgRenderCart('barangmasuk');
-  } catch (err) { alert('Gagal terhubung: ' + err.message); mgRenderDaftarChecklist(); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); mgRenderDaftarChecklist(); }
 }
 
 function mgTutupChecklist() {
@@ -38733,7 +38938,7 @@ async function vmPilihFileSJ(file) {
   if (!file) return;
   try {
     if (file.type === 'application/pdf') {
-      if (file.size > 5 * 1024 * 1024) { alert('PDF maksimal 5 MB.'); return; }
+      if (file.size > 5 * 1024 * 1024) { omniNotif('PDF maksimal 5 MB.'); return; }
       const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(file); });
       vmFotoSJ = { base64, mimeType: 'application/pdf', nama: file.name, preview: null };
     } else if (file.type.startsWith('image/')) {
@@ -38746,9 +38951,9 @@ async function vmPilihFileSJ(file) {
       URL.revokeObjectURL(url);
       const dataUrl = c.toDataURL('image/jpeg', 0.82);
       vmFotoSJ = { base64: dataUrl.split(',')[1], mimeType: 'image/jpeg', nama: file.name, preview: dataUrl };
-    } else { alert('Format file harus foto (JPG/PNG) atau PDF.'); return; }
+    } else { omniNotif('Format file harus foto (JPG/PNG) atau PDF.'); return; }
     vmRenderFotoSJ();
-  } catch (err) { alert('Gagal membaca file: ' + err.message); }
+  } catch (err) { omniNotif('Gagal membaca file: ' + err.message); }
 }
 
 function vmHapusFotoSJ(e) { if (e) e.stopPropagation(); vmFotoSJ = null; vmRenderFotoSJ(); }
@@ -38939,13 +39144,13 @@ async function mgFetchRiwayat(tab) {
 async function mgApproveMintaStock(noMemo) {
   if (!confirm(`Konfirmasi memo "${noMemo}" jadi "Bisa PO Stock"?`)) return;
   const data = await postJson({ aksi: 'approve_memo_minta_stock', noMemo, email: currentUserEmail() });
-  if (data.success) { playBeep(); mgFetchRiwayat('mintastock'); } else { alert('Gagal: ' + (data.error || '')); }
+  if (data.success) { playBeep(); mgFetchRiwayat('mintastock'); } else { omniNotif('Gagal: ' + (data.error || '')); }
 }
 
 async function mgApproveHilangRusak(noMemo) {
   if (!confirm(`Setujui memo "${noMemo}"? Stock bakal otomatis dikurangi sebagai penyesuaian.`)) return;
   const data = await postJson({ aksi: 'approve_memo_hilang_rusak', noMemo, email: currentUserEmail() });
-  if (data.success) { playBeep(); mgFetchRiwayat('hilangrusak'); } else { alert('Gagal: ' + (data.error || '')); }
+  if (data.success) { playBeep(); mgFetchRiwayat('hilangrusak'); } else { omniNotif('Gagal: ' + (data.error || '')); }
 }
 
 /* ===== Stock Opname (web = review/verifikasi Back Office, input datanya dari mobile) ===== */
@@ -40597,8 +40802,8 @@ async function poFetchDaftar() {
         const input = el('po-daftar-list').querySelector(`.po-terima-input[data-nopo="${noPO}"][data-sku="${sku}"]`);
         try {
           const res = await postJson({ aksi: 'terima_barang_po', noPO, sku, qtyDiterima: parseFloat(input.value) || 0, email: currentUserEmail() });
-          if (res.success) { playBeep(); poFetchDaftar(); } else alert('Gagal: ' + (res.error || ''));
-        } catch (err) { alert('Gagal terhubung: ' + err.message); }
+          if (res.success) { playBeep(); poFetchDaftar(); } else omniNotif('Gagal: ' + (res.error || ''));
+        } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
       });
     });
   } catch (err) {
@@ -40646,15 +40851,15 @@ async function pdvRangkumAI(row, btn) {
   try {
     const data = await postJson({ aksi: 'rangkum_pesan_developer_ai', row, email: currentUserEmail() }, 30000);
     if (data.success) { playBeep(); pdvMuatDaftar(); }
-    else { alert('Gagal: ' + (data.error || '')); btn.textContent = '✨ Rangkum AI'; btn.disabled = false; }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); btn.textContent = '✨ Rangkum AI'; btn.disabled = false; }
+    else { omniNotif('Gagal: ' + (data.error || '')); btn.textContent = '✨ Rangkum AI'; btn.disabled = false; }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); btn.textContent = '✨ Rangkum AI'; btn.disabled = false; }
 }
 
 async function pdvUpdateStatus(selectEl) {
   try {
     await postJson({ aksi: 'update_status_pesan_developer', row: selectEl.dataset.row, status: selectEl.value, email: currentUserEmail() });
     playBeep();
-  } catch (err) { alert('Gagal update status: ' + err.message); }
+  } catch (err) { omniNotif('Gagal update status: ' + err.message); }
 }
 
 /* ===== MODUL PROMOSI - data dari Shopee & TikTok Shop (aksi: lihat_promo / promo_sinkron) ===== */
@@ -40739,12 +40944,12 @@ async function promoSinkron(jenis, otomatis) {
   try {
     const d = await postJson(body, 330000, !!otomatis);
     if (d && d.sinkron) promoTampilSinkron(jenis, d.sinkron);
-    if (d && d.sedangJalan) { if (!otomatis) alert(d.pesan); }
-    else if (d && !d.success && !otomatis) alert('Sinkron gagal: ' + (d.error || ''));
+    if (d && d.sedangJalan) { if (!otomatis) omniNotif(d.pesan); }
+    else if (d && !d.success && !otomatis) omniNotif('Sinkron gagal: ' + (d.error || ''));
     else if (d && d.success && !otomatis) playBeep();
     await promoMuat(jenis, true);
   } catch (err) {
-    if (!otomatis) alert('Gagal terhubung: ' + err.message);
+    if (!otomatis) omniNotif('Gagal terhubung: ' + err.message);
   } finally {
     promoSinkronJalan[jenis] = false;
     if (btn) { btn.disabled = false; btn.textContent = teksAsli; }
@@ -40792,7 +40997,7 @@ async function promoAkhiriVoucher(id, kode) {
     const d = await postJson({ aksi: 'promo_akhiri_voucher', id, email: currentUserEmail() }, 120000);
     if (!d.success) throw new Error(d.error || 'Gagal');
     playBeep(); promoMuat('kode', true);
-  } catch (err) { alert('Gagal mengakhiri voucher: ' + err.message); }
+  } catch (err) { omniNotif('Gagal mengakhiri voucher: ' + err.message); }
 }
 
 function promoTglInput(d) {
@@ -40920,7 +41125,7 @@ async function promoHapusKampanye(id) {
     const d = await postJson({ aksi: 'promo_hapus_kampanye', id, email: currentUserEmail() }, 60000);
     if (!d.success) throw new Error(d.error || 'Gagal');
     promoMuat('kalender', true);
-  } catch (err) { alert('Gagal menghapus: ' + err.message); }
+  } catch (err) { omniNotif('Gagal menghapus: ' + err.message); }
 }
 
 /* ---- Affiliate (TikTok Shop) ---- */
@@ -41028,7 +41233,7 @@ function finBiayaRender() {
       try {
         await postJson({ aksi: 'simpan_biaya_penjualan', row: inp.dataset.row, nilai: parseFloat(inp.value) || 0, email: currentUserEmail() });
         playBeep();
-      } catch (err) { alert('Gagal simpan: ' + err.message); }
+      } catch (err) { omniNotif('Gagal simpan: ' + err.message); }
     });
   });
 }
@@ -41037,8 +41242,8 @@ async function finHapusBiaya(row, namaBiaya) {
   if (!confirm(`Hapus jenis biaya "${namaBiaya}"?`)) return;
   try {
     const data = await postJson({ aksi: 'hapus_biaya_penjualan', row, email: currentUserEmail() });
-    if (data.success) { playBeep(); finFetchBiayaPenjualan(); } else { alert('Gagal: ' + (data.error || '')); }
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    if (data.success) { playBeep(); finFetchBiayaPenjualan(); } else { omniNotif('Gagal: ' + (data.error || '')); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 let finBiayaBaruJenisAktif = 'Persen';
@@ -41617,7 +41822,7 @@ function wsCariProdukLive() {
       stopLoadingDots(statusEl);
       statusEl.textContent = '';
     }
-  }, 400);
+  }, OMNI_JEDA_CARI_SERVER_MS);
 }
 
 function wsPilihProdukLive(p) {
@@ -41719,7 +41924,7 @@ async function bukaKelolaAkses() {
     el('ka-loading').style.display = 'none';
 
     if (!dataPermintaan.success) {
-      alert('Gagal memuat: ' + (dataPermintaan.error || 'error tidak diketahui'));
+      omniNotif('Gagal memuat: ' + (dataPermintaan.error || 'error tidak diketahui'));
       return;
     }
 
@@ -41753,7 +41958,7 @@ async function bukaKelolaAkses() {
     });
   } catch (err) {
     el('ka-loading').style.display = 'none';
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -41764,13 +41969,13 @@ function tutupKelolaAkses() {
 
 async function approveAksesStaff(row) {
   const role = el('ka-role-' + row).value;
-  if (!role) { alert('Pilih role dulu.'); return; }
+  if (!role) { omniNotif('Pilih role dulu.'); return; }
   try {
     const data = await postJson({ aksi: 'approve_akses', row, role, email: currentUserEmail() });
     if (data.success) { playBeep(); bukaKelolaAkses(); }
-    else alert('Gagal: ' + (data.error || 'error tidak diketahui'));
+    else omniNotif('Gagal: ' + (data.error || 'error tidak diketahui'));
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -41779,9 +41984,9 @@ async function tolakAksesStaff(row) {
   try {
     const data = await postJson({ aksi: 'tolak_akses', row, email: currentUserEmail() });
     if (data.success) { playToot(); bukaKelolaAkses(); }
-    else alert('Gagal: ' + (data.error || 'error tidak diketahui'));
+    else omniNotif('Gagal: ' + (data.error || 'error tidak diketahui'));
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -41970,6 +42175,7 @@ async function postJsonTulis(body, timeoutMs, opsi) {
   if (!kirim.idPermintaan) kirim.idPermintaan = buatIdPermintaan('w-');
   const maksCoba = opsi.maksCoba || 6;
   const jeda = [1500, 3000, 6000, 10000, 15000, 20000];
+  const lepasTombol = omniPasangSibuk_(); // tombol tetap terkunci selama semua percobaan ulang
   webAppTulisAktif++;
   try {
     for (let coba = 1; ; coba++) {
@@ -41998,6 +42204,7 @@ async function postJsonTulis(body, timeoutMs, opsi) {
     }
   } finally {
     webAppTulisAktif = Math.max(0, webAppTulisAktif - 1);
+    lepasTombol();
   }
 }
 
@@ -42073,7 +42280,10 @@ async function postJson(body, timeoutMs, silent) {
       return webAppSalin(c.data); // 0 request yang ditunggu user
     }
   }
-  const data = await postJsonKeServer_(body, timeoutMs, silent);
+  const lepasTombol = omniPasangSibuk_(); // tombol pemicu (kalau ada) -> disabled + spinner
+  let data;
+  try { data = await postJsonKeServer_(body, timeoutMs, silent); }
+  finally { lepasTombol(); }
   webAppSimpanHasilBaca_(body, kunciCache, bolehCache, data);
   return data;
 }
@@ -42544,7 +42754,7 @@ async function tarikNamaMasterProdukIS(idx, silentJikaKosong) {
       renderItemsInvoiceSupplier();
       playBeep();
     } else if (!silentJikaKosong) {
-      alert('SKU "' + sku + '" belum terdaftar di Master Produk. Ketik nama produknya manual, nanti otomatis kesimpen ke Master Produk pas invoice ini disimpan.');
+      omniNotif('SKU "' + sku + '" belum terdaftar di Master Produk. Ketik nama produknya manual, nanti otomatis kesimpen ke Master Produk pas invoice ini disimpan.');
     }
   } catch (err) {}
 }
@@ -42729,7 +42939,7 @@ async function bukaChecklistInvoiceSupplier(noInvoice) {
 
 async function prosesInputChecklistKeStockMobile() {
   const skuDicentang = Array.from(document.querySelectorAll('.cis-checkbox:checked')).map(c => c.dataset.sku);
-  if (skuDicentang.length === 0) { alert('Centang minimal 1 produk dulu.'); return; }
+  if (skuDicentang.length === 0) { omniNotif('Centang minimal 1 produk dulu.'); return; }
 
   const statusEl = el('cis-status');
   statusEl.style.display = 'block';
@@ -42983,7 +43193,7 @@ function startScanPending() {
 async function tandaiPendingResi() {
   const noResi = el('scan-input').value.trim();
   if (!noResi) {
-    alert('Ketik/scan No Resi dulu di kotak input, baru tekan tombol ini.');
+    omniNotif('Ketik/scan No Resi dulu di kotak input, baru tekan tombol ini.');
     return;
   }
   const statusEl = el('last-status');
@@ -43332,11 +43542,11 @@ async function editResiTerakhir() {
       el('last-status').className = 'status-text ok';
       tampilkanInfoKurirEdit(el('last-scan-info'), data.kurir, noResiBaru.trim());
     } else {
-      alert('Gagal: ' + (data.error || 'error tidak diketahui'));
+      omniNotif('Gagal: ' + (data.error || 'error tidak diketahui'));
       playToot();
     }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
     playToot();
   }
 }
@@ -44229,10 +44439,10 @@ async function koreksiKurir(row, kurirSekarang) {
       playBeep();
       fetchList();
     } else {
-      alert('Gagal: ' + (data.error || 'error tidak diketahui'));
+      omniNotif('Gagal: ' + (data.error || 'error tidak diketahui'));
     }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -44241,9 +44451,9 @@ async function hapusItem(row) {
   try {
     const data = await postJsonTulis({ aksi: 'hapus', tipe: currentMode, row: row, email: currentUserEmail() });
     if (data.success) { playBeep(); fetchList(); }
-    else { alert('Gagal menghapus: ' + (data.error || 'error tidak diketahui')); playToot(); }
+    else { omniNotif('Gagal menghapus: ' + (data.error || 'error tidak diketahui')); playToot(); }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
     playToot();
   }
 }
@@ -44301,7 +44511,7 @@ async function exportKeExcel(jenis, statusEl, extraParams) {
     const payload = Object.assign({ aksi: 'export_excel', jenis, email: currentUserEmail() }, extraParams || {});
     const data = await postJson(payload, 30000); // butuh waktu lebih lama - bikin+export+hapus spreadsheet sementara
     if (statusEl) stopLoadingDots(statusEl);
-    if (!data.success) { alert('Gagal export: ' + (data.error || '')); return; }
+    if (!data.success) { omniNotif('Gagal export: ' + (data.error || '')); return; }
 
     const byteChars = atob(data.base64);
     const byteNumbers = new Array(byteChars.length);
@@ -44316,7 +44526,7 @@ async function exportKeExcel(jenis, statusEl, extraParams) {
     playBeep();
   } catch (err) {
     if (statusEl) stopLoadingDots(statusEl);
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -44462,8 +44672,7 @@ function wpTanganiPasteBlokPembeliBulk(e, idx) {
 // (lewat setLoadingDots lagi dengan teksBaru berbeda, atau langsung textContent manual di luar fungsi ini).
 // Helper buat nampilin loading animasi titik2 di dalam <tbody> tabel (bukan cuma elemen status-text biasa)
 function tampilkanMemuatTabel(idBody, colspan) {
-  el(idBody).innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; color:var(--web-text-dim);" id="${idBody}-memuat-td"></td></tr>`;
-  setLoadingDots(el(idBody + '-memuat-td'), 'Memuat');
+  omniSkeletonTabel(idBody, colspan, 5); // [PART 4] skeleton menggantikan teks "Memuat..."
 }
 
 // Judul halaman di top bar. eyebrow=true -> gaya eyebrow heading (uppercase, tracking lebar, abu slate redup).
@@ -44754,8 +44963,8 @@ async function mintaStockBatalkanPOMobile(noPO) {
   try {
     const data = await postJson({ aksi: 'batalkan_po', noPO, email: currentUserEmail() });
     if (data.success) { playBeep(); bukaRiwayatMintaStock(); }
-    else alert('Gagal: ' + (data.error || ''));
-  } catch (err) { alert('Gagal terhubung: ' + err.message); }
+    else omniNotif('Gagal: ' + (data.error || ''));
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
 function tutupRiwayatMintaStock() {
@@ -46044,11 +46253,11 @@ async function mgmMuatChecklistTerpilih() {
   btn.textContent = 'Memuat item invoice...';
   try {
     const data = await postJson({ aksi: 'lihat_detail_invoice_manual_checklist', noInvoices: mgmChecklistTerpilih, email: currentUserEmail() });
-    if (!data.success) { alert('Gagal ambil detail: ' + (data.error || '')); mgmRenderChipsChecklist(); return; }
+    if (!data.success) { omniNotif('Gagal ambil detail: ' + (data.error || '')); mgmRenderChipsChecklist(); return; }
     const daftar = data.daftar || [];
-    if (daftar.length === 0) { playToot(); alert('Nggak ada item SKU di invoice yang dipilih.'); mgmRenderChipsChecklist(); return; }
+    if (daftar.length === 0) { playToot(); omniNotif('Nggak ada item SKU di invoice yang dipilih.'); mgmRenderChipsChecklist(); return; }
     if (data.tidakDitemukan && data.tidakDitemukan.length) {
-      alert('Invoice ini nggak ketemu datanya & dilewati:\n' + data.tidakDitemukan.join('\n'));
+      omniNotif('Invoice ini nggak ketemu datanya & dilewati:\n' + data.tidakDitemukan.join('\n'));
     }
     // 1 SKU yang muncul di beberapa invoice DIGABUNG jadi 1 kartu (qty target dijumlah)
     mgmCarts.barangmasuk = daftar.map(it => ({
@@ -46060,7 +46269,7 @@ async function mgmMuatChecklistTerpilih() {
     el('screen-memo-gudang').style.display = 'flex';
     mgmRenderCart();
     playBeep();
-  } catch (err) { alert('Gagal terhubung: ' + err.message); mgmRenderChipsChecklist(); }
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); mgmRenderChipsChecklist(); }
 }
 
 // Kompatibel: pemanggilan lama (1 invoice) tetap jalan
@@ -46952,9 +47161,9 @@ async function hapusStockItem(idx) {
   try {
     const data = await postJson({ aksi: 'hapus_stock', row: item.row, email: currentUserEmail() });
     if (data.success) { stockOpnameList.splice(idx, 1); renderStockList(); playBeep(); }
-    else { alert('Gagal menghapus: ' + (data.error || 'error tidak diketahui')); playToot(); }
+    else { omniNotif('Gagal menghapus: ' + (data.error || 'error tidak diketahui')); playToot(); }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
     playToot();
   }
 }
@@ -47062,7 +47271,7 @@ el('cari-pembeli-input').addEventListener('input', () => {
   clearTimeout(cariPembeliTimer);
   const query = el('cari-pembeli-input').value.trim();
   if (query.length < 2) { el('cari-pembeli-hasil').innerHTML = ''; return; }
-  cariPembeliTimer = setTimeout(() => cariPembeli(query), 350);
+  cariPembeliTimer = setTimeout(() => cariPembeli(query), OMNI_JEDA_CARI_SERVER_MS);
 });
 
 async function cariPembeli(query) {
@@ -47516,7 +47725,7 @@ async function invoProses() {
             e.noInvoice = r.noInvoice;
             if (invoPreviewId === e.id && el('screen-invoice-preview') && el('screen-invoice-preview').style.display !== 'none') {
               invoTampilkan(e);
-              alert('No Invoice disesuaikan sistem menjadi ' + r.noInvoice + ' (kode ' + lama + ' sudah terpakai). Kalau sudah terlanjur dicetak, cetak ulang ya.');
+              omniNotif('No Invoice disesuaikan sistem menjadi ' + r.noInvoice + ' (kode ' + lama + ' sudah terpakai). Kalau sudah terlanjur dicetak, cetak ulang ya.');
             }
           }
         } else if (r && r.duplikat) {
@@ -47973,7 +48182,7 @@ function dapatkanInfoOrderUntukFile() {
 
 async function simpanSebagaiGambar(wrapperId, namaFile, namaFileKustom) {
   if (!window.html2canvas) {
-    alert('Library gagal dimuat, cek koneksi internet lalu coba lagi.');
+    omniNotif('Library gagal dimuat, cek koneksi internet lalu coba lagi.');
     return;
   }
   const wrapper = el(wrapperId);
@@ -48008,7 +48217,7 @@ async function simpanSebagaiGambar(wrapperId, namaFile, namaFileKustom) {
     }
     playBeep();
   } catch (err) {
-    alert('Gagal menyimpan gambar: ' + err.message);
+    omniNotif('Gagal menyimpan gambar: ' + err.message);
   }
 }
 
@@ -48736,7 +48945,7 @@ async function bukaDetailPesanan(row) {
     pmSkeletonTutup(el('pm-detail-skel'));
     if (!data.success) {
       if (cache) return;
-      alert('Gagal memuat detail: ' + (data.error || 'error tidak diketahui'));
+      omniNotif('Gagal memuat detail: ' + (data.error || 'error tidak diketahui'));
       kembaliKeDaftarPesanan();
       return;
     }
@@ -48747,7 +48956,7 @@ async function bukaDetailPesanan(row) {
     el('screen-pesanan-detail').classList.remove('pm-memperbarui', 'pm-memuat');
     pmSkeletonTutup(el('pm-detail-skel'));
     if (cache) return;
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
     kembaliKeDaftarPesanan();
   }
 }
@@ -48913,11 +49122,11 @@ async function batalDariDetail() {
       playToot();
       bukaDetailPesanan(currentDetailRow); // refresh tampilan status
     } else {
-      alert('Gagal: ' + (data.error || 'error tidak diketahui'));
+      omniNotif('Gagal: ' + (data.error || 'error tidak diketahui'));
       playToot();
     }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
     playToot();
   }
 }
@@ -49076,9 +49285,9 @@ async function editKontakKurir(row, namaLama, agenLama, noHpLama) {
   try {
     const data = await postJson({ aksi: 'simpan_kontak_kurir', row: row, namaKurir: namaBaru.trim(), namaAgen: agenBaru.trim(), noHp: noHpBaru.trim(), email: currentUserEmail() });
     if (data.success) { playBeep(); fetchKontakKurir(); }
-    else { alert('Gagal: ' + (data.error || 'error tidak diketahui')); }
+    else { omniNotif('Gagal: ' + (data.error || 'error tidak diketahui')); }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
@@ -49087,9 +49296,9 @@ async function hapusKontakKurir(row) {
   try {
     const data = await postJson({ aksi: 'hapus_kontak_kurir', row: row, email: currentUserEmail() });
     if (data.success) { playToot(); fetchKontakKurir(); }
-    else { alert('Gagal: ' + (data.error || 'error tidak diketahui')); }
+    else { omniNotif('Gagal: ' + (data.error || 'error tidak diketahui')); }
   } catch (err) {
-    alert('Gagal terhubung: ' + err.message);
+    omniNotif('Gagal terhubung: ' + err.message);
   }
 }
 
