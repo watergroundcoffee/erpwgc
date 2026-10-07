@@ -6798,6 +6798,215 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
     .web-shell, #app-web .web-shell.web-sidebar-lipat:not(.web-menu-top) .web-nav-group .web-submenu-wrap { transition: none !important; }
   }
   /* ================================ AKHIR PART 3 ================================ */
+
+  /* =====================================================================================
+     PEMBARUAN v2026.10e - Action Log dock terpadu · Instant Action · Layar Menunggu Approval ·
+     Hierarki Beranda · HPP & Margin per Channel · Reimburse Staf · Validasi Biaya Operasional
+     ===================================================================================== */
+  /* ----- Action Log: 1 baris di bawah layar, memuai ke atas ----- */
+  .lt-dock {
+    position: fixed; left: var(--lt-kiri, 0px); right: 0; bottom: 0; z-index: 2950;
+    --lt-bg: #ffffff; --lt-garis: #e2e5ea; --lt-teks: #1a1d23; --lt-redup: #6b7280; --lt-aksen: #4f46e5;
+    --lt-ok: #16a34a; --lt-gagal: #d9524f; --lt-info: #2563eb;
+    color: var(--lt-teks); font-size: 12.5px;
+    transition: left .2s ease;
+  }
+  body.tema-gelap .lt-dock, .lt-dock.mode-mobile { --lt-bg: #1a2029; --lt-garis: #2a323e; --lt-teks: #eef1f5; --lt-redup: #a3adbb; --lt-aksen: #8b8cf6; }
+  body.tema-terang .lt-dock.mode-mobile { --lt-bg: #ffffff; --lt-garis: #e2e5ea; --lt-teks: #1a1d23; --lt-redup: #6b7280; --lt-aksen: #4f46e5; }
+  .lt-dock[hidden] { display: none !important; }
+  .lt-bar {
+    width: 100%; min-height: 34px; display: flex; align-items: center; gap: 10px;
+    padding: 0 14px env(safe-area-inset-bottom, 0px); box-sizing: border-box;
+    background: var(--lt-bg); color: var(--lt-teks); border: 0; border-top: 1px solid var(--lt-garis);
+    font: inherit; font-size: 12px; text-align: left; cursor: pointer; position: relative; z-index: 2;
+  }
+  .lt-bar:hover { background: color-mix(in srgb, var(--lt-aksen) 5%, var(--lt-bg)); }
+  .lt-bar:focus-visible { outline: 2px solid var(--lt-aksen); outline-offset: -2px; }
+  .lt-bar-status { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--lt-redup); opacity: .55; }
+  .lt-dock[data-status="proses"] .lt-bar-status { background: var(--lt-aksen); opacity: 1; animation: ltDenyut 1.1s ease-in-out infinite; }
+  .lt-dock[data-status="ok"] .lt-bar-status { background: var(--lt-ok); opacity: 1; }
+  .lt-dock[data-status="gagal"] .lt-bar-status { background: var(--lt-gagal); opacity: 1; }
+  .lt-dock[data-status="info"] .lt-bar-status { background: var(--lt-info); opacity: 1; }
+  .lt-bar-teks { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lt-dock[data-status="diam"] .lt-bar-teks { color: var(--lt-redup); }
+  .lt-dock[data-status="gagal"] .lt-bar-teks { color: var(--lt-gagal); font-weight: 600; }
+  .lt-bar-hitung { flex: none; font-size: 11px; color: var(--lt-redup); font-variant-numeric: tabular-nums; }
+  .lt-bar-panah { flex: none; font-size: 11px; color: var(--lt-redup); transition: transform .25s ease; }
+  .lt-dock.terbuka .lt-bar-panah { transform: rotate(180deg); }
+  .lt-dock.kilat .lt-bar { animation: ltKilat 1s ease; }
+  .lt-dock.kilat[data-status="gagal"] .lt-bar { animation: ltKilatGagal 1s ease; }
+  .lt-panel {
+    position: absolute; left: 0; right: 0; bottom: 100%; z-index: 1;
+    display: flex; flex-direction: column; max-height: 0; opacity: 0; overflow: hidden;
+    background: var(--lt-bg); border-top: 1px solid var(--lt-garis); box-shadow: 0 -14px 32px rgba(15, 23, 42, .14);
+    transition: max-height .3s cubic-bezier(.2, .8, .2, 1), opacity .2s ease;
+  }
+  .lt-dock.terbuka .lt-panel { max-height: min(62vh, 480px); opacity: 1; }
+  .lt-panel-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--lt-garis); }
+  .lt-panel-head b { font-size: 13px; }
+  .lt-panel-ringkas { flex: 1; font-size: 11.5px; color: var(--lt-redup); }
+  .lt-bersih { font: inherit; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--lt-garis); background: transparent; color: var(--lt-teks); cursor: pointer; }
+  .lt-bersih:hover { border-color: var(--lt-aksen); color: var(--lt-aksen); }
+  .lt-isi { flex: 1; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
+  .lt-kosong { display: none; padding: 18px; text-align: center; color: var(--lt-redup); font-size: 12px; }
+  .lt-dock.kosong .lt-kosong { display: block; }
+  .lt-dock .log-item { border-bottom: 1px solid var(--lt-garis); padding: 9px 14px; color: var(--lt-teks); background: transparent; }
+  .lt-dock .log-item:last-child { border-bottom: 0; }
+  .lt-dock .log-teks small { color: var(--lt-redup); white-space: normal; }
+  .lt-dock .log-item.gagal { background: color-mix(in srgb, var(--lt-gagal) 7%, transparent); }
+  .lt-dock .log-item.gagal .log-teks small { color: var(--lt-gagal); }
+  .lt-dock .log-item.ok .log-ikon { background: color-mix(in srgb, var(--lt-ok) 16%, transparent); color: var(--lt-ok); }
+  .lt-dock .log-item.info .log-ikon { background: color-mix(in srgb, var(--lt-info) 14%, transparent); color: var(--lt-info); font-style: italic; }
+  .lt-dock .log-aksi { flex-direction: row; flex-wrap: wrap; }
+  .lt-dock .log-aksi button { background: var(--lt-bg); color: var(--lt-teks); border-color: var(--lt-garis); }
+  .lt-dock .log-tutup { color: var(--lt-redup); }
+  .lt-jam { flex: none; font-size: 11px; color: var(--lt-redup); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  @keyframes ltDenyut { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.65); opacity: .55; } }
+  @keyframes ltKilat { 0% { background: color-mix(in srgb, var(--lt-aksen) 16%, var(--lt-bg)); } 100% { background: var(--lt-bg); } }
+  @keyframes ltKilatGagal { 0% { background: color-mix(in srgb, var(--lt-gagal) 20%, var(--lt-bg)); } 100% { background: var(--lt-bg); } }
+  @media (prefers-reduced-motion: reduce) { .lt-panel, .lt-bar-panah, .lt-dock { transition: none; } .lt-dock .lt-bar, .lt-bar-status { animation: none !important; } }
+  body.lt-dock-aktif #app-web .web-main { padding-bottom: 64px !important; }
+  body.lt-dock-aktif #app main { padding-bottom: 52px; }
+  body.lt-dock-aktif .oc-fab { margin-bottom: 36px; }
+  /* Notifikasi singkat kini tampil di Action Log -> toast lama tidak dipakai */
+  #pgr-toast { display: none !important; }
+  .log-tindakan { display: none !important; }
+
+  /* ----- Instant Action (simpan di latar) ----- */
+  .ia-lencana { display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; vertical-align: 1px; white-space: nowrap; }
+  .ia-lencana.simpan { color: var(--web-text-dim); background: rgba(148, 163, 184, .16); }
+  .ia-lencana.gagal { color: #b42318; background: rgba(217, 82, 79, .12); border: 1px solid rgba(217, 82, 79, .35); white-space: normal; }
+  body.tema-gelap .ia-lencana.gagal { color: #fca5a5; }
+  .ia-baris-simpan { opacity: .78; }
+  .ia-baris-gagal { position: relative; border-radius: 8px; background: rgba(217, 82, 79, .08); box-shadow: inset 3px 0 0 #d9524f; padding-left: 8px !important; animation: iaGagalPudar 5s linear forwards; }
+  @keyframes iaGagalPudar { 0%, 80% { background: rgba(217, 82, 79, .10); } 100% { background: rgba(217, 82, 79, 0); } }
+  @media (prefers-reduced-motion: reduce) { .ia-baris-gagal { animation: none; } }
+  .ia-tombol:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ----- Layar Menunggu Approval Admin ----- */
+  body.omni-tunggu-approval { overflow: hidden; }
+  #omni-tunggu {
+    position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px; overflow-y: auto; background: #1E2B24; color: #1E2B24;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  }
+  #omni-tunggu[hidden] { display: none; }
+  .otg-kartu { width: 100%; max-width: 440px; background: #ffffff; border-radius: 22px; padding: 30px 28px 24px; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); text-align: left; }
+  .otg-atas { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .otg-logo { width: 40px; height: 40px; border-radius: 10px; object-fit: contain; background: #2A443B; padding: 4px; }
+  .otg-merek { font-size: 13px; font-weight: 800; letter-spacing: .02em; color: #2A443B; }
+  .otg-merek span { display: block; font-size: 11.5px; font-weight: 500; color: #5b6b62; letter-spacing: 0; }
+  .otg-jam { width: 54px; height: 54px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: #2A443B; color: #C8A84B; font-size: 26px; margin-bottom: 16px; }
+  .otg-jam span { display: inline-block; animation: otgBalik 3s ease-in-out infinite; }
+  @keyframes otgBalik { 0%, 40% { transform: rotate(0); } 50%, 90% { transform: rotate(180deg); } 100% { transform: rotate(360deg); } }
+  #otg-judul { font-size: 22px; line-height: 1.25; font-weight: 800; margin: 0 0 8px; color: #1E2B24; letter-spacing: -.01em; }
+  .otg-teks { font-size: 13.5px; line-height: 1.6; color: #4a5a51; margin: 0 0 18px; }
+  .otg-akun { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #dfe5e1; border-radius: 14px; margin-bottom: 18px; }
+  .otg-inisial { width: 38px; height: 38px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; background: #e7ede9; color: #2A443B; font-weight: 800; font-size: 15px; }
+  .otg-akun b { display: block; font-size: 14px; color: #1E2B24; }
+  .otg-akun span { display: block; font-size: 12px; color: #5b6b62; word-break: break-all; }
+  .otg-langkah { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: otg; }
+  .otg-langkah li { counter-increment: otg; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #7a8a81; }
+  .otg-langkah li::before { content: counter(otg); width: 22px; height: 22px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; border: 1.5px solid #cdd6d0; color: #7a8a81; }
+  .otg-langkah li.selesai { color: #2A443B; }
+  .otg-langkah li.selesai::before { content: '✓'; background: #2A443B; border-color: #2A443B; color: #fff; }
+  .otg-langkah li.aktif { color: #1E2B24; font-weight: 700; }
+  .otg-langkah li.aktif::before { border-color: #C8A84B; color: #8a6d1a; background: #fbf5e3; }
+  .otg-status { font-size: 12px; color: #5b6b62; background: #f2f5f3; border-radius: 10px; padding: 8px 11px; margin-bottom: 16px; }
+  .otg-status.ok { background: #e6f4ea; color: #1e6b3a; font-weight: 700; }
+  .otg-status.err { background: #fdecec; color: #a02c2c; }
+  .otg-aksi { display: flex; gap: 8px; flex-wrap: wrap; }
+  .otg-btn { flex: 1; min-width: 140px; height: 44px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; border: 1.5px solid #cdd6d0; background: #fff; color: #1E2B24; }
+  .otg-btn.utama { background: #2A443B; border-color: #2A443B; color: #C8A84B; }
+  .otg-btn:hover { filter: brightness(1.06); }
+  .otg-btn:focus-visible { outline: 3px solid #C8A84B; outline-offset: 2px; }
+  .otg-btn:disabled { opacity: .6; cursor: progress; }
+  .otg-bantuan { display: block; margin-top: 14px; font-size: 11.5px; color: #7a8a81; line-height: 1.5; }
+  @media (prefers-reduced-motion: reduce) { .otg-jam span { animation: none; } }
+
+  /* ----- Beranda: Laporan Bisnis Harian & Metrik di posisi teratas ----- */
+  .ov-judul-laporan .app-header-submenu { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+  .ov-judul-sub { font-size: 12px; color: var(--web-text-dim); margin-top: 3px; }
+
+  /* ----- Laporan Penjualan: HPP & margin per channel ----- */
+  .lmk[hidden] { display: none; }
+  .lmk { margin-bottom: 18px; }
+  .lmk-kepala { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .lmk-kepala h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--web-text); }
+  .lmk-kepala p { margin: 3px 0 0; font-size: 12px; color: var(--web-text-dim); max-width: 60ch; }
+  .lmk-periode { display: flex; gap: 6px; flex-wrap: wrap; }
+  .lmk-ringkas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .lmk-stat { border: 1px solid var(--web-border); border-radius: 12px; padding: 10px 12px; }
+  .lmk-stat small { display: block; font-size: 11.5px; color: var(--web-text-dim); }
+  .lmk-stat b { display: block; font-size: 18px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .lmk-stat span { display: block; font-size: 11px; color: var(--web-text-dim); margin-top: 1px; }
+  .lmk-stat.laba b { color: #047857; } .lmk-stat.rugi b { color: #b42318; }
+  body.tema-gelap .lmk-stat.laba b { color: #6ee7b7; } body.tema-gelap .lmk-stat.rugi b { color: #fca5a5; }
+  .lmk-badan { display: grid; grid-template-columns: minmax(240px, 0.9fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+  .lmk-grafik { position: relative; min-height: 220px; }
+  .lmk-tabel { font-size: 12.5px; }
+  .lmk-tabel th.ka, .lmk-tabel td.ka { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lmk-tabel tfoot td { font-weight: 800; border-top: 2px solid var(--web-border); }
+  .lmk-kanal { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; white-space: nowrap; }
+  .lmk-kanal i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .lmk-margin { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+  .lmk-margin .bar { flex: 1; height: 6px; border-radius: 99px; background: var(--web-border); overflow: hidden; }
+  .lmk-margin .bar i { display: block; height: 100%; border-radius: 99px; }
+  .lmk-margin b { font-size: 12px; min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
+  .lmk-sub { display: block; font-size: 10.5px; color: var(--web-text-dim); font-weight: 400; }
+  .lmk-redup td { color: var(--web-text-dim); }
+  .lmk-memuat { text-align: center; color: var(--web-text-dim); padding: 18px !important; }
+  .lmk.memuat .lmk-ringkas, .lmk.memuat .lmk-badan { opacity: .55; transition: opacity .2s; }
+  .lmk-catatan { margin-top: 12px; font-size: 11.5px; color: var(--web-text-dim); line-height: 1.55; }
+  .lmk-catatan .peringatan { display: block; margin-top: 6px; color: #92400e; background: rgba(245, 158, 11, .08); border: 1px solid rgba(245, 158, 11, .28); border-radius: 9px; padding: 6px 9px; }
+  @media (max-width: 1100px) { .lmk-badan { grid-template-columns: 1fr; } .lmk-ringkas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  /* ----- Biaya operasional: field wajib + tombol Reimburse staf ----- */
+  .fin2-wajib { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; font-style: normal; color: #b45309; background: rgba(245, 158, 11, .12); vertical-align: 1px; }
+  .fin2-wajib-kosong { border-color: #d9524f !important; box-shadow: 0 0 0 3px rgba(217, 82, 79, .15) !important; }
+  .dok-zona.fin2-wajib-kosong { border-style: dashed !important; }
+  .fin2-rembes-aksi { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .fin2-rembes-aksi small { flex: 1; min-width: 200px; font-size: 11.5px; color: var(--fin-slate-5, #64748b); line-height: 1.45; }
+  .fin2-rembes-tombol { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; border: 1.5px solid var(--fin-aksen-garis, #c7d2fe); background: var(--web-panel, #fff); color: var(--gm-aksen-teks, #4338ca); transition: background .15s ease, color .15s ease; }
+  .fin2-rembes-tombol:hover { background: var(--fin-aksen-lembut, #eef2ff); }
+  .fin2-rembes-tombol.aktif { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+  .fin2-rembes-tombol:focus-visible { outline: 3px solid rgba(79, 70, 229, .35); outline-offset: 2px; }
+  .fin2-rembes-tombol.kecil { padding: 4px 10px; font-size: 12px; border-radius: 8px; }
+  .fin2-rembes .fin2-rembes-isi { margin-top: 10px; }
+  .fbm-host .fin2-rembes-tombol { background: transparent; }
+
+  /* ----- Kelola Staff: Hutang Reimburse Staf ----- */
+  .ksh-banner { display: flex; width: 100%; align-items: center; gap: 10px; margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(245, 158, 11, .35); background: rgba(245, 158, 11, .08); color: #92400e; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  .ksh-banner[hidden] { display: none; }
+  .ksh-banner b { font-weight: 800; }
+  .ksh-banner:hover { border-color: #f59e0b; }
+  body.tema-gelap .ksh-banner { color: #fcd34d; }
+  .ksh-ringkas { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .ksh-ringkas .lmk-stat { min-width: 180px; flex: 1; background: var(--web-panel); }
+  .ksh-daftar { display: flex; flex-direction: column; gap: 12px; }
+  .ksh-orang { background: var(--web-panel); border: 1px solid var(--web-border); border-radius: 14px; padding: 14px 16px; }
+  .ksh-atas { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .ksh-avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; background: rgba(79, 70, 229, .12); color: #4338ca; }
+  body.tema-gelap .ksh-avatar { color: #c7d2fe; }
+  .ksh-nama { flex: 1; min-width: 160px; }
+  .ksh-nama b { display: block; font-size: 14px; }
+  .ksh-nama small { display: block; font-size: 11.5px; color: var(--web-text-dim); }
+  .ksh-jml { text-align: right; }
+  .ksh-jml b { display: block; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ksh-jml small { display: block; font-size: 11px; color: var(--web-text-dim); }
+  .ksh-orang.lunas .ksh-jml b { color: #047857; }
+  .ksh-aksi { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .ksh-aksi button, .ksh-tbl button { font: inherit; font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 8px; border: 1px solid var(--web-border); background: transparent; color: var(--web-text); cursor: pointer; }
+  .ksh-aksi button.utama { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+  .ksh-aksi button:disabled, .ksh-tbl button:disabled { opacity: .5; cursor: not-allowed; }
+  .ksh-tbl { margin-top: 10px; font-size: 12px; }
+  .ksh-tbl td.ka, .ksh-tbl th.ka { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ksh-pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .ksh-pill.belum { color: #b45309; background: rgba(245, 158, 11, .14); }
+  .ksh-pill.sudah { color: #047857; background: rgba(16, 185, 129, .12); }
+  .ksh-tbl tr.ia-baris-gagal td { background: rgba(217, 82, 79, .08); }
+  .kst-hutang { margin-top: 8px; font-size: 12px; padding: 6px 10px; border-radius: 9px; background: rgba(245, 158, 11, .10); color: #92400e; cursor: pointer; }
+  body.tema-gelap .kst-hutang { color: #fcd34d; }
 </style>
 </head>
 <body>
@@ -7969,6 +8178,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <a href="#staff/daftar" class="web-nav-item" data-tab="staff" onclick="toggleNavGroup(this); kstBukaSubMenu('daftar')">Kelola Staff</a>
           <div class="web-submenu-wrap">
             <a href="#staff/daftar" class="web-nav-item web-nav-sub" data-kstsub="daftar" onclick="kstBukaSubMenu('daftar')">Daftar Staff</a>
+            <a href="#staff/hutang" class="web-nav-item web-nav-sub" data-kstsub="hutang" onclick="kstBukaSubMenu('hutang')">Hutang Reimburse Staf</a>
             <a href="#staff/approval" class="web-nav-item web-nav-sub" data-kstsub="approval" onclick="kstBukaSubMenu('approval')">Persetujuan Staff Baru</a>
             <a href="#staff/performa" class="web-nav-item web-nav-sub" data-kstsub="performa" onclick="kstBukaSubMenu('performa')">Analisa Performa Staff</a>
             <a href="#staff/role" class="web-nav-item web-nav-sub" data-kstsub="role" onclick="kstBukaSubMenu('role')">Tambah Role &amp; Wewenang</a>
@@ -8106,14 +8316,9 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               </div>
             </div>
           </div>
-          <div class="app-header-hierarki">
-            <div class="app-header-submenu">Ringkasan Aktivitas</div>
-          </div>
-          <!-- 📋 TUGAS HARIAN - paling atas, paling nonjol (ala Beranda Seller Center) -->
-          <div class="web-panel" style="margin-bottom:16px;">
-            <div class="web-panel-header"><span>📋 Tugas Harian</span></div>
-            <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:10px;">Ini tugas-tugas utama yang perlu diselesaikan hari ini.</div>
-            <div id="ov-tugas-harian-list" style="display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto;"></div>
+          <div class="app-header-hierarki ov-judul-laporan">
+            <div class="app-header-submenu">Laporan Bisnis Harian &amp; Metrik</div>
+            <div class="ov-judul-sub">Omzet, pesanan &amp; tren semua channel - pilih periode di bawah</div>
           </div>
 
           <!-- SELEKTOR RENTANG TANGGAL (ala Shopee) + Date Range Picker kalender -->
@@ -8201,6 +8406,13 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               </table>
             </div>
             <div class="web-placeholder" id="ov-produk-terlaris-empty" style="display:none;">Belum ada penjualan di periode ini.</div>
+          </div>
+
+          <!-- 📋 TUGAS HARIAN - di bawah grafik & metrik (hierarki: laporan bisnis lebih dulu) -->
+          <div class="web-panel ov-tugas-panel" style="margin-top:14px;">
+            <div class="web-panel-header"><span>📋 Tugas Harian</span></div>
+            <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:10px;">Tugas utama yang perlu diselesaikan hari ini.</div>
+            <div id="ov-tugas-harian-list" style="display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto;"></div>
           </div>
         </div>
 
@@ -8516,6 +8728,35 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
 
           <div class="data-segar" id="dashpen-segar" aria-live="polite"></div>
           <div id="dashpen-pill-row" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px;"></div>
+
+          <!-- HPP & MARGIN PER CHANNEL (Shopee / Tokopedia / TikTok Shop / PO Sales) -->
+          <section class="web-panel lmk" id="lmk-panel" hidden aria-labelledby="lmk-judul">
+            <div class="lmk-kepala">
+              <div>
+                <h3 id="lmk-judul">HPP &amp; margin per channel</h3>
+                <p>Berapa modal barang (HPP) yang terpakai di tiap platform, dan berapa yang tersisa sebagai laba.</p>
+              </div>
+              <div class="lmk-periode" role="group" aria-label="Periode">
+                <button type="button" class="web-chart-toggle-btn active" data-lmk="bulan" onclick="lmkPilih('bulan')">Bulan ini</button>
+                <button type="button" class="web-chart-toggle-btn" data-lmk="7" onclick="lmkPilih('7')">7 hari</button>
+                <button type="button" class="web-chart-toggle-btn" data-lmk="30" onclick="lmkPilih('30')">30 hari</button>
+                <button type="button" class="web-chart-toggle-btn" data-lmk="lalu" onclick="lmkPilih('lalu')">Bulan lalu</button>
+                <button type="button" class="web-chart-toggle-btn" onclick="lmkMuat(true)" title="Hitung ulang dari data terbaru">↻</button>
+              </div>
+            </div>
+            <div class="lmk-ringkas" id="lmk-ringkas"></div>
+            <div class="lmk-badan">
+              <div class="lmk-grafik"><canvas id="lmk-chart" aria-label="Komposisi omzet per channel: HPP, potongan marketplace, laba"></canvas></div>
+              <div class="web-table-wrap lmk-tabel-wrap">
+                <table class="web-table lmk-tabel">
+                  <thead><tr><th>Channel</th><th class="ka">Pesanan</th><th class="ka">Omzet</th><th class="ka">HPP</th><th class="ka">Laba kotor</th><th>Margin kotor</th><th class="ka">Potongan MP</th><th class="ka">Laba bersih</th><th class="ka">Margin bersih</th></tr></thead>
+                  <tbody id="lmk-body"><tr><td colspan="9" class="lmk-memuat">Menghitung HPP per channel…</td></tr></tbody>
+                  <tfoot id="lmk-foot"></tfoot>
+                </table>
+              </div>
+            </div>
+            <div class="lmk-catatan" id="lmk-catatan"></div>
+          </section>
 
 
           <div style="display:grid; grid-template-columns: 1.1fr 1fr; gap:16px; margin-bottom:16px;">
@@ -9826,6 +10067,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <div class="app-header-hierarki">
             <div class="app-header-submenu">Semua Staff</div>
           </div>
+          <button type="button" class="ksh-banner" id="ksh-banner" hidden onclick="kstBukaSubMenu('hutang')"></button>
           <!-- CARD VIEW (dulu tabel) - dirender kstRenderKartuStaff() -->
           <div class="kst-grid" id="kst-staff-body"></div>
           <div class="web-placeholder" id="kst-staff-empty" style="display:none;">Belum ada staff terdaftar.</div>
@@ -9855,6 +10097,15 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
         </div>
 
         <!-- SUB-MENU: PERSETUJUAN STAFF BARU -->
+        <!-- SUB-MENU: HUTANG REIMBURSE STAF (biaya operasional yang ditalangi staf) -->
+        <div id="kst-view-hutang" style="display:none;">
+          <div class="app-header-hierarki">
+            <div class="app-header-submenu">Hutang Reimburse Staf</div>
+          </div>
+          <div class="ksh-ringkas" id="ksh-ringkas"></div>
+          <div class="ksh-daftar" id="ksh-daftar"><div class="kst-grid-pesan">Memuat hutang reimburse…</div></div>
+        </div>
+
         <div id="kst-view-approval" style="display:none;">
           <div class="web-panel-header" style="margin-bottom:10px;"><span>🔔 Menunggu Persetujuan</span></div>
           <div id="kst-pending-list" style="display:flex; flex-direction:column; gap:10px;"></div>
@@ -10227,21 +10478,30 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
                 </div>
               </div>
 
-              <div class="fin2-label">No. Nota / Invoice <em>(disarankan - nota yang sama dengan nominal sama otomatis ditolak)</em></div>
-              <input id="fin2-b-nota" class="web-form-input" maxlength="60" autocomplete="off" placeholder="Contoh: INV/2026/0012 atau no struk"
-                style="text-transform:uppercase;" onkeydown="if(event.key==='Enter'){event.preventDefault(); fin2SimpanBiaya();}" />
+              <div class="fin2-label">ID Pembayaran / No. Nota <b class="fin2-wajib">wajib</b> <em>(nota yang sama dengan nominal sama otomatis ditolak)</em></div>
+              <input id="fin2-b-nota" class="web-form-input" maxlength="60" autocomplete="off" placeholder="Contoh: INV/2026/0012, ID transaksi bank, atau no struk" required aria-required="true"
+                style="text-transform:uppercase;" oninput="this.classList.remove('fin2-wajib-kosong')" onkeydown="if(event.key==='Enter'){event.preventDefault(); fin2SimpanBiaya();}" />
+
+              <div class="fin2-label">Nama Merchant <b class="fin2-wajib">wajib</b> <em>(tempat / penjual yang dibayar)</em></div>
+              <input id="fin2-b-merchant" class="web-form-input" maxlength="80" autocomplete="off" list="fin2-merchant-daftar" placeholder="Contoh: PLN, Tokopedia, TB Sinar Jaya" required aria-required="true"
+                oninput="this.classList.remove('fin2-wajib-kosong')" onkeydown="if(event.key==='Enter'){event.preventDefault(); fin2SimpanBiaya();}" />
+              <datalist id="fin2-merchant-daftar"></datalist>
 
               <div class="fin2-label">Keterangan <em>(opsional)</em></div>
               <input id="fin2-b-ket" class="web-form-input" maxlength="300" placeholder="Contoh: token listrik gudang 100 kWh" onchange="fin2CekWajibReimburse(false)"
                 onkeydown="if(event.key==='Enter'){event.preventDefault(); fin2SimpanBiaya();}" />
 
               <div class="fin2-rembes" id="fin2-rembes">
-                <div class="fin2-rembes-baris" onclick="fin2ToggleRembes()">
-                  <div><b>💳 Rembes / Reimburse (ditalangi uang atau CC pribadi)</b><small>Wajib untuk semua pembayaran pakai Kartu Kredit pribadi (termasuk PPh di Tokopedia) - dicatat sebagai utang perusahaan ke penalang</small></div>
-                  <button type="button" class="fin2-saklar" id="fin2-rembes-saklar" role="switch" aria-checked="false" aria-label="Biaya ini rembes" onclick="event.stopPropagation(); fin2ToggleRembes()"></button>
+                <div class="fin2-rembes-aksi">
+                  <button type="button" class="fin2-rembes-tombol" id="fin2-rembes-tombol" aria-expanded="false" aria-controls="fin2-rembes-isi" onclick="fin2ToggleRembes()">
+                    <span class="fin2-rembes-tombol-ikon" aria-hidden="true">💳</span><span class="fin2-rembes-tombol-teks">Ditalangi staf (Reimburse)</span>
+                  </button>
+                  <small>Uang / kartu pribadi staf dipakai dulu → tercatat sebagai hutang perusahaan ke staf di menu Kelola Staff.</small>
                 </div>
+                <span id="fin2-rembes-saklar" aria-checked="false" hidden></span>
                 <div class="fin2-rembes-isi" id="fin2-rembes-isi" hidden>
-                  <input id="fin2-rembes-nama" class="web-form-input" list="fin2-rembes-daftar" maxlength="60" autocomplete="off" placeholder="Siapa yang menalangi? mis. Hermawan" style="margin:0;" />
+                  <label class="fin2-label" for="fin2-rembes-nama" style="margin-top:0;">Nama staf yang menalangi <b class="fin2-wajib">wajib</b></label>
+                  <input id="fin2-rembes-nama" class="web-form-input" list="fin2-rembes-daftar" maxlength="60" autocomplete="off" placeholder="Ketik nama staf, mis. Hermawan" style="margin:0;" />
                   <datalist id="fin2-rembes-daftar"></datalist>
                   <div class="fin2-rembes-nama" id="fin2-rembes-chip"></div>
                 </div>
@@ -10252,7 +10512,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
                 <div class="fin2-rembes-info" id="fin2-rembes-info" hidden></div>
               </div>
 
-              <div class="fin2-label">Dokumen / struk <em>(opsional)</em></div>
+              <div class="fin2-label">Foto Bukti <b class="fin2-wajib">wajib</b> <em>(struk, invoice, atau screenshot pembayaran)</em></div>
               <div class="fin2-foto-struk">
                 <label><input type="file" accept="image/*" capture="environment" onchange="fin2FotoStruk(this)" />📷 Foto Struk</label>
                 <small>Foto miring otomatis dirapikan jadi dokumen lurus (auto-crop). Ketuk ✂ Atur untuk menyesuaikan.</small>
@@ -19806,6 +20066,8 @@ async function pgrSalinTeks(teks, tombol, diam) {
 }
 
 function pgrToast(pesan) {
+  // Semua notifikasi singkat terpusat di Action Log (dock bawah)
+  try { if (typeof logTindakan !== 'undefined' && logTindakan && logTindakan.info) { logTindakan.info(pesan); return; } } catch (e) { /* Action Log belum siap -> toast lama */ }
   let t = el('pgr-toast');
   if (!t) {
     t = document.createElement('div');
@@ -25890,10 +26152,14 @@ async function fin2SimpanBiaya() {
   if (!tanggal) { st.className = 'status-text err'; st.textContent = '✗ Tanggal belum diisi'; return; }
   const keterangan = el('fin2-b-ket').value.trim();
   const noNota = el('fin2-b-nota').value.replace(/\s+/g, ' ').trim().toUpperCase();
+  const merchant = (el('fin2-b-merchant') ? el('fin2-b-merchant').value : '').replace(/\s+/g, ' ').trim();
+  // VALIDASI WAJIB: ID Pembayaran, Nama Merchant & Foto Bukti (anti data terbaca ganda)
+  const kurangWajib = fin2ValidasiWajib_(noNota, merchant);
+  if (kurangWajib) { st.className = 'status-text err'; st.textContent = '✗ ' + kurangWajib; playToot(); return; }
   fin2CekWajibReimburse(true);
   const rembes = fin2RembesAktif();
   const rembesOleh = rembes ? el('fin2-rembes-nama').value.replace(/\s+/g, ' ').trim() : '';
-  if (rembes && !rembesOleh) { st.className = 'status-text err'; st.textContent = '✗ Rembes aktif - isi nama yang menalangi dulu'; el('fin2-rembes-nama').focus(); return; }
+  if (rembes && !rembesOleh) { st.className = 'status-text err'; st.textContent = '✗ Reimburse aktif - isi nama staf yang menalangi dulu'; el('fin2-rembes-nama').classList.add('fin2-wajib-kosong'); el('fin2-rembes-nama').focus(); return; }
   // TOLAK OTOMATIS: No Nota + nominal sama persis
   const notaSama = fin2CariNotaSama(noNota, jumlah, 0);
   if (notaSama) {
@@ -25923,14 +26189,16 @@ async function fin2SimpanBiaya() {
     berkas, status: 'simpan', teks: berkas.length ? 'Upload dokumen & menyimpan…' : 'Menyimpan…',
     idPermintaan: buatIdPermintaan('fin-'),
     tetapSimpan: mirip.length > 0, // sudah dikonfirmasi user -> server tidak menahan lagi
-    rembes, rembesOleh
+    rembes, rembesOleh, merchant
   };
+  fin2IngatMerchant_(merchant);
   if (rembes) { try { localStorage.setItem('fin2_rembes_terakhir', rembesOleh); } catch (e) { } fin2SetRembes(false); }
   fin2Antre.push(entri);
   fin2.animBaru.add('a:' + entri.tmp);
 
   // Form langsung kosong -> bisa input biaya berikutnya
   el('fin2-b-jumlah').value = ''; el('fin2-b-ket').value = ''; el('fin2-b-nota').value = '';
+  if (el('fin2-b-merchant')) el('fin2-b-merchant').value = '';
   dokReset('fin2-dok-zona'); el('fin2-b-ai').style.display = 'none'; el('fin2-b-ai-status').textContent = '';
   el('fin2-sp-hasil').classList.remove('tampil'); el('fin2-sp-hasil').innerHTML = '';
   if (katBaru) { fin2.katUsulanBaru = ''; fin2.katDipilih = fin2.kategori[0] ? fin2.kategori[0].akun : ''; fin2RenderKategori(); }
@@ -25954,7 +26222,7 @@ async function fin2JalankanSimpan(entri) {
     logTindakan.ubah(entri.logId, 'proses', 'Menyimpan ke server…');
     const r = await postJsonTulis({
       aksi: 'fin_catat_biaya', akun: entri.akunKirim, kategoriBaru: entri.katBaru, jumlah: entri.jumlah, tanggal: entri.tanggal,
-      keterangan: entri.keterangan, noNota: entri.noNota, dokumen: entri.berkas.filter(f => f.status === 'ok').map(f => f.url),
+      keterangan: entri.keterangan, noNota: entri.noNota, merchant: entri.merchant || '', dokumen: entri.berkas.filter(f => f.status === 'ok').map(f => f.url),
       rembes: !!entri.rembes, rembesOleh: entri.rembesOleh || '',
       idPermintaan: entri.idPermintaan, tetapSimpan: !!entri.tetapSimpan, email: currentUserEmail()
     }, 90000, { onCoba: (n, teks) => logTindakan.ubah(entri.logId, 'proses', teks) });
@@ -26087,7 +26355,8 @@ function fin2LencanaRembes(d) {
   return ` <span class="fin2-lencana rembes ${d.rembesDibayar ? 'lunas' : ''}" title="${pgrAttr(d.statusRembes || '')}">💳 ${escapeHtml(d.rembesOleh)} · ${d.rembesDibayar ? 'sudah diganti' : 'belum diganti'}</span>`;
 }
 function fin2HtmlItemBiaya(d) {
-  const nota = d.noNota ? ` · <span class="fin2-nota" title="No Nota">🧾 ${escapeHtml(d.noNota)}</span>` : '';
+  const nota = (d.noNota ? ` · <span class="fin2-nota" title="ID Pembayaran / No Nota">🧾 ${escapeHtml(d.noNota)}</span>` : '')
+    + (d.merchant ? ` · <span class="fin2-nota" title="Nama Merchant">🏪 ${escapeHtml(d.merchant)}</span>` : '');
   return `
     <div class="fin2-item-ikon">${d.ikon || '🧾'}</div>
     <div style="min-width:0;">
@@ -26113,7 +26382,7 @@ function fin2HtmlEditBiaya(d) {
       <label>Jumlah<div class="fin2-rp-wrap fin2-rp-kecil"><span>Rp</span><input type="text" inputmode="numeric" data-f="jumlah" value="${Math.round(d.jumlah).toLocaleString('id-ID')}" oninput="fin2FormatInputRp(this)" /></div></label>
       <label>No. Nota<input type="text" class="web-form-input" data-f="nota" maxlength="60" value="${pgrAttr(d.noNota || '')}" placeholder="opsional" /></label>
       <label class="lebar">Keterangan<input type="text" class="web-form-input" data-f="ket" maxlength="300" value="${pgrAttr(d.keterangan || '')}" /></label>
-      <div class="lebar fin2-edit-rembes"><label style="display:inline-flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" data-f="rembes" ${d.rembesOleh ? 'checked' : ''} onchange="this.closest('.fin2-edit-rembes').querySelector('[data-f=rembesOleh]').style.display = this.checked ? '' : 'none'" /> 💳 Rembes</label>
+      <div class="lebar fin2-edit-rembes"><input type="checkbox" data-f="rembes" ${d.rembesOleh ? 'checked' : ''} hidden /><button type="button" class="fin2-rembes-tombol kecil ${d.rembesOleh ? 'aktif' : ''}" aria-pressed="${d.rembesOleh ? 'true' : 'false'}" onclick="fin2EditRembesKlik(this)">${d.rembesOleh ? '✓ Ditalangi staf' : '💳 Ditalangi staf'}</button>
         <input type="text" class="web-form-input" data-f="rembesOleh" list="fin2-rembes-daftar" maxlength="60" value="${pgrAttr(d.rembesOleh || '')}" placeholder="Nama yang menalangi" style="margin:0; ${d.rembesOleh ? '' : 'display:none;'}" /></div>
     </div>
     <div class="fin2-edit-aksi"><span class="status-text err" data-f="status"></span><button type="button" class="fin2-link" onclick="fin2TutupEditBiaya()">Batal</button><button type="submit" class="web-btn-primary fin2-btn-kecil">Simpan perubahan</button></div>
@@ -29237,82 +29506,166 @@ async function katalogSimpanProdukBaru() {
    Entri gagal tetap tampil (dengan tombol aksi) sampai ditutup.
    ============================================================ */
 const logTindakan = (() => {
-  // TOAST KECIL di pojok kanan bawah: tiap pekerjaan = 1 kartu ringkas. Maks 3 kartu terlihat
-  // (yang gagal selalu diprioritaskan), sisanya diringkas jadi chip "+N lainnya" - area tengah layar bebas.
-  let wadah = null, nomor = 0, terbuka = false;
-  const MAKS_TAMPIL = 3;
-  const IKON = { antre: '⏳', ok: '✓', gagal: '!', info: '⏰' };
-  function dom() {
-    if (!wadah) {
-      wadah = document.createElement('div');
-      wadah.className = 'log-tindakan';
-      wadah.setAttribute('role', 'status');
-      wadah.setAttribute('aria-live', 'polite');
-      wadah.hidden = true;
-      wadah.innerHTML = '<div class="log-tindakan-head"><b>Log Tindakan</b><span class="log-tindakan-ringkas"></span></div><button type="button" class="lt-ringkas-chip" hidden></button><div class="log-tindakan-isi"></div>';
-      wadah.querySelector('.lt-ringkas-chip').onclick = () => { terbuka = !terbuka; ringkas(); };
-    }
-    // Di dalam #app-web supaya warna tema berlaku. Mode mobile (#app-web tersembunyi, mis. Input Biaya di HP) -> di body.
+  // DOCK TERPADU: 1 baris di paling bawah layar. Klik -> memuai ke atas (transisi CSS) menampilkan SEMUA
+  // proses latar (berjalan, gagal, selesai). API tetap sama: tambah / ubah / hapus (+ info untuk pesan singkat).
+  let dock = null, nomor = 0, terbuka = false, kilatTimer = null, pesanKilat = null;
+  const MAKS_RIWAYAT = 40;
+  const IKON = { antre: '⏳', ok: '✓', gagal: '!', info: 'i' };
+  function bangun() {
+    if (dock) return dock;
+    dock = document.createElement('div');
+    dock.className = 'lt-dock';
+    dock.id = 'lt-dock';
+    dock.setAttribute('role', 'region');
+    dock.setAttribute('aria-label', 'Log Tindakan');
+    dock.innerHTML = `
+      <div class="lt-panel" id="lt-panel" aria-hidden="true">
+        <div class="lt-panel-head">
+          <b>Log Tindakan</b><span class="lt-panel-ringkas"></span>
+          <button type="button" class="lt-bersih" title="Hapus entri yang sudah selesai dari daftar">Bersihkan yang selesai</button>
+        </div>
+        <div class="log-tindakan-isi lt-isi"></div>
+        <div class="lt-kosong">Belum ada proses di sesi ini.</div>
+      </div>
+      <button type="button" class="lt-bar" aria-expanded="false" aria-controls="lt-panel">
+        <span class="lt-bar-status" aria-hidden="true"></span>
+        <span class="lt-bar-teks" role="status" aria-live="polite">Tidak ada proses berjalan</span>
+        <span class="lt-bar-hitung"></span>
+        <span class="lt-bar-panah" aria-hidden="true">▴</span>
+      </button>`;
+    dock.querySelector('.lt-bar').onclick = () => setBuka(!terbuka);
+    dock.querySelector('.lt-bersih').onclick = (e) => {
+      e.stopPropagation();
+      dock.querySelectorAll('.log-item.ok, .log-item.info').forEach(it => it.remove());
+      ringkas();
+    };
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && terbuka) setBuka(false); });
+    document.addEventListener('pointerdown', e => { if (terbuka && dock && !dock.contains(e.target)) setBuka(false); });
+    document.body.appendChild(dock);
+    window.addEventListener('resize', posisi);
+    return dock;
+  }
+  function setBuka(v) {
+    terbuka = !!v;
+    const d = bangun();
+    d.classList.toggle('terbuka', terbuka);
+    d.querySelector('.lt-bar').setAttribute('aria-expanded', terbuka ? 'true' : 'false');
+    d.querySelector('.lt-panel').setAttribute('aria-hidden', terbuka ? 'false' : 'true');
+    if (terbuka) { const isi = d.querySelector('.lt-isi'); isi.scrollTop = isi.scrollHeight; }
+  }
+  // Dock mengikuti area konten: di tampilan web mulai dari tepi kanan sidebar
+  function posisi() {
+    if (!dock) return;
+    let kiri = 0;
     const appWeb = el('app-web');
-    const target = appWeb && getComputedStyle(appWeb).display !== 'none' ? appWeb : document.body;
-    if (wadah.parentNode !== target) target.appendChild(wadah);
-    return wadah;
-  }
-  function ringkas() {
-    const w = dom();
-    const semua = Array.from(w.querySelectorAll('.log-item'));
-    const jalan = w.querySelectorAll('.log-item.proses, .log-item.antre').length;
-    w.querySelector('.log-tindakan-ringkas').textContent = jalan ? `${jalan} berjalan` : '';
-    // Urutan prioritas tampil: gagal -> sedang berjalan -> selesai; terbaru di bawah
-    const prioritas = it => it.classList.contains('gagal') ? 0 : (it.classList.contains('ok') ? 2 : 1);
-    const urut = semua.slice().sort((a, b) => (prioritas(a) - prioritas(b)) || (semua.indexOf(b) - semua.indexOf(a)));
-    const tampil = new Set(terbuka ? urut : urut.slice(0, MAKS_TAMPIL));
-    semua.forEach(it => it.classList.toggle('lt-tersembunyi', !tampil.has(it)));
-    const chip = w.querySelector('.lt-ringkas-chip');
-    const sisa = semua.length - tampil.size;
-    if (chip) {
-      chip.hidden = semua.length <= MAKS_TAMPIL;
-      chip.textContent = terbuka ? 'Ringkas ▾' : `+${sisa} lainnya${jalan ? ` · ${jalan} berjalan` : ''} ▴`;
+    if (appWeb && getComputedStyle(appWeb).display !== 'none') {
+      const sb = appWeb.querySelector('.web-sidebar');
+      const shell = appWeb.querySelector('.web-shell');
+      if (sb && !(shell && shell.classList.contains('web-menu-top'))) { const r = sb.getBoundingClientRect(); if (r.width > 0 && r.right < window.innerWidth * 0.6) kiri = Math.max(0, Math.round(r.right)); }
     }
-    if (!semua.length) { w.hidden = true; terbuka = false; }
-    document.body.classList.toggle('lt-ada-log', !!semua.length);
-    try { document.body.style.setProperty('--lt-tinggi', (semua.length ? Math.round(w.getBoundingClientRect().height) + 26 : 16) + 'px'); } catch (e) { }
+    dock.style.setProperty('--lt-kiri', kiri + 'px');
+    dock.classList.toggle('mode-mobile', !(appWeb && getComputedStyle(appWeb).display !== 'none'));
   }
-  function tambah(judul) {
-    const w = dom();
+  function urutItem() { return Array.from(bangun().querySelectorAll('.lt-isi .log-item')); }
+  function ringkas() {
+    const d = bangun();
+    const semua = urutItem();
+    // Batasi riwayat: buang entri selesai paling lama
+    const selesai = semua.filter(it => it.classList.contains('ok') || it.classList.contains('info'));
+    while (semua.length > MAKS_RIWAYAT && selesai.length) { const x = selesai.shift(); semua.splice(semua.indexOf(x), 1); x.remove(); }
+    const jalan = semua.filter(it => it.classList.contains('proses') || it.classList.contains('antre'));
+    const gagal = semua.filter(it => it.classList.contains('gagal'));
+    const teksEl = d.querySelector('.lt-bar-teks'), hitung = d.querySelector('.lt-bar-hitung');
+    let status = 'diam', teks = 'Tidak ada proses berjalan';
+    const judulDari = it => (it.querySelector('b').textContent || '') + (it.querySelector('small').textContent ? ' — ' + it.querySelector('small').textContent : '');
+    if (pesanKilat) { status = pesanKilat.status; teks = pesanKilat.teks; }
+    else if (jalan.length) { status = 'proses'; teks = judulDari(jalan[jalan.length - 1]); }
+    else if (gagal.length) { status = 'gagal'; teks = judulDari(gagal[gagal.length - 1]); }
+    else if (semua.length) { const t = semua[semua.length - 1]; status = t.classList.contains('info') ? 'info' : 'ok'; teks = judulDari(t); }
+    d.dataset.status = status;
+    teksEl.textContent = teks;
+    const bagian = [];
+    if (jalan.length) bagian.push(`${jalan.length} berjalan`);
+    if (gagal.length) bagian.push(`${gagal.length} gagal`);
+    if (!bagian.length && semua.length) bagian.push(`${semua.length} riwayat`);
+    hitung.textContent = bagian.join(' · ');
+    d.querySelector('.lt-panel-ringkas').textContent = bagian.join(' · ');
+    d.classList.toggle('kosong', !semua.length);
+    tampilkanJikaPerlu();
+    posisi();
+  }
+  // Dock hanya muncul setelah login (staf aktif) atau saat ada proses latar
+  function tampilkanJikaPerlu() {
+    if (!dock) return;
+    const masuk = typeof currentUser !== 'undefined' && currentUser && currentUser.aktif;
+    const ada = dock.querySelectorAll('.log-item').length > 0;
+    const tampil = !!(masuk || ada) && !document.body.classList.contains('omni-tunggu-approval');
+    dock.hidden = !tampil;
+    document.body.classList.toggle('lt-dock-aktif', tampil);
+    document.body.classList.toggle('lt-ada-log', ada);
+    if (!tampil && terbuka) setBuka(false);
+  }
+  function buatItem(judul) {
+    const d = bangun();
     const id = 'log-' + (++nomor);
     const item = document.createElement('div');
     item.className = 'log-item antre';
     item.id = id;
-    item.innerHTML = `<span class="log-ikon" aria-hidden="true"></span><div class="log-teks"><b></b><small></small></div><div class="log-aksi"></div><button type="button" class="log-tutup" aria-label="Tutup">×</button>`;
+    item.innerHTML = `<span class="log-ikon" aria-hidden="true"></span><div class="log-teks"><b></b><small></small></div><span class="lt-jam"></span><div class="log-aksi"></div><button type="button" class="log-tutup" aria-label="Hapus dari daftar">×</button>`;
     item.querySelector('b').textContent = judul;
-    item.querySelector('.log-tutup').onclick = () => { item.remove(); ringkas(); };
-    w.querySelector('.log-tindakan-isi').appendChild(item);
-    w.hidden = false;
-    ubah(id, 'antre', 'Menunggu antrean...');
-    return id;
+    item.querySelector('.lt-jam').textContent = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    item.querySelector('.log-tutup').onclick = (e) => { e.stopPropagation(); item.remove(); ringkas(); };
+    d.querySelector('.lt-isi').appendChild(item);
+    return item;
+  }
+  function tambah(judul) {
+    const item = buatItem(judul);
+    ubah(item.id, 'antre', 'Menunggu antrean...');
+    return item.id;
   }
   function ubah(id, status, teks, aksi) {
     const item = document.getElementById(id);
     if (!item) return;
-    clearTimeout(item._timer);
     item.className = 'log-item ' + status;
     item.querySelector('.log-ikon').textContent = IKON[status] || '';
     item.querySelector('small').textContent = teks || '';
+    item.querySelector('.lt-jam').textContent = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const wAksi = item.querySelector('.log-aksi');
     wAksi.innerHTML = '';
     (aksi || []).forEach(a => {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = a.label;
-      b.onclick = () => { a.fn(); };
+      b.onclick = (e) => { e.stopPropagation(); a.fn(); };
       wAksi.appendChild(b);
     });
-    if (status === 'ok') item._timer = setTimeout(() => { item.classList.add('keluar'); setTimeout(() => { item.remove(); ringkas(); }, 250); }, 3500);
+    // Entri berpindah ke paling bawah supaya urutan = urutan kejadian terakhir
+    const isi = item.parentNode; if (isi && isi.lastElementChild !== item) isi.appendChild(item);
+    if (status === 'gagal') kilat('gagal', (item.querySelector('b').textContent || '') + ' — ' + (teks || 'gagal'), 5000);
     ringkas();
   }
-  function hapus(id) { const item = document.getElementById(id); if (item) { clearTimeout(item._timer); item.remove(); } if (wadah) ringkas(); }
-  return { tambah, ubah, hapus };
+  function hapus(id) { const item = document.getElementById(id); if (item) item.remove(); if (dock) ringkas(); }
+  // Pesan singkat (dulu toast) -> tampil di baris dock beberapa detik + tercatat di riwayat
+  function kilat(status, teks, ms) {
+    pesanKilat = { status, teks };
+    const d = bangun();
+    d.classList.remove('kilat'); void d.offsetWidth; d.classList.add('kilat');
+    clearTimeout(kilatTimer);
+    kilatTimer = setTimeout(() => { pesanKilat = null; d.classList.remove('kilat'); ringkas(); }, ms || 2600);
+    ringkas();
+  }
+  function info(pesan) {
+    const teks = String(pesan || '').trim();
+    if (!teks) return;
+    const gagal = /^(✗|⛔|⚠️|gagal)/i.test(teks);
+    const item = buatItem(teks.replace(/^[✓✗↺⚠️⛔]+\s*/u, '') || teks);
+    item.className = 'log-item ' + (gagal ? 'gagal' : 'info');
+    item.querySelector('.log-ikon').textContent = gagal ? '!' : 'i';
+    item.querySelector('small').textContent = '';
+    kilat(gagal ? 'gagal' : 'info', teks, gagal ? 5000 : 2600);
+  }
+  function segarkan() { if (dock) ringkas(); else if (typeof currentUser !== 'undefined' && currentUser && currentUser.aktif) { bangun(); ringkas(); } }
+  return { tambah, ubah, hapus, info, segarkan, buka: () => setBuka(true), tutup: () => setBuka(false) };
 })();
 
 /* ===== SIMPAN EDIT PRODUK DI LATAR =====
@@ -51881,5 +52234,725 @@ setTimeout(function () {
 }, 1800);
 
 </script>
+<script>
+/* =====================================================================================
+   PEMBARUAN v2026.10e (JS) - Action Log dock · Instant Action Kontak Pemasok · Menunggu Approval ·
+   HPP & Margin per Channel · Reimburse Staf -> Kelola Staff · Validasi wajib Biaya Operasional
+   ===================================================================================== */
+
+/* ---------- Utilitas kecil ---------- */
+function omniRp_(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function omniTgl_(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function omniPesanErr_(err) { return String((err && err.message) || err || 'Gagal').replace(/^Error:\s*/, ''); }
+function omniBolehKeuangan_() { return !!(typeof currentUser !== 'undefined' && currentUser && (currentUser.isOwner || (currentUser.izin && currentUser.izin.buatInvoice))); }
+function omniBersihUnderscore_(obj) { return JSON.parse(JSON.stringify(obj, (k, v) => (k && k.charAt(0) === '_') ? undefined : v)); }
+
+/* =====================================================================================
+   1) INSTANT ACTION - Kontak Pemasok (Edit/Tambah/Hapus Cabang, Edit Supplier)
+      Klik Simpan -> tabel langsung berubah, server menyimpan di latar (antrean, urutan terjaga).
+      Gagal -> baris menampilkan data & alasan gagal selama 5 detik, lalu kembali ke data sebelumnya.
+   ===================================================================================== */
+let iaAntreJanji = Promise.resolve();
+let iaJumlahBerjalan = 0;
+function iaJalankan_(fn) {
+  iaJumlahBerjalan++;
+  iaAntreJanji = iaAntreJanji.then(fn).catch(() => { }).then(() => {
+    iaJumlahBerjalan = Math.max(0, iaJumlahBerjalan - 1);
+    // Antrean kosong -> selaraskan diam-diam dengan server (nomor baris terbaru, perubahan dari perangkat lain)
+    if (iaJumlahBerjalan === 0) setTimeout(() => { if (iaJumlahBerjalan === 0 && typeof belFetchKontak === 'function') belFetchKontak(); }, 1500);
+  });
+}
+function iaTandaiGagal_(obj, pesan, kembalikan) {
+  clearTimeout(obj._iaTimer);
+  obj._ia = 'gagal'; obj._pesan = pesan;
+  belRenderKontak();
+  obj._iaTimer = setTimeout(() => {
+    try { kembalikan(); } catch (e) { }
+    delete obj._ia; delete obj._pesan; delete obj._iaTimer;
+    belRenderKontak();
+  }, 5000);
+}
+function belSimpanCacheKontak_() { try { simpanCacheLokal('kontak_pemasok', omniBersihUnderscore_(belKontakCache)); } catch (e) { } }
+function iaLencana_(obj) {
+  if (!obj || !obj._ia) return '';
+  if (obj._ia === 'simpan') return ' <span class="ia-lencana simpan"><i class="dok-spin"></i> Menyimpan…</span>';
+  if (obj._ia === 'hapus') return ' <span class="ia-lencana simpan"><i class="dok-spin"></i> Menghapus…</span>';
+  return ` <span class="ia-lencana gagal">✗ Gagal disimpan: ${escapeHtml(obj._pesan || '')}</span>`;
+}
+
+window.belRenderKontak = function () {
+  const cari = (el('bel-kontak-cari')?.value || '').toLowerCase().trim();
+  const daftar = cari ? belKontakCache.filter(s => String(s.nama || '').toLowerCase().includes(cari)) : belKontakCache;
+  if (daftar.length === 0) {
+    el('bel-kontak-list').innerHTML = '';
+    el('bel-kontak-empty').style.display = 'block';
+    el('bel-kontak-paginasi').innerHTML = '';
+    return;
+  }
+  el('bel-kontak-empty').style.display = 'none';
+  const halamanIni = halamanDataPaginasi(daftar, belKontakPaginasiState);
+  el('bel-kontak-list').innerHTML = halamanIni.map(s => {
+    const si = belKontakCache.indexOf(s);
+    const cabang = s.cabang || [];
+    const supSibuk = s._ia === 'simpan';
+    return `
+    <div class="web-panel ${s._ia === 'gagal' ? 'ia-baris-gagal' : ''} ${supSibuk ? 'ia-baris-simpan' : ''}" style="margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <div style="min-width:0;">
+          <div style="font-size:14px; font-weight:700;">${escapeHtml(s.nama)}${iaLencana_(s)}</div>
+          ${(s.kontakWA && s.kontakWA.length > 0) ? s.kontakWA.map(k => `<div style="font-size:12px; color:var(--web-text-dim); margin-top:2px;">📞 ${escapeHtml(k.noWA)}${k.namaJabatan ? ' - ' + escapeHtml(k.namaJabatan) : ''}</div>`).join('') : (s.kontakUtama ? `<div style="font-size:12px; color:var(--web-text-dim); margin-top:2px;">📞 ${escapeHtml(s.kontakUtama)}</div>` : '')}
+          ${s.catatan ? `<div style="font-size:11.5px; color:var(--web-text-dim); margin-top:4px;">${escapeHtml(s.catatan)}</div>` : ''}
+        </div>
+        <div style="display:flex; gap:6px; flex:none;">
+          <button class="web-chart-toggle-btn ia-tombol" style="font-size:11px; padding:5px 9px;" ${supSibuk || !s.row ? 'disabled' : ''} onclick="belBukaSupplierIdx(${si})">✏️ Edit</button>
+          <button class="web-btn-danger ia-tombol" style="font-size:11px; padding:5px 9px;" ${supSibuk || !s.row ? 'disabled' : ''} onclick="belHapusSupplier(${s.row}, '${pgrAttr(String(s.nama).replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')">🗑️</button>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--web-border); margin-top:10px; padding-top:10px;">
+        <div style="font-size:11.5px; font-weight:600; color:var(--web-text-dim); margin-bottom:6px;">CABANG (${cabang.length})</div>
+        ${cabang.map((c, ci) => {
+          const sibuk = c._ia === 'simpan' || c._ia === 'hapus' || !c.row;
+          return `
+          <div class="${c._ia === 'gagal' ? 'ia-baris-gagal' : ''} ${sibuk ? 'ia-baris-simpan' : ''}" style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--web-border); font-size:12px;">
+            <div style="min-width:0;">
+              <b>${escapeHtml(c.namaCabang)}</b>${iaLencana_(c)}
+              ${c.alamat ? `<div style="font-size:11px; color:var(--web-text-dim); word-break:break-word;">${escapeHtml(c.alamat)}</div>` : ''}
+              ${c.kontak ? `<div style="font-size:11px; color:var(--web-text-dim);">📞 ${escapeHtml(c.kontak)}</div>` : ''}
+            </div>
+            <div style="display:flex; gap:4px; flex:none;">
+              <button class="web-chart-toggle-btn ia-tombol" style="font-size:10.5px; padding:3px 7px;" ${sibuk ? 'disabled' : ''} onclick="belBukaCabangIdx(${si}, ${ci})" aria-label="Edit cabang ${pgrAttr(c.namaCabang)}">✏️</button>
+              <button class="web-btn-danger ia-tombol" style="font-size:10.5px; padding:3px 7px;" ${sibuk ? 'disabled' : ''} onclick="belHapusCabang(${c.row})" aria-label="Hapus cabang ${pgrAttr(c.namaCabang)}">🗑️</button>
+            </div>
+          </div>`;
+        }).join('')}
+        <button class="web-btn-secondary" style="font-size:11.5px; margin-top:8px;" onclick="belBukaCabangIdx(${si}, -1)">+ Tambah Cabang</button>
+      </div>
+    </div>`;
+  }).join('');
+  renderPaginasi('bel-kontak-paginasi', daftar.length, belKontakPaginasiState, belRenderKontak);
+};
+function belBukaSupplierIdx(si) { const s = belKontakCache[si]; if (s) belBukaModalSupplier(omniBersihUnderscore_(s)); }
+function belBukaCabangIdx(si, ci) {
+  const s = belKontakCache[si]; if (!s) return;
+  const c = ci >= 0 ? (s.cabang || [])[ci] : null;
+  belBukaModalCabang(s.nama, c ? { row: c.row, namaCabang: c.namaCabang, alamat: c.alamat || '', kontak: c.kontak || '' } : null);
+}
+
+window.belSimpanCabangModal = function () {
+  const namaCabang = el('bel-cabang-nama').value.trim();
+  const alamat = el('bel-cabang-alamat').value.trim();
+  const kontak = el('bel-cabang-kontak').value.trim();
+  const statusEl = el('bel-modal-cabang-status');
+  if (!namaCabang) { statusEl.textContent = '✗ Nama cabang wajib diisi.'; statusEl.className = 'status-text err'; return; }
+  const sup = belKontakCache.find(x => x.nama === belCabangNamaSupplierAktif);
+  if (!sup) { statusEl.textContent = '✗ Supplier tidak ditemukan di daftar - muat ulang halaman.'; statusEl.className = 'status-text err'; return; }
+  sup.cabang = sup.cabang || [];
+  const rowEdit = belCabangRowAktif;
+  let c = rowEdit ? sup.cabang.find(x => x.row === rowEdit) : null;
+  const baru = !c;
+  const job = { sup, baru, nilai: { namaCabang, alamat, kontak } };
+  if (baru) { c = { row: null, namaCabang, alamat, kontak }; sup.cabang.push(c); }
+  else job.lama = { namaCabang: c.namaCabang, alamat: c.alamat, kontak: c.kontak };
+  job.c = c;
+  Object.assign(c, job.nilai); clearTimeout(c._iaTimer); c._ia = 'simpan';
+  belTutupModalCabang();
+  belRenderKontak();
+  belKirimCabang_(job);
+};
+function belKirimCabang_(job) {
+  const c = job.c;
+  if (!job.logId) job.logId = logTindakan.tambah(`${job.baru ? 'Tambah' : 'Edit'} cabang ${job.nilai.namaCabang} · ${job.sup.nama}`);
+  else logTindakan.ubah(job.logId, 'antre', 'Menunggu antrean...');
+  iaJalankan_(async () => {
+    logTindakan.ubah(job.logId, 'proses', 'Menyimpan di latar…');
+    try {
+      const r = await postJsonTulis({
+        aksi: 'simpan_cabang_supplier', row: c.row || null, namaSupplier: job.sup.nama,
+        namaCabang: job.nilai.namaCabang, alamat: job.nilai.alamat, kontak: job.nilai.kontak, email: currentUserEmail()
+      }, 30000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+      if (r.row) c.row = r.row;
+      delete c._ia; delete c._pesan;
+      belSimpanCacheKontak_();
+      belRenderKontak();
+      logTindakan.ubah(job.logId, 'ok', 'Tersimpan');
+    } catch (err) {
+      const pesan = omniPesanErr_(err);
+      iaTandaiGagal_(c, pesan, () => {
+        if (job.baru) { const i = job.sup.cabang.indexOf(c); if (i >= 0 && !c.row) job.sup.cabang.splice(i, 1); }
+        else if (job.lama) Object.assign(c, job.lama);
+      });
+      logTindakan.ubah(job.logId, 'gagal', pesan + ' - data dikembalikan di layar', [
+        { label: 'Coba lagi', fn: () => {
+          clearTimeout(c._iaTimer);
+          if (job.baru && job.sup.cabang.indexOf(c) < 0) job.sup.cabang.push(c);
+          Object.assign(c, job.nilai); c._ia = 'simpan'; delete c._pesan;
+          belRenderKontak(); belKirimCabang_(job);
+        } },
+        { label: 'Edit ulang', fn: () => belBukaModalCabang(job.sup.nama, Object.assign({ row: c.row || null }, job.nilai)) }
+      ]);
+    }
+  });
+}
+
+window.belHapusCabang = async function (row) {
+  if (!(await omniKonfirm_('Hapus cabang ini?'))) return;
+  let sup = null, c = null, idx = -1;
+  belKontakCache.some(s => { const i = (s.cabang || []).findIndex(x => x.row === row); if (i >= 0) { sup = s; c = s.cabang[i]; idx = i; return true; } return false; });
+  if (!c) return;
+  sup.cabang.splice(idx, 1); // hilang seketika dari tabel
+  belRenderKontak();
+  const logId = logTindakan.tambah(`Hapus cabang ${c.namaCabang} · ${sup.nama}`);
+  iaJalankan_(async () => {
+    logTindakan.ubah(logId, 'proses', 'Menghapus di latar…');
+    try {
+      const r = await postJsonTulis({ aksi: 'hapus_cabang_supplier', row: c.row, email: currentUserEmail() }, 30000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+      // Baris di bawahnya bergeser naik 1 di sheet -> sesuaikan nomor baris lokal
+      belKontakCache.forEach(s => (s.cabang || []).forEach(x => { if (x.row && x.row > c.row) x.row--; }));
+      belSimpanCacheKontak_();
+      logTindakan.ubah(logId, 'ok', 'Terhapus');
+    } catch (err) {
+      const pesan = omniPesanErr_(err);
+      sup.cabang.splice(Math.min(idx, sup.cabang.length), 0, c);
+      c._ia = 'gagal'; c._pesan = 'gagal dihapus - ' + pesan;
+      iaTandaiGagal_(c, c._pesan, () => { });
+      logTindakan.ubah(logId, 'gagal', pesan + ' - cabang tetap ada');
+    }
+  });
+};
+
+const belSimpanSupplierModalAsli_ = belSimpanSupplierModal;
+window.belSimpanSupplierModal = function () {
+  // Supplier BARU (bisa membuat cabang "Website" otomatis dari Smart Paste) -> alur lama
+  if (belSupplierRowAktif === null) return belSimpanSupplierModalAsli_();
+  const nama = el('bel-supplier-nama').value.trim();
+  const catatan = el('bel-supplier-catatan').value.trim();
+  const kontakWA = belSupplierKontakWaAktif.filter(k => String(k.noWA || '').trim()).map(k => ({ namaJabatan: k.namaJabatan || '', noWA: k.noWA }));
+  const statusEl = el('bel-modal-supplier-status');
+  if (!nama) { statusEl.textContent = '✗ Nama supplier wajib diisi.'; statusEl.className = 'status-text err'; return; }
+  const s = belKontakCache.find(x => x.row === belSupplierRowAktif);
+  if (!s) return belSimpanSupplierModalAsli_();
+  const lama = { nama: s.nama, catatan: s.catatan, kontakWA: (s.kontakWA || []).slice(), kontakUtama: s.kontakUtama };
+  const nilai = { nama, catatan, kontakWA };
+  clearTimeout(s._iaTimer);
+  Object.assign(s, nilai); s._ia = 'simpan';
+  belTutupModalSupplier();
+  belRenderKontak();
+  const kirim = (logIdLama) => {
+    const logId = logIdLama || logTindakan.tambah(`Edit supplier ${nama}`);
+    if (logIdLama) logTindakan.ubah(logId, 'antre', 'Menunggu antrean...');
+    iaJalankan_(async () => {
+      logTindakan.ubah(logId, 'proses', 'Menyimpan di latar…');
+      try {
+        const r = await postJsonTulis({ aksi: 'simpan_supplier', row: s.row, nama, kontakWA, catatan, email: currentUserEmail() }, 30000);
+        if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+        delete s._ia; delete s._pesan;
+        belSimpanCacheKontak_(); belRenderKontak();
+        logTindakan.ubah(logId, 'ok', 'Tersimpan');
+      } catch (err) {
+        const pesan = omniPesanErr_(err);
+        iaTandaiGagal_(s, pesan, () => Object.assign(s, lama));
+        logTindakan.ubah(logId, 'gagal', pesan + ' - data dikembalikan di layar', [
+          { label: 'Coba lagi', fn: () => { clearTimeout(s._iaTimer); Object.assign(s, nilai); s._ia = 'simpan'; delete s._pesan; belRenderKontak(); kirim(logId); } }
+        ]);
+      }
+    });
+  };
+  kirim(null);
+};
+
+/* =====================================================================================
+   2) LAYAR "MENUNGGU APPROVAL ADMIN" - pengganti layar hitam untuk akun Google baru
+   ===================================================================================== */
+let omniTungguTimer = null, omniTungguSibuk = false;
+function omniTungguBangun_() {
+  let w = el('omni-tunggu');
+  if (w) return w;
+  w = document.createElement('div');
+  w.id = 'omni-tunggu';
+  w.hidden = true;
+  w.setAttribute('role', 'dialog');
+  w.setAttribute('aria-modal', 'true');
+  w.setAttribute('aria-labelledby', 'otg-judul');
+  w.innerHTML = `
+    <div class="otg-kartu">
+      <div class="otg-atas">
+        <img class="otg-logo" src="https://i.ibb.co.com/cd2KqYx/Waterground3.png" alt="" onerror="this.remove()">
+        <div class="otg-merek">OmniAI ERP<span>Waterground Coffee</span></div>
+      </div>
+      <div class="otg-jam" aria-hidden="true"><span>⏳</span></div>
+      <h1 id="otg-judul">Menunggu Approval Admin</h1>
+      <p class="otg-teks">Akun Anda sudah terdaftar. Admin perlu menyetujui dan memilih role Anda sebelum bisa masuk ke OmniAI.</p>
+      <div class="otg-akun"><span class="otg-inisial" id="otg-inisial">?</span><div style="min-width:0;"><b id="otg-nama"></b><span id="otg-email"></span></div></div>
+      <ol class="otg-langkah">
+        <li class="selesai">Akun Google terdaftar</li>
+        <li class="aktif">Admin menyetujui &amp; memilih role</li>
+        <li>Anda otomatis masuk ke OmniAI</li>
+      </ol>
+      <div class="otg-status" id="otg-status" role="status" aria-live="polite">Status dicek otomatis setiap 30 detik.</div>
+      <div class="otg-aksi">
+        <button type="button" class="otg-btn utama" id="otg-cek" onclick="omniTungguCek(true)">Cek status sekarang</button>
+        <button type="button" class="otg-btn" onclick="omniTungguGantiAkun()">Ganti akun</button>
+      </div>
+      <small class="otg-bantuan">Butuh akses cepat? Hubungi Owner/Admin dan sebutkan email di atas. Halaman ini boleh dibiarkan terbuka - begitu disetujui, OmniAI terbuka sendiri.</small>
+    </div>`;
+  document.body.appendChild(w);
+  return w;
+}
+function omniTungguTampil() {
+  const w = omniTungguBangun_();
+  const u = (typeof currentUser !== 'undefined' && currentUser) || {};
+  const nama = u.nama || u.email || 'Akun Google';
+  el('otg-nama').textContent = nama;
+  el('otg-email').textContent = u.email || '';
+  el('otg-inisial').textContent = (String(nama).trim()[0] || '?').toUpperCase();
+  w.hidden = false;
+  document.body.classList.add('omni-tunggu-approval');
+  if (typeof logTindakan !== 'undefined') logTindakan.segarkan();
+  clearInterval(omniTungguTimer);
+  omniTungguTimer = setInterval(() => { if (!document.hidden) omniTungguCek(false); }, 30000);
+  setTimeout(() => { const b = el('otg-cek'); if (b) b.focus(); }, 60);
+}
+function omniTungguTutup() {
+  clearInterval(omniTungguTimer); omniTungguTimer = null;
+  const w = el('omni-tunggu');
+  if (w) w.hidden = true;
+  document.body.classList.remove('omni-tunggu-approval');
+}
+async function omniTungguCek(manual) {
+  if (omniTungguSibuk || typeof currentUser === 'undefined' || !currentUser || !currentUser.email) return;
+  omniTungguSibuk = true;
+  const st = el('otg-status'), btn = el('otg-cek');
+  if (manual && btn) { btn.disabled = true; btn.textContent = 'Mengecek…'; }
+  try {
+    const data = await postJson({ aksi: 'cek_status_staff', email: currentUser.email }, 20000);
+    const jam = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    if (data && data.success && data.aktif) {
+      st.className = 'otg-status ok'; st.textContent = '✓ Akun disetujui - membuka OmniAI…';
+      currentUser = Object.assign({}, currentUser, data, { aktif: true });
+      localStorage.setItem('trg_user', JSON.stringify(currentUser));
+      setTimeout(() => { omniTungguTutup(); terapkanTampilanLogin(); }, 700);
+    } else if (data && data.success) {
+      st.className = 'otg-status'; st.textContent = `Belum disetujui · dicek ${jam}. Dicek lagi otomatis setiap 30 detik.`;
+    } else {
+      st.className = 'otg-status err'; st.textContent = 'Tidak bisa mengecek status: ' + String((data && data.error) || 'respons kosong').replace(/^Error:\s*/, '');
+    }
+  } catch (err) {
+    st.className = 'otg-status err'; st.textContent = 'Gagal terhubung: ' + omniPesanErr_(err) + '. Dicoba lagi otomatis.';
+  } finally {
+    omniTungguSibuk = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Cek status sekarang'; }
+  }
+}
+function omniTungguGantiAkun() { omniTungguTutup(); logout(); }
+
+const tampilkanMenungguApprovalAsli_ = tampilkanMenungguApproval;
+window.tampilkanMenungguApproval = function () {
+  try { tampilkanMenungguApprovalAsli_(); } catch (e) { }
+  omniTungguTampil();
+};
+const terapkanTampilanLoginAsli_ = terapkanTampilanLogin;
+window.terapkanTampilanLogin = function () {
+  omniTungguTutup();
+  const hasil = terapkanTampilanLoginAsli_.apply(this, arguments);
+  try { logTindakan.segarkan(); } catch (e) { }
+  return hasil;
+};
+const tampilkanLayarLoginAsli_ = tampilkanLayarLogin;
+window.tampilkanLayarLogin = function () {
+  const hasil = tampilkanLayarLoginAsli_.apply(this, arguments);
+  if (typeof currentUser !== 'undefined' && currentUser && currentUser.email && currentUser.sessionToken && currentUser.aktif === false) omniTungguTampil();
+  else omniTungguTutup();
+  try { logTindakan.segarkan(); } catch (e) { }
+  return hasil;
+};
+const logoutAsli_ = logout;
+window.logout = function () {
+  omniTungguTutup();
+  const hasil = logoutAsli_.apply(this, arguments);
+  try { logTindakan.segarkan(); } catch (e) { }
+  return hasil;
+};
+// Dibuka ulang dengan sesi akun yang belum di-approve -> langsung ke layar Menunggu Approval (bukan layar kosong)
+setTimeout(() => {
+  try {
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.aktif) { logTindakan.segarkan(); return; }
+    const simpan = JSON.parse(localStorage.getItem('trg_user') || 'null');
+    if (simpan && simpan.email && simpan.sessionToken && simpan.aktif === false) {
+      if (typeof currentUser === 'undefined' || !currentUser) currentUser = simpan;
+      omniTungguTampil();
+      omniTungguCek(false);
+    }
+  } catch (e) { }
+}, 300);
+
+/* =====================================================================================
+   3) LAPORAN PENJUALAN - HPP & margin per channel
+   ===================================================================================== */
+const lmk = { mode: 'bulan', cache: {}, chart: null, permintaan: 0 };
+function lmkRentang_(mode) {
+  const t = new Date(); t.setHours(12, 0, 0, 0);
+  const awal = new Date(t);
+  if (mode === '7') awal.setDate(t.getDate() - 6);
+  else if (mode === '30') awal.setDate(t.getDate() - 29);
+  else if (mode === 'lalu') {
+    const a = new Date(t.getFullYear(), t.getMonth() - 1, 1, 12), b = new Date(t.getFullYear(), t.getMonth(), 0, 12);
+    return { dari: omniTgl_(a), sampai: omniTgl_(b), label: a.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }) };
+  } else awal.setDate(1);
+  return { dari: omniTgl_(awal), sampai: omniTgl_(t), label: mode === 'bulan' ? 'bulan ini' : mode + ' hari terakhir' };
+}
+function lmkPilih(mode) {
+  lmk.mode = mode;
+  document.querySelectorAll('#lmk-panel [data-lmk]').forEach(b => b.classList.toggle('active', b.dataset.lmk === mode));
+  lmkMuat(false);
+}
+async function lmkMuat(segar) {
+  const panel = el('lmk-panel');
+  if (!panel) return;
+  if (!omniBolehKeuangan_()) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const rg = lmkRentang_(lmk.mode), kunci = lmk.mode + '|' + rg.dari + '|' + rg.sampai;
+  if (lmk.cache[kunci]) lmkRender_(lmk.cache[kunci], rg);
+  panel.classList.add('memuat');
+  const no = ++lmk.permintaan;
+  try {
+    const d = await postJson({ aksi: 'laporan_margin_kanal', dari: rg.dari, sampai: rg.sampai, segar: !!segar, email: currentUserEmail() }, 90000);
+    if (no !== lmk.permintaan) return;
+    if (!d || !d.success) throw new Error((d && d.error) || 'respons kosong');
+    lmk.cache[kunci] = d;
+    lmkRender_(d, rg);
+    if (segar) pgrToast('✓ HPP & margin per channel dihitung ulang');
+  } catch (err) {
+    if (no !== lmk.permintaan) return;
+    if (!lmk.cache[kunci]) {
+      el('lmk-body').innerHTML = `<tr><td colspan="9" class="lmk-memuat" style="color:var(--web-danger);">Gagal memuat HPP per channel: ${escapeHtml(omniPesanErr_(err))}. <button type="button" class="web-chart-toggle-btn" onclick="lmkMuat(true)">Coba lagi</button></td></tr>`;
+      el('lmk-foot').innerHTML = ''; el('lmk-ringkas').innerHTML = '';
+    } else pgrToast('✗ Gagal memperbarui HPP per channel - menampilkan data terakhir');
+  } finally { if (no === lmk.permintaan) panel.classList.remove('memuat'); }
+}
+function lmkWarnaMargin_(p) { return p === null ? '#94a3b8' : p < 0 ? '#d9524f' : p < 15 ? '#f59e0b' : '#10b981'; }
+function lmkSelMargin_(p) {
+  if (p === null || p === undefined) return '<span class="lmk-sub">—</span>';
+  const lebar = Math.max(0, Math.min(100, p));
+  return `<div class="lmk-margin"><span class="bar"><i style="width:${lebar}%; background:${lmkWarnaMargin_(p)};"></i></span><b>${p.toLocaleString('id-ID')}%</b></div>`;
+}
+function lmkRender_(d, rg) {
+  const warna = (typeof DASHPEN_WARNA_CHANNEL !== 'undefined' && DASHPEN_WARNA_CHANNEL) || {};
+  const UTAMA = ['Shopee', 'Tokopedia', 'TikTok Shop', 'PO Sales'];
+  const rows = (d.daftar || []).filter(x => UTAMA.includes(x.kanal) || x.omzet > 0 || x.hpp > 0);
+  const t = d.total || {};
+  const kls = v => v < 0 ? 'rugi' : 'laba';
+  el('lmk-ringkas').innerHTML = `
+    <div class="lmk-stat"><small>Omzet (${escapeHtml(rg.label)})</small><b>${omniRp_(t.omzet)}</b><span>${(t.pesanan || 0).toLocaleString('id-ID')} pesanan</span></div>
+    <div class="lmk-stat"><small>Total HPP</small><b>${omniRp_(t.hpp)}</b><span>${t.omzet > 0 ? Math.round(t.hpp / t.omzet * 1000) / 10 + '% dari omzet' : '—'}</span></div>
+    <div class="lmk-stat ${kls(t.labaKotor)}"><small>Laba kotor</small><b>${omniRp_(t.labaKotor)}</b><span>Margin ${t.marginKotorPct === null || t.marginKotorPct === undefined ? '—' : t.marginKotorPct + '%'}</span></div>
+    <div class="lmk-stat ${kls(t.labaBersih)}"><small>Laba setelah potongan MP</small><b>${omniRp_(t.labaBersih)}</b><span>Margin ${t.marginBersihPct === null || t.marginBersihPct === undefined ? '—' : t.marginBersihPct + '%'}</span></div>`;
+  el('lmk-body').innerHTML = rows.length ? rows.map(x => {
+    const kosong = !(x.omzet > 0) && !(x.hpp > 0);
+    return `<tr class="${kosong ? 'lmk-redup' : ''}">
+      <td><span class="lmk-kanal"><i style="background:${warna[x.kanal] || '#94a3b8'};"></i>${escapeHtml(x.kanal)}</span></td>
+      <td class="ka">${(x.pesanan || 0).toLocaleString('id-ID')}</td>
+      <td class="ka">${omniRp_(x.omzet)}</td>
+      <td class="ka">${omniRp_(x.hpp)}${x.hppPct !== null && x.hppPct !== undefined ? `<span class="lmk-sub">${x.hppPct}% omzet</span>` : ''}</td>
+      <td class="ka">${omniRp_(x.labaKotor)}</td>
+      <td>${lmkSelMargin_(x.marginKotorPct)}</td>
+      <td class="ka">${x.potongan ? omniRp_(x.potongan) : '<span class="lmk-sub">—</span>'}</td>
+      <td class="ka">${omniRp_(x.labaBersih)}</td>
+      <td>${lmkSelMargin_(x.marginBersihPct)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="9" class="lmk-memuat">Belum ada penjualan di periode ini.</td></tr>';
+  el('lmk-foot').innerHTML = rows.length ? `<tr><td>Total</td><td class="ka">${(t.pesanan || 0).toLocaleString('id-ID')}</td><td class="ka">${omniRp_(t.omzet)}</td><td class="ka">${omniRp_(t.hpp)}</td><td class="ka">${omniRp_(t.labaKotor)}</td><td>${lmkSelMargin_(t.marginKotorPct)}</td><td class="ka">${omniRp_(t.potongan)}</td><td class="ka">${omniRp_(t.labaBersih)}</td><td>${lmkSelMargin_(t.marginBersihPct)}</td></tr>` : '';
+  // Grafik: komposisi omzet tiap channel = HPP + potongan marketplace + laba
+  const grafik = rows.filter(x => x.omzet > 0 || x.hpp > 0);
+  if (lmk.chart) { lmk.chart.destroy(); lmk.chart = null; }
+  if (grafik.length && typeof Chart !== 'undefined') {
+    const css = getComputedStyle(el('lmk-panel'));
+    const teks = css.getPropertyValue('--web-text-dim').trim() || '#6b7280';
+    const garis = css.getPropertyValue('--web-border').trim() || '#e2e5ea';
+    lmk.chart = new Chart(el('lmk-chart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: grafik.map(x => x.kanal),
+        datasets: [
+          { label: 'HPP', data: grafik.map(x => x.hpp), backgroundColor: '#f59e0b', borderRadius: 4 },
+          { label: 'Potongan MP', data: grafik.map(x => x.potongan), backgroundColor: '#94a3b8', borderRadius: 4 },
+          { label: 'Laba bersih', data: grafik.map(x => Math.max(0, x.labaBersih)), backgroundColor: '#10b981', borderRadius: 4 }
+        ]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: teks, boxWidth: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => `${c.dataset.label}: ${omniRp_(c.raw)}`, footer: items => { const x = grafik[items[0].dataIndex]; return x.omzet > 0 ? `Omzet ${omniRp_(x.omzet)} · margin bersih ${x.marginBersihPct}%` : ''; } } }
+        },
+        scales: {
+          x: { stacked: true, ticks: { color: teks, callback: v => v >= 1e6 ? (v / 1e6).toLocaleString('id-ID') + ' jt' : v >= 1e3 ? (v / 1e3) + ' rb' : v }, grid: { color: garis } },
+          y: { stacked: true, ticks: { color: teks }, grid: { display: false } }
+        }
+      }
+    });
+    el('lmk-chart').parentElement.style.height = Math.max(220, grafik.length * 48 + 70) + 'px';
+  }
+  const catatan = [`HPP per channel = jumlah barang terjual di channel itu (Stock Ledger) × Harga Modal di Produk Master. Potongan MP = tarif biaya penjualan per channel di Finance. Periode ${escapeHtml(d.dari)} s/d ${escapeHtml(d.sampai)}.`];
+  const selisih = Math.round((d.hppTotalLaporan || 0) - (t.hpp || 0));
+  if (Math.abs(selisih) > 1000) catatan.push(`<span class="peringatan">${omniRp_(Math.abs(selisih))} HPP belum bisa dipastikan channelnya (penjualan tercatat manual tanpa keterangan channel) dan masuk baris "Lainnya" bila ada.</span>`);
+  if ((d.tanpaHpp || []).length) catatan.push(`<span class="peringatan">${d.tanpaHpp.length} SKU terjual belum punya Harga Modal, jadi HPP-nya dihitung Rp 0 dan margin terlihat lebih besar dari aslinya: ${d.tanpaHpp.slice(0, 5).map(x => escapeHtml(x.sku)).join(', ')}${d.tanpaHpp.length > 5 ? ', …' : ''}. Isi Harga Modal di Produk Master.</span>`);
+  el('lmk-catatan').innerHTML = catatan.join('');
+}
+const wpFetchDashboardPenjualanAsli_ = wpFetchDashboardPenjualan;
+window.wpFetchDashboardPenjualan = function () {
+  try { lmkMuat(false); } catch (e) { }
+  return wpFetchDashboardPenjualanAsli_.apply(this, arguments);
+};
+
+/* =====================================================================================
+   4) REIMBURSE STAF - tombol aksi di form biaya + rekap hutang di Kelola Staff
+   ===================================================================================== */
+const ksh = { data: null, buka: {}, pilih: {}, sibuk: {}, janji: null };
+window.fin2SetRembes = function (on) {
+  const s = el('fin2-rembes-saklar'), isi = el('fin2-rembes-isi'), kotak = el('fin2-rembes'), btn = el('fin2-rembes-tombol');
+  if (!s) return;
+  s.setAttribute('aria-checked', on ? 'true' : 'false');
+  if (isi) isi.hidden = !on;
+  if (kotak) kotak.classList.toggle('aktif', !!on);
+  if (btn) {
+    btn.classList.toggle('aktif', !!on);
+    btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    btn.querySelector('.fin2-rembes-tombol-ikon').textContent = on ? '✓' : '💳';
+    btn.querySelector('.fin2-rembes-tombol-teks').textContent = on ? 'Ditalangi staf · klik untuk batal' : 'Ditalangi staf (Reimburse)';
+  }
+  if (!on && el('fin2-rembes-info')) el('fin2-rembes-info').hidden = true;
+  if (on) {
+    const inp = el('fin2-rembes-nama');
+    if (inp && !inp.value) {
+      let terakhir = ''; try { terakhir = localStorage.getItem('fin2_rembes_terakhir') || ''; } catch (e) { }
+      inp.value = terakhir || (typeof currentUser !== 'undefined' && currentUser && (currentUser.nama || currentUser.name)) || '';
+    }
+    fin2RenderNamaRembes();
+    kshMuatNama_();
+    setTimeout(() => { if (inp) { inp.focus(); inp.select(); } }, 40);
+  }
+};
+function kshNamaStaf_() {
+  const set = new Map();
+  const tambah = n => { n = String(n || '').replace(/\s+/g, ' ').trim(); if (n && !set.has(n.toLowerCase())) set.set(n.toLowerCase(), n); };
+  ((ksh.data && ksh.data.namaStaf) || []).forEach(tambah);
+  ((typeof kstDaftarStaffCache !== 'undefined' && kstDaftarStaffCache) || []).forEach(s => tambah(s.nama));
+  return [...set.values()];
+}
+window.fin2RenderNamaRembes = function () {
+  const dl = el('fin2-rembes-daftar'), chip = el('fin2-rembes-chip');
+  const gabung = new Map();
+  ((typeof fin2 !== 'undefined' && fin2.namaRembes) || []).concat(kshNamaStaf_()).forEach(n => { if (n && !gabung.has(n.toLowerCase())) gabung.set(n.toLowerCase(), n); });
+  const nama = [...gabung.values()];
+  if (dl) dl.innerHTML = nama.map(n => `<option value="${pgrAttr(n)}"></option>`).join('');
+  if (chip) chip.innerHTML = nama.slice(0, 8).map(n => `<button type="button" class="fin2-chip" data-n="${pgrAttr(n)}" onclick="el('fin2-rembes-nama').value=this.dataset.n; el('fin2-rembes-nama').classList.remove('fin2-wajib-kosong')">${escapeHtml(n)}</button>`).join('');
+};
+function kshMuatNama_() {
+  if (ksh.data || ksh.janji || !omniBolehKeuangan_()) return;
+  ksh.janji = postJson({ aksi: 'rekap_hutang_staf', email: currentUserEmail() }, 60000)
+    .then(r => { if (r && r.success) { ksh.data = r; fin2RenderNamaRembes(); } })
+    .catch(() => { }).finally(() => { ksh.janji = null; });
+}
+function fin2EditRembesKlik(btn) {
+  const wadah = btn.closest('.fin2-edit-rembes');
+  const cb = wadah.querySelector('[data-f=rembes]'), inp = wadah.querySelector('[data-f=rembesOleh]');
+  cb.checked = !cb.checked;
+  btn.classList.toggle('aktif', cb.checked);
+  btn.setAttribute('aria-pressed', cb.checked ? 'true' : 'false');
+  btn.textContent = cb.checked ? '✓ Ditalangi staf' : '💳 Ditalangi staf';
+  if (inp) { inp.style.display = cb.checked ? '' : 'none'; inp.placeholder = 'Nama staf yang menalangi'; if (cb.checked) { inp.focus(); kshMuatNama_(); } }
+}
+
+/* ---------- Validasi wajib form biaya operasional ---------- */
+function fin2ValidasiWajib_(noNota, merchant) {
+  const kurang = []; let pertama = null;
+  const tandai = id => { const e = el(id); if (e) { e.classList.add('fin2-wajib-kosong'); if (!pertama) pertama = e; } };
+  if (!noNota) { kurang.push('ID Pembayaran'); tandai('fin2-b-nota'); }
+  if (!merchant) { kurang.push('Nama Merchant'); tandai('fin2-b-merchant'); }
+  const berkas = ((typeof DOK !== 'undefined' && DOK['fin2-dok-zona'] && DOK['fin2-dok-zona'].files) || []).filter(f => f.status !== 'gagal');
+  if (!berkas.length) { kurang.push('Foto Bukti'); tandai('fin2-dok-zona'); }
+  if (!kurang.length) return '';
+  if (pertama && pertama.focus) pertama.focus();
+  if (pertama && pertama.scrollIntoView) pertama.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  return 'Wajib diisi dulu: ' + kurang.join(', ');
+}
+function fin2IngatMerchant_(m) {
+  m = String(m || '').trim(); if (!m) return;
+  let daftar = [];
+  try { daftar = JSON.parse(localStorage.getItem('fin2_merchant') || '[]') || []; } catch (e) { }
+  daftar = [m].concat(daftar.filter(x => x.toLowerCase() !== m.toLowerCase())).slice(0, 40);
+  try { localStorage.setItem('fin2_merchant', JSON.stringify(daftar)); } catch (e) { }
+  fin2IsiDaftarMerchant_();
+}
+function fin2IsiDaftarMerchant_() {
+  const dl = el('fin2-merchant-daftar'); if (!dl) return;
+  let daftar = [];
+  try { daftar = JSON.parse(localStorage.getItem('fin2_merchant') || '[]') || []; } catch (e) { }
+  ((typeof fin2 !== 'undefined' && fin2.biaya && fin2.biaya.daftar) || []).forEach(d => { if (d.merchant && !daftar.some(x => x.toLowerCase() === d.merchant.toLowerCase())) daftar.push(d.merchant); });
+  dl.innerHTML = daftar.slice(0, 60).map(n => `<option value="${pgrAttr(n)}"></option>`).join('');
+}
+(function fin2PantauFotoBukti_() {
+  const zona = el('fin2-dok-zona');
+  if (!zona) return;
+  const daftar = zona.querySelector('.dok-daftar');
+  if (daftar) new MutationObserver(() => { if (daftar.children.length) zona.classList.remove('fin2-wajib-kosong'); }).observe(daftar, { childList: true });
+  fin2IsiDaftarMerchant_();
+})();
+
+/* ---------- Kelola Staff: Hutang Reimburse Staf ---------- */
+window.kstBukaSubMenu = function (sub) {
+  simpanLokasiTerakhir('staff', sub);
+  gantiTabWeb('staff');
+  document.querySelectorAll('.web-nav-sub[data-kstsub]').forEach(btn => btn.classList.toggle('active', btn.dataset.kstsub === sub));
+  ['daftar', 'hutang', 'approval', 'performa', 'role'].forEach(s => { const v = el('kst-view-' + s); if (v) v.style.display = s === sub ? 'block' : 'none'; });
+  if (sub === 'daftar' || sub === 'approval') kstFetchAll();
+  else if (sub === 'performa') kstBukaPerforma();
+  else if (sub === 'role') kstBukaRole();
+  if (sub === 'hutang' || sub === 'daftar') kshMuat();
+};
+async function kshMuat() {
+  if (!omniBolehKeuangan_()) {
+    if (el('ksh-daftar')) el('ksh-daftar').innerHTML = '<div class="kst-grid-pesan">Hutang reimburse hanya bisa dilihat akun dengan izin keuangan (Buat Invoice / Lihat Harga).</div>';
+    if (el('ksh-banner')) el('ksh-banner').hidden = true;
+    return;
+  }
+  if (ksh.data) { kshRender(); kshBanner_(); kstTempelHutangKartu_(); }
+  try {
+    const r = await postJson({ aksi: 'rekap_hutang_staf', email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'respons kosong');
+    if (Object.keys(ksh.sibuk).length) return; // ada pelunasan sedang disimpan -> jangan timpa tampilan optimis
+    ksh.data = r;
+    kshRender(); kshBanner_(); kstTempelHutangKartu_();
+    if (typeof fin2RenderNamaRembes === 'function') fin2RenderNamaRembes();
+  } catch (err) {
+    if (!ksh.data && el('ksh-daftar')) el('ksh-daftar').innerHTML = `<div class="kst-grid-pesan err">Gagal memuat hutang reimburse: ${escapeHtml(omniPesanErr_(err))}</div>`;
+  }
+}
+function kshHitung_(p) {
+  p.belum = 0; p.sudah = 0; p.nBelum = 0;
+  p.item.forEach(i => { if (i.dibayar) p.sudah += i.jumlah; else { p.belum += i.jumlah; p.nBelum++; } });
+  p.total = p.belum + p.sudah;
+}
+function kshBanner_() {
+  const b = el('ksh-banner'); if (!b || !ksh.data) return;
+  const berhutang = (ksh.data.daftar || []).filter(p => p.belum > 0);
+  const total = berhutang.reduce((t, p) => t + p.belum, 0);
+  b.hidden = !(total > 0);
+  b.innerHTML = `<span aria-hidden="true">💳</span><span style="flex:1;">Perusahaan masih berhutang <b>${omniRp_(total)}</b> ke ${berhutang.length} staf (biaya operasional yang mereka talangi).</span><span>Lihat rincian</span>`;
+}
+function kstTempelHutangKartu_() {
+  if (!ksh.data || typeof kstDaftarStaffCache === 'undefined') return;
+  const per = {};
+  (ksh.data.daftar || []).forEach(p => { per[String(p.nama).toLowerCase()] = p; });
+  kstDaftarStaffCache.forEach(s => {
+    const kartu = el('kst-kartu-' + s.row); if (!kartu) return;
+    const lama = kartu.querySelector('.kst-hutang'); if (lama) lama.remove();
+    const p = per[String(s.nama || '').toLowerCase()];
+    if (!p || !(p.belum > 0)) return;
+    const d = document.createElement('div');
+    d.className = 'kst-hutang';
+    d.setAttribute('role', 'button'); d.tabIndex = 0;
+    d.innerHTML = `💳 Hutang reimburse: <b>${omniRp_(p.belum)}</b> · ${p.nBelum} transaksi`;
+    d.onclick = () => { ksh.buka[p.nama] = true; kstBukaSubMenu('hutang'); };
+    const isi = kartu.querySelector('.kst-kartu-isi') || kartu;
+    isi.appendChild(d);
+  });
+}
+const kstRenderKartuStaffAsli_ = kstRenderKartuStaff;
+window.kstRenderKartuStaff = function () {
+  const hasil = kstRenderKartuStaffAsli_.apply(this, arguments);
+  try { kstTempelHutangKartu_(); } catch (e) { }
+  return hasil;
+};
+function kshRender() {
+  const wadah = el('ksh-daftar'); if (!wadah || !ksh.data) return;
+  const daftar = ksh.data.daftar || [];
+  const totalBelum = daftar.reduce((t, p) => t + p.belum, 0), totalSudah = daftar.reduce((t, p) => t + p.sudah, 0);
+  el('ksh-ringkas').innerHTML = `
+    <div class="lmk-stat"><small>Belum diganti perusahaan</small><b>${omniRp_(totalBelum)}</b><span>${daftar.filter(p => p.belum > 0).length} staf</span></div>
+    <div class="lmk-stat"><small>Sudah diganti</small><b>${omniRp_(totalSudah)}</b><span>semua periode</span></div>`;
+  if (!daftar.length) { wadah.innerHTML = '<div class="kst-grid-pesan">Belum ada biaya yang ditalangi staf. Gunakan tombol "Ditalangi staf" saat mencatat biaya operasional.</div>'; return; }
+  wadah.innerHTML = daftar.map((p, pi) => {
+    const lunas = p.belum <= 0, sibuk = !!ksh.sibuk[p.nama];
+    const inisial = String(p.nama).split(' ').map(x => x[0] || '').join('').slice(0, 2).toUpperCase();
+    const pilih = ksh.pilih[p.nama] || {};
+    const nPilih = p.item.filter(i => !i.dibayar && pilih[i.row]);
+    const totalPilih = nPilih.reduce((t, i) => t + i.jumlah, 0);
+    return `<div class="ksh-orang ${lunas ? 'lunas' : ''}">
+      <div class="ksh-atas">
+        <span class="ksh-avatar" aria-hidden="true">${escapeHtml(inisial)}</span>
+        <div class="ksh-nama"><b>${escapeHtml(p.nama)}</b><small>${p.terdaftar ? escapeHtml(p.role || 'Staf') + (p.email ? ' · ' + escapeHtml(p.email) : '') : 'Nama belum cocok dengan akun staf terdaftar'} · ${p.n} transaksi${p.terakhir ? ' · terakhir ' + escapeHtml(p.terakhir) : ''}</small></div>
+        <div class="ksh-jml"><b>${omniRp_(p.belum)}</b><small>${lunas ? '✓ semua sudah diganti' : `belum diganti · sudah diganti ${omniRp_(p.sudah)}`}</small></div>
+      </div>
+      <div class="ksh-aksi">
+        ${!lunas ? `<button type="button" class="utama" ${sibuk ? 'disabled' : ''} onclick="kshTandaiSemua(${pi})">✓ Tandai semua sudah diganti</button>` : ''}
+        ${nPilih.length ? `<button type="button" ${sibuk ? 'disabled' : ''} onclick="kshTandaiPilihan(${pi})">Tandai ${nPilih.length} terpilih (${omniRp_(totalPilih)})</button>` : ''}
+        <button type="button" onclick="ksh.buka[ksh.data.daftar[${pi}].nama] = !ksh.buka[ksh.data.daftar[${pi}].nama]; kshRender();" aria-expanded="${ksh.buka[p.nama] ? 'true' : 'false'}">${ksh.buka[p.nama] ? 'Sembunyikan rincian' : 'Lihat rincian'}</button>
+      </div>
+      ${ksh.buka[p.nama] ? `<div class="web-table-wrap"><table class="web-table ksh-tbl">
+        <thead><tr><th></th><th>Tanggal</th><th>Biaya</th><th>Merchant / ID</th><th>Keterangan</th><th class="ka">Jumlah</th><th>Status</th><th></th></tr></thead>
+        <tbody>${p.item.map(i => `<tr class="${i._ia === 'gagal' ? 'ia-baris-gagal' : ''} ${i._ia === 'simpan' ? 'ia-baris-simpan' : ''}">
+          <td>${i.dibayar ? '' : `<input type="checkbox" aria-label="Pilih" ${pilih[i.row] ? 'checked' : ''} onchange="kshPilih(${pi}, ${i.row}, this.checked)" />`}</td>
+          <td style="white-space:nowrap;">${escapeHtml(i.tanggalLabel)}</td>
+          <td>${i.ikon || '🧾'} ${escapeHtml(i.label)}</td>
+          <td>${escapeHtml(i.merchant || '-')}${i.noNota ? `<span class="lmk-sub">${escapeHtml(i.noNota)}</span>` : ''}</td>
+          <td style="max-width:240px;">${escapeHtml(i.keterangan || '')}</td>
+          <td class="ka">${omniRp_(i.jumlah)}</td>
+          <td>${i._ia === 'gagal' ? `<span class="ia-lencana gagal">✗ ${escapeHtml(i._pesan || 'Gagal')}</span>` : `<span class="ksh-pill ${i.dibayar ? 'sudah' : 'belum'}">${i.dibayar ? 'Sudah diganti' : 'Belum diganti'}</span>`}</td>
+          <td><button type="button" ${sibuk ? 'disabled' : ''} onclick="kshTandaiBaris(${pi}, ${i.row})">${i.dibayar ? 'Batalkan' : 'Sudah diganti'}</button></td>
+        </tr>`).join('')}</tbody></table></div>` : ''}
+    </div>`;
+  }).join('');
+}
+function kshPilih(pi, row, v) { const p = ksh.data.daftar[pi]; if (!p) return; (ksh.pilih[p.nama] = ksh.pilih[p.nama] || {})[row] = v; kshRender(); }
+function kshTandaiSemua(pi) { const p = ksh.data.daftar[pi]; if (p) kshTandai_(p, p.item.filter(i => !i.dibayar), true); }
+function kshTandaiPilihan(pi) { const p = ksh.data.daftar[pi]; if (!p) return; const pl = ksh.pilih[p.nama] || {}; kshTandai_(p, p.item.filter(i => !i.dibayar && pl[i.row]), true); }
+function kshTandaiBaris(pi, row) { const p = ksh.data.daftar[pi]; if (!p) return; const i = p.item.find(x => x.row === row); if (i) kshTandai_(p, [i], !i.dibayar); }
+async function kshTandai_(p, items, dibayar) {
+  if (!items.length || ksh.sibuk[p.nama]) return;
+  clearTimeout(p._kshTimer);
+  const total = items.reduce((t, i) => t + i.jumlah, 0);
+  if (dibayar && items.length > 1 && !(await omniKonfirm_(`Tandai ${items.length} biaya talangan ${p.nama} (${omniRp_(total)}) sudah diganti perusahaan?`))) return;
+  // Optimistic: tampilan langsung berubah, simpan di latar
+  const lama = items.map(i => [i, i.dibayar]);
+  items.forEach(i => { i.dibayar = !!dibayar; i._ia = 'simpan'; });
+  kshHitung_(p); ksh.sibuk[p.nama] = true; delete ksh.pilih[p.nama];
+  kshRender(); kshBanner_(); kstTempelHutangKartu_();
+  const logId = logTindakan.tambah(`${dibayar ? 'Lunasi' : 'Batalkan lunas'} reimburse ${p.nama} · ${omniRp_(total)}`);
+  logTindakan.ubah(logId, 'proses', 'Menyimpan di latar…');
+  try {
+    const r = await postJsonTulis({ aksi: 'tandai_hutang_staf', nama: p.nama, rows: items.map(i => i.row), dibayar: !!dibayar, email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+    items.forEach(i => { delete i._ia; i.status = r.status; });
+    // Riwayat biaya di Finance ikut diperbarui tanpa muat ulang
+    try {
+      if (typeof fin2 !== 'undefined' && fin2.biaya && fin2.biaya.daftar) {
+        const rs = {}; items.forEach(i => { rs[i.row] = 1; });
+        fin2.biaya.daftar.forEach(d => { if (rs[d.row]) { d.rembesDibayar = !!dibayar; d.statusRembes = r.status; } });
+        fin2.lapKunci = '';
+      }
+    } catch (e) { }
+    logTindakan.ubah(logId, 'ok', dibayar ? 'Ditandai sudah diganti' : 'Kembali belum diganti');
+  } catch (err) {
+    const pesan = omniPesanErr_(err);
+    items.forEach(i => { i._ia = 'gagal'; i._pesan = 'gagal: ' + pesan; });
+    ksh.buka[p.nama] = true;
+    kshRender();
+    logTindakan.ubah(logId, 'gagal', pesan + ' - status dikembalikan', [{ label: 'Coba lagi', fn: () => {
+      clearTimeout(p._kshTimer);
+      lama.forEach(([i, b]) => { i.dibayar = b; delete i._ia; delete i._pesan; });
+      kshTandai_(p, lama.map(x => x[0]), dibayar);
+    } }]);
+    p._kshTimer = setTimeout(() => { lama.forEach(([i, b]) => { i.dibayar = b; delete i._ia; delete i._pesan; }); kshHitung_(p); kshRender(); kshBanner_(); kstTempelHutangKartu_(); }, 5000);
+  } finally {
+    delete ksh.sibuk[p.nama];
+    items.forEach(i => { if (i._ia === 'simpan') delete i._ia; });
+    kshHitung_(p); kshRender(); kshBanner_(); kstTempelHutangKartu_();
+  }
+}
+</script>
+
 </body>
 </html>
