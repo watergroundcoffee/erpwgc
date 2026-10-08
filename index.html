@@ -7098,6 +7098,13 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
   .smx-chip.sup { background: rgba(79, 70, 229, .1); color: #4338ca; }
   .smx-chip.isi { background: rgba(16, 185, 129, .1); color: #047857; }
   .smx-chip.konflik { background: rgba(245, 158, 11, .14); color: #b45309; }
+  .smx-chip.mp { background: rgba(148, 163, 184, .16); color: var(--web-text); font-weight: 600; }
+  .smx-chip.mp.tiktokshop { background: rgba(254, 44, 85, .10); color: #be123c; }
+  .smx-chip.mp.shopee { background: rgba(238, 77, 45, .10); color: #c2410c; }
+  .smx-chip.mp.tokopedia { background: rgba(66, 181, 73, .12); color: #15803d; }
+  .smx-sapu { display: inline-block; text-align: left; font-size: 12.5px; margin: 4px 0 12px; padding: 8px 12px; border-radius: 10px; background: rgba(148, 163, 184, .1); max-width: 70ch; }
+  .smx-sapu small { display: block; margin-top: 3px; color: var(--web-text-dim); }
+  .smx-sapu.ok { background: rgba(16, 185, 129, .08); } .smx-sapu.err { background: rgba(217, 82, 79, .08); color: #b42318; }
   .smx-select { margin: 0; max-width: 380px; font-size: 12px; padding: 5px 8px; }
   .smx-ai-tag { display: block; margin-top: 3px; font-size: 11px; color: #4338ca; }
   .smx-ai-tag.tebak { color: #b45309; }
@@ -53189,7 +53196,7 @@ async function imsEksekusi() {
    ===================================================================================== */
 const smx = { file: [], hasil: null, baris: [], tab: 'ubah', cari: '', batas: 100, sibuk: false, statistik: null };
 const SMX_TAB = [
-  { k: 'ubah', label: 'Data diperbarui', ket: 'Nama / harga modal di Excel berbeda dengan sistem, atau ada SKU Supplier baru. Data Excel akan menimpa.' },
+  { k: 'ubah', label: 'Data diperbarui', ket: 'Nama / harga modal berbeda dengan sistem, ada SKU Supplier baru, atau SKU varian marketplace yang belum terdaftar di produk ini. Data Excel akan menimpa nama & modal.' },
   { k: 'baru', label: 'Belum ada di sistem', ket: 'SKU Gudang ini belum ada di Produk Master. Centang yang ingin dibuat sebagai produk baru.' },
   { k: 'mapping', label: 'Kode marketplace', ket: 'SKU Penjual di TikTok / Shopee yang berbeda dari SKU Gudang. Dihubungkan ke SKU Gudang supaya stok terpotong benar.' },
   { k: 'bundle', label: 'Bundling', ket: 'SKU paket berisi beberapa produk. Saat terjual, stok tiap isi paket ikut terpotong.' },
@@ -53243,7 +53250,7 @@ function smxKenaliSheet_(namaSheet, rows) {
   for (let h = 0; h < atas.length; h++) {
     const j = atas[h];
     if (j.includes('seller_sku') && j.includes('product_id')) {
-      return { jenis: 'tiktok', h, kol: { pid: j.indexOf('product_id'), nama: j.indexOf('product_name'), variasi: j.indexOf('variation_value'), kode: j.indexOf('seller_sku') } };
+      return { jenis: 'tiktok', h, kol: { pid: j.indexOf('product_id'), nama: j.indexOf('product_name'), variasi: j.indexOf('variation_value'), kode: j.indexOf('seller_sku'), toko: j.indexOf('toko_product_url') } };
     }
     if (j.includes('et_title_variation_sku') || (j.includes('sku induk') && j.includes('kode variasi'))) {
       const c = n => j.indexOf(n);
@@ -53287,7 +53294,8 @@ function smxAmbilData_(info, rows, sumber) {
       const pid = sel(r, k.pid);
       if (!(typeof pid === 'number' ? pid > 9999 : /^\d{5,}$/.test(smxSel(pid)))) return; // lewati baris keterangan template
       const kode = smxSel(sel(r, k.kode)) || smxSel(sel(r, k.induk));
-      hasil.push({ platform: info.jenis === 'tiktok' ? 'TikTok Shop' : 'Shopee', kode: kode.replace(/\s+/g, ''), nama: smxSel(sel(r, k.nama)).slice(0, 140), variasi: smxSel(sel(r, k.variasi)).slice(0, 60) });
+      hasil.push({ platform: info.jenis === 'tiktok' ? 'TikTok Shop' : 'Shopee', kode: kode.replace(/\s+/g, ''), nama: smxSel(sel(r, k.nama)).slice(0, 140), variasi: smxSel(sel(r, k.variasi)).slice(0, 60),
+        tokopedia: info.jenis === 'tiktok' && k.toko >= 0 && /tokopedia/i.test(smxSel(sel(r, k.toko))) });
     } else if (info.jenis === 'bundling') {
       const isi = k.komp.map(i => smxKode_(sel(r, i))).filter(x => x && !/^X{3,}$/.test(x));
       let kode = smxKode_(sel(r, k.bundle));
@@ -53454,7 +53462,7 @@ function smxRender() {
   smx.baris.forEach(r => { hitung[smxTabBaris_(r)]++; });
   const dipilih = smx.baris.filter(r => r.pilih).length;
   el('smx-ringkas').innerHTML = `<span>${(s.internal || 0).toLocaleString('id-ID')} SKU internal · ${(s.marketplace || 0).toLocaleString('id-ID')} SKU marketplace dibaca.</span>
-    <span>${(s.langsung || 0).toLocaleString('id-ID')} SKU Penjual langsung cocok dengan SKU Gudang · ${(s.sudah || 0).toLocaleString('id-ID')} sudah terhubung sebelumnya${s.kosong ? ` · ${s.kosong} SKU Penjual kosong di marketplace` : ''}.</span>`;
+    <span>${(s.langsung || 0).toLocaleString('id-ID')} SKU Penjual sama dengan SKU Gudang · <b>${(s.mpBaru || 0).toLocaleString('id-ID')} SKU varian marketplace akan didaftarkan</b> · ${(s.sudah || 0).toLocaleString('id-ID')} sudah terdaftar sebelumnya${s.kosong ? ` · ${s.kosong} varian tanpa SKU Penjual di marketplace (isi dulu di Seller Center)` : ''}.</span>`;
   el('smx-tab').innerHTML = SMX_TAB.map(t => `<button type="button" role="tab" aria-selected="${smx.tab === t.k}" class="${smx.tab === t.k ? 'aktif' : ''} ${t.k}" onclick="smx.tab='${t.k}'; smx.batas=100; smxRender()">${t.label} <b>${hitung[t.k].toLocaleString('id-ID')}</b></button>`).join('');
   const tab = SMX_TAB.find(t => t.k === smx.tab);
   const q = smx.cari.toLowerCase();
@@ -53487,7 +53495,9 @@ function smxHtmlBaris_(r, i) {
   if (r.jenis === 'produk') {
     const nama = r.ubahNama && r.namaLama ? `<s>${escapeHtml(r.namaLama)}</s><span>${escapeHtml(r.namaBaru)}</span>` : `<span>${escapeHtml(r.namaBaru || r.namaLama || '—')}</span>`;
     const modal = r.ubahModal ? `${r.modalLama ? `<s>${smxRp(r.modalLama)}</s>` : ''}<span>${smxRp(r.modalBaru)}</span>` : `<span>${smxRp(r.modalLama || r.modalBaru)}</span>`;
-    const tambahan = (r.supBaru || []).map(k => `<i class="smx-chip sup">+ ${escapeHtml(k)}</i>`).join('') +
+    const SMX_PF = { 'TikTok Shop': 'TikTok', 'Shopee': 'Shopee', 'Tokopedia': 'Tokped' };
+    const tambahan = (r.supBaru || []).map(k => `<i class="smx-chip sup" title="SKU Supplier">+ ${escapeHtml(k)}</i>`).join('') +
+      (r.mpBaru || []).map(m => `<i class="smx-chip mp ${String(m.platform).replace(/\s+/g, '').toLowerCase()}" title="SKU varian ${pgrAttr(m.platform)}">${escapeHtml(SMX_PF[m.platform] || m.platform)}: ${escapeHtml(m.kode)}</i>`).join('') +
       (r.supKonflik || []).map(k => `<i class="smx-chip konflik" title="Sudah terhubung ke ${pgrAttr(k.milik)}">⚠ ${escapeHtml(k.kode)} milik ${escapeHtml(k.milik)}</i>`).join('');
     return `<tr class="${r.pilih ? 'dipilih' : ''}"><td>${cek}</td><td class="smx-sku">${escapeHtml(r.sku)}${r.arsip ? '<small>arsip</small>' : ''}</td>
       <td class="smx-beda">${nama}</td><td class="smx-beda ka">${modal}</td><td>${tambahan || '<span class="smx-redup">—</span>'}</td>
@@ -53512,7 +53522,7 @@ function smxRenderTabel_() {
   const kepala = smx.tab === 'mapping' || (smx.tab === 'masalah' && idx.some(i => smx.baris[i].jenis === 'mapping'))
     ? '<th></th><th>SKU Penjual</th><th>Produk di marketplace</th><th colspan="2">Dihubungkan ke SKU Gudang</th><th>Keterangan</th>'
     : smx.tab === 'bundle' ? '<th></th><th>SKU Bundle</th><th>Nama</th><th colspan="2">Isi paket</th><th></th>'
-    : '<th></th><th>SKU Gudang</th><th>Nama produk</th><th class="ka">Harga modal</th><th>SKU Supplier</th><th>Sumber</th>';
+    : '<th></th><th>SKU Gudang</th><th>Nama produk</th><th class="ka">Harga modal</th><th>Ditambahkan (SKU Supplier & varian marketplace)</th><th>Sumber</th>';
   el('smx-tabel').innerHTML = idx.length ? `<thead><tr>${kepala}</tr></thead><tbody>${idx.slice(0, smx.batas).map(i => smxHtmlBaris_(smx.baris[i], i)).join('')}</tbody>`
     : '<tbody><tr><td class="smx-kosong">Tidak ada baris di bagian ini.</td></tr></tbody>';
   el('smx-lagi').innerHTML = idx.length > smx.batas ? `<button type="button" class="web-btn-secondary" onclick="smx.batas+=200; smxRenderTabel_()">Tampilkan ${Math.min(200, idx.length - smx.batas)} baris lagi (${idx.length - smx.batas} tersisa)</button>` : '';
@@ -53572,18 +53582,19 @@ async function smxSimpan() {
       if (r.status === 'baru') kirim.produkBaru.push({ sku: r.sku, nama: r.namaBaru, modal: r.modalBaru, kategori: r.kategori });
       else if (r.ubahNama || r.ubahModal) kirim.produkUpdate.push(Object.assign({ sku: r.sku }, r.ubahNama ? { nama: r.namaBaru } : {}, r.ubahModal ? { modal: r.modalBaru } : {}));
       (r.supBaru || []).forEach(k => kirim.supplier.push({ sku: r.sku, kode: k }));
+      (r.mpBaru || []).forEach(m => kirim.marketplace.push({ kode: m.kode, sku: r.sku, platform: m.platform }));
     } else if (r.jenis === 'bundle') kirim.bundling.push({ kode: r.kode, isi: r.isi, nama: r.nama });
-    else if (r.sku) kirim.marketplace.push({ kode: r.kode, sku: r.sku, platform: r.platform });
+    else if (r.sku) (r.platforms && r.platforms.length ? r.platforms : [r.platform]).forEach(pf => kirim.marketplace.push({ kode: r.kode, sku: r.sku, platform: pf }));
   });
   const ringkas = [
     kirim.produkUpdate.length && `${kirim.produkUpdate.length} produk diperbarui (nama / harga modal ditimpa data Excel)`,
     kirim.produkBaru.length && `${kirim.produkBaru.length} produk baru dibuat`,
     kirim.supplier.length && `${kirim.supplier.length} SKU Supplier ditambahkan`,
-    kirim.marketplace.length && `${kirim.marketplace.length} kode marketplace dihubungkan`,
+    kirim.marketplace.length && `${kirim.marketplace.length} SKU varian marketplace didaftarkan ke produknya`,
     kirim.bundling.length && `${kirim.bundling.length} bundling didaftarkan`
   ].filter(Boolean);
   if (!ringkas.length) return;
-  if (!(await omniKonfirm_('Simpan perubahan berikut?\n\n• ' + ringkas.join('\n• ') + '\n\nHarga jual tidak diubah. Mapping lama tidak dihapus.'))) return;
+  if (!(await omniKonfirm_('Simpan perubahan berikut?\n\n• ' + ringkas.join('\n• ') + '\n\nSetelah tersimpan, Sapu Bersih SKU dijalankan otomatis.\nHarga jual tidak diubah. Mapping lama tidak dihapus.'))) return;
   smx.sibuk = true;
   const btn = el('smx-simpan'); btn.disabled = true; btn.textContent = 'Menyimpan…';
   const logId = logTindakan.tambah('Import Excel Mapping SKU');
@@ -53597,11 +53608,13 @@ async function smxSimpan() {
         ${r.produkDiubah ? `<li><b>${r.produkDiubah}</b> produk diperbarui</li>` : ''}
         ${r.produkBaru ? `<li><b>${r.produkBaru}</b> produk baru dibuat</li>` : ''}
         ${r.supplierDitambah ? `<li><b>${r.supplierDitambah}</b> SKU Supplier ditambahkan</li>` : ''}
-        ${r.mapping ? `<li><b>${m.ditambah || 0}</b> kode marketplace dihubungkan${m.sudahAda ? `, ${m.sudahAda} sudah ada` : ''}${(m.konflik || []).length ? `, ${m.konflik.length} dilewati karena sudah milik produk lain` : ''}</li>` : ''}
+        ${r.mapping ? `<li><b>${m.ditambah || 0}</b> SKU varian marketplace didaftarkan${m.sudahAda ? `, ${m.sudahAda} sudah ada` : ''}${(m.konflik || []).length ? `, ${m.konflik.length} dilewati karena sudah milik produk lain` : ''}</li>` : ''}
         ${r.bundling ? `<li><b>${r.bundling}</b> bundling terdaftar - stok tiap isi paket ikut terpotong saat terjual</li>` : ''}
       </ul>
+      <div class="smx-sapu" id="smx-sapu"><i class="dok-spin"></i> Menjalankan Sapu Bersih SKU…</div>
       <p>Baris yang tidak dicentang tidak diubah. File yang sama boleh diimpor ulang kapan saja - data yang sudah sesuai otomatis dilewati.</p>`;
     smxLangkah_('selesai');
+    smxSapuBersih_();
     logTindakan.ubah(logId, 'ok', 'Tersimpan · ' + ringkas.join(' · '));
     pgrToast('✓ Import Excel Mapping SKU selesai');
     playBeep();
@@ -53612,6 +53625,29 @@ async function smxSimpan() {
     btn.disabled = false;
     smxRender();
   } finally { smx.sibuk = false; }
+}
+
+// Sapu Bersih otomatis setelah import: produk master yang kodenya ternyata SKU Terhubung milik produk lain digabung
+async function smxSapuBersih_() {
+  const w = el('smx-sapu');
+  const logId = logTindakan.tambah('Sapu Bersih SKU (otomatis setelah import)');
+  logTindakan.ubah(logId, 'proses', 'Memindai SKU tak bertuan…');
+  try {
+    const d = await postJsonTulis({ aksi: 'katalog_sapu_bersih_sku', eksekusi: true, email: currentUserEmail() }, 180000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Ditolak server');
+    const gab = Array.isArray(d.digabung) ? d.digabung : [];
+    const lewat = Array.isArray(d.dilewati) ? d.dilewati : [];
+    if (gab.length && typeof katalogTerapkanHasilGabung === 'function') katalogTerapkanHasilGabung(gab);
+    if (w) w.innerHTML = gab.length
+      ? `🧹 <b>${gab.length}</b> SKU tak bertuan digabung ke produk induknya: ${gab.slice(0, 6).map(g => `${escapeHtml(g.sku)} → ${escapeHtml(g.ke)}`).join(', ')}${gab.length > 6 ? ', …' : ''}${lewat.length ? `<small>${lewat.length} tidak digabung otomatis (terhubung ke beberapa produk / grup varian) - cek lewat tombol 🧹 Sapu Bersih SKU.</small>` : ''}`
+      : `🧹 Sapu Bersih selesai - tidak ada SKU tak bertuan.${lewat.length ? `<small>${lewat.length} perlu dicek manual lewat tombol 🧹 Sapu Bersih SKU.</small>` : ''}`;
+    if (w) w.classList.add('ok');
+    logTindakan.ubah(logId, 'ok', gab.length ? `${gab.length} SKU digabung` : 'Tidak ada SKU tak bertuan');
+  } catch (err) {
+    const pesan = String(err.message || err).replace(/^Error:\s*/, '');
+    if (w) { w.classList.add('err'); w.innerHTML = '✗ Sapu Bersih gagal: ' + escapeHtml(pesan) + ' - data import tetap tersimpan. Jalankan ulang lewat tombol 🧹 Sapu Bersih SKU.'; }
+    logTindakan.ubah(logId, 'gagal', pesan, [{ label: 'Coba lagi', fn: () => smxSapuBersih_() }]);
+  }
 }
 
 /* ---------- Modal ---------- */
