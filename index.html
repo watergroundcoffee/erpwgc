@@ -27890,8 +27890,13 @@ async function katalogFetchProduk(opsi) {
     if (dataMarket.success) {
       const petaMarket = {};
       (dataMarket.daftar || []).forEach(d => {
-        if (!petaMarket[d.skuJual]) petaMarket[d.skuJual] = [];
-        petaMarket[d.skuJual].push({ skuMarketplace: d.skuMarketplace, platform: d.platform });
+        const skuJual = String(d.skuJual || '').trim();
+        if (!skuJual) return;
+        if (!petaMarket[skuJual]) petaMarket[skuJual] = [];
+        // 1 sel bisa berisi beberapa kode (dipisah koma/spasi) -> tampil sebagai SKU terpisah, tanpa dobel per platform
+        String(d.skuMarketplace == null ? '' : d.skuMarketplace).split(/[\s,;]+/).map(x => x.trim()).filter(Boolean).forEach(kode => {
+          if (!petaMarket[skuJual].some(m => m.skuMarketplace.toUpperCase() === kode.toUpperCase() && m.platform === d.platform)) petaMarket[skuJual].push({ skuMarketplace: kode, platform: d.platform });
+        });
       });
       katalogPertahankanPetaTertunda(petaMarket, katalogSkuMarketplaceMap);
       katalogSkuMarketplaceMap = petaMarket;
