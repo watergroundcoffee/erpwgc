@@ -53163,6 +53163,8 @@ async function imsEksekusi() {
   try {
     const r = await postJsonTulis({ aksi: 'import_mapping_sku', json: teks, platform: el('ims-platform').value, email: currentUserEmail() }, 120000);
     if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+    r.dilewati = Array.isArray(r.dilewati) ? r.dilewati : []; r.konflik = Array.isArray(r.konflik) ? r.konflik : [];
+    ['ditambah', 'sudahAda', 'jumlahDilewati', 'jumlahKonflik', 'tidakLengkap'].forEach(k => { r[k] = Number(r[k]) || 0; });
     const bagian = [];
     if (r.jumlahDilewati) bagian.push(`<details><summary>${r.jumlahDilewati} pasangan dilewati - SKU Gudang tidak ada di Produk Master</summary><div class="ims-daftar">${r.dilewati.map(escapeHtml).join(', ')}${r.jumlahDilewati > r.dilewati.length ? ' …' : ''}</div></details>`);
     if (r.jumlahKonflik) bagian.push(`<details open><summary>${r.jumlahKonflik} SKU Marketplace tidak diubah - sudah terhubung ke SKU Gudang lain</summary><div class="ims-daftar">${r.konflik.map(k => `${escapeHtml(k.mp)} → sudah di ${escapeHtml(k.dipakai)} (diminta ${escapeHtml(k.diminta)})`).join('<br>')}</div></details>`);
@@ -53364,6 +53366,7 @@ async function smxKenaliAI(i) {
   try {
     const r = await postJsonTulis({ aksi: 'smap_ai_kolom', sheet: f.sheet, baris: f.rows.slice(0, 15).map(x => (x || []).map(c => smxSel(c))), email: currentUserEmail() }, 90000);
     if (!r || !r.success) throw new Error((r && r.error) || 'AI gagal');
+    if (!r.kolom) throw new Error('Jawaban AI tidak lengkap - coba lagi');
     const k = r.kolom, h = Math.max(0, (parseInt(k.barisData, 10) || 1) - 1);
     if (!(k.skuGudang >= 0)) throw new Error('AI tidak menemukan kolom SKU Gudang di sheet ini');
     f.info = { jenis: 'internal', h, kopi: /kopi|coffee|roast/i.test(f.sheet), kol: { sku: k.skuGudang, supp: k.skuSupplier, nama: k.nama, namaMp: -1, modal: k.modal, kategori: k.kategori } };
@@ -53431,6 +53434,8 @@ async function smxAnalisis() {
   try {
     const r = await postJsonTulis({ aksi: 'smap_analisis', internal, marketplace, bundling, email: currentUserEmail() }, 180000);
     if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+    // Kiriman ulang otomatis (koneksi putus saat server masih menghitung) bisa menerima jawaban ringkas tanpa data
+    if (!Array.isArray(r.baris)) throw new Error('Hasil pencocokan tidak lengkap (koneksi sempat terputus saat server menghitung). Klik "Analisis & cocokkan" sekali lagi.');
     smx.baris = r.baris.map(x => Object.assign(x, { pilih: smxDefaultPilih_(x) }));
     smx.statistik = Object.assign({ internal: internal.length, marketplace: marketplace.length }, r.statistik);
     smx.tab = SMX_TAB.find(t => smx.baris.some(x => smxTabBaris_(x) === t.k))?.k || 'ubah';
@@ -53557,6 +53562,7 @@ async function smxCocokAI() {
       logTindakan.ubah(logId, 'proses', `Memproses ${a + 1}-${a + potong.length} dari ${target.length}…`);
       const r = await postJsonTulis({ aksi: 'smap_ai_cocok', item: potong.map(x => ({ id: x.id, nama: x.namaMp, kode: x.kode, kandidat: x.kandidat })), email: currentUserEmail() }, 120000);
       if (!r || !r.success) throw new Error((r && r.error) || 'AI gagal');
+      if (!Array.isArray(r.hasil)) throw new Error('Jawaban AI tidak lengkap - coba lagi');
       r.hasil.forEach(h => {
         const b = smx.baris.find(x => x.id === h.id); if (!b) return;
         if (h.sku) { b.sku = h.sku; b.status = 'ai'; b.yakin = h.yakin; b.alasan = h.alasan; b.pilih = false; cocok++; }
@@ -53602,6 +53608,7 @@ async function smxSimpan() {
   try {
     const r = await postJsonTulis(Object.assign({ aksi: 'smap_simpan', email: currentUserEmail() }, kirim), 300000);
     if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+    ['produkDiubah', 'produkBaru', 'supplierDitambah', 'bundling'].forEach(k => { r[k] = Number(r[k]) || 0; });
     const m = r.mapping || {};
     el('smx-hasil').innerHTML = `<div class="smx-selesai-ikon" aria-hidden="true">✓</div><h3>Import selesai</h3>
       <ul>
