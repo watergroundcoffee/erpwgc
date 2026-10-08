@@ -7007,6 +7007,37 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
   .ksh-tbl tr.ia-baris-gagal td { background: rgba(217, 82, 79, .08); }
   .kst-hutang { margin-top: 8px; font-size: 12px; padding: 6px 10px; border-radius: 9px; background: rgba(245, 158, 11, .10); color: #92400e; cursor: pointer; }
   body.tema-gelap .kst-hutang { color: #fcd34d; }
+
+  /* =====================================================================================
+     PEMBARUAN v2026.10f - Modal Import Mapping SKU
+     ===================================================================================== */
+  .ims-latar { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .45); }
+  .ims-latar[hidden] { display: none; }
+  .ims-kotak { width: 100%; max-width: 640px; max-height: calc(100vh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 24px 60px rgba(15, 23, 42, .28); }
+  .ims-kepala { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .ims-kepala h3 { margin: 0; font-size: 16px; font-weight: 800; color: var(--web-text); }
+  .ims-x { border: 0; background: none; font-size: 18px; color: var(--web-text-dim); cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+  .ims-x:hover { background: rgba(148, 163, 184, .15); }
+  .ims-ket { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--web-text-dim); }
+  .ims-baris { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ims-baris label { font-size: 12px; font-weight: 700; color: var(--web-text); }
+  .ims-baris select { flex: 1; min-width: 220px; margin: 0; }
+  .ims-contoh { margin: 0; font-size: 12px; }
+  .ims-teks { width: 100%; box-sizing: border-box; min-height: 220px; margin: 0; resize: vertical; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.5; }
+  .ims-info { font-size: 11.5px; color: var(--web-text-dim); line-height: 1.55; }
+  .ims-info code { font-size: 11px; padding: 0 4px; border-radius: 4px; background: rgba(148, 163, 184, .16); }
+  .ims-info.ok { color: #047857; font-weight: 600; }
+  .ims-info.err { color: #b42318; font-weight: 600; }
+  body.tema-gelap .ims-info.ok { color: #6ee7b7; } body.tema-gelap .ims-info.err { color: #fca5a5; }
+  .ims-hasil { font-size: 12.5px; line-height: 1.6; border-radius: 10px; padding: 10px 12px; }
+  .ims-hasil[hidden] { display: none; }
+  .ims-hasil.ok { background: rgba(16, 185, 129, .08); border: 1px solid rgba(16, 185, 129, .3); }
+  .ims-hasil.err { background: rgba(217, 82, 79, .08); border: 1px solid rgba(217, 82, 79, .3); }
+  .ims-hasil details { margin-top: 6px; }
+  .ims-hasil summary { cursor: pointer; font-weight: 600; }
+  .ims-daftar { margin-top: 4px; font-size: 11.5px; color: var(--web-text-dim); word-break: break-word; max-height: 140px; overflow-y: auto; }
+  .ims-kaki { display: flex; justify-content: flex-end; gap: 8px; }
+  .ims-kaki button { margin: 0; }
 </style>
 </head>
 <body>
@@ -11487,6 +11518,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <div style="flex:1;"></div>
             <button class="web-btn-secondary" onclick="katalogBukaModalSapuBersih()" style="font-size:12px;" title="Gabungkan otomatis SKU tak bertuan yang identik dengan SKU Terhubung produk lain">🧹 Sapu Bersih SKU</button>
             <button class="web-btn-secondary" onclick="katalogBukaModalEditMassal()" style="font-size:12px;" title="Edit nama, harga, kategori & SKU Terhubung banyak produk sekaligus (produk terpilih, atau semua hasil filter)">✎ Edit Produk Massal</button>
+            <button class="web-btn-secondary" onclick="imsBuka()" style="font-size:12px;" title="Tempel JSON pasangan SKU Marketplace → SKU Gudang untuk menghubungkan banyak SKU sekaligus">⇄ Import Mapping SKU</button>
             <button class="web-btn-secondary" onclick="katalogBukaModalBulkProduk()" style="font-size:12px;">⊞ Tambah Produk Massal</button>
             <button class="web-btn-primary" onclick="katalogBukaModalTambahProduk()" style="font-size:12px;">+ Tambah Produk Baru</button>
           </div>
@@ -52950,6 +52982,127 @@ async function kshTandai_(p, items, dibayar) {
     delete ksh.sibuk[p.nama];
     items.forEach(i => { if (i._ia === 'simpan') delete i._ia; });
     kshHitung_(p); kshRender(); kshBanner_(); kstTempelHutangKartu_();
+  }
+}
+</script>
+
+<script>
+/* =====================================================================================
+   PEMBARUAN v2026.10f (JS) - Mass Importer Mapping SKU (Produk Master)
+   JSON pasangan "SKU Marketplace" -> "SKU Gudang" ditambahkan ke pemetaan yang sudah ada (tidak menghapus).
+   ===================================================================================== */
+const IMS_CONTOH = '{\n  "SHP-KOPI-250G": "KOPI-250",\n  "TTS-KOPI-250-ARABIKA": "KOPI-250",\n  "SHP-GELAS-350": "GELAS-350"\n}';
+let imsSibuk = false;
+function imsBangun_() {
+  let m = el('ims-modal');
+  if (m) return m;
+  m = document.createElement('div');
+  m.id = 'ims-modal';
+  m.className = 'ims-latar';
+  m.hidden = true;
+  m.innerHTML = `
+    <div class="web-panel ims-kotak" role="dialog" aria-modal="true" aria-labelledby="ims-judul">
+      <div class="ims-kepala">
+        <h3 id="ims-judul">Import Mapping SKU</h3>
+        <button type="button" class="ims-x" onclick="imsTutup()" aria-label="Tutup">✕</button>
+      </div>
+      <p class="ims-ket">Tempel JSON berisi pasangan <b>SKU Marketplace → SKU Gudang</b>. SKU Marketplace baru ditambahkan ke pemetaan yang sudah ada (dipisah koma) tanpa menghapus yang lama. SKU Gudang yang tidak ada di Produk Master dilewati.</p>
+      <div class="ims-baris">
+        <label for="ims-platform">Platform</label>
+        <select id="ims-platform" class="web-form-input">
+          <option value="">Tanpa platform (hanya pencocokan pesanan)</option>
+          <option value="Shopee">Shopee</option>
+          <option value="TikTok Shop">TikTok Shop</option>
+          <option value="Tokopedia">Tokopedia</option>
+        </select>
+        <button type="button" class="web-btn-secondary ims-contoh" onclick="imsIsiContoh()">Isi contoh format</button>
+      </div>
+      <textarea id="ims-json" class="web-form-input ims-teks" spellcheck="false" autocomplete="off"
+        placeholder='{ "SKU-MARKETPLACE": "SKU-GUDANG" }' oninput="imsPratinjau()"></textarea>
+      <div class="ims-info" id="ims-info" aria-live="polite">Format yang diterima: <code>{"SKU-MP": "SKU-GUDANG"}</code>, <code>{"SKU-GUDANG": ["SKU-MP-1", "SKU-MP-2"]}</code>, atau daftar <code>[{"skuMarketplace", "skuGudang", "platform"}]</code>. Platform di dalam JSON mengalahkan pilihan di atas.</div>
+      <div class="ims-hasil" id="ims-hasil" hidden></div>
+      <div class="ims-kaki">
+        <button type="button" class="web-btn-secondary" onclick="imsTutup()">Tutup</button>
+        <button type="button" class="web-btn-primary" id="ims-eksekusi" onclick="imsEksekusi()">Eksekusi Sinkronisasi</button>
+      </div>
+    </div>`;
+  m.addEventListener('pointerdown', e => { if (e.target === m && !imsSibuk) imsTutup(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !m.hidden && !imsSibuk) imsTutup(); });
+  document.body.appendChild(m);
+  return m;
+}
+function imsBuka() {
+  const m = imsBangun_();
+  m.hidden = false;
+  el('ims-hasil').hidden = true;
+  imsPratinjau();
+  setTimeout(() => el('ims-json').focus(), 40);
+}
+function imsTutup() { const m = el('ims-modal'); if (m) m.hidden = true; }
+function imsIsiContoh() { el('ims-json').value = IMS_CONTOH; imsPratinjau(); el('ims-json').focus(); }
+// Hitung pasangan di browser supaya kesalahan format terlihat sebelum dikirim
+function imsHitungPasangan_(teks) {
+  const obj = JSON.parse(teks);
+  let n = 0;
+  const hitungMp = v => Array.isArray(v) ? v.length : String(v == null ? '' : v).split(/[,;\r\n]+/).filter(x => x.trim()).length;
+  const item = x => { if (Array.isArray(x)) n += hitungMp(x[0]); else if (x && typeof x === 'object') n += hitungMp(x.skuMarketplace || x.sku_marketplace || x['SKU Marketplace'] || x.marketplace || x.mp || ''); };
+  if (Array.isArray(obj)) obj.forEach(item);
+  else if (obj && typeof obj === 'object') {
+    const b = obj.mapping || obj.data || obj.daftar;
+    if (Array.isArray(b)) b.forEach(item);
+    else Object.keys(obj).forEach(k => { const v = obj[k]; n += Array.isArray(v) ? v.length : hitungMp(k); });
+  } else throw new Error('JSON harus berupa objek atau daftar');
+  return n;
+}
+function imsPratinjau() {
+  const info = el('ims-info'), teks = el('ims-json').value.trim();
+  el('ims-json').classList.remove('fin2-wajib-kosong');
+  if (!teks) { info.className = 'ims-info'; return; }
+  try {
+    const n = imsHitungPasangan_(teks);
+    info.className = 'ims-info ok';
+    info.textContent = `✓ JSON valid · ${n.toLocaleString('id-ID')} pasangan SKU siap disinkronkan.`;
+  } catch (err) {
+    info.className = 'ims-info err';
+    info.textContent = '✗ JSON belum valid: ' + String(err.message || err).replace(/^SyntaxError:\s*/, '') + '. Periksa tanda kutip, koma, dan kurung kurawal.';
+  }
+}
+async function imsEksekusi() {
+  if (imsSibuk) return;
+  const teks = el('ims-json').value.trim(), btn = el('ims-eksekusi'), hasil = el('ims-hasil');
+  if (!teks) { el('ims-json').classList.add('fin2-wajib-kosong'); el('ims-json').focus(); el('ims-info').className = 'ims-info err'; el('ims-info').textContent = '✗ Tempel JSON mapping SKU dulu.'; return; }
+  let n = 0;
+  try { n = imsHitungPasangan_(teks); } catch (err) { imsPratinjau(); el('ims-json').focus(); return; }
+  if (!n) { el('ims-info').className = 'ims-info err'; el('ims-info').textContent = '✗ Tidak ada pasangan SKU di JSON.'; return; }
+  imsSibuk = true;
+  btn.disabled = true; btn.textContent = 'Menyinkronkan…';
+  hasil.hidden = true;
+  const logId = logTindakan.tambah(`Import Mapping SKU · ${n.toLocaleString('id-ID')} pasangan`);
+  logTindakan.ubah(logId, 'proses', 'Menyinkronkan ke Produk Master…');
+  try {
+    const r = await postJsonTulis({ aksi: 'import_mapping_sku', json: teks, platform: el('ims-platform').value, email: currentUserEmail() }, 120000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Ditolak server');
+    const bagian = [];
+    if (r.jumlahDilewati) bagian.push(`<details><summary>${r.jumlahDilewati} pasangan dilewati - SKU Gudang tidak ada di Produk Master</summary><div class="ims-daftar">${r.dilewati.map(escapeHtml).join(', ')}${r.jumlahDilewati > r.dilewati.length ? ' …' : ''}</div></details>`);
+    if (r.jumlahKonflik) bagian.push(`<details open><summary>${r.jumlahKonflik} SKU Marketplace tidak diubah - sudah terhubung ke SKU Gudang lain</summary><div class="ims-daftar">${r.konflik.map(k => `${escapeHtml(k.mp)} → sudah di ${escapeHtml(k.dipakai)} (diminta ${escapeHtml(k.diminta)})`).join('<br>')}</div></details>`);
+    if (r.tidakLengkap) bagian.push(`<div>${r.tidakLengkap} baris dilewati karena SKU Marketplace atau SKU Gudang kosong.</div>`);
+    hasil.className = 'ims-hasil ok';
+    hasil.innerHTML = `<b>✓ Sinkronisasi selesai.</b> ${r.ditambah.toLocaleString('id-ID')} SKU Marketplace ditambahkan, ${r.sudahAda.toLocaleString('id-ID')} sudah terhubung sebelumnya.${bagian.join('')}`;
+    hasil.hidden = false;
+    logTindakan.ubah(logId, 'ok', `${r.ditambah} ditambahkan · ${r.sudahAda} sudah ada · ${r.jumlahDilewati} dilewati${r.jumlahKonflik ? ' · ' + r.jumlahKonflik + ' konflik' : ''}`);
+    pgrToast(`✓ Mapping SKU tersinkron: ${r.ditambah} SKU Marketplace ditambahkan`);
+    playBeep();
+    // Badge SKU Terhubung di tabel Produk Master ikut diperbarui diam-diam
+    try { if (typeof katalogFetchProduk === 'function') katalogFetchProduk({ segar: true }); } catch (e) { }
+  } catch (err) {
+    const pesan = String(err.message || err).replace(/^Error:\s*/, '');
+    hasil.className = 'ims-hasil err';
+    hasil.innerHTML = `<b>✗ Sinkronisasi gagal.</b> ${escapeHtml(pesan)}. Belum ada data yang berubah - aman dicoba lagi.`;
+    hasil.hidden = false;
+    logTindakan.ubah(logId, 'gagal', pesan, [{ label: 'Coba lagi', fn: () => { imsBuka(); imsEksekusi(); } }]);
+  } finally {
+    imsSibuk = false;
+    btn.disabled = false; btn.textContent = 'Eksekusi Sinkronisasi';
   }
 }
 </script>
