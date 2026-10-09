@@ -15297,7 +15297,7 @@ async function ovPerbaruiRekap(manual) {
    disembunyikan / ditutup). Saat dasbor dibuka dan jeda sejak aktif terakhir > 1 jam (aplikasi ditutup,
    laptop sleep, tab tersembunyi, atau koneksi putus), cache lama TIDAK ditampilkan: rekap di memori &
    localStorage dibuang, loader CSS ditampilkan, lalu data ditarik langsung dari server. */
-const OV_BATAS_OFFLINE_MS = 60 * 60 * 1000;
+const OV_BATAS_OFFLINE_MS = 24 * 60 * 60 * 1000; // v2026.10-C: cache rekap boleh tampil instan s/d 24 jam (diperbarui per jam di latar)
 const OV_KUNCI_AKTIF = 'omni_terakhir_aktif_v1';
 function ovBacaAktifTerakhir() { try { return parseInt(localStorage.getItem(OV_KUNCI_AKTIF) || '0', 10) || 0; } catch (e) { return 0; } }
 let ovAktifTerakhirMs = ovBacaAktifTerakhir();
@@ -56999,6 +56999,1170 @@ async function mrkSelesaikanKirim() {
     st.textContent = err.message; st.className = 'status-text err';
     s.sibuk = false; btn.disabled = false; btn.textContent = 'Simpan Penyelesaian';
   }
+}
+</script>
+
+<style id="omni-v2026-10-c">
+/* =====================================================================================
+   v2026.10-C · Dashboard kesehatan toko · Kategori v2 · Memo Gudang berwarna · Detail pesanan · Pengiriman cerdas
+   ===================================================================================== */
+/* ---------- DASHBOARD ---------- */
+#ov-view-dashboard .ovx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 12px; margin: 4px 0 14px; }
+#ov-view-dashboard .ovx-kartu { position: relative; background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; padding: 14px 15px 12px; cursor: default; transition: border-color .15s, box-shadow .15s; outline: none; }
+#ov-view-dashboard .ovx-kartu:hover, #ov-view-dashboard .ovx-kartu.buka, #ov-view-dashboard .ovx-kartu:focus-visible { border-color: #a5b4fc; box-shadow: 0 6px 20px rgba(30,41,59,.08); }
+.ovx-kartu .ovx-label { font-size: 12px; font-weight: 600; color: var(--web-text-dim, #64748b); display: flex; align-items: center; gap: 6px; }
+.ovx-kartu .ovx-label i { margin-left: auto; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--web-border, #e2e8f0); display: grid; place-items: center; font-style: normal; font-size: 9px; color: var(--web-text-dim, #94a3b8); }
+.ovx-kartu .ovx-nilai { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--web-text, #0f172a); margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ovx-kartu .ovx-banding { font-size: 11.5px; color: var(--web-text-dim, #64748b); margin-top: 4px; min-height: 16px; }
+.ovx-naik { color: #047857; font-weight: 700; } .ovx-turun { color: #b45309; font-weight: 700; }
+.ovx-kartu .ovx-mini-logo { display: flex; gap: 3px; margin-top: 8px; height: 6px; border-radius: 4px; overflow: hidden; background: #f1f5f9; }
+.ovx-kartu .ovx-mini-logo b { display: block; height: 100%; }
+.ovx-kartu.memuat .ovx-nilai { color: transparent; background: linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9); background-size: 200% 100%; animation: ovxKilau 1.2s infinite; border-radius: 6px; width: 70%; }
+@keyframes ovxKilau { to { background-position: -200% 0; } }
+.ovx-logo { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; color: #fff; font-size: 9.5px; font-weight: 800; letter-spacing: .02em; flex: none; }
+.ovx-pop { position: absolute; z-index: 60; width: 300px; background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; box-shadow: 0 18px 48px rgba(15,23,42,.16); padding: 14px; font-size: 12.5px; color: var(--web-text, #0f172a); }
+.ovx-pop[hidden] { display: none; }
+.ovx-pop h5 { margin: 0 0 2px; font-size: 13px; }
+.ovx-pop .ovx-pop-sub { color: var(--web-text-dim, #64748b); font-size: 11.5px; margin-bottom: 10px; }
+.ovx-pop .ovx-pop-isi { display: grid; grid-template-columns: 104px 1fr; gap: 12px; align-items: center; }
+.ovx-pop canvas { width: 104px !important; height: 104px !important; }
+.ovx-pop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ovx-pop li { display: flex; align-items: center; gap: 7px; }
+.ovx-pop li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovx-pop li b { font-variant-numeric: tabular-nums; }
+.ovx-pop li em { font-style: normal; color: var(--web-text-dim, #94a3b8); font-size: 11px; width: 34px; text-align: right; }
+.ovx-pop .ovx-pop-kosong { color: var(--web-text-dim, #64748b); padding: 6px 0; }
+.ovx-pop .ovx-pop-aksi { margin-top: 10px; display: flex; justify-content: flex-end; }
+.ovx-pop .ovx-pop-aksi button { border: 1px solid var(--web-border, #e2e8f0); background: transparent; border-radius: 999px; padding: 5px 12px; font: 600 11.5px inherit; font-family: inherit; cursor: pointer; color: var(--web-text, #0f172a); }
+.ovx-live { display: inline-flex; align-items: center; gap: 7px; }
+.ovx-live .ovx-titik { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.ovx-live.aktif { border-color: #fecaca !important; color: #b91c1c !important; background: #fff5f5 !important; }
+.ovx-live.aktif .ovx-titik { background: #ef4444; box-shadow: 0 0 0 0 rgba(239,68,68,.5); animation: ovxDenyut 1.4s infinite; }
+@keyframes ovxDenyut { 70% { box-shadow: 0 0 0 7px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+.ovx-catatan { font-size: 11px; color: var(--web-text-dim, #64748b); margin: -6px 0 10px; }
+
+/* ---------- KATALOG > KATEGORI v2 ---------- */
+#katalog-view-kategori .katx-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 6px 0 14px; }
+#katalog-view-kategori .katx-ringkas { font-size: 12.5px; color: var(--web-text-dim, #64748b); }
+#katalog-view-kategori .katx-ringkas b { color: var(--web-text, #0f172a); }
+#katalog-view-kategori .katx-cari { max-width: 280px; margin: 0; }
+#katalog-kategori-list.katx-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 14px; }
+.katx-card { background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: border-color .15s, box-shadow .15s; }
+.katx-card:hover { border-color: #c7d2fe; box-shadow: 0 8px 24px rgba(30,41,59,.07); }
+.katx-card header { display: flex; align-items: flex-start; gap: 8px; }
+.katx-card h4 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; color: var(--web-text, #0f172a); word-break: break-word; }
+.katx-card header p { margin: 3px 0 0; font-size: 12px; color: var(--web-text-dim, #64748b); }
+.katx-ikon { margin-left: auto; display: flex; gap: 2px; flex: none; }
+.katx-ikon button { width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; color: var(--web-text-dim, #64748b); cursor: pointer; display: grid; place-items: center; }
+.katx-ikon button:hover { background: #f1f5f9; color: var(--web-text, #0f172a); }
+.katx-ikon button.hapus:hover { background: #fff1f2; color: #be123c; }
+.katx-quick { display: flex; align-items: center; min-height: 44px; }
+.katx-thumb { width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--web-panel, #fff); background: #f1f5f9; overflow: hidden; display: grid; place-items: center; margin-left: -8px; flex: none; color: #94a3b8; font-size: 11px; font-weight: 700; }
+.katx-thumb:first-child { margin-left: 0; }
+.katx-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.katx-thumb.lebih { background: #eef2ff; color: #4338ca; }
+.katx-nama-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 12px; color: var(--web-text, #334155); }
+.katx-nama-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.katx-nama-list li small { color: var(--web-text-dim, #94a3b8); font-size: 11px; margin-right: 6px; }
+.katx-kosong-isi { font-size: 12px; color: var(--web-text-dim, #94a3b8); }
+.katx-card footer { margin-top: auto; }
+.katx-btn { width: 100%; height: 36px; border-radius: 10px; border: 1px solid var(--web-border, #e2e8f0); background: #f8fafc; color: var(--web-text, #0f172a); font: 600 12.5px inherit; font-family: inherit; cursor: pointer; }
+.katx-btn:hover { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+.omx-modal.katx-modal { max-width: 860px; }
+.katx-m-alat { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.katx-m-alat input[type=search] { flex: 1; min-width: 200px; height: 36px; border-radius: 10px; border: 1px solid var(--web-border, #e2e8f0); padding: 0 12px; font: inherit; font-size: 13px; }
+.katx-seg { display: inline-flex; background: #f1f5f9; border-radius: 10px; padding: 3px; gap: 2px; }
+.katx-seg button { border: none; background: transparent; border-radius: 8px; padding: 6px 10px; font: 600 12px inherit; font-family: inherit; color: #475569; cursor: pointer; }
+.katx-seg button.aktif { background: #fff; color: #1e293b; box-shadow: 0 1px 3px rgba(15,23,42,.1); }
+.katx-m-daftar { border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; overflow: hidden; }
+.katx-m-baris { display: grid; grid-template-columns: 22px 40px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid #f1f5f9; cursor: pointer; font-size: 13px; }
+.katx-m-baris:first-child { border-top: none; }
+.katx-m-baris:hover { background: #f8fafc; }
+.katx-m-baris.pilih { background: #f5f7ff; }
+.katx-m-baris input { width: 16px; height: 16px; accent-color: #4f46e5; }
+.katx-m-baris .katx-thumb { width: 40px; height: 40px; margin: 0; border: none; border-radius: 9px; }
+.katx-m-baris b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.katx-m-baris small { color: var(--web-text-dim, #64748b); font-size: 11.5px; }
+.katx-tag { font-size: 10.5px; font-weight: 600; border-radius: 6px; padding: 2px 7px; background: #f1f5f9; color: #475569; white-space: nowrap; }
+.katx-tag.ini { background: #eef2ff; color: #4338ca; }
+.katx-m-kaki { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.katx-m-info { font-size: 12px; color: var(--web-text-dim, #64748b); }
+.katx-m-info b.plus { color: #047857; } .katx-m-info b.min { color: #b45309; }
+.katx-pag { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+.katx-pag button { min-width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--web-border, #e2e8f0); background: #fff; font: 600 12px inherit; font-family: inherit; cursor: pointer; color: #334155; }
+.katx-pag button.aktif { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.katx-pag button:disabled { opacity: .4; cursor: default; }
+.katx-m-tombol { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* ---------- MEMO GUDANG: 4 jenis berwarna (psikologi warna -> minim salah input) ----------
+   Minta Stock = biru (permintaan) · Barang Masuk = hijau (stok bertambah) · Hilang/Rusak = merah lembut
+   (stok berkurang, perlu hati-hati) · Stock Opname = amber (audit, cek dua kali) */
+:root { --mg-ms: #2563eb; --mg-ms-bg: #eff6ff; --mg-bm: #059669; --mg-bm-bg: #ecfdf5; --mg-hr: #e11d48; --mg-hr-bg: #fff1f2; --mg-so: #d97706; --mg-so-bg: #fffbeb; }
+.bmm-seg button[data-bmm-j="semua"] { display: none !important; }
+.bmm-seg button[data-bmm-j="mintastock"] { color: var(--mg-ms); } .bmm-seg button[data-bmm-j="barangmasuk"] { color: var(--mg-bm); }
+.bmm-seg button[data-bmm-j="hilangrusak"] { color: var(--mg-hr); } .bmm-seg button[data-bmm-j="stockopname"] { color: var(--mg-so); }
+.bmm-seg button[data-bmm-j].aktif { color: #fff !important; }
+.bmm-seg button[data-bmm-j="mintastock"].aktif { background: var(--mg-ms) !important; } .bmm-seg button[data-bmm-j="barangmasuk"].aktif { background: var(--mg-bm) !important; }
+.bmm-seg button[data-bmm-j="hilangrusak"].aktif { background: var(--mg-hr) !important; } .bmm-seg button[data-bmm-j="stockopname"].aktif { background: var(--mg-so) !important; }
+.bmm-seg button[data-bmm-j].aktif b { background: rgba(255,255,255,.25) !important; color: #fff !important; }
+.bmm-jenis-pil, .bmm-jenis-pil.mintastock { background: var(--mg-ms-bg); color: var(--mg-ms); }
+.bmm-jenis-pil.barangmasuk { background: var(--mg-bm-bg); color: var(--mg-bm); } .bmm-jenis-pil.hilangrusak { background: var(--mg-hr-bg); color: var(--mg-hr); } .bmm-jenis-pil.stockopname { background: var(--mg-so-bg); color: var(--mg-so); }
+.bmm-panel[data-mgx="mintastock"] .bmm-kepala { box-shadow: inset 0 4px 0 var(--mg-ms); } .bmm-panel[data-mgx="barangmasuk"] .bmm-kepala { box-shadow: inset 0 4px 0 var(--mg-bm); }
+.bmm-panel[data-mgx="hilangrusak"] .bmm-kepala { box-shadow: inset 0 4px 0 var(--mg-hr); } .bmm-panel[data-mgx="stockopname"] .bmm-kepala { box-shadow: inset 0 4px 0 var(--mg-so); }
+.mgx-banner { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 12.5px; border: 1px solid; }
+.mgx-banner span { flex: 1; } .mgx-banner button { border: none; border-radius: 999px; padding: 6px 13px; font: 600 12px inherit; font-family: inherit; color: #fff; cursor: pointer; }
+.mgx-banner.barangmasuk { background: var(--mg-bm-bg); border-color: #a7f3d0; } .mgx-banner.barangmasuk button { background: var(--mg-bm); }
+.mgx-banner.hilangrusak { background: var(--mg-hr-bg); border-color: #fecdd3; } .mgx-banner.hilangrusak button { background: var(--mg-hr); }
+.mgx-banner.stockopname { background: var(--mg-so-bg); border-color: #fde68a; } .mgx-banner.stockopname button { background: var(--mg-so); }
+/* Web: tab Memo Gudang lama ikut warna */
+#mg-tab-mintastock.active { background: var(--mg-ms) !important; border-color: var(--mg-ms) !important; color: #fff !important; }
+#mg-tab-barangmasuk.active { background: var(--mg-bm) !important; border-color: var(--mg-bm) !important; color: #fff !important; }
+#mg-tab-hilangrusak.active { background: var(--mg-hr) !important; border-color: var(--mg-hr) !important; color: #fff !important; }
+#mg-tab-stockopname.active { background: var(--mg-so) !important; border-color: var(--mg-so) !important; color: #fff !important; }
+/* Mobile (dark): tombol tab, kotak input & tombol kirim ikut warna jenis memo */
+#mgm-tab-mintastock { color: #93c5fd !important; } #mgm-tab-barangmasuk { color: #6ee7b7 !important; } #mgm-tab-hilangrusak { color: #fda4af !important; } #mgm-tab-stockopname { color: #fcd34d !important; }
+#mgm-tab-mintastock.active { background: #3b82f6 !important; color: #fff !important; } #mgm-tab-barangmasuk.active { background: #10b981 !important; color: #04130d !important; }
+#mgm-tab-hilangrusak.active { background: #f43f5e !important; color: #fff !important; } #mgm-tab-stockopname.active { background: #f59e0b !important; color: #1f1300 !important; }
+#screen-memo-gudang[data-mgm-tab="mintastock"] #mgm-btn-submit { background: #3b82f6 !important; color: #fff !important; }
+#screen-memo-gudang[data-mgm-tab="barangmasuk"] #mgm-btn-submit { background: #10b981 !important; color: #04130d !important; }
+#screen-memo-gudang[data-mgm-tab="hilangrusak"] #mgm-btn-submit { background: #f43f5e !important; color: #fff !important; }
+#screen-memo-gudang[data-mgm-tab="stockopname"] #mgm-btn-submit { background: #f59e0b !important; color: #1f1300 !important; }
+#screen-memo-gudang[data-mgm-tab="mintastock"] #mgm-input-wrap { border-color: #3b82f6 !important; box-shadow: 0 0 0 1px #3b82f6 inset; }
+#screen-memo-gudang[data-mgm-tab="barangmasuk"] #mgm-input-wrap { border-color: #10b981 !important; box-shadow: 0 0 0 1px #10b981 inset; }
+#screen-memo-gudang[data-mgm-tab="hilangrusak"] #mgm-input-wrap { border-color: #f43f5e !important; box-shadow: 0 0 0 1px #f43f5e inset; }
+#screen-memo-gudang[data-mgm-tab="stockopname"] #mgm-input-wrap { border-color: #f59e0b !important; box-shadow: 0 0 0 1px #f59e0b inset; }
+/* Persediaan: sub-menu Memo Gudang, Barang Masuk, Stock Opname disembunyikan (diakses dari kapsul Cek Memo Gudang) */
+.web-nav-sub[data-persub="memogudang"], .web-nav-sub[data-persub="barangmasuk"], .web-nav-sub[data-persub="opname"] { display: none !important; }
+.perx-kapsul { margin-left: auto; align-self: center; }
+#persediaan-view-monitor .per-page-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+
+/* ---------- PENJUALAN: detail pesanan ---------- */
+.pjx-box { margin-top: 12px; }
+.pjx-grid { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.6fr); gap: 12px; }
+@media (max-width: 860px) { .pjx-grid { grid-template-columns: 1fr; } }
+.pjx-kartu { background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; padding: 12px 14px; }
+.pjx-kartu h5 { margin: 0 0 10px; font-size: 12.5px; font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
+.pjx-kartu h5 span { font-weight: 500; color: var(--web-text-dim, #64748b); font-size: 11.5px; }
+.pjx-info { display: grid; grid-template-columns: 92px 1fr; gap: 5px 10px; margin: 0; font-size: 12.5px; }
+.pjx-info dt { color: var(--web-text-dim, #64748b); } .pjx-info dd { margin: 0; word-break: break-word; }
+.pjx-produk { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pjx-produk li { display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center; font-size: 12.5px; }
+.pjx-produk .katx-thumb { width: 46px; height: 46px; margin: 0; border: none; }
+.pjx-produk b { display: block; font-weight: 600; } .pjx-produk small { color: var(--web-text-dim, #64748b); }
+.pjx-produk .pjx-qty { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pjx-kosong { font-size: 12px; color: var(--web-text-dim, #64748b); }
+#wp-gabungan-body tr[data-kunci] td:nth-child(5) { cursor: pointer; }
+#wp-gabungan-body tr[data-kunci] td:nth-child(5):hover { color: var(--web-accent, #4f46e5); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- PENGIRIMAN ---------- */
+.ccx-rentang { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; position: relative; }
+.ccx-rentang .ccx-label { font-size: 11.5px; color: var(--web-text-dim, #64748b); margin-left: 6px; }
+.ccx-anchor { position: relative; }
+.ccx-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 70; background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; box-shadow: 0 18px 48px rgba(15,23,42,.16); padding: 14px; width: 340px; font-size: 12.5px; }
+.ccx-pop[hidden] { display: none; }
+.ccx-pop.kanan { left: auto; right: 0; }
+.ccx-pop h6 { margin: 10px 0 6px; font-size: 11.5px; color: var(--web-text-dim, #64748b); font-weight: 600; } .ccx-pop h6:first-child { margin-top: 0; }
+.ccx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ccx-chips label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--web-border, #e2e8f0); border-radius: 999px; padding: 5px 10px; cursor: pointer; user-select: none; }
+.ccx-chips input { accent-color: #4f46e5; margin: 0; }
+.ccx-chips label:has(input:checked) { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+.ccx-pop-kaki { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.ccx-pop .ccx-tgl { display: flex; gap: 8px; align-items: center; } .ccx-pop .ccx-tgl input { flex: 1; height: 34px; border-radius: 9px; border: 1px solid var(--web-border, #e2e8f0); padding: 0 8px; font: inherit; }
+.ccx-filter-btn b { min-width: 18px; height: 18px; border-radius: 9px; background: #4f46e5; color: #fff; font-size: 10.5px; display: inline-grid; place-items: center; padding: 0 5px; }
+.ccx-filter-btn b:empty { display: none; }
+.ccx-kilat { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .02em; border-radius: 5px; padding: 1px 6px; margin-left: 6px; background: #f3e8ff; color: #7e22ce; vertical-align: 1px; }
+.ccx-instan { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 6px; margin-left: 6px; background: #e0f2fe; color: #0369a1; vertical-align: 1px; }
+.ccx-sub { display: block; font-size: 11px; color: var(--web-text-dim, #64748b); margin-top: 2px; }
+.ccx-kirim { display: block; font-size: 11px; color: #0369a1; margin-top: 3px; }
+.ccx-cari-status { font-size: 11.5px; color: var(--web-text-dim, #64748b); display: inline-flex; align-items: center; gap: 6px; }
+.ccx-putar { width: 11px; height: 11px; border-radius: 50%; border: 2px solid #c7d2fe; border-top-color: #4f46e5; animation: ccxPutar .8s linear infinite; }
+@keyframes ccxPutar { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+/* =====================================================================================
+   PEMBARUAN v2026.10-C (JS)
+   (A) DASHBOARD - kesehatan toko: 7 kartu (hover/tap = rincian per channel + pie), sinkron filter waktu,
+       snapshot per jam (dasbor diperbarui 1x per jam -> instan), tombol Live, tren + garis pembanding berbayang
+   (B) KATALOG > KATEGORI v2  (C) MEMO GUDANG berwarna + kapsul di Persediaan  (D) Detail pesanan Penjualan
+   (E) PENGIRIMAN - filter, rentang waktu, cari resi mendalam, kurir instan, tanda Kilat
+   ===================================================================================== */
+function ovxEsc(v) { return escapeHtml(v == null ? '' : String(v)); }
+function ovxRp(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function ovxAngka(n) { return Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function ovxNorm(v) { return String(v == null ? '' : v).toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, ''); }
+function ovxGeserTgl(t, n) { const d = new Date(t + 'T12:00:00'); d.setDate(d.getDate() + n); return ovTglLokal(d); }
+function ovxSelisihHari(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5); }
+
+/* ============================ (A) DASHBOARD ============================ */
+const OVX_KANAL = {
+  'TikTok Shop': ['TT', '#111827'], 'Tokopedia': ['TP', '#03ac0e'], 'Shopee': ['SP', '#ee4d2d'], 'Website': ['WB', '#3f7fc9'],
+  'PO Sales': ['PO', '#c9822f'], 'Conner Hardware': ['CH', '#7c5cd9'], 'Pengiriman Kilat': ['KL', '#9333ea'], 'Belum Terhubung': ['?', '#94a3b8'], 'Lainnya': ['··', '#64748b']
+};
+function ovxLogo(k) { const x = OVX_KANAL[k] || [String(k || '?').slice(0, 2).toUpperCase(), '#64748b']; return `<span class="ovx-logo" style="background:${x[1]}" title="${pgrAttr(k)}">${ovxEsc(x[0])}</span>`; }
+function ovxWarna(k) { return (OVX_KANAL[k] || [0, '#64748b'])[1]; }
+const OVX_METRIK = [
+  { k: 'omzet', label: 'Total Penjualan', rp: true, jual: true },
+  { k: 'pesanan', label: 'Jumlah Pesanan', jual: true },
+  { k: 'aov', label: 'Rata-rata Nilai Pesanan', rp: true, jual: true, rata: true },
+  { k: 'resi', label: 'Resi Terkirim' },
+  { k: 'iklan', label: 'Belanja Iklan', rp: true, jual: true, iklan: true },
+  { k: 'pengunjung', label: 'Total Pengunjung', jual: true, trafik: true },
+  { k: 'klik', label: 'Produk Diklik', jual: true, trafik: true }
+];
+let ovxChart = null, ovxPopChart = null, ovxPopTimer = 0, ovxPopKey = '', ovxHasilTerakhir = null;
+let ovxLiveAktif = false, ovxLiveTimer = 0, ovxLiveJalan = false, ovxJamTimer = 0;
+const OVX_TRAFIK_LOKAL = 'ovx_trafik_v1';
+let ovxTrafik = (() => { try { return JSON.parse(localStorage.getItem(OVX_TRAFIK_LOKAL) || 'null') || { hari: {}, ambil: {}, catatan: {} }; } catch (e) { return { hari: {}, ambil: {}, catatan: {} }; } })();
+
+function ovxBolehJual() { return !(ovRekap && ovRekap.izinPenjualan === false); }
+
+// Agregat 1 rentang. opsi.sampaiJam (untuk 1 hari) = hanya jam < sampaiJam (pembanding "kemarin s/d jam yang sama")
+function ovxHitung(mulai, akhir, opsi) {
+  opsi = opsi || {};
+  const R = { omzet: 0, pesanan: 0, resi: 0, iklan: null, pengunjung: null, klik: null, per: { omzet: {}, pesanan: {}, resi: {}, iklan: {}, pengunjung: {}, klik: {} } };
+  const tambah = (m, k, v) => { R.per[m][k] = (R.per[m][k] || 0) + v; };
+  const rek = ovRekap;
+  if (rek) {
+    if (opsi.sampaiJam !== undefined && mulai === akhir) {
+      (rek.perJam || []).forEach(r => {
+        if (r[0] !== mulai || r[1] >= opsi.sampaiJam) return;
+        if (r[2] === '_RESI') { R.resi += r[5]; tambah('resi', 'Semua channel', r[5]); return; }
+        R.omzet += r[3]; R.pesanan += r[4]; tambah('omzet', r[2], r[3]); tambah('pesanan', r[2], r[4]);
+      });
+    } else {
+      (rek.hari || []).forEach(h => {
+        if (h.t < mulai || h.t > akhir) return;
+        Object.keys(h.k || {}).forEach(kn => { const v = h.k[kn]; R.omzet += v[0]; R.pesanan += v[1]; tambah('omzet', kn, v[0]); tambah('pesanan', kn, v[1]); });
+        R.resi += h.r || 0;
+        if (h.rk) Object.keys(h.rk).forEach(kn => tambah('resi', kn, Number(h.rk[kn]) || 0));
+        else if (h.r) tambah('resi', 'Semua channel', h.r);
+      });
+    }
+  }
+  // Iklan
+  if (typeof iklanData !== 'undefined' && iklanData) {
+    R.iklan = 0;
+    if (opsi.sampaiJam !== undefined && mulai === akhir) {
+      const rows = (iklanData.perJam || []).filter(r => r.tanggal === mulai);
+      const plat = [...new Set(rows.map(r => r.toko + '|' + r.platform))];
+      plat.forEach(kp => {
+        const [toko, p] = kp.split('|');
+        const x = rows.filter(r => r.toko === toko && r.platform === p && r.jam <= opsi.sampaiJam).sort((a, b) => b.jam - a.jam)[0];
+        if (x) { R.iklan += x.kumulatif; tambah('iklan', p, x.kumulatif); }
+      });
+    } else {
+      (iklanData.harian || []).forEach(r => { if (r.tanggal >= mulai && r.tanggal <= akhir) { const b = Number(r.biaya) || 0; R.iklan += b; tambah('iklan', r.platform, b); } });
+    }
+  }
+  // Trafik (per hari, tanpa rincian jam)
+  if (opsi.sampaiJam === undefined) {
+    let adaV = false, adaC = false, v = 0, c = 0;
+    Object.keys(ovxTrafik.hari || {}).forEach(kunci => {
+      const [t, kn] = kunci.split('|'), x = ovxTrafik.hari[kunci];
+      if (t < mulai || t > akhir) return;
+      if (x.v !== null && x.v !== undefined) { adaV = true; v += x.v; tambah('pengunjung', kn, x.v); }
+      if (x.c !== null && x.c !== undefined) { adaC = true; c += x.c; tambah('klik', kn, x.c); }
+    });
+    R.pengunjung = adaV ? v : null; R.klik = adaC ? c : null;
+  }
+  R.aov = R.pesanan ? R.omzet / R.pesanan : 0;
+  R.per.aov = {};
+  Object.keys(R.per.omzet).forEach(k => { const n = R.per.pesanan[k] || 0; if (n) R.per.aov[k] = R.per.omzet[k] / n; });
+  return R;
+}
+function ovxPeriode() {
+  const mulai = ovTanggalMulaiAktif || ovTglLokal(), akhir = ovTanggalAkhirAktif || mulai;
+  const hariIni = ovTglLokal();
+  if (mulai === akhir && mulai === hariIni) {
+    const jam = new Date().getHours() + 1;
+    return { mulai, akhir, pMulai: ovxGeserTgl(mulai, -1), pAkhir: ovxGeserTgl(mulai, -1), sampaiJam: jam, labelBanding: 'vs kemarin s/d ' + String(jam).padStart(2, '0') + ':00' };
+  }
+  const n = ovxSelisihHari(mulai, akhir) + 1;
+  return { mulai, akhir, pMulai: ovxGeserTgl(mulai, -n), pAkhir: ovxGeserTgl(mulai, -1), labelBanding: n === 1 ? 'vs hari sebelumnya' : 'vs ' + n + ' hari sebelumnya' };
+}
+function ovxNilaiTeks(m, v) { if (v === null || v === undefined) return '—'; return m.rp ? ovxRp(v) : ovxAngka(v); }
+
+function ovRenderKpiGrid(d) {
+  const grid = el('ov-kpi-grid-utama');
+  if (!grid) return;
+  ovxSiapkanTata();
+  grid.classList.add('ovx-grid'); grid.classList.remove('web-kpi-grid');
+  const per = ovxPeriode();
+  const ada = !!ovRekap && !!d;
+  const cur = ada ? ovxHitung(per.mulai, per.akhir) : null;
+  const prev = ada ? ovxHitung(per.pMulai, per.pAkhir, per.sampaiJam !== undefined ? { sampaiJam: per.sampaiJam } : {}) : null;
+  // pembanding trafik untuk Hari Ini: hari kemarin penuh (data trafik harian)
+  const prevTrafik = ada && per.sampaiJam !== undefined ? ovxHitung(per.pMulai, per.pAkhir) : prev;
+  ovxHasilTerakhir = { cur, prev, per };
+  const jual = ovxBolehJual();
+  grid.innerHTML = OVX_METRIK.map(m => {
+    let nilai = '—', banding = '', bar = '';
+    if (ada && !(m.jual && !jual)) {
+      const v = cur[m.k];
+      nilai = ovxNilaiTeks(m, v);
+      const pv = (m.trafik ? prevTrafik : prev)[m.k];
+      if (v !== null && v !== undefined && pv !== null && pv !== undefined) {
+        if (pv > 0) {
+          const pct = Math.round((v - pv) / pv * 100);
+          banding = `<span class="${pct >= 0 ? 'ovx-naik' : 'ovx-turun'}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}%</span> ${ovxEsc(m.trafik && per.sampaiJam !== undefined ? 'vs kemarin' : per.labelBanding)}`;
+        } else banding = ovxEsc((m.trafik && per.sampaiJam !== undefined ? 'kemarin' : 'sebelumnya') + ': ' + ovxNilaiTeks(m, pv));
+      } else if (m.trafik && v === null) banding = 'Belum tersedia';
+      else if (m.iklan && v === null) banding = 'Memuat data iklan…';
+      const peta = cur.per[m.k] || {}, tot = Object.values(peta).reduce((a, b) => a + b, 0);
+      if (!m.rata && tot > 0) bar = Object.keys(peta).sort((a, b) => peta[b] - peta[a]).map(k => `<b style="width:${(peta[k] / tot * 100).toFixed(1)}%;background:${ovxWarna(k)}"></b>`).join('');
+    } else if (m.jual && !jual && ada) banding = 'Khusus akun dengan izin penjualan';
+    return `<div class="ovx-kartu ${!ada ? 'memuat' : ''}" tabindex="0" data-ovx="${m.k}" aria-label="${pgrAttr(m.label)}">
+      <div class="ovx-label">${ovxEsc(m.label)}<i aria-hidden="true">i</i></div>
+      <div class="ovx-nilai">${ovxEsc(nilai)}</div>
+      <div class="ovx-banding">${banding}</div>
+      <div class="ovx-mini-logo">${bar}</div></div>`;
+  }).join('');
+  if (ovxPopKey) ovxPopTampil(ovxPopKey, true);
+  ovxMuatTrafikJikaPerlu();
+}
+function ovRenderKanalStrip() { const w = el('ov-kanal-strip'); if (w) { w.innerHTML = ''; w.style.display = 'none'; } }
+function omxIklanKartuPerbarui() { // dipanggil modul Iklan setelah data iklan dimuat -> render ulang kartu
+  if (ovRekap && el('ov-kpi-grid-utama') && typeof ovDataOverviewCache !== 'undefined') { ovRenderKpiGrid(ovDataOverviewCache); renderWebChartLine(); }
+}
+
+/* ----- Popover rincian per channel ----- */
+function ovxPopEl() {
+  let p = el('ovx-pop');
+  if (!p) {
+    p = document.createElement('div'); p.id = 'ovx-pop'; p.className = 'ovx-pop'; p.hidden = true; p.setAttribute('role', 'dialog');
+    el('ov-view-dashboard').appendChild(p);
+    p.addEventListener('mouseenter', () => clearTimeout(ovxPopTimer));
+    p.addEventListener('mouseleave', () => ovxPopTutupNanti());
+  }
+  return p;
+}
+function ovxPopTutupNanti() { clearTimeout(ovxPopTimer); ovxPopTimer = setTimeout(ovxPopTutup, 140); }
+function ovxPopTutup() { const p = el('ovx-pop'); if (p) p.hidden = true; ovxPopKey = ''; document.querySelectorAll('.ovx-kartu.buka').forEach(k => k.classList.remove('buka')); if (ovxPopChart) { ovxPopChart.destroy(); ovxPopChart = null; } }
+function ovxPopTampil(key, segarkan) {
+  const kartu = document.querySelector(`.ovx-kartu[data-ovx="${key}"]`), H = ovxHasilTerakhir;
+  if (!kartu || !H || !H.cur) return;
+  const m = OVX_METRIK.find(x => x.k === key), p = ovxPopEl();
+  clearTimeout(ovxPopTimer);
+  document.querySelectorAll('.ovx-kartu.buka').forEach(k => k.classList.toggle('buka', k === kartu));
+  kartu.classList.add('buka');
+  ovxPopKey = key;
+  const peta = H.cur.per[key] || {};
+  const urut = Object.keys(peta).filter(k => peta[k] > 0).sort((a, b) => peta[b] - peta[a]);
+  const tot = m.rata ? H.cur.omzet : urut.reduce((s, k) => s + peta[k], 0);
+  const basisPie = m.rata ? (H.cur.per.omzet || {}) : peta;
+  const label = `${ovTanggalMulaiAktif === ovTanggalAkhirAktif ? ovTanggalMulaiAktif : ovTanggalMulaiAktif + ' – ' + ovTanggalAkhirAktif}`;
+  let catatan = '';
+  if (m.trafik) catatan = Object.keys(ovxTrafik.catatan || {}).map(k => `${k}: ${ovxTrafik.catatan[k]}`).join(' ');
+  p.innerHTML = `<h5>${ovxEsc(m.label)} · ${ovxEsc(ovxNilaiTeks(m, H.cur[key]))}</h5>
+    <div class="ovx-pop-sub">${ovxEsc(label)} · per channel${m.rata ? ' (rata-rata tiap channel; pie = porsi omzet)' : ''}</div>
+    ${urut.length ? `<div class="ovx-pop-isi"><canvas id="ovx-pop-canvas" width="104" height="104" aria-label="Pie per channel"></canvas>
+      <ul>${urut.map(k => `<li>${ovxLogo(k)}<span>${ovxEsc(k)}</span><b>${ovxEsc(ovxNilaiTeks(m, peta[k]))}</b>${m.rata ? '' : `<em>${tot ? Math.round(peta[k] / tot * 100) : 0}%</em>`}</li>`).join('')}</ul></div>`
+      : `<div class="ovx-pop-kosong">${m.trafik ? 'Data pengunjung belum tersedia untuk periode ini.' : 'Belum ada data di periode ini.'}</div>`}
+    ${catatan ? `<div class="ovx-pop-sub" style="margin:10px 0 0;">${ovxEsc(catatan)}</div>` : ''}
+    ${key === 'resi' ? `<div class="ovx-pop-aksi"><button type="button" onclick="ovxPopTutup(); ovBukaLihatResi('keluar')">Lihat daftar resi</button></div>` : key === 'iklan' ? `<div class="ovx-pop-aksi"><button type="button" onclick="ovxPopTutup(); promoBukaSubMenu('iklan')">Buka Iklan &amp; Saldo</button></div>` : ''}`;
+  p.hidden = false;
+  const wadah = el('ov-view-dashboard').getBoundingClientRect(), r = kartu.getBoundingClientRect();
+  let kiri = r.left - wadah.left;
+  if (kiri + 300 > wadah.width) kiri = Math.max(0, wadah.width - 300);
+  p.style.left = kiri + 'px'; p.style.top = (r.bottom - wadah.top + 8) + 'px';
+  if (ovxPopChart) { ovxPopChart.destroy(); ovxPopChart = null; }
+  const cv = el('ovx-pop-canvas');
+  if (cv && typeof Chart !== 'undefined') {
+    const kp = Object.keys(basisPie).filter(k => basisPie[k] > 0);
+    ovxPopChart = new Chart(cv.getContext('2d'), {
+      type: 'doughnut',
+      data: { labels: kp, datasets: [{ data: kp.map(k => basisPie[k]), backgroundColor: kp.map(ovxWarna), borderWidth: 2, borderColor: '#fff' }] },
+      options: { responsive: false, animation: segarkan ? false : { duration: 250 }, cutout: '58%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.label + ': ' + ((m.rata || m.rp) ? ovxRp(c.parsed) : ovxAngka(c.parsed)) } } } }
+    });
+  }
+}
+(function ovxPasangPopover() {
+  document.addEventListener('mouseover', e => {
+    const k = e.target.closest && e.target.closest('.ovx-kartu[data-ovx]');
+    if (!k || matchMedia('(hover: none)').matches) return;
+    if (ovxPopKey !== k.dataset.ovx) ovxPopTampil(k.dataset.ovx);
+    else clearTimeout(ovxPopTimer);
+  });
+  document.addEventListener('mouseout', e => {
+    const k = e.target.closest && e.target.closest('.ovx-kartu[data-ovx]');
+    if (!k || (e.relatedTarget && (k.contains(e.relatedTarget) || (el('ovx-pop') && el('ovx-pop').contains(e.relatedTarget))))) return;
+    ovxPopTutupNanti();
+  });
+  document.addEventListener('click', e => {
+    const k = e.target.closest && e.target.closest('.ovx-kartu[data-ovx]');
+    if (k) { if (ovxPopKey === k.dataset.ovx && matchMedia('(hover: none)').matches) ovxPopTutup(); else ovxPopTampil(k.dataset.ovx); return; }
+    if (ovxPopKey && !(el('ovx-pop') && el('ovx-pop').contains(e.target))) ovxPopTutup();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && ovxPopKey) ovxPopTutup();
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.ovx-kartu[data-ovx]')) { e.preventDefault(); ovxPopTampil(e.target.dataset.ovx); }
+  });
+  window.addEventListener('resize', () => { if (ovxPopKey) ovxPopTampil(ovxPopKey, true); });
+})();
+
+/* ----- Tata letak: sembunyikan metrik lain, tombol Live, toggle tren ----- */
+function ovxSiapkanTata() {
+  const v = el('ov-view-dashboard');
+  if (!v || v.dataset.ovx === '1') return;
+  v.dataset.ovx = '1';
+  const sembunyi = n => { if (n) n.style.display = 'none'; };
+  sembunyi(el('ov-kanal-strip'));
+  sembunyi(el('ov-kustomisasi-panel'));
+  const btnK = v.querySelector('button[onclick="ovBukaKustomisasiMetrik()"]'); if (btnK) sembunyi(btnK.closest('.web-toolbar-row'));
+  const cvStok = el('web-chart-overview'); if (cvStok) sembunyi(cvStok.closest('.web-panel'));
+  const terlaris = el('ov-produk-terlaris-body'); if (terlaris) sembunyi(terlaris.closest('.web-panel'));
+  sembunyi(v.querySelector('.ov-tugas-panel'));
+  const sub = v.querySelector('.ov-judul-sub'); if (sub) sub.textContent = 'Kesehatan toko di semua channel - arahkan kursor (atau tap) kartu untuk rincian per channel';
+  // Toggle tren
+  const tg = el('ov-tren-penjualan') && el('ov-tren-penjualan').parentElement;
+  if (tg) tg.innerHTML = `<button class="web-chart-toggle-btn active" id="ov-tren-penjualan" onclick="ovGantiTrenJenis('penjualan')">Penjualan</button>
+    <button class="web-chart-toggle-btn" id="ovx-tren-pesanan" onclick="ovGantiTrenJenis('pesanan')">Pesanan</button>
+    <button class="web-chart-toggle-btn" id="ov-tren-resi" onclick="ovGantiTrenJenis('resi')">Resi</button>
+    <button class="web-chart-toggle-btn" id="ovx-tren-iklan" onclick="ovGantiTrenJenis('iklan')">Iklan</button>`;
+  ovTrenJenisAktif = 'penjualan';
+  // Tombol Live di baris kapsul waktu
+  const baris = el('ov-rentang-hari_ini') && el('ov-rentang-hari_ini').parentElement;
+  if (baris && !el('ovx-live') && (typeof omxIklanBolehAkses_ !== 'function' || omxIklanBolehAkses_())) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.id = 'ovx-live'; b.className = 'web-chart-toggle-btn ovx-live';
+    b.title = 'Tarik omzet & iklan langsung dari marketplace (berjalan di latar, halaman tetap bisa dipakai)';
+    b.innerHTML = '<span class="ovx-titik" aria-hidden="true"></span><span id="ovx-live-teks">Live</span>';
+    b.onclick = ovxToggleLive;
+    const sp = document.createElement('div'); sp.style.flex = '1';
+    baris.appendChild(sp); baris.appendChild(b);
+  }
+}
+function ovGantiTrenJenis(jenis) {
+  ovTrenJenisAktif = jenis;
+  [['penjualan', 'ov-tren-penjualan'], ['pesanan', 'ovx-tren-pesanan'], ['resi', 'ov-tren-resi'], ['iklan', 'ovx-tren-iklan']].forEach(([j, id]) => { if (el(id)) el(id).classList.toggle('active', j === jenis); });
+  renderWebChartLine();
+}
+
+/* ----- Tren: periode aktif + garis pembanding berbayang (periode sebelumnya) ----- */
+function ovxSeriHarian(mulai, akhir, jenis) {
+  const out = [], n = ovxSelisihHari(mulai, akhir) + 1;
+  const perHari = {};
+  (ovRekap && ovRekap.hari || []).forEach(h => { if (h.t >= mulai && h.t <= akhir) perHari[h.t] = h; });
+  const iklanHari = {};
+  if (jenis === 'iklan' && typeof iklanData !== 'undefined' && iklanData) (iklanData.harian || []).forEach(r => { if (r.tanggal >= mulai && r.tanggal <= akhir) iklanHari[r.tanggal] = (iklanHari[r.tanggal] || 0) + (Number(r.biaya) || 0); });
+  for (let i = 0; i < n; i++) {
+    const t = ovxGeserTgl(mulai, i), h = perHari[t];
+    let v = 0;
+    if (jenis === 'iklan') v = iklanHari[t] || 0;
+    else if (jenis === 'resi') v = h ? h.r || 0 : 0;
+    else if (h) Object.keys(h.k || {}).forEach(k => { v += jenis === 'pesanan' ? h.k[k][1] : h.k[k][0]; });
+    out.push({ t, v });
+  }
+  return out;
+}
+function ovxSeriJam(t, jenis) {
+  const arr = new Array(24).fill(0);
+  if (jenis === 'iklan') {
+    if (typeof iklanData === 'undefined' || !iklanData) return arr;
+    const rows = (iklanData.perJam || []).filter(r => r.tanggal === t);
+    const plat = [...new Set(rows.map(r => r.toko + '|' + r.platform))];
+    plat.forEach(kp => {
+      const kum = {}; rows.filter(r => r.toko + '|' + r.platform === kp).forEach(r => { kum[r.jam] = r.kumulatif; });
+      for (let h = 0; h < 24; h++) if (kum[h + 1] !== undefined && kum[h] !== undefined) arr[h] += Math.max(0, kum[h + 1] - kum[h]);
+    });
+    return arr;
+  }
+  (ovRekap && ovRekap.perJam || []).forEach(r => {
+    if (r[0] !== t) return;
+    if (jenis === 'resi') { if (r[2] === '_RESI') arr[r[1]] += r[5]; }
+    else if (r[2] !== '_RESI') arr[r[1]] += jenis === 'pesanan' ? r[4] : r[3];
+  });
+  return arr;
+}
+function renderWebChartLine() {
+  const cv = el('web-chart-line');
+  if (!cv || typeof Chart === 'undefined' || !ovRekap) return;
+  if (typeof webChartLine !== 'undefined' && webChartLine) { try { webChartLine.destroy(); } catch (e) { } webChartLine = null; }
+  if (ovxChart) { ovxChart.destroy(); ovxChart = null; }
+  const jenis = ovTrenJenisAktif === 'channel' ? 'penjualan' : ovTrenJenisAktif;
+  const rp = jenis === 'penjualan' || jenis === 'iklan';
+  const per = ovxPeriode();
+  let labels, cur, prev, labelCur, labelPrev;
+  const nmJenis = { penjualan: 'Penjualan', pesanan: 'Pesanan', resi: 'Resi terkirim', iklan: 'Belanja iklan' }[jenis];
+  if (per.mulai === per.akhir) {
+    const c = ovxSeriJam(per.mulai, jenis), p = ovxSeriJam(per.pMulai, jenis);
+    const batas = per.mulai === ovTglLokal() ? new Date().getHours() + 1 : 24;
+    labels = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0') + ':00');
+    cur = c.map((v, h) => h < batas ? v : null); prev = p;
+    labelCur = per.mulai === ovTglLokal() ? 'Hari ini' : per.mulai; labelPrev = per.pMulai === ovxGeserTgl(ovTglLokal(), -1) ? 'Kemarin' : per.pMulai;
+    if (!(ovRekap.perJam || []).length && jenis !== 'iklan') labelCur += ' (data per jam aktif setelah backend baru di-deploy)';
+  } else {
+    const c = ovxSeriHarian(per.mulai, per.akhir, jenis), p = ovxSeriHarian(per.pMulai, per.pAkhir, jenis);
+    const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    labels = c.map(x => { const d = new Date(x.t + 'T12:00:00'); return String(d.getDate()).padStart(2, '0') + ' ' + BLN[d.getMonth()]; });
+    cur = c.map(x => x.v); prev = p.map(x => x.v);
+    labelCur = 'Periode ini'; labelPrev = 'Periode sebelumnya (' + per.pMulai + ' – ' + per.pAkhir + ')';
+  }
+  if (el('ov-tren-judul')) el('ov-tren-judul').textContent = 'Tren ' + nmJenis + ' · Semua Channel';
+  const fmt = v => rp ? ovxRp(v) : ovxAngka(v);
+  ovxChart = new Chart(cv.getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: labelPrev, data: prev, borderColor: 'rgba(100,116,139,.55)', backgroundColor: 'rgba(148,163,184,.16)', fill: 'origin', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, tension: .35, order: 2 },
+      { label: labelCur, data: cur, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.08)', fill: false, borderWidth: 2.4, pointRadius: labels.length > 31 ? 0 : 2.5, pointHoverRadius: 4, tension: .35, spanGaps: false, order: 1 }
+    ] },
+    options: {
+      responsive: true, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y === null ? '-' : fmt(c.parsed.y)) } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => rp ? (v >= 1e6 ? (v / 1e6).toLocaleString('id-ID') + ' jt' : v >= 1e3 ? (v / 1e3).toLocaleString('id-ID') + ' rb' : v) : v } }, x: { ticks: { maxTicksLimit: 12 } } }
+    }
+  });
+}
+
+/* ----- Trafik (Pengunjung & Produk Diklik) ----- */
+let ovxTrafikJalan = false;
+async function ovxMuatTrafikJikaPerlu() {
+  if (ovxTrafikJalan || !ovRekap || !ovxBolehJual()) return;
+  const per = ovxPeriode(), dari = per.pMulai < per.mulai ? per.pMulai : per.mulai, sampai = per.akhir;
+  const kunci = dari + '|' + sampai;
+  if (ovxTrafik.ambil[kunci] && Date.now() - ovxTrafik.ambil[kunci] < 3600000) return;
+  ovxTrafikJalan = true;
+  try {
+    const d = await postJson({ aksi: 'lihat_dashboard_trafik', dari, sampai, email: currentUserEmail() }, 90000, true);
+    if (d && d.success) {
+      (d.hari || []).forEach(x => { ovxTrafik.hari[x.t + '|' + x.k] = { v: x.v, pv: x.pv, c: x.c }; });
+      ovxTrafik.catatan = d.catatan || {};
+      ovxTrafik.ambil[kunci] = Date.now();
+      try { localStorage.setItem(OVX_TRAFIK_LOKAL, JSON.stringify(ovxTrafik)); } catch (e) { }
+      if (ovDasborSedangTerlihat()) ovRenderKpiGrid(ovDataOverviewCache);
+    }
+  } catch (e) { /* senyap - kartu menampilkan "Belum tersedia" */ }
+  finally { ovxTrafikJalan = false; }
+}
+
+/* ----- Snapshot per jam: dasbor hanya ditarik ulang 1x per jam (instan saat dibuka) ----- */
+const ovxFetchDashboardAsli = window.fetchDashboardWeb;
+window.fetchDashboardWeb = async function () {
+  ovxSiapkanTata();
+  if (!ovTanggalMulaiAktif) { ovTanggalMulaiAktif = ovTglLokal(); ovTanggalAkhirAktif = ovTglLokal(); }
+  if (!ovRekap) { const l = ovRekapMuatLokal(); if (l && l.hariIni === ovTglLokal()) ovRekap = l; }
+  ovxJadwalJam();
+  if (ovRekap && ovRekap.hariIni === ovTglLokal() && Date.now() - (ovRekap._diambil || 0) < 3600000) {
+    ovPerluSegarPenuh = false;
+    el('ov-periode-label').textContent = ovTanggalMulaiAktif === ovTanggalAkhirAktif ? ovTanggalMulaiAktif : (ovTanggalMulaiAktif + ' s/d ' + ovTanggalAkhirAktif);
+    ovRenderDariRekap();
+    ovSetStatusData(ovTeksUmur(ovRekap) + ' · otomatis diperbarui tiap jam', 'ok', true);
+    if (typeof iklanData !== 'undefined' && !iklanData && typeof omxIklanMuatSaatLogin === 'function') omxIklanMuatSaatLogin();
+    return;
+  }
+  return ovxFetchDashboardAsli.apply(this, arguments);
+};
+function ovxJadwalJam() {
+  if (ovxJamTimer) return;
+  const now = new Date(), berikut = new Date(now); berikut.setMinutes(6, 0, 0); // ±6 menit setelah jam bulat (rekap server selesai)
+  if (berikut <= now) berikut.setHours(berikut.getHours() + 1);
+  ovxJamTimer = setTimeout(async () => {
+    ovxJamTimer = 0;
+    try { if (!document.hidden && currentUser) { await ovAmbilRekap(); if (ovDasborSedangTerlihat()) { ovRenderDariRekap(); ovSetStatusData(ovTeksUmur(ovRekap) + ' · otomatis diperbarui tiap jam', 'ok', true); } } } catch (e) { }
+    ovxJadwalJam();
+  }, berikut - now);
+}
+
+/* ----- LIVE: tarik omzet & iklan langsung dari marketplace (di latar) ----- */
+function ovxToggleLive() {
+  ovxLiveAktif = !ovxLiveAktif;
+  const b = el('ovx-live'); if (b) b.classList.toggle('aktif', ovxLiveAktif);
+  clearInterval(ovxLiveTimer);
+  if (ovxLiveAktif) { ovxLiveTarik(); ovxLiveTimer = setInterval(() => { if (ovDasborSedangTerlihat() && !document.hidden) ovxLiveTarik(); }, 10 * 60000); }
+  else { const t = el('ovx-live-teks'); if (t) t.textContent = 'Live'; }
+}
+async function ovxLiveTarik() {
+  if (ovxLiveJalan) return;
+  ovxLiveJalan = true;
+  const t = el('ovx-live-teks'); if (t) t.textContent = 'Live · menarik…';
+  try {
+    const d = await postJson({ aksi: 'dashboard_live', email: currentUserEmail() }, 330000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal menarik data live');
+    d._diambil = Date.now(); ovRekap = d; ovRekapSimpanLokal(d);
+    try { await iklanMuat(true, true); } catch (e) { }
+    if (ovDasborSedangTerlihat()) ovRenderDariRekap();
+    const jam = new Date().toTimeString().slice(0, 5);
+    const gagal = Object.keys(d.live || {}).filter(k => d.live[k] !== 'ok' && k !== 'Info');
+    ovSetStatusData('Live · data per ' + jam + (gagal.length ? ' · sebagian gagal: ' + gagal.map(k => k + ' (' + d.live[k] + ')').join(', ') : ''), gagal.length ? 'err' : 'ok', true);
+    if (t) t.textContent = ovxLiveAktif ? 'Live · ' + jam : 'Live';
+  } catch (err) {
+    ovSetStatusData('Live gagal: ' + err.message + ' · menampilkan ' + ovTeksUmur(ovRekap).toLowerCase(), 'err', true);
+    if (t) t.textContent = 'Live';
+  } finally { ovxLiveJalan = false; }
+}
+</script>
+<script>
+/* ============================ (B) KATALOG > KATEGORI v2 ============================
+   Instan: tampil dari cache lokal, server (1x baca sheet, cache 2 menit) di latar.
+   Akurat: simpan hanya SELISIH (tambah/keluar) -> produk yang tersaring pencarian tidak ikut berubah. */
+const katx = { data: null, cari: '', paksa: false, muat: false, error: '' };
+const KATX_IKON = {
+  ubah: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  hapus: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>',
+  kotak: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>'
+};
+function katxKunciLokal() { return 'katx_v1:' + (typeof currentToko !== 'undefined' ? currentToko : ''); }
+function katxMuatLokal() { try { return JSON.parse(localStorage.getItem(katxKunciLokal()) || 'null'); } catch (e) { return null; } }
+function katxSimpanLokal() { try { localStorage.setItem(katxKunciLokal(), JSON.stringify(katx.data)); } catch (e) { } }
+function katxThumb(p, kelas) { return `<span class="katx-thumb ${kelas || ''}" title="${pgrAttr(p[1] + ' (' + p[0] + ')')}">${p[3] ? `<img src="${pgrAttr(p[3])}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : KATX_IKON.kotak}</span>`; }
+
+window.katalogFetchKategori = async function (paksa) {
+  katxSiapkanTata();
+  if (!katx.data) katx.data = katxMuatLokal();
+  katxRender();
+  if (katx.muat) return;
+  katx.muat = true;
+  const segar = paksa === true || katx.paksa;
+  katx.paksa = false;
+  try {
+    const d = await postJson({ aksi: 'lihat_kategori_v2', segar, email: currentUserEmail() }, 60000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat kategori');
+    katx.data = { kategori: d.kategori || [], produk: d.produk || [], waktu: d.waktu || Date.now() };
+    katx.error = '';
+    katxSimpanLokal();
+    try { katalogSemuaProdukCache = katx.data.produk.map(p => ({ sku: p[0], nama: p[1], kategori: p[2] })); } catch (e) { }
+  } catch (err) { katx.error = String(err.message || err).replace(/^Error:\s*/, ''); }
+  finally { katx.muat = false; katxRender(); }
+};
+function katxSiapkanTata() {
+  const list = el('katalog-kategori-list');
+  if (!list || list.dataset.katx === '1') return;
+  list.dataset.katx = '1';
+  list.classList.add('katx-grid');
+  const head = document.createElement('div');
+  head.className = 'katx-head';
+  head.innerHTML = `<div class="katx-ringkas" id="katx-ringkas" aria-live="polite"></div>
+    <input type="search" id="katx-cari" class="web-search-input katx-cari" placeholder="Cari kategori…" autocomplete="off" />`;
+  list.parentElement.insertBefore(head, list);
+  el('katx-cari').addEventListener('input', e => { katx.cari = e.target.value.toLowerCase().trim(); katxRender(); });
+  list.addEventListener('click', e => {
+    const b = e.target.closest('[data-katx-aksi]'); if (!b) return;
+    const nama = b.dataset.nama;
+    if (b.dataset.katxAksi === 'kelola') katxKelola(nama);
+    else if (b.dataset.katxAksi === 'ubah') katxUbahNama(nama);
+    else if (b.dataset.katxAksi === 'hapus') katxHapus(nama);
+  });
+  const st = el('katalog-kategori-status'); if (st && st.parentElement) st.parentElement.style.maxWidth = '420px';
+}
+function katxRender() {
+  const list = el('katalog-kategori-list'); if (!list) return;
+  const ring = el('katx-ringkas');
+  if (el('katalog-kategori-empty')) el('katalog-kategori-empty').style.display = 'none';
+  if (!katx.data) {
+    list.innerHTML = Array.from({ length: 6 }, () => `<div class="katx-card" aria-hidden="true"><div class="ovx-kartu memuat" style="border:none;padding:0;"><div class="ovx-nilai" style="height:20px;"></div></div><div class="katx-quick">${'<span class="katx-thumb"></span>'.repeat(5)}</div></div>`).join('');
+    if (ring) ring.innerHTML = katx.error ? `<span style="color:var(--web-danger);">Gagal memuat: ${ovxEsc(katx.error)}</span> <button type="button" class="web-chart-toggle-btn" onclick="katalogFetchKategori(true)">Coba lagi</button>` : 'Memuat kategori…';
+    return;
+  }
+  const per = {};
+  let tanpa = 0;
+  katx.data.produk.forEach(p => { if (p[2]) (per[p[2]] = per[p[2]] || []).push(p); else tanpa++; });
+  const daftar = katx.data.kategori.filter(k => !katx.cari || k.nama.toLowerCase().includes(katx.cari));
+  if (ring) ring.innerHTML = `<b>${katx.data.kategori.length}</b> kategori · <b>${katx.data.produk.length.toLocaleString('id-ID')}</b> produk aktif · <b>${tanpa.toLocaleString('id-ID')}</b> belum berkategori` +
+    (katx.muat ? ' · <span class="ccx-cari-status"><i class="ccx-putar"></i> menyegarkan</span>' : '') + (katx.error ? ` · <span style="color:var(--web-danger);">gagal menyegarkan: ${ovxEsc(katx.error)}</span>` : '');
+  if (!katx.data.kategori.length) { list.innerHTML = ''; if (el('katalog-kategori-empty')) el('katalog-kategori-empty').style.display = 'block'; return; }
+  if (!daftar.length) { list.innerHTML = '<div class="katx-kosong-isi">Tidak ada kategori yang cocok.</div>'; return; }
+  list.innerHTML = daftar.map(k => {
+    const isi = per[k.nama] || [];
+    const urut = isi.slice().sort((a, b) => (b[3] ? 1 : 0) - (a[3] ? 1 : 0));
+    const thumbs = urut.slice(0, 6).map(p => katxThumb(p)).join('') + (isi.length > 6 ? `<span class="katx-thumb lebih">+${isi.length - 6}</span>` : '');
+    const n = ovxEsc(k.nama), a = pgrAttr(k.nama);
+    return `<article class="katx-card">
+      <header><div style="min-width:0;"><h4>${n}</h4><p>${isi.length.toLocaleString('id-ID')} produk${k.deskripsi ? ' · ' + ovxEsc(k.deskripsi) : ''}</p></div>
+        <div class="katx-ikon"><button type="button" data-katx-aksi="ubah" data-nama="${a}" title="Ubah nama" aria-label="Ubah nama ${a}">${KATX_IKON.ubah}</button><button type="button" class="hapus" data-katx-aksi="hapus" data-nama="${a}" title="Hapus kategori" aria-label="Hapus ${a}">${KATX_IKON.hapus}</button></div></header>
+      ${isi.length ? `<div class="katx-quick">${thumbs}</div><ul class="katx-nama-list">${isi.slice(0, 3).map(p => `<li><small>${ovxEsc(p[0])}</small>${ovxEsc(p[1])}</li>`).join('')}${isi.length > 3 ? `<li><small>dan ${isi.length - 3} produk lain</small></li>` : ''}</ul>` : '<div class="katx-kosong-isi">Belum ada produk di kategori ini.</div>'}
+      <footer><button type="button" class="katx-btn" data-katx-aksi="kelola" data-nama="${a}">Kelola Produk</button></footer>
+    </article>`;
+  }).join('');
+}
+function katxTerapkanLokal(fn) { if (!katx.data) return; fn(katx.data); katxSimpanLokal(); katxRender(); }
+function katxSinkronCacheLama(namaLama, namaBaru) {
+  try { const i = katalogDaftarKategoriCache.indexOf(namaLama); if (i > -1) { if (namaBaru) katalogDaftarKategoriCache[i] = namaBaru; else katalogDaftarKategoriCache.splice(i, 1); } hapusCacheTTL('daftar_kategori'); } catch (e) { }
+  try { katalogProdukCache.forEach(p => { if (p.kategori === namaLama) p.kategori = namaBaru || ''; }); simpanCacheLokal('katalog_produk', { daftar: katalogProdukCache, skuTerhubungMap: katalogSkuTerhubungMap, skuMarketplaceMap: katalogSkuMarketplaceMap }); } catch (e) { }
+}
+function katxUbahNama(nama) {
+  omxModal('Ubah nama kategori', `<label style="font-size:12.5px; font-weight:600;">Nama baru<input id="katx-nama-baru" class="web-form-input" value="${pgrAttr(nama)}" style="width:100%; box-sizing:border-box; margin-top:6px;" /></label>
+    <div class="status-text" id="katx-ubah-status" style="text-align:left; margin-top:6px;"></div>
+    <div class="katx-m-tombol"><button type="button" class="web-btn-secondary" style="margin:0;" onclick="omxTutupModal()">Batal</button><button type="button" class="web-btn-primary" id="katx-btn-ubah" style="margin:0;">Simpan</button></div>`);
+  const simpan = async () => {
+    const baru = el('katx-nama-baru').value.trim(), st = el('katx-ubah-status'), btn = el('katx-btn-ubah');
+    if (!baru) { st.textContent = 'Nama tidak boleh kosong.'; st.className = 'status-text err'; return; }
+    if (baru === nama) { omxTutupModal(); return; }
+    btn.disabled = true; btn.textContent = 'Menyimpan…';
+    try {
+      const d = await postJsonTulis({ aksi: 'ubah_nama_kategori', namaLama: nama, namaBaru: baru, email: currentUserEmail() }, 60000);
+      if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+      omxTutupModal();
+      katxTerapkanLokal(D => { D.kategori.forEach(k => { if (k.nama === nama) k.nama = baru; }); D.produk.forEach(p => { if (p[2] === nama) p[2] = baru; }); });
+      katxSinkronCacheLama(nama, baru);
+      omniToast(`Kategori diganti jadi "${baru}"`, 'sukses');
+      katx.paksa = true; katalogFetchKategori(true);
+    } catch (err) { st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; btn.textContent = 'Simpan'; }
+  };
+  el('katx-btn-ubah').onclick = simpan;
+  el('katx-nama-baru').addEventListener('keydown', e => { if (e.key === 'Enter') simpan(); });
+}
+async function katxHapus(nama) {
+  const jml = katx.data ? katx.data.produk.filter(p => p[2] === nama).length : 0;
+  if (!(await omniKonfirm_(`Hapus kategori "${nama}"?\n\n${jml ? jml + ' produk di dalamnya akan menjadi "Tanpa Kategori" (produknya TIDAK dihapus).' : 'Tidak ada produk di kategori ini.'}`))) return;
+  const cadangan = JSON.stringify(katx.data);
+  katxTerapkanLokal(D => { D.kategori = D.kategori.filter(k => k.nama !== nama); D.produk.forEach(p => { if (p[2] === nama) p[2] = ''; }); });
+  try {
+    const d = await postJsonTulis({ aksi: 'hapus_kategori', nama, email: currentUserEmail() }, 60000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    katxSinkronCacheLama(nama, '');
+    omniToast(`Kategori "${nama}" dihapus`, 'sukses');
+    katx.paksa = true; katalogFetchKategori(true);
+  } catch (err) { katx.data = JSON.parse(cadangan); katxSimpanLokal(); katxRender(); omniToast('Gagal menghapus: ' + String(err.message || err).replace(/^Error:\s*/, ''), 'error'); }
+}
+// Kategori baru (form lama) -> tarik segar
+(function () {
+  const asli = window.katalogBuatKategoriMassal;
+  if (typeof asli === 'function') window.katalogBuatKategoriMassal = function () { katx.paksa = true; return asli.apply(this, arguments); };
+})();
+
+/* ----- Window Kelola Produk: semua produk master, centang, cari, paginasi ----- */
+const katxM = { nama: '', sel: null, awal: null, cari: '', filter: 'semua', hal: 1, per: 12 };
+function katxKelola(nama) {
+  if (!katx.data) return;
+  katxM.nama = nama; katxM.cari = ''; katxM.filter = 'semua'; katxM.hal = 1;
+  katxM.awal = new Set(katx.data.produk.filter(p => p[2] === nama).map(p => p[0]));
+  katxM.sel = new Set(katxM.awal);
+  const w = omxModal('Kelola Produk · ' + nama, `
+    <div class="katx-m-alat">
+      <input type="search" id="katx-m-cari" placeholder="Cari SKU atau nama produk…" autocomplete="off" />
+      <div class="katx-seg" id="katx-m-seg" role="tablist">
+        <button type="button" data-f="semua" class="aktif">Semua</button><button type="button" data-f="ini">Di kategori ini</button>
+        <button type="button" data-f="tanpa">Belum berkategori</button><button type="button" data-f="lain">Kategori lain</button>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--web-text-dim); margin:-2px 0 8px;">
+      <label style="display:inline-flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" id="katx-m-semua" style="accent-color:#4f46e5;" /> Centang semua hasil di halaman ini</label>
+      <span style="flex:1;"></span><span id="katx-m-jumlah"></span>
+    </div>
+    <div class="katx-m-daftar" id="katx-m-daftar"></div>
+    <div class="katx-m-kaki"><div class="katx-m-info" id="katx-m-info"></div><div class="katx-pag" id="katx-m-pag"></div></div>
+    <div class="status-text" id="katx-m-status" style="text-align:left; margin-top:6px;"></div>
+    <div class="katx-m-tombol"><button type="button" class="web-btn-secondary" style="margin:0;" onclick="omxTutupModal()">Batal</button><button type="button" class="web-btn-primary" id="katx-m-simpan" style="margin:0;">Simpan</button></div>`, { lebar: true });
+  const m = w.querySelector('.omx-modal'); if (m) m.classList.add('katx-modal');
+  el('katx-m-cari').addEventListener('input', e => { katxM.cari = e.target.value.toLowerCase().trim(); katxM.hal = 1; katxMRender(); });
+  el('katx-m-seg').addEventListener('click', e => { const b = e.target.closest('button[data-f]'); if (!b) return; katxM.filter = b.dataset.f; katxM.hal = 1; el('katx-m-seg').querySelectorAll('button').forEach(x => x.classList.toggle('aktif', x === b)); katxMRender(); });
+  el('katx-m-daftar').addEventListener('change', e => { const c = e.target.closest('input[data-sku]'); if (!c) return; if (c.checked) katxM.sel.add(c.dataset.sku); else katxM.sel.delete(c.dataset.sku); c.closest('.katx-m-baris').classList.toggle('pilih', c.checked); katxMInfo(); });
+  el('katx-m-semua').addEventListener('change', e => { katxMHalaman().forEach(p => { if (e.target.checked) katxM.sel.add(p[0]); else katxM.sel.delete(p[0]); }); katxMRender(); });
+  el('katx-m-pag').addEventListener('click', e => { const b = e.target.closest('button[data-hal]'); if (!b || b.disabled) return; katxM.hal = Number(b.dataset.hal); katxMRender(); el('katx-m-daftar').scrollIntoView({ block: 'nearest' }); });
+  el('katx-m-simpan').onclick = katxMSimpan;
+  katxMRender();
+}
+function katxMTersaring() {
+  const n = katxM.nama, q = katxM.cari;
+  return katx.data.produk.filter(p => {
+    if (katxM.filter === 'ini' && !katxM.sel.has(p[0])) return false;
+    if (katxM.filter === 'tanpa' && p[2]) return false;
+    if (katxM.filter === 'lain' && (!p[2] || p[2] === n)) return false;
+    return !q || p[0].toLowerCase().includes(q) || p[1].toLowerCase().includes(q);
+  }).sort((a, b) => (katxM.awal.has(b[0]) ? 1 : 0) - (katxM.awal.has(a[0]) ? 1 : 0) || a[1].localeCompare(b[1]));
+}
+function katxMHalaman() { const d = katxMTersaring(); return d.slice((katxM.hal - 1) * katxM.per, katxM.hal * katxM.per); }
+function katxMRender() {
+  const data = katxMTersaring(), total = data.length, hal = Math.max(1, Math.ceil(total / katxM.per));
+  if (katxM.hal > hal) katxM.hal = hal;
+  const isi = data.slice((katxM.hal - 1) * katxM.per, katxM.hal * katxM.per);
+  el('katx-m-daftar').innerHTML = isi.length ? isi.map(p => {
+    const pilih = katxM.sel.has(p[0]);
+    const tag = p[2] === katxM.nama ? '<span class="katx-tag ini">Kategori ini</span>' : p[2] ? `<span class="katx-tag" title="Dicentang = dipindah ke ${pgrAttr(katxM.nama)}">${ovxEsc(p[2])}</span>` : '';
+    return `<label class="katx-m-baris ${pilih ? 'pilih' : ''}"><input type="checkbox" data-sku="${pgrAttr(p[0])}" ${pilih ? 'checked' : ''} />${katxThumb(p)}<span style="min-width:0;"><b>${ovxEsc(p[1] || p[0])}</b><small>${ovxEsc(p[0])}</small></span>${tag}</label>`;
+  }).join('') : '<div class="katx-kosong-isi" style="padding:18px; text-align:center;">Tidak ada produk yang cocok.</div>';
+  el('katx-m-semua').checked = isi.length > 0 && isi.every(p => katxM.sel.has(p[0]));
+  el('katx-m-jumlah').textContent = total.toLocaleString('id-ID') + ' produk';
+  const tombol = [];
+  const awal = Math.max(1, Math.min(katxM.hal - 2, hal - 4)), akhir = Math.min(hal, awal + 4);
+  tombol.push(`<button type="button" data-hal="${katxM.hal - 1}" ${katxM.hal <= 1 ? 'disabled' : ''} aria-label="Sebelumnya">‹</button>`);
+  for (let i = awal; i <= akhir; i++) tombol.push(`<button type="button" data-hal="${i}" class="${i === katxM.hal ? 'aktif' : ''}">${i}</button>`);
+  tombol.push(`<button type="button" data-hal="${katxM.hal + 1}" ${katxM.hal >= hal ? 'disabled' : ''} aria-label="Berikutnya">›</button>`);
+  el('katx-m-pag').innerHTML = tombol.join('');
+  katxMInfo();
+}
+function katxMInfo() {
+  const tambah = [...katxM.sel].filter(s => !katxM.awal.has(s)).length, keluar = [...katxM.awal].filter(s => !katxM.sel.has(s)).length;
+  el('katx-m-info').innerHTML = `<b>${katxM.sel.size.toLocaleString('id-ID')}</b> produk di kategori ini` + (tambah || keluar ? ` · <b class="plus">+${tambah}</b> ditambah · <b class="min">−${keluar}</b> dikeluarkan` : ' · belum ada perubahan');
+}
+async function katxMSimpan() {
+  const tambah = [...katxM.sel].filter(s => !katxM.awal.has(s)), keluar = [...katxM.awal].filter(s => !katxM.sel.has(s));
+  if (!tambah.length && !keluar.length) { omxTutupModal(); return; }
+  const btn = el('katx-m-simpan'), st = el('katx-m-status'), nama = katxM.nama;
+  btn.disabled = true; btn.textContent = 'Menyimpan…';
+  try {
+    const d = await postJsonTulis({ aksi: 'simpan_kategori_v2', namaKategori: nama, tambah, keluar, email: currentUserEmail() }, 90000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal menyimpan');
+    omxTutupModal();
+    const tS = new Set(tambah), kS = new Set(keluar);
+    katxTerapkanLokal(D => D.produk.forEach(p => { if (tS.has(p[0])) p[2] = nama; else if (kS.has(p[0]) && p[2] === nama) p[2] = ''; }));
+    try { katalogProdukCache.forEach(p => { if (tS.has(p.sku)) p.kategori = nama; else if (kS.has(p.sku) && p.kategori === nama) p.kategori = ''; }); } catch (e) { }
+    playBeep && playBeep();
+    omniToast(`${nama}: +${tambah.length} ditambah, −${keluar.length} dikeluarkan`, 'sukses');
+    katx.paksa = true;
+  } catch (err) { st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; btn.textContent = 'Simpan'; }
+}
+
+/* ============================ (C) MEMO GUDANG ============================ */
+function mgxPindahPanel() { const l = el('bmm-latar'), w = el('app-web'); if (l && w && l.parentElement !== w) w.appendChild(l); }
+if (typeof bmm !== 'undefined' && bmm.jenis === 'semua') bmm.jenis = 'mintastock';
+(function () {
+  const bukaAsli = window.bmmBuka, jenisAsli = window.bmmJenis, renderAsli = window.bmmRender, badgeAsli = window.bmmRenderBadge;
+  window.bmmJenis = function (j) {
+    if (j === 'semua') j = 'mintastock';
+    const r = jenisAsli.call(this, j);
+    const p = document.querySelector('.bmm-panel'); if (p) p.dataset.mgx = j;
+    return r;
+  };
+  window.bmmBuka = function () {
+    mgxPindahPanel();
+    if (bmm.jenis === 'semua' || !bmm.jenis) bmm.jenis = 'mintastock';
+    document.querySelectorAll('[data-bmm-j]').forEach(b => b.classList.toggle('aktif', b.dataset.bmmJ === bmm.jenis));
+    const p = document.querySelector('.bmm-panel'); if (p) p.dataset.mgx = bmm.jenis;
+    return bukaAsli.apply(this, arguments);
+  };
+  window.bmmRender = function () {
+    const r = renderAsli.apply(this, arguments);
+    try { mgxBanner(); } catch (e) { }
+    return r;
+  };
+  window.bmmRenderBadge = function () {
+    const r = badgeAsli.apply(this, arguments);
+    try {
+      const src = el('bel-memo-badge'), b = el('perx-memo-badge');
+      if (src && b) { b.hidden = src.hidden; b.textContent = src.textContent; el('perx-btn-memo').classList.toggle('ada', !src.hidden); }
+    } catch (e) { }
+    return r;
+  };
+  const tombolSemua = document.querySelector('[data-bmm-j="semua"]'); if (tombolSemua) tombolSemua.remove();
+  document.querySelectorAll('[data-bmm-j]').forEach(b => b.classList.toggle('aktif', b.dataset.bmmJ === bmm.jenis));
+})();
+const MGX_BANNER = {
+  barangmasuk: ['Barang Masuk belum menambah stok sampai divalidasi Back Office.', 'Buka Validasi Masuk', () => persediaanBukaSub('barangmasuk', 'validasi')],
+  hilangrusak: ['Laporan Hilang/Rusak perlu disetujui dulu sebelum stok dikurangi.', 'Buka Persetujuan', () => { persediaanBukaSub('barangmasuk', 'memo'); setTimeout(() => { try { mgGantiTab('hilangrusak'); } catch (e) { } }, 50); }],
+  stockopname: ['Hasil hitung fisik diverifikasi di halaman Stock Opname.', 'Buka Stock Opname', () => persediaanBukaSub('opname')]
+};
+function mgxBanner() {
+  const isi = el('bmm-isi'), j = bmm.jenis, b = MGX_BANNER[j];
+  if (!isi || !b || !bmm.sudah) return;
+  const n = bmm.memos.filter(m => m.jenis === j && m.kelompok === 'menunggu').length;
+  const div = document.createElement('div');
+  div.className = 'mgx-banner ' + j;
+  div.innerHTML = `<span>${n ? `<b>${n}</b> memo menunggu. ` : ''}${ovxEsc(b[0])}</span><button type="button">${ovxEsc(b[1])}</button>`;
+  div.querySelector('button').onclick = () => { bmmTutup(); b[2](); };
+  isi.insertBefore(div, isi.firstChild);
+}
+function perxPasangKapsul() {
+  const head = document.querySelector('#persediaan-view-monitor .per-page-head');
+  if (!head || el('perx-btn-memo')) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.id = 'perx-btn-memo'; b.className = 'bel-btn-bening perx-kapsul';
+  b.title = 'Lihat memo dari Admin Gudang: Minta Stock, Barang Masuk, Hilang/Rusak, Stock Opname';
+  b.innerHTML = '<span class="oi oi-clipboard" aria-hidden="true"></span> Cek Memo Gudang <span class="bel-badge" id="perx-memo-badge" hidden></span>';
+  b.onclick = () => bmmBuka();
+  head.appendChild(b);
+}
+(function () {
+  const asli = window.persediaanBukaSub;
+  if (typeof asli !== 'function') return;
+  window.persediaanBukaSub = function (sub) {
+    const r = asli.apply(this, arguments);
+    try {
+      perxPasangKapsul();
+      if ((!sub || sub === 'monitor') && typeof bmm !== 'undefined' && !bmm.sudah && !bmm.muat) bmmMuat(false, true);
+      else if (typeof bmmRenderBadge === 'function') bmmRenderBadge();
+    } catch (e) { }
+    return r;
+  };
+})();
+// Mobile: warna tab + tombol kirim + kotak input mengikuti jenis memo aktif
+(function () {
+  const asli = window.mgmGantiTab;
+  const set = t => { const s = el('screen-memo-gudang'); if (s) s.dataset.mgmTab = t; };
+  if (typeof asli === 'function') window.mgmGantiTab = function (tab) { const r = asli.apply(this, arguments); set(tab); return r; };
+  set(typeof mgmTabAktif !== 'undefined' && mgmTabAktif ? mgmTabAktif : 'mintastock');
+})();
+
+/* ============================ (D) PENJUALAN: produk & pembeli per pesanan ============================ */
+const pjxCache = new Map();
+(function () {
+  const asli = window.wpGabunganRenderHalaman;
+  if (typeof asli !== 'function') return;
+  window.wpGabunganRenderHalaman = function () {
+    const r = asli.apply(this, arguments);
+    try { pjxPasang(); } catch (e) { console.error('[pjx]', e); }
+    return r;
+  };
+})();
+function pjxPasang() {
+  const body = el('wp-gabungan-body'); if (!body) return;
+  body.querySelectorAll('tr[data-kunci]').forEach(tr => {
+    const aksi = tr.nextElementSibling;
+    if (!aksi || !aksi.classList.contains('wp-gab-baris-aksi')) return;
+    const td = aksi.querySelector('td');
+    if (!td || td.querySelector('.pjx-box')) return;
+    const box = document.createElement('div'); box.className = 'pjx-box'; td.appendChild(box);
+    const btn = tr.querySelector('.wp-gab-btn-aksi');
+    if (btn) { btn.title = 'Lihat produk, pembeli & aksi'; btn.addEventListener('click', () => setTimeout(() => { if (aksi.style.display !== 'none') pjxMuat(tr.dataset.kunci, box); }, 0)); }
+    const sel = tr.children[4];
+    if (sel && btn) { sel.title = 'Klik untuk lihat produk & pembeli'; sel.addEventListener('click', () => btn.click()); }
+    if (aksi.style.display !== 'none') pjxMuat(tr.dataset.kunci, box);
+  });
+}
+async function pjxMuat(kunci, box) {
+  const o = (wpGabunganCache || []).find(x => wpGabunganKunciUnik(x) === kunci);
+  if (!o || !box) return;
+  const id = String(o.noReferensi || '').trim();
+  if (pjxCache.has(id)) { pjxRender(box, o, pjxCache.get(id)); return; }
+  box.innerHTML = '<div class="pjx-kosong"><span class="ccx-cari-status"><i class="ccx-putar"></i> Memuat produk & data pembeli…</span></div>';
+  try {
+    const d = await postJson({ aksi: 'lihat_pjx_detail_pesanan', id, email: currentUserEmail() }, 60000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat');
+    pjxCache.set(id, d.pesanan || null);
+    pjxRender(box, o, d.pesanan || null);
+  } catch (err) { box.innerHTML = `<div class="pjx-kosong" style="color:var(--web-danger);">Gagal memuat detail: ${ovxEsc(String(err.message || err).replace(/^Error:\s*/, ''))}</div>`; }
+}
+function pjxRender(box, o, p) {
+  const items = (p && p.items) || [];
+  const qty = items.reduce((s, x) => s + (Number(x.qty) || 0), 0);
+  const info = (lbl, v) => `<dt>${lbl}</dt><dd>${ovxEsc(v && v !== '-' ? v : '-')}</dd>`;
+  box.innerHTML = `<div class="pjx-grid">
+    <section class="pjx-kartu"><h5>Info Pembeli</h5><dl class="pjx-info">
+      ${info('Username', p && p.username)}${info('Nama', (p && p.nama && p.nama !== '-') ? p.nama : o.pembeli)}${info('No HP', p && p.hp)}${info('Alamat', p && p.alamat)}${info('Status', (p && p.status) || o.status)}${info('Channel', (p && p.sumber) || o.sumber)}
+    </dl></section>
+    <section class="pjx-kartu"><h5>Produk dibeli <span>${items.length ? items.length + ' produk · ' + qty.toLocaleString('id-ID') + ' pcs' : ''}</span></h5>
+      ${items.length ? `<ul class="pjx-produk">${items.map(x => `<li>${katxThumb([x.sku, x.nama || x.sku, '', x.foto || ''])}<span style="min-width:0;"><b>${ovxEsc(x.nama || x.sku)}</b><small>${ovxEsc(x.sku)}</small></span><span class="pjx-qty">${Number(x.qty || 0).toLocaleString('id-ID')}×</span></li>`).join('')}</ul>`
+        : `<div class="pjx-kosong">${p && p.ringkasProduk ? ovxEsc(p.ringkasProduk) : (o.produk ? ovxEsc(o.produk) : 'Rincian produk belum tersedia untuk pesanan ini.')}</div>`}
+    </section></div>`;
+}
+</script>
+<script>
+/* ============================ (E) PENGIRIMAN ============================ */
+const CCX_LOKAL = 'ccx_filter_v1', CCX_INSTAN_LOKAL = 'ccx_instan_v1', CCX_CARI_T = 'ccx_cari_mendalam_t';
+let ccx = (() => { try { return Object.assign({ rentang: 'semua', mulai: '', akhir: '', kanal: [], jenis: [], tautan: [], status: [] }, JSON.parse(localStorage.getItem(CCX_LOKAL) || '{}')); } catch (e) { return { rentang: 'semua', mulai: '', akhir: '', kanal: [], jenis: [], tautan: [], status: [] }; } })();
+let ccxInstan = (() => { try { return JSON.parse(localStorage.getItem(CCX_INSTAN_LOKAL) || '{}') || {}; } catch (e) { return {}; } })();
+let ccxMentah = [], ccxInstanJalan = false, ccxCariJalan = false, ccxCariInfo = '', ccxInstanDicoba = {};
+const CCX_RENTANG = [['semua', 'Semua'], ['hari_ini', 'Hari Ini'], ['kemarin', 'Kemarin'], ['7hari', '7 Hari Terakhir'], ['30hari', '30 Hari Terakhir']];
+const CCX_JENIS = [['penjualan', 'Penjualan'], ['kilat', 'Pengiriman Kilat'], ['instan', 'Kurir Instan']];
+const CCX_TAUTAN = [['terhubung', 'Sudah terhubung'], ['belum', 'Belum terhubung']];
+
+function ccxSimpan() { try { localStorage.setItem(CCX_LOKAL, JSON.stringify(ccx)); } catch (e) { } }
+function ccxKanal(d) { return d.jenis === 'transfer' ? 'Pengiriman Kilat' : (d.sumber || 'Belum terhubung'); }
+function ccxApakahInstan(d) {
+  if (d.jenis === 'transfer') return false;
+  if (d.noInvoice && ovxNorm(d.noResiScan) && ovxNorm(d.noResiScan) === ovxNorm(d.noInvoice)) return true; // yang discan = ID Pesanan
+  return /instan|instant|same\s*day|sameday|gosend|go-send|gojek|grab/i.test(String(d.kurir || ''));
+}
+function ccxJenis(d) { return d.jenis === 'transfer' ? 'kilat' : (ccxApakahInstan(d) ? 'instan' : 'penjualan'); }
+function ccxRentangTgl() {
+  const h = ovTglLokal();
+  switch (ccx.rentang) {
+    case 'hari_ini': return [h, h];
+    case 'kemarin': { const k = ovxGeserTgl(h, -1); return [k, k]; }
+    case '7hari': return [ovxGeserTgl(h, -6), h];
+    case '30hari': return [ovxGeserTgl(h, -29), h];
+    case 'custom': return ccx.mulai && ccx.akhir ? [ccx.mulai, ccx.akhir] : null;
+    default: return null;
+  }
+}
+function ccxLolos(d) {
+  const r = ccxRentangTgl();
+  if (r) {
+    if (!d.ms) return false;
+    const t = ovTglLokal(new Date(d.ms));
+    if (t < r[0] || t > r[1]) return false;
+  }
+  if (ccx.kanal.length && !ccx.kanal.includes(ccxKanal(d))) return false;
+  if (ccx.jenis.length && !ccx.jenis.includes(ccxJenis(d))) return false;
+  if (ccx.tautan.length && !ccx.tautan.includes(d.noInvoice ? 'terhubung' : 'belum')) return false;
+  if (ccx.status.length && !ccx.status.includes(d.jenis === 'transfer' ? (d.statusTransfer || '-') : (d.statusPesanan || '-'))) return false;
+  return true;
+}
+(function () {
+  const semuaAsli = window.ccSemua, renderAsli = window.ccRender;
+  if (typeof semuaAsli !== 'function' || typeof renderAsli !== 'function') return;
+  window.ccSemua = function () { const s = semuaAsli.apply(this, arguments); ccxMentah = s; return s.filter(ccxLolos); };
+  window.ccRender = function () {
+    const r = renderAsli.apply(this, arguments);
+    try { ccxPasangUI(); ccxPerbaruiUI(); ccxProsesLatar(); } catch (e) { console.error('[ccx]', e); }
+    return r;
+  };
+})();
+
+function ccxPasangUI() {
+  const view = el('pgr-view-control'), kpi = el('cc-kpi');
+  if (!view || !kpi || el('ccx-rentang')) return;
+  const bar = document.createElement('div');
+  bar.className = 'ccx-rentang'; bar.id = 'ccx-rentang'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Rentang waktu scan');
+  bar.innerHTML = CCX_RENTANG.map(([k, l]) => `<button type="button" class="web-chart-toggle-btn" data-ccx-r="${k}">${l}</button>`).join('') +
+    `<div class="ccx-anchor"><button type="button" class="web-chart-toggle-btn" data-ccx-r="custom" id="ccx-btn-custom"><span class="oi oi-calendar" aria-hidden="true"></span> <span id="ccx-custom-label">Pilih Rentang Waktu</span></button>
+      <div class="ccx-pop" id="ccx-pop-tgl" hidden><h6>Rentang tanggal scan</h6><div class="ccx-tgl"><input type="date" id="ccx-tgl-mulai" /><span>–</span><input type="date" id="ccx-tgl-akhir" /></div>
+      <div class="ccx-pop-kaki"><button type="button" class="web-btn-secondary" style="margin:0;" onclick="el('ccx-pop-tgl').hidden=true">Batal</button><button type="button" class="web-btn-primary" style="margin:0;" id="ccx-tgl-terapkan">Terapkan</button></div></div></div>
+    <span class="ccx-label" id="ccx-rentang-label"></span>`;
+  view.insertBefore(bar, kpi);
+  bar.addEventListener('click', e => {
+    const b = e.target.closest('[data-ccx-r]'); if (!b) return;
+    if (b.dataset.ccxR === 'custom') {
+      const p = el('ccx-pop-tgl'); p.hidden = !p.hidden;
+      if (!p.hidden) { const h = ovTglLokal(); el('ccx-tgl-mulai').value = ccx.mulai || ovxGeserTgl(h, -6); el('ccx-tgl-akhir').value = ccx.akhir || h; el('ccx-tgl-mulai').max = h; el('ccx-tgl-akhir').max = h; }
+      return;
+    }
+    ccx.rentang = b.dataset.ccxR; ccxSimpan(); ccPag.page = 1; ccRender();
+  });
+  el('ccx-tgl-terapkan').onclick = () => {
+    let a = el('ccx-tgl-mulai').value, z = el('ccx-tgl-akhir').value;
+    if (!a || !z) return;
+    if (a > z) [a, z] = [z, a];
+    Object.assign(ccx, { rentang: 'custom', mulai: a, akhir: z }); ccxSimpan();
+    el('ccx-pop-tgl').hidden = true; ccPag.page = 1; ccRender();
+  };
+  // Tombol Filter + status pencarian otomatis di baris alat
+  const alat = view.querySelector('.cc-alat'), cari = view.querySelector('.cc-cari-wrap');
+  if (alat && cari) {
+    const f = document.createElement('div');
+    f.className = 'ccx-anchor';
+    f.innerHTML = `<button type="button" class="cc-kapsul ccx-filter-btn" id="ccx-filter-btn" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg> Filter <b id="ccx-filter-n"></b></button>
+      <div class="ccx-pop" id="ccx-pop-filter" hidden role="dialog" aria-label="Filter resi"></div>`;
+    cari.after(f);
+    el('ccx-filter-btn').onclick = () => { const p = el('ccx-pop-filter'); p.hidden = !p.hidden; if (!p.hidden) ccxRenderFilter(); };
+    el('ccx-pop-filter').addEventListener('change', e => {
+      const c = e.target.closest('input[data-g]'); if (!c) return;
+      const g = c.dataset.g, v = c.value, arr = ccx[g];
+      if (c.checked) { if (!arr.includes(v)) arr.push(v); } else ccx[g] = arr.filter(x => x !== v);
+      ccxSimpan(); ccPag.page = 1; ccRender(); ccxRenderFilter();
+    });
+    const st = document.createElement('span');
+    st.className = 'ccx-cari-status'; st.id = 'ccx-cari-status';
+    const info = el('cc-info'); if (info) info.before(st); else alat.appendChild(st);
+  }
+  document.addEventListener('mousedown', e => {
+    ['ccx-pop-filter', 'ccx-pop-tgl'].forEach(id => {
+      const p = el(id); if (!p || p.hidden) return;
+      if (p.contains(e.target) || (e.target.closest && e.target.closest(id === 'ccx-pop-filter' ? '#ccx-filter-btn' : '#ccx-btn-custom'))) return;
+      p.hidden = true;
+    });
+  });
+}
+function ccxRenderFilter() {
+  const p = el('ccx-pop-filter'); if (!p) return;
+  const hit = (fn) => { const o = {}; ccxMentah.forEach(d => { const k = fn(d); o[k] = (o[k] || 0) + 1; }); return o; };
+  const kanal = hit(ccxKanal), status = hit(d => d.jenis === 'transfer' ? (d.statusTransfer || '-') : (d.statusPesanan || '-'));
+  const grup = (judul, g, opsi) => `<h6>${judul}</h6><div class="ccx-chips">${opsi.map(([v, l, n]) => `<label><input type="checkbox" data-g="${g}" value="${pgrAttr(v)}" ${ccx[g].includes(v) ? 'checked' : ''} />${ovxEsc(l)}${n !== undefined ? ` <small style="color:var(--web-text-dim)">${n}</small>` : ''}</label>`).join('')}</div>`;
+  const jenisN = hit(ccxJenis), tautanN = hit(d => d.noInvoice ? 'terhubung' : 'belum');
+  p.innerHTML = grup('Channel', 'kanal', Object.keys(kanal).sort((a, b) => kanal[b] - kanal[a]).map(k => [k, k, kanal[k]])) +
+    grup('Jenis pengiriman', 'jenis', CCX_JENIS.map(([v, l]) => [v, l, jenisN[v] || 0])) +
+    grup('Tautan ke pesanan', 'tautan', CCX_TAUTAN.map(([v, l]) => [v, l, tautanN[v] || 0])) +
+    grup('Status', 'status', Object.keys(status).sort((a, b) => status[b] - status[a]).map(k => [k, k, status[k]])) +
+    `<div class="ccx-pop-kaki"><button type="button" class="web-btn-secondary" style="margin:0;" onclick="Object.assign(ccx,{kanal:[],jenis:[],tautan:[],status:[]}); ccxSimpan(); ccPag.page=1; ccRender(); ccxRenderFilter();">Reset filter</button><button type="button" class="web-btn-primary" style="margin:0;" onclick="el('ccx-pop-filter').hidden=true">Selesai</button></div>`;
+}
+function ccxPerbaruiUI() {
+  document.querySelectorAll('[data-ccx-r]').forEach(b => b.classList.toggle('active', b.dataset.ccxR === ccx.rentang));
+  const r = ccxRentangTgl(), lbl = el('ccx-rentang-label');
+  if (lbl) lbl.textContent = r ? 'Waktu scan: ' + (r[0] === r[1] ? r[0] : r[0] + ' s/d ' + r[1]) : 'Semua resi yang dimuat';
+  const cl = el('ccx-custom-label'); if (cl) cl.textContent = ccx.rentang === 'custom' && r ? r[0] + ' – ' + r[1] : 'Pilih Rentang Waktu';
+  const n = ccx.kanal.length + ccx.jenis.length + ccx.tautan.length + ccx.status.length, nb = el('ccx-filter-n');
+  if (nb) nb.textContent = n || '';
+  const st = el('ccx-cari-status');
+  if (st) {
+    const belum = ccxMentah.filter(d => !d.noInvoice && d.jenis !== 'transfer').length;
+    st.innerHTML = ccxCariJalan ? `<i class="ccx-putar"></i> ${ovxEsc(ccxCariInfo || 'Mencari pesanan…')}`
+      : (belum ? `${ccxCariInfo ? ovxEsc(ccxCariInfo) + ' · ' : ''}<button type="button" class="web-chart-toggle-btn" style="padding:4px 10px;" onclick="ccxCariMendalam(true)">Cari pesanan otomatis (${belum})</button>` : ovxEsc(ccxCariInfo));
+  }
+}
+
+/* Baris tabel: tanda ungu "Kilat" (No Reservasi = No Pesanan) + kurir instan (resi asli & status kirim) */
+function ccBarisHtml(d) {
+  const resi = String(d.noResiScan || ''), cc = d._cc;
+  const waktu = (d.tanggal && d.tanggal !== '-') ? d.tanggal.replace(/:\d{2}$/, '') : '-';
+  const instan = ccxApakahInstan(d), ins = instan ? ccxInstan[resi] : null;
+  const salin = (v, t) => `<button type="button" class="cc-salin" data-pgr-copy="${pgrAttr(v)}" title="Salin ${t}" aria-label="Salin ${t}">${CC_IKON.salin}</button>`;
+  let inv;
+  if (d.jenis === 'transfer') {
+    inv = d.noInvoice
+      ? `<div class="cc-inv"><span class="cc-resi"><b>${escapeHtml(d.noInvoice)}</b><span class="ccx-kilat" title="Pengiriman Kilat - No Reservasi dipakai sebagai No Pesanan">Kilat</span>${salin(d.noInvoice, 'No Reservasi')}</span><small>No Reservasi${d.orderPembeliKilat ? ' · pesanan ' + escapeHtml(d.orderPembeliKilat) : ''}</small></div>`
+      : `<span class="cc-inv-kosong">No Reservasi kosong <span class="ccx-kilat">Kilat</span> <button type="button" class="cc-btn-tautkan" data-pgr-tautkan="${pgrAttr(resi)}" data-pgr-kilat="1">Isi</button></span>`;
+  } else if (d.noInvoice) {
+    inv = `<div class="cc-inv"><span class="cc-resi"><b>${escapeHtml(d.noInvoice)}</b>${instan ? '<span class="ccx-instan" title="Kurir instan">Instan</span>' : ''}${salin(d.noInvoice, 'No Invoice')}</span><small>${escapeHtml([d.sumber, d.pembeli].filter(Boolean).join(' · '))}</small></div>`;
+  } else {
+    inv = `<span class="cc-inv-kosong">Belum terhubung <button type="button" class="cc-btn-tautkan" data-pgr-tautkan="${pgrAttr(resi)}">Tautkan</button></span>`;
+  }
+  let status = d.jenis === 'transfer' ? tgsBadgeHtml(d.statusTransfer, d) : pgrPillStatus(d.statusPesanan);
+  if (ins && ins.statusKirim) status += `<span class="ccx-kirim" title="${pgrAttr(ins.detailKirim || '')}">${escapeHtml(ins.statusKirim)}${ins.waktu ? ' · ' + new Date(ins.waktu).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>`;
+  const alasan = cc.h === 'gantung' && cc.alasan ? `<div class="cc-alasan">${CC_IKON.awas} ${escapeHtml(cc.alasan)}</div>` : '';
+  const v = ccNilai(d);
+  const retur = d.resiRetur
+    ? `<span class="cc-resi"><span class="pgr-mono" style="font-size:12px;">${escapeHtml(d.resiRetur)}</span>${salin(d.resiRetur, 'Resi Retur')}</span>`
+    : (cc.h === 'retur' && d.jenis === 'transfer' ? '<span style="font-size:11.5px; color:var(--web-text-dim);">resi sama</span>' : '<span style="color:var(--web-text-dim);">-</span>');
+  const resiTampil = instan && ins && ins.resiAsli ? ins.resiAsli : resi;
+  const subResi = !instan ? '' : (ins && ins.resiAsli ? `<span class="ccx-sub">ID Pesanan discan: ${escapeHtml(resi)}</span>`
+    : `<span class="ccx-sub">${ins ? (ins.error ? 'Gagal cek: ' + escapeHtml(ins.error) : 'Resi belum terbit di marketplace') : 'Kurir instan · mencari resi asli…'}</span>`);
+  return `<tr data-resi="${pgrAttr(resi)}" class="${cc.h === 'gantung' ? 'cc-gantung' : ''}">
+    <td><span class="cc-resi"><span class="pgr-mono">${escapeHtml(resiTampil)}</span>${salin(resiTampil, 'No Resi')}</span>${subResi}<div class="cc-waktu">${escapeHtml(waktu)}${d.dicatatOleh ? ' · ' + escapeHtml(d.dicatatOleh) : ''}</div></td>
+    <td><span class="cc-kurir-chip">${escapeHtml(cc.kurir)}</span></td>
+    <td>${inv}</td>
+    <td>${status}${alasan}</td>
+    <td>${retur}</td>
+    <td class="cc-nilai">${v ? omxRp(v.v) + (v.ket ? `<small>${v.ket}</small>` : '') : '<span style="color:var(--web-text-dim); font-weight:400;">-</span>'}</td>
+  </tr>`;
+}
+
+/* Proses latar: resolusi kurir instan + cari pesanan mendalam (senyap, indikator hanya di status kecil) */
+function ccxProsesLatar() {
+  if (typeof wpPengirimanSubAktif !== 'undefined' && wpPengirimanSubAktif !== 'control') return;
+  ccxResolveInstan();
+  const belum = ccxMentah.filter(d => !d.noInvoice && d.jenis !== 'transfer');
+  let t = 0; try { t = Number(localStorage.getItem(CCX_CARI_T) || 0); } catch (e) { }
+  if (belum.length && !ccxCariJalan && Date.now() - t > 15 * 60000) ccxCariMendalam(false);
+}
+async function ccxResolveInstan() {
+  if (ccxInstanJalan) return;
+  const sekarang = Date.now();
+  const perlu = ccxMentah.filter(d => {
+    if (!ccxApakahInstan(d) || !d.noInvoice) return false;
+    const k = String(d.noResiScan), x = ccxInstan[k];
+    if (ccxInstanDicoba[k] && sekarang - ccxInstanDicoba[k] < 10 * 60000) return false;
+    if (!x) return true;
+    return sekarang - (x.t || 0) > 20 * 60000 && !/terkirim|delivered|selesai|completed/i.test((x.statusKirim || '') + ' ' + (x.statusPesanan || ''));
+  }).slice(0, 25);
+  if (!perlu.length) return;
+  ccxInstanJalan = true;
+  perlu.forEach(d => { ccxInstanDicoba[String(d.noResiScan)] = sekarang; });
+  try {
+    const r = await postJson({ aksi: 'cek_resi_instan', daftar: perlu.map(d => ({ scan: d.noResiScan, noInvoice: d.noInvoice, sumber: d.sumber || '' })), email: currentUserEmail() }, 240000, true);
+    if (r && r.success && r.hasil) {
+      Object.keys(r.hasil).forEach(k => { ccxInstan[k] = Object.assign({ t: Date.now() }, r.hasil[k]); });
+      try { localStorage.setItem(CCX_INSTAN_LOKAL, JSON.stringify(ccxInstan)); } catch (e) { }
+      if (wpPengirimanSubAktif === 'control') ccRender();
+    }
+  } catch (e) { /* senyap */ }
+  finally { ccxInstanJalan = false; }
+}
+async function ccxCariMendalam(manual) {
+  if (ccxCariJalan) return;
+  const belum = ccxMentah.filter(d => !d.noInvoice && d.jenis !== 'transfer').map(d => d.noResiScan).slice(0, 300);
+  if (!belum.length) { if (manual) pgrToast('Semua resi sudah terhubung ke pesanan.'); return; }
+  ccxCariJalan = true; ccxCariInfo = `Mencari pesanan untuk ${belum.length} resi…`;
+  try { localStorage.setItem(CCX_CARI_T, String(Date.now())); } catch (e) { }
+  ccxPerbaruiUI();
+  try {
+    const d = await postJson({ aksi: 'cari_resi_mendalam', resi: belum, email: currentUserEmail() }, 300000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    if (d.sedangJalan) { ccxCariInfo = 'Pencarian sedang berjalan di sesi lain'; return; }
+    const n = Object.keys(d.ditemukan || {}).length;
+    ccxCariInfo = n ? `${n} resi berhasil terhubung otomatis` : `${d.dicek || belum.length} resi dicek ke marketplace, belum ada yang cocok`;
+    if (n) {
+      await wpMuatAktifPengiriman();
+      hapusCacheTTL('log_resi_riwayat'); wpPengirimanRiwayatCache = null;
+      try { await wpMuatRiwayatPengiriman(); } catch (e) { }
+      ccResetKlasifikasi();
+      pgrToast(`${n} resi berhasil dihubungkan ke pesanannya.`);
+    } else if (manual) {
+      const lap = d.laporan ? Object.keys(d.laporan).map(k => k + ': ' + d.laporan[k]).join(' · ') : '';
+      pgrToast('Belum ditemukan di marketplace. Tautkan manual lewat tombol Tautkan.' + (lap ? ' (' + lap + ')' : ''));
+    }
+  } catch (err) { ccxCariInfo = 'Pencarian otomatis gagal: ' + String(err.message || err).replace(/^Error:\s*/, ''); }
+  finally { ccxCariJalan = false; if (wpPengirimanSubAktif === 'control') ccRender(); else ccxPerbaruiUI(); }
 }
 </script>
 
