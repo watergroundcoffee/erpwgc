@@ -24,8 +24,35 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<script>
+/* KUNCI TEMA SEBELUM HALAMAN TERGAMBAR (anti kedip warna salah).
+   Tampilan MOBILE = DARK MODE saja, tampilan WEB = LIGHT MODE saja. Penentu sama persis dengan
+   modeMobileDipilih(): pilihan manual "omni_tampilan" di perangkat ini -> jenis perangkat (HP = mobile). */
+(function () {
+  var m = false;
+  try {
+    var p = localStorage.getItem('omni_tampilan');
+    if (p === 'mobile') m = true;
+    else if (p === 'web') m = false;
+    else {
+      var ua = navigator.userAgent || '';
+      if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') m = navigator.userAgentData.mobile;
+      else if (/iPad|Tablet|PlayBook|Silk/i.test(ua)) m = false;
+      else if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) m = false;
+      else if (/iPhone|iPod|Windows Phone|BlackBerry|Opera Mini|IEMobile|Android.+Mobile|Mobi/i.test(ua)) m = true;
+      else { var sp = Math.min(screen.width || 0, screen.height || 0); m = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && sp > 0 && sp < 600); }
+    }
+  } catch (e) { m = false; }
+  var h = document.documentElement;
+  h.classList.remove('omni-mobile', 'omni-web');
+  h.classList.add(m ? 'omni-mobile' : 'omni-web');
+  h.style.colorScheme = m ? 'dark' : 'light';
+  window.__omniTemaAwal = m ? 'mobile' : 'web';
+})();
+</script>
+<meta name="theme-color" content="#f5f6f8" id="omni-meta-tema">
 <style id="gaya-utama-app">
-  /* OmniAI HANYA Light Mode - palet dasar terang untuk web & mobile (dark mode dihapus) */
+  /* Palet dasar = TERANG (web). Mobile ditimpa palet GELAP lewat html.omni-mobile di bawah. */
   :root {
     color-scheme: light;
     --bg: #f5f6f8; --panel: #ffffff; --panel-border: #e2e5ea;
@@ -33,7 +60,27 @@
     --keluar: #2f9e6e; --masuk: #c9822f; --retur: #c26b52; --stock: #3f7fc9;
     --error: #d9524f; --success: #2f9e6e; --maxw: 460px;
   }
-  /* Mode terang buat mobile (default mobile = gelap, ini override kalau user pilih terang manual) */
+  /* ================= KUNCI TEMA PER TAMPILAN (tidak bisa diubah user) =================
+     MOBILE (#app)  = DARK MODE SAJA, aksen teal
+     WEB (#app-web) = LIGHT MODE SAJA
+     Penentunya HANYA tampilan yang sedang aktif (kelas html.omni-mobile / html.omni-web), bukan
+     setelan OS, jam, atau tombol tema. Pindah tampilan mendadak -> tema ikut pindah utuh, tidak campur.
+     Variabel gelap dipasang di <body> supaya pop-up/toast/dialog yang ditempel ke <body> saat
+     di mobile ikut gelap (tidak muncul kotak putih di tengah layar gelap). */
+  html.omni-mobile, html.omni-mobile body { color-scheme: dark; background: #10151b; }
+  html.omni-mobile body {
+    --bg: #10151b; --panel: #1a2029; --panel-border: #2a323e;
+    --text: #eef1f5; --text-dim: #a3adbb;
+    --keluar: #2fb57d; --masuk: #e0a145; --retur: #e07f63; --stock: #5b9be0;
+    --error: #f87171; --success: #34d399;
+    --web-bg: #10151b; --web-panel: #1a2029; --web-border: #2a323e; --web-text: #eef1f5; --web-text-dim: #a3adbb;
+    --web-accent: #14b8a6; --web-danger: #f87171; --web-warning: #fbbf24; --web-info: #60a5fa; --web-garis-input: #2f3946;
+    color: var(--text);
+  }
+  html.omni-mobile #app-web, html.omni-mobile #screen-login-web { display: none !important; }
+  html.omni-web, html.omni-web body { color-scheme: light; background: #f5f6f8; }
+  html.omni-web #app { display: none !important; }
+  /* Override terang - hanya berlaku di WEB (kelas tema-terang dilepas otomatis saat tampilan mobile) */
   body.tema-terang #app {
     --bg: #f5f6f8; --panel: #ffffff; --panel-border: #e2e5ea;
     --text: #1a1d23; --text-dim: #6b7280;
@@ -2194,6 +2241,18 @@
   .login-mobile-card { background:#fff; border-radius:18px; overflow:hidden; box-shadow:0 12px 34px rgba(22,33,58,0.12); width:100%; }
   .login-mobile-header { background:linear-gradient(150deg, #eaf4ff, #dff3ea); padding:26px 20px 20px; text-align:center; }
   .login-mobile-body { padding:24px 22px; }
+  /* Login MOBILE = gelap (tema mobile terkunci gelap) */
+  html.omni-mobile .login-mobile-card { background: #1a2029; border: 1px solid #2a323e; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
+  html.omni-mobile .login-mobile-header { background: linear-gradient(150deg, #13302b, #18241f); }
+  html.omni-mobile .login-mobile-header [style*="color:#3d5a6c"] { color: #8fb3a8 !important; }
+  html.omni-mobile #screen-login .login-web-brand-mini span { color: #C8A84B; }
+  html.omni-mobile #screen-login .login-web-heading { color: #eef1f5; }
+  html.omni-mobile #screen-login .login-web-subheading { color: #a3adbb; }
+  html.omni-mobile .login-alt-btn { background: #151b23; border-color: #2f3946; color: #eef1f5; }
+  html.omni-mobile .login-alt-btn:hover { border-color: #14b8a6; background: #10221f; }
+  html.omni-mobile .login-alt-divider { color: #7d8896; }
+  html.omni-mobile .login-alt-divider::before, html.omni-mobile .login-alt-divider::after { background: #2a323e; }
+  html.omni-mobile .login-legal-footer { color: #7d8896; }
 
   /* ===== Kartu koneksi marketplace (Otorisasi via pop-up) ===== */
   .mp-connect-card {
@@ -2566,6 +2625,20 @@
   .kr-btn-sek { background: #fff; color: #374151; border: 1px solid #d1d5db; }
   .kr-btn-utama { background: #4f46e5; color: #fff; border: none; }
   .kr-btn-utama:disabled, .wbp-btn-batal:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* Kalender rentang di MOBILE = gelap */
+  html.omni-mobile .kr-latar { background: rgba(0,0,0,.65); }
+  html.omni-mobile .kr-kotak { background: #1a2029; color: #eef1f5; border: 1px solid #2a323e; }
+  html.omni-mobile .kr-nav { background: #151b23; border-color: #2f3946; color: #eef1f5; }
+  html.omni-mobile .kr-hari span { color: #8a94a3; }
+  html.omni-mobile .kr-tgl { color: #eef1f5; }
+  html.omni-mobile .kr-tgl:hover { background: #222a35; }
+  html.omni-mobile .kr-tgl.kr-nanti { color: #4b5563; }
+  html.omni-mobile .kr-tgl.kr-hari-ini { box-shadow: inset 0 0 0 1.5px #14b8a6; }
+  html.omni-mobile .kr-tgl.kr-antara { background: rgba(20,184,166,.18); }
+  html.omni-mobile .kr-tgl.kr-awal, html.omni-mobile .kr-tgl.kr-akhir { background: #14b8a6; color: #04201c; }
+  html.omni-mobile .kr-info { color: #a3adbb; }
+  html.omni-mobile .kr-btn-sek { background: #151b23; color: #eef1f5; border-color: #2f3946; }
+  html.omni-mobile .kr-btn-utama { background: #14b8a6; color: #04201c; }
 
   /* ===== Modal Batalkan Transaksi (web) ===== */
   .wbp-kotak { max-width: 420px; }
@@ -3468,6 +3541,11 @@
 .log-item.ok .log-ikon { background: #e8f6ec; color: #3730a3; }
 .log-item.gagal .log-ikon { background: #fdf1dc; color: #9a6412; }
 .log-item.info .log-ikon { background: #e8eefc; color: #1d4ed8; }
+html.omni-mobile .log-item.antre .log-ikon { background: #222a35; }
+html.omni-mobile .log-item.ok .log-ikon { background: rgba(52,211,153,.16); color: #6ee7b7; }
+html.omni-mobile .log-item.gagal .log-ikon { background: rgba(251,191,36,.16); color: #fcd34d; }
+html.omni-mobile .log-item.info .log-ikon { background: rgba(96,165,250,.16); color: #93c5fd; }
+html.omni-mobile .log-item.gagal .log-teks small { color: #fcd34d; }
 .log-teks { flex: 1; min-width: 0; line-height: 1.35; }
 .log-teks b { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-teks small { display: block; font-size: 11.5px; color: var(--web-text-dim, #6b7280); }
@@ -6465,6 +6543,10 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
   .omni-toast.error { --toast-warna: #dc2626; }
   .omni-toast.peringatan { --toast-warna: #d97706; }
   .omni-toast.info { --toast-warna: #1e3a6d; }
+  /* Toast di MOBILE ikut gelap */
+  html.omni-mobile .omni-toast { background: #1a2029; color: #eef1f5; border-color: #2a323e; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+  html.omni-mobile .omni-toast.info { --toast-warna: #14b8a6; }
+  html.omni-mobile .omni-toast-tutup { color: #a3adbb; }
 
   @media (max-width: 640px) {
     .omni-toast-wadah { left: 12px; right: 12px; top: auto; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: auto; flex-direction: column-reverse; }
@@ -7327,6 +7409,10 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
 </style>
 </head>
 <body class="tema-terang">
+<script>
+  /* Kelas komponen terang (body.tema-terang) hanya untuk WEB; mobile = gelap */
+  if (window.__omniTemaAwal === 'mobile') document.body.classList.remove('tema-terang');
+</script>
 <div id="app">
   <header>
     <h1 onclick="pulangKeMenuUtama()" style="cursor:pointer;"><span class="oi oi-box" aria-hidden="true"></span> Scan Resi</h1>
@@ -14254,6 +14340,7 @@ function webIsiTopbarDanAvatar_() {
 function switchKeTampilanWeb() {
   el('app').style.display = 'none';
   el('app-web').style.display = 'block';
+  omniTemaSinkron('web');
   pasangFormatNoHpKeSemuaInput();
   const zoomTersimpan = localStorage.getItem('web_zoom_level');
   if (zoomTersimpan) { document.querySelector('.web-shell').style.zoom = zoomTersimpan; document.querySelector('.web-shell').style.setProperty('--web-zoom', zoomTersimpan); }
@@ -14284,6 +14371,7 @@ function switchKeTampilanWeb() {
 function bukaMobileDariWeb() {
   paksaModeMobile = true;
   simpanPilihanTampilan('mobile');
+  omniTemaSinkron('mobile'); // tema pindah SEBELUM tampilan mobile muncul -> tidak ada kedip terang
   el('app-web').style.display = 'none';
   el('app').style.display = 'block';
   terapkanKunciTemaMobile();
@@ -14297,6 +14385,7 @@ function bukaMobileDariWeb() {
 function bukaWebDariMobile() {
   paksaModeMobile = false;
   simpanPilihanTampilan('web');
+  omniTemaSinkron('web'); // tema pindah SEBELUM tampilan web muncul -> tidak ada kedip gelap
   toggleUserMenu(); // tutup dropdown menu mobile dulu
   switchKeTampilanWeb();
   // Pemuat khusus web dilewati saat aplikasi dibuka di mode mobile -> jalankan sekarang (sekali)
@@ -44620,18 +44709,67 @@ async function fetchRekonsiliasiMutasi() {
   }
 }
 
-/* ================= TEMA: LIGHT MODE ONLY =================
-   Dark Mode dihapus total. Semua tampilan (web & mobile) selalu terang. Fungsi lama dipertahankan
-   sebagai no-op supaya pemanggil lama tetap aman. */
-function terapkanLightMode_() {
-  document.body.classList.add('tema-terang');
-  document.body.classList.remove('tema-gelap');
-  try { localStorage.removeItem('trg_tema'); } catch (e) { }
+/* ================= TEMA TERKUNCI PER TAMPILAN =================
+   MOBILE = DARK MODE saja, WEB = LIGHT MODE saja. Tidak ada tombol ganti tema.
+   Satu-satunya penentu: tampilan yang sedang aktif. Disinkronkan otomatis setiap kali #app /
+   #app-web / layar login web tampil-sembunyi (MutationObserver) -> transisi mendadak
+   (Buka Versi Mobile/Web, logout, sesi habis, kembali dari tab lain) tidak pernah tercampur.
+   Nama fungsi lama dipertahankan supaya pemanggil lama tetap aman. */
+let omniTemaAktif = window.__omniTemaAwal || 'web';
+function omniTemaTampil_(x) { return !!x && x.style.display !== 'none' && getComputedStyle(x).display !== 'none'; }
+function omniTemaTentukan_() {
+  const app = document.getElementById('app'), web = document.getElementById('app-web'), lw = document.getElementById('screen-login-web');
+  // Baca style inline (bukan computed) - computed ikut dipaksa CSS tema, jadi bisa "melingkar"
+  const tampilInline = x => !!x && x.style.display !== '' && x.style.display !== 'none';
+  const mob = tampilInline(app), wb = tampilInline(web) || tampilInline(lw);
+  if (mob && !wb) return 'mobile';
+  if (wb && !mob) return 'web';
+  try { return paksaModeMobile ? 'mobile' : 'web'; } catch (e) { return omniTemaAktif; }
 }
-function terapkanKunciTemaMobile() { terapkanLightMode_(); }
-function terapkanTemaAwal() { terapkanLightMode_(); }
-function toggleTema() { terapkanLightMode_(); }
+function omniTemaSinkron(paksa) {
+  const mode = paksa || omniTemaTentukan_();
+  const h = document.documentElement, b = document.body;
+  const sudah = h.classList.contains('omni-' + mode) && !h.classList.contains(mode === 'mobile' ? 'omni-web' : 'omni-mobile');
+  omniTemaAktif = mode;
+  if (!sudah) {
+    h.classList.remove('omni-mobile', 'omni-web');
+    h.classList.add('omni-' + mode);
+    h.style.colorScheme = mode === 'mobile' ? 'dark' : 'light';
+  }
+  if (b) {
+    b.classList.toggle('tema-terang', mode === 'web');
+    b.classList.remove('tema-gelap');
+  }
+  const meta = document.getElementById('omni-meta-tema');
+  if (meta) meta.setAttribute('content', mode === 'mobile' ? '#10151b' : '#f5f6f8');
+  try { localStorage.removeItem('trg_tema'); } catch (e) { }
+  if (!sudah) { try { document.dispatchEvent(new CustomEvent('omni-tema', { detail: { mode } })); } catch (e) { } }
+  return mode;
+}
+function terapkanLightMode_() { omniTemaSinkron(); }
+function terapkanKunciTemaMobile() { omniTemaSinkron('mobile'); }
+function terapkanTemaAwal() { omniTemaSinkron(); }
+function toggleTema() { omniTemaSinkron(); } // tombol lama: tidak mengubah apa pun, tema dikunci per tampilan
 function perbaruiIkonTema() { }
+(function () {
+  let jadwal = 0;
+  const amati = new MutationObserver(() => {
+    if (jadwal) return;
+    jadwal = requestAnimationFrame(() => { jadwal = 0; omniTemaSinkron(); });
+  });
+  const pasang = () => {
+    ['app', 'app-web', 'screen-login-web', 'screen-login'].forEach(id => {
+      const x = document.getElementById(id);
+      if (x) amati.observe(x, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+    });
+    omniTemaSinkron();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasang); else pasang();
+  window.addEventListener('pageshow', () => omniTemaSinkron());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) omniTemaSinkron(); });
+  // Pilihan tampilan diubah dari tab lain di perangkat yang sama
+  window.addEventListener('storage', e => { if (e.key === 'omni_tampilan') setTimeout(() => omniTemaSinkron(), 0); });
+})();
 
 function pulangKeMenuUtama() {
   try { stopCamera(); } catch (e) {}
