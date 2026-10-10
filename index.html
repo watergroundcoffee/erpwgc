@@ -648,6 +648,7 @@
   @media print {
     body.cetak-thermal img.logo-warna { display: none !important; }
     body.cetak-thermal img.logo-thermal { display: block !important; }
+    body.cetak-thermal img.logo-warna.logo-tanpa-thermal { display: block !important; filter: grayscale(1) contrast(2.2) brightness(.9); }
     body.cetak-thermal .kurir-logo-img { filter: grayscale(1) contrast(1.8); }
     body:not(.cetak-thermal) .print-sheet img, body:not(.cetak-thermal) .print-sheet img * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
@@ -662,6 +663,10 @@
   .kurir-info-left .resi-label-small { font-size: 8.5px; color: #555; margin-top: 1px; }
   .kurir-info-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
   .kurir-info-right .resi-text { font-size: 9px; font-weight: 700; }
+  .kurir-info-right .doc-barcode { margin-top: 0; }
+  td.inv-resi { text-align: left; font-size: 10px; white-space: nowrap; vertical-align: middle; }
+  td.inv-resi span { color: #555; font-weight: 600; }
+  td.inv-resi b { font-weight: 800; letter-spacing: .02em; }
   [id^="qr-invoice-container"] { display: flex; justify-content: center; }
   .qr-invoice-box { width: 100%; text-align: center; margin-top: 10px; }
   .qr-invoice-box .qr-caption { font-size: 8px; color: #666; margin-top: 3px; }
@@ -8786,6 +8791,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <div style="flex:1;"></div>
             <button class="web-chart-toggle-btn" onclick="ovBukaKustomisasiMetrik()"><span class="oi oi-settings" aria-hidden="true"></span> Sesuaikan Metrik</button>
           </div>
+          <div class="omxac" id="omxac" hidden></div>
           <div class="web-kpi-grid" id="ov-kpi-grid-utama"></div>
           <!-- KONTRIBUSI PER CHANNEL (semua channel, periode yang sama dengan KPI) -->
           <div class="ov-kanal-strip" id="ov-kanal-strip"></div>
@@ -9518,6 +9524,9 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <button class="web-btn-primary" onclick="wdocBuka(wdocDariOrder(wpCurrentDetailOrder, wpCurrentDetailRow))"><span class="oi oi-file" aria-hidden="true"></span> Invoice &amp; Label (Cetak · Simpan · Copy)</button>
             <span id="wp-btn-cetak-invoice" hidden></span>
             <button class="web-btn-secondary" id="wp-btn-kirim-toggle" onclick="wpToggleInputResi()" style="display:none;"><span class="oi oi-truck" aria-hidden="true"></span> Input No Resi</button>
+            <button class="web-btn-primary" id="wp-btn-kurir-toko" type="button" onclick="kftBukaDariWeb()" style="display:none;"><span class="oi oi-camera" aria-hidden="true"></span> Foto Kurir Toko</button>
+            <button class="web-btn-secondary" id="wp-btn-bayar" type="button" onclick="byrBukaDariWeb()" style="display:none;"><span class="oi oi-check" aria-hidden="true"></span> Pembayaran Diterima</button>
+            <span id="wp-bayar-chip" class="omx-chip-ok" hidden></span>
             <button class="web-btn-danger" id="wp-btn-batal" onclick="wpToggleKonfirmasiBatal()" style="display:none;"><span class="oi oi-x" aria-hidden="true"></span> Batalkan</button>
           </div>
           <div id="wp-input-resi-wrap" style="display:none; margin-top:10px;" class="web-form-row">
@@ -12644,6 +12653,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <button class="per-tab active" id="per-mon-tab-pilar" onclick="perMonGantiTab('pilar')"><span class="oi oi-chart" aria-hidden="true"></span> 4 Pilar Stok</button>
             <button class="per-tab" id="per-mon-tab-peringatan" onclick="perMonGantiTab('peringatan')"><span class="oi oi-alert" aria-hidden="true"></span> Peringatan &amp; Virtual Stock</button>
             <button class="per-tab" id="per-mon-tab-nilai" onclick="perMonGantiTab('nilai')"><span class="oi oi-wallet" aria-hidden="true"></span> Nilai Inventory</button>
+            <button class="per-tab omx-stokmp-btn" type="button" onclick="smpBuka()" title="Kirim stok tersedia ke Shopee &amp; TikTok Shop"><span class="oi oi-refresh" aria-hidden="true"></span> Kirim Stok ke Marketplace</button>
           </div>
 
           <div id="per-mon-pane-pilar">
@@ -17820,6 +17830,7 @@ function aiaBolehChat() { return !!(currentUser && (currentUser.isOwner || (curr
 
 /* ---------- navigasi ---------- */
 function aiaBukaSub(sub) {
+  if (typeof OMNI_SEMBUNYIKAN_AI_AGENT !== 'undefined' && OMNI_SEMBUNYIKAN_AI_AGENT) { gantiTabWeb('overview'); return; }
   sub = sub === 'tugas' ? 'tugas' : 'chat';
   if (sub === 'tugas' && !aiaBolehEksekusi()) sub = 'chat';
   simpanLokasiTerakhir('aiagent', sub);
@@ -17838,9 +17849,12 @@ function aiaBukaSub(sub) {
 }
 
 // Tampilkan / sembunyikan menu sesuai izin (dipanggil setelah login tampilan web)
+// Fitur AI Agent DISEMBUNYIKAN dulu dari UI (permintaan Owner). Ubah ke false untuk memunculkan lagi.
+// Backend & data tidak dihapus - hanya menu & routing yang ditutup.
+var OMNI_SEMBUNYIKAN_AI_AGENT = true;
 function aiaTerapkanIzinMenu() {
   const g = el('nav-grup-aiagent'), t = el('nav-aiagent-induk'), sTugas = el('nav-aiagent-tugas');
-  const boleh = aiaBolehChat();
+  const boleh = !OMNI_SEMBUNYIKAN_AI_AGENT && aiaBolehChat();
   if (g) g.style.display = boleh ? '' : 'none';
   if (t) t.style.display = boleh ? '' : 'none';
   if (sTugas) sTugas.style.display = aiaBolehEksekusi() ? '' : 'none';
@@ -24066,6 +24080,7 @@ function wpRenderDetail_(o) {
   el('wp-btn-edit-pesanan').style.display = (o.bolehLihatHarga && belumSelesai) ? 'inline-block' : 'none';
   el('wp-btn-batal').style.display = (izin.batalPesanan && belumSelesai) ? 'inline-block' : 'none';
   ['wp-btn-cetak-invoice', 'wp-btn-kirim-toggle', 'wp-btn-edit-pesanan', 'wp-btn-batal'].forEach(id => { const b = el(id); if (b) b.disabled = !siap; });
+  try { omxDetailAksiWeb_(o, izin, belumSelesai, siap); } catch (eOmx) { console.warn(eOmx); }
 }
 async function wpBukaDetail(row) {
   wpTutupPoModal();
@@ -36081,7 +36096,7 @@ function bmmBuka() {
   el('bmm-latar').hidden = false;
   document.body.classList.add('bmm-terbuka');
   bmmRender();
-  bmmMuat(true);
+  bmmMuat(!bmm.sudah, !!bmm.sudah); // sudah pernah dimuat -> tampil dari memori, segarkan senyap
   setTimeout(() => { const b = document.querySelector('.bmm-seg button.aktif'); if (b) b.focus(); }, 30);
 }
 function bmmTutup() { el('bmm-latar').hidden = true; document.body.classList.remove('bmm-terbuka'); }
@@ -36097,7 +36112,7 @@ async function bmmMuat(paksa, senyap) {
   if (!senyap) bmmRender();
   try {
     const [r, lama] = await Promise.all([
-      postJson({ aksi: 'lihat_memo_minta_stock_pembelian', segar: true, email: currentUserEmail() }, 60000, !!senyap),
+      postJson({ aksi: 'lihat_memo_minta_stock_pembelian', segar: !!paksa, email: currentUserEmail() }, 60000, !!senyap),
       postJson({ aksi: 'lihat_minta_stock_gudang', segar: !!paksa, email: currentUserEmail() }, 60000, true).catch(() => null),
       postJson({ aksi: 'lihat_memo_gudang_lain_pembelian', email: currentUserEmail() }, 60000, true).catch(() => null)
     ]).then(([a, b, c]) => { bmm._lain = (c && c.success && c.memos) || null; return [a, b]; });
@@ -39989,6 +40004,8 @@ function mgSimpanDraftLokal() {
 mgMuatDraftLokal();
 
 function mgGantiTab(tab) {
+  const tabSoWeb = el('mg-tab-stockopname'); if (tabSoWeb) tabSoWeb.style.display = omxApakahOwner_() ? '' : 'none';
+  if (tab === 'stockopname' && !omxApakahOwner_()) tab = 'mintastock';
   mgTabAktif = tab;
   ['mintastock', 'barangmasuk', 'hilangrusak', 'stockopname'].forEach(t => {
     el('mg-tab-' + t).classList.toggle('active', t === tab);
@@ -40085,10 +40102,14 @@ function mgHapusItem(tab, idx) {
   mgRenderCart(tab);
 }
 
+// PERCEPATAN MEMO STOCK: dulu SETIAP SKU baru di keranjang memicu 1 request peta stok SEMUA SKU ke server.
+// Sekarang 1 peta dipakai bersama (mgPastikanStokSistem), dan penyegaran di latar maksimal 1x per 60 detik.
+let mgStokSegarTerakhir = 0;
 async function mgMintaStokRealtime(skuList) {
   try {
-    const data = await postJson({ aksi: 'lihat_stok_banyak_sku', email: currentUserEmail() });
-    if (data.success) { mgStokRealtimeCache = data.peta || {}; mgStokSiap = true; mgRenderCart('mintastock'); }
+    await mgPastikanStokSistem();
+    mgRenderCart('mintastock');
+    if (Date.now() - mgStokSegarTerakhir > 60000) mgSegarkanStokLatar();
   } catch (err) {}
 }
 
@@ -40763,13 +40784,24 @@ async function mgUploadFotoHilangRusak(idx, base64) {
 }
 
 /* ===== Riwayat per tab ===== */
+// Riwayat memo: tampil INSTAN dari cache lokal, lalu diperbarui senyap dari server
+const MG_RIWAYAT_LOKAL = 'omni_mg_riwayat_v1';
 async function mgFetchRiwayat(tab) {
   const aksiMap = { mintastock: 'lihat_daftar_memo_minta_stock', barangmasuk: 'lihat_daftar_memo_barang_masuk', hilangrusak: 'lihat_daftar_memo_hilang_rusak' };
-  const p = MG_PREFIX[tab];
+  try {
+    const c = JSON.parse(localStorage.getItem(MG_RIWAYAT_LOKAL) || '{}');
+    if (c[tab] && Array.isArray(c[tab])) mgRenderRiwayat_(tab, c[tab]);
+  } catch (e) { }
   try {
     const data = await postJson({ aksi: aksiMap[tab], email: currentUserEmail() });
     if (!data.success) return;
-    const daftar = data.daftar || [];
+    try { const c = JSON.parse(localStorage.getItem(MG_RIWAYAT_LOKAL) || '{}'); c[tab] = (data.daftar || []).slice(0, 120); localStorage.setItem(MG_RIWAYAT_LOKAL, JSON.stringify(c)); } catch (e) { }
+    mgRenderRiwayat_(tab, data.daftar || []);
+  } catch (err) {}
+}
+function mgRenderRiwayat_(tab, daftar) {
+  const p = MG_PREFIX[tab];
+  try {
     if (tab === 'mintastock') {
       el('mg-ms-riwayat-body').innerHTML = daftar.map(m => `
         <tr><td>${escapeHtml(m.noMemo)}</td><td style="font-size:11px; color:var(--web-text-dim);">${escapeHtml(m.tanggal)}</td>
@@ -41261,7 +41293,7 @@ function persediaanBukaSub(sub, tab) {
 
   if (utama === 'monitor') perMonGantiTab(tabTujuan || perMonTabAktif);
   else if (utama === 'barangmasuk') perBmGantiTab(tabTujuan || perBmTabAktif);
-  else if (utama === 'opname') soBuka();
+  else if (utama === 'opname') { if (!omxApakahOwner_()) { try { pgrToast('Stock Opname hanya untuk akun Owner'); } catch (e) { } persediaanBukaSub('monitor'); return; } soBuka(); }
   else if (utama === 'riwayat') perLogGantiTab(tabTujuan || perLogTabAktif);
 }
 
@@ -43780,11 +43812,15 @@ function sesiProsesRespons_(data) {
   }
 }
 
+function omxPerangkat_() { const w = document.getElementById('app-web'); return (w && w.style.display === 'block') ? 'web' : 'hp'; }
+function omxApakahOwner_() { try { return !!(currentUser && currentUser.isOwner); } catch (e) { return false; } }
 async function kirimKeWebApp(body, waktuTunggu) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), waktuTunggu);
   const token = sesiToken_();
-  const kirim = (token && !body.sessionToken) ? Object.assign({}, body, { sessionToken: token }) : body;
+  const kirim = (token && !body.sessionToken) ? Object.assign({}, body, { sessionToken: token }) : Object.assign({}, body);
+  // P1: server perlu tahu kiriman berasal dari tampilan HP atau Web (memo gudang dari HP = langsung masuk stok)
+  if (!kirim.perangkat) kirim.perangkat = omxPerangkat_();
   try {
     const res = await fetch(WEB_APP_URL, {
       method: 'POST',
@@ -43850,6 +43886,9 @@ async function postJsonTulis(body, timeoutMs, opsi) {
   const jeda = [1500, 3000, 6000, 10000, 15000, 20000];
   const lepasTombol = omniPasangSibuk_(); // tombol tetap terkunci selama semua percobaan ulang
   webAppTulisAktif++;
+  const idLogT = (!opsi.tanpaLog && typeof omxLogMulai === 'function') ? omxLogMulai(kirim, opsi.labelLog) : '';
+  const onCobaAsli = opsi.onCoba;
+  opsi.onCoba = function (n, pesan) { if (idLogT) omxLogUbah(idLogT, { status: 'ulang', pesan: pesan, coba: n }); if (onCobaAsli) return onCobaAsli(n, pesan); };
   try {
     for (let coba = 1; ; coba++) {
       try {
@@ -43867,9 +43906,10 @@ async function postJsonTulis(body, timeoutMs, opsi) {
           continue;
         }
         if (data && data.success !== false) webAppBuangCacheBaca(); // setelah menyimpan, menu lain memuat data segar sekali
+        if (idLogT) omxLogSelesai(idLogT, data);
         return data;
       } catch (err) {
-        if (coba >= maksCoba || !webAppErrorSementara(err && err.message)) throw err;
+        if (coba >= maksCoba || !webAppErrorSementara(err && err.message)) { if (idLogT) omxLogSelesai(idLogT, null, err); throw err; }
         console.warn(`[Kirim ulang otomatis ${coba}/${maksCoba - 1}] aksi=${kirim.aksi}:`, err.message);
         if (opsi.onCoba) try { opsi.onCoba(coba, 'Gangguan server Google, mengulang otomatis (aman, tidak dobel)…'); } catch (e) { }
         await new Promise(r => setTimeout(r, jeda[coba - 1] || 20000));
@@ -43954,8 +43994,10 @@ async function postJson(body, timeoutMs, silent) {
     }
   }
   const lepasTombol = omniPasangSibuk_(); // tombol pemicu (kalau ada) -> disabled + spinner
+  const idLog = (!bolehCache && !WEBAPP_AKSI_NETRAL_RE.test(body.aksi || '') && typeof omxLogMulai === 'function') ? omxLogMulai(body) : '';
   let data;
-  try { data = await postJsonKeServer_(body, timeoutMs, silent); }
+  try { data = await postJsonKeServer_(body, timeoutMs, silent); if (idLog) omxLogSelesai(idLog, data); }
+  catch (eKirim) { if (idLog) omxLogSelesai(idLog, null, eKirim); throw eKirim; }
   finally { lepasTombol(); }
   webAppSimpanHasilBaca_(body, kunciCache, bolehCache, data);
   return data;
@@ -46813,6 +46855,9 @@ function mgmPastikanKatalog() {
 }
 
 function mgmGantiTab(tab) {
+  // P1: Stock Opname hanya untuk akun Owner
+  if (tab === 'stockopname' && !omxApakahOwner_()) { tab = 'mintastock'; try { pgrToast('Stock Opname hanya untuk akun Owner'); } catch (e) { } }
+  const tabSo = el('mgm-tab-stockopname'); if (tabSo) tabSo.style.display = omxApakahOwner_() ? '' : 'none';
   mgmTabAktif = tab;
   setTimeout(() => { if (typeof hroRender === 'function') hroRender(); }, 0);
   ['mintastock', 'barangmasuk', 'hilangrusak', 'stockopname'].forEach(t => {
@@ -48207,7 +48252,7 @@ async function mgmSubmitStockOpname(idPermintaan) {
     if (data.success) memoIdSelesai('mob-stockopname');
     if (data.success) {
       playBeep();
-      statusEl.textContent = `✓ Memo ${data.noMemo} terkirim, menunggu verifikasi Back Office.`; statusEl.className = 'status-text ok';
+      statusEl.textContent = `✓ Memo ${data.noMemo} terkirim. ${data.pesanLangsung || data.peringatanLangsung || 'Menunggu verifikasi.'}`; statusEl.className = 'status-text ' + (data.peringatanLangsung ? 'err' : 'ok');
       mgmCarts.stockopname = []; mgmSimpanDraftLokal(); mgmRenderCart();
     } else { statusEl.textContent = '✗ Gagal: ' + (data.error || ''); statusEl.className = 'status-text err'; }
   } catch (err) { statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
@@ -48243,7 +48288,7 @@ async function mgmSubmitBarangMasuk(idPermintaan) {
     if (data.success) {
       memoIdSelesai('mob-barangmasuk');
       playBeep();
-      statusEl.textContent = `✓ Memo ${data.noMemo} terkirim - Menunggu Verifikasi Back Office.`; statusEl.className = 'status-text ok';
+      statusEl.textContent = `✓ Memo ${data.noMemo} terkirim. ${data.pesanLangsung || data.peringatanLangsung || 'Menunggu Verifikasi Back Office.'}`; statusEl.className = 'status-text ' + (data.peringatanLangsung ? 'err' : 'ok');
       mgmCarts.barangmasuk = []; mgmSimpanDraftLokal(); mgmRenderCart();
       el('mgm-no-sj').value = ''; try { localStorage.removeItem('mgm_no_sj'); } catch (e) {}
     } else { statusEl.textContent = '✗ Gagal: ' + (data.error || ''); statusEl.className = 'status-text err'; }
@@ -49581,15 +49626,20 @@ function logoPulihkanDariCache_() {
   } catch (e) { }
 }
 logoPulihkanDariCache_();
+// Logo bawaan Waterground: siapkan versi thermal sekali supaya cetak thermal tetap tajam walau logo server belum termuat
+setTimeout(() => { try { if (!LOGO_DATAURI.Waterground && typeof LOGO_WATERGROUND_B64 !== 'undefined') logoSiapkan_('Waterground', `data:image/png;base64,${LOGO_WATERGROUND_B64}`); } catch (e) { } }, 1200);
 
 // Dua gambar: .logo-warna tampil di layar / PDF, .logo-thermal dipakai saat mode cetak Thermal
 function buatLogoDokumen_(toko, kelas, ukuranTeks) {
   const tk = toko === 'Conner' ? 'Conner' : 'Waterground';
   const urlDinamis = tk === 'Conner' ? LOGO_URL_DINAMIS_CONNER : LOGO_URL_DINAMIS_WATERGROUND;
-  const warna = LOGO_DATAURI[tk] || urlDinamis || (tk === 'Waterground' ? `data:image/png;base64,${LOGO_WATERGROUND_B64}` : '');
+  // FIX LOGO HILANG saat Copy/Simpan/Print thermal: dokumen TIDAK PERNAH memakai URL online (kena CORS di
+  // html2canvas & sering belum termuat saat print). Hanya data URI. URL dipakai cuma kalau belum ada apa pun.
+  const warna = LOGO_DATAURI[tk] || (tk === 'Waterground' ? `data:image/png;base64,${LOGO_WATERGROUND_B64}` : '') || urlDinamis;
   if (!warna) return `<div class="${kelas}" style="font-weight:800; font-size:${ukuranTeks}px; display:flex; align-items:center; color:#000;">CONNER OFFICIAL</div>`;
-  const thermal = LOGO_THERMAL[tk] || (tk === 'Waterground' ? `data:image/png;base64,${LOGO_WATERGROUND_B64}` : warna);
-  return `<img src="${warna}" class="${kelas} logo-warna" alt="logo" /><img src="${thermal}" class="${kelas} logo-thermal" alt="" aria-hidden="true" />`;
+  const thermal = LOGO_THERMAL[tk];
+  if (!thermal) return `<img src="${warna}" class="${kelas} logo-warna logo-tanpa-thermal" alt="logo" crossorigin="anonymous" />`; // thermal belum siap -> logo warna + filter hitam-putih
+  return `<img src="${warna}" class="${kelas} logo-warna" alt="logo" /><img src="${thermal}" class="${kelas} logo-thermal" alt="" aria-hidden="true" loading="eager" />`;
 }
 function buatLogoInvoice(toko) { return buatLogoDokumen_(toko, 'doc-logo-invoice', 16); }
 function buatLogoLabel(toko) { return buatLogoDokumen_(toko, 'doc-logo-label', 14); }
@@ -49636,7 +49686,8 @@ async function pmKanvasDokumen(sumberId) {
   const gaya = { display: sumber.style.display, position: sumber.style.position, left: sumber.style.left, top: sumber.style.top, width: sumber.style.width };
   Object.assign(sumber.style, { display: 'block', position: 'absolute', left: '-10000px', top: '0px', width: PM_DOC_LEBAR_ASLI + 'px' });
   try {
-    return await html2canvas(sumber, { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0, windowWidth: PM_DOC_LEBAR_ASLI + 40 });
+    await omxTungguGambar_(sumber); // logo & gambar WAJIB selesai dimuat sebelum difoto
+    return await html2canvas(sumber, { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0, windowWidth: PM_DOC_LEBAR_ASLI + 40 });
   } finally {
     Object.assign(sumber.style, gaya);
   }
@@ -49769,8 +49820,12 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
     </tr>`;
   }).join('');
 
-  let ringkasanHtml = `<tr class="ringkasan-row"><td colspan="2"></td><td>SUB-TOTAL</td><td class="num-col">Rp ${subtotalProduk.toLocaleString('id-ID')}</td></tr>`;
-  if (ongkir > 0) ringkasanHtml += `<tr class="ringkasan-row"><td colspan="2"></td><td>ONGKIR (${escapeHtml(kurir)})</td><td class="num-col">Rp ${ongkir.toLocaleString('id-ID')}</td></tr>`;
+  // No Resi (Pesanan Manual) ditaruh di ruang kosong KIRI baris "Ongkir"; kalau tanpa ongkir -> kiri baris Sub-Total.
+  // Kurir Toko tidak punya resi asli (resi = No Invoice) -> tidak ditampilkan dobel.
+  const adaResiAsli = !!noResi && String(noResi).trim() !== String(order.noInvoice).trim() && kurir !== 'Kurir Toko';
+  const selResi = adaResiAsli ? `<td colspan="2" class="inv-resi"><span>No Resi</span> <b>${escapeHtml(noResi)}</b></td>` : '<td colspan="2"></td>';
+  let ringkasanHtml = `<tr class="ringkasan-row">${ongkir > 0 ? '<td colspan="2"></td>' : selResi}<td>SUB-TOTAL</td><td class="num-col">Rp ${subtotalProduk.toLocaleString('id-ID')}</td></tr>`;
+  if (ongkir > 0) ringkasanHtml += `<tr class="ringkasan-row">${selResi}<td>ONGKIR (${escapeHtml(kurir)})</td><td class="num-col">Rp ${ongkir.toLocaleString('id-ID')}</td></tr>`;
   if (biayaLain > 0) ringkasanHtml += `<tr class="ringkasan-row"><td colspan="2"></td><td>BIAYA LAIN</td><td class="num-col">Rp ${biayaLain.toLocaleString('id-ID')}</td></tr>`;
   if (diskon > 0) ringkasanHtml += `<tr class="ringkasan-row"><td colspan="2"></td><td>DISKON</td><td class="num-col">-Rp ${diskon.toLocaleString('id-ID')}</td></tr>`;
   if (pajak > 0) ringkasanHtml += `<tr class="ringkasan-row"><td colspan="2"></td><td>PAJAK (VAT)</td><td class="num-col">Rp ${pajak.toLocaleString('id-ID')}</td></tr>`;
@@ -49825,6 +49880,7 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
   const labelPages = splitBerbeda(order.items, 8, 14); // maks 8 item di lembar 1, 14 item di lembar berikutnya
   const totalLabelPages = labelPages.length;
 
+  const adaResiAsliLabel = !!noResi && String(noResi).trim() !== String(order.noInvoice).trim() && kurir !== 'Kurir Toko';
   const kurirInfoHtml = `
     <div class="kurir-info-box">
       <div class="kurir-info-left">
@@ -49832,6 +49888,10 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
         <div class="kurir-label">Kurir : ${escapeHtml(kurir)}</div>
         <div class="resi-label-small">No resi : ${noResi ? escapeHtml(noResi) : '-'}</div>
       </div>
+      ${adaResiAsliLabel ? `<div class="kurir-info-right">
+        <div class="resi-text">NO RESI</div>
+        <div class="doc-barcode"><div class="doc-barcode-in">${buatBarcodeSvg(noResi, { modul: 1.1, tinggi: 26 })}<span class="doc-barcode-teks">${escapeHtml(noResi)}</span></div></div>
+      </div>` : ''}
     </div>`;
 
   const labelHtmlPages = labelPages.map((pageItems, pageIdx) => {
@@ -49934,7 +49994,8 @@ async function simpanSebagaiGambar(wrapperId, namaFile, namaFileKustom) {
 
   try {
     for (let i = 0; i < pages.length; i++) {
-      const canvas = await html2canvas(pages[i], { scale: 2, backgroundColor: '#ffffff' });
+      await omxTungguGambar_(pages[i]);
+      const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       await new Promise(resolve => {
         canvas.toBlob((blob) => {
           const link = document.createElement('a');
@@ -49955,7 +50016,18 @@ async function simpanSebagaiGambar(wrapperId, namaFile, namaFileKustom) {
   }
 }
 
-function printElement(elementId) {
+// Tunggu semua <img> (termasuk logo thermal yang tersembunyi) selesai dimuat & di-decode. Maks ~1,5 detik.
+async function omxTungguGambar_(wadah) {
+  if (!wadah) return;
+  const imgs = Array.from(wadah.querySelectorAll('img'));
+  await Promise.race([
+    Promise.all(imgs.map(img => (img.complete && img.naturalWidth) ? (img.decode ? img.decode().catch(() => { }) : null)
+      : new Promise(r => { img.addEventListener('load', r, { once: true }); img.addEventListener('error', r, { once: true }); }))),
+    new Promise(r => setTimeout(r, 1500))
+  ]);
+}
+async function printElement(elementId) {
+  try { await omxTungguGambar_(el(elementId)); } catch (e) { }
   const invoiceEl = el('print-invoice-pages');
   const labelEl = el('print-label-pages');
 
@@ -50696,6 +50768,7 @@ async function bukaDetailPesanan(row) {
 }
 
 function isiFormDetail(order) {
+  setTimeout(() => { try { omxDetailAksiMobile_(order); } catch (e) { console.warn(e); } }, 0);
   el('detail-invoice-badge').textContent = order.noInvoice + ' — ' + order.tanggal;
   el('detail-status-line').innerHTML =
     order.status === 'Dikirim' ? `<span class="pesanan-status-badge dikirim">✓ Dikirim - Resi: ${escapeHtml(order.noResi || '-')}</span>` :
@@ -50880,6 +50953,11 @@ let kirimCurrentTrack = null;
 let kirimTorchOn = false;
 
 function bukaKirimPesanan() {
+  // Kurir Toko: tidak ada No Resi -> konfirmasi FOTO (kamera belakang + depan, watermark, nama staff)
+  if (currentDetailOrder && currentDetailOrder.kurir === 'Kurir Toko' && !currentDetailOrder.status) {
+    kftBuka({ row: currentDetailRow, noInvoice: currentDetailOrder.noInvoice, nama: currentDetailOrder.namaPenerima, onSelesai: () => bukaDetailPesanan(currentDetailRow) });
+    return;
+  }
   el('screen-pesanan-detail').style.display = 'none';
   el('screen-pesanan-kirim').style.display = 'flex';
   el('kirim-status').textContent = '';
@@ -52554,11 +52632,34 @@ function mgStokSistem(sku) {
   if (!d) { var ku = k.toUpperCase(); for (var s in mgStokRealtimeCache) if (s.toUpperCase() === ku) { d = mgStokRealtimeCache[s]; break; } }
   return d && d.stockSaatIni !== undefined && d.stockSaatIni !== '' ? Number(d.stockSaatIni) : null;
 }
+// Peta stok (mesin stok yang sama dengan Monitor Stok). Urutan tercepat:
+// 1) memori tab  2) localStorage (tampil instan saat halaman baru dibuka)  3) server dengan bolehBasi
+// (snapshot server langsung dikirim) -> bila server bilang "basi", versi segar diminta diam-diam di latar.
+const MG_STOK_LOKAL = 'omni_peta_stok_v3';
+function mgStokTerapkan_(d) {
+  mgStokRealtimeCache = d.peta || {}; mgStokSiap = true; mgStokSegarTerakhir = Date.now();
+  try { localStorage.setItem(MG_STOK_LOKAL, JSON.stringify({ t: Date.now(), peta: mgStokRealtimeCache })); } catch (e) { }
+  try { if (typeof mgmStokRealtimeCache !== 'undefined') Object.assign(mgmStokRealtimeCache, mgStokRealtimeCache); } catch (e) { }
+}
+function mgSegarkanStokLatar() {
+  mgStokSegarTerakhir = Date.now();
+  return postJson({ aksi: 'lihat_stok_banyak_sku', segarkan: true, email: currentUserEmail() }, 90000, true)
+    .then(function (d) { if (d && d.success) { mgStokTerapkan_(d); try { mgRenderCart(mgTabAktif || 'mintastock'); } catch (e) { } } })
+    .catch(function () { });
+}
 function mgPastikanStokSistem() {
   if (mgStokSiap) return Promise.resolve(true);
   if (mgStokJanji) return mgStokJanji;
-  mgStokJanji = postJson({ aksi: 'lihat_stok_banyak_sku', email: currentUserEmail() }, 60000, true)
-    .then(function (d) { if (d && d.success) { mgStokRealtimeCache = d.peta || {}; mgStokSiap = true; return true; } return false; })
+  try {
+    const lokal = JSON.parse(localStorage.getItem(MG_STOK_LOKAL) || 'null');
+    if (lokal && lokal.peta && Date.now() - lokal.t < 6 * 3600000) {
+      mgStokRealtimeCache = lokal.peta; mgStokSiap = true;
+      if (Date.now() - lokal.t > 60000) setTimeout(mgSegarkanStokLatar, 50); // tampil instan, segarkan diam-diam
+      return Promise.resolve(true);
+    }
+  } catch (e) { }
+  mgStokJanji = postJson({ aksi: 'lihat_stok_banyak_sku', bolehBasi: true, email: currentUserEmail() }, 60000, true)
+    .then(function (d) { if (d && d.success) { mgStokTerapkan_(d); if (d.basi) setTimeout(mgSegarkanStokLatar, 50); return true; } return false; })
     .catch(function () { return false; })
     .finally(function () { mgStokJanji = null; });
   return mgStokJanji;
@@ -57012,7 +57113,11 @@ async function mrkSelesaikanKirim() {
 #ov-view-dashboard .ovx-kartu:hover, #ov-view-dashboard .ovx-kartu.buka, #ov-view-dashboard .ovx-kartu:focus-visible { border-color: #a5b4fc; box-shadow: 0 6px 20px rgba(30,41,59,.08); }
 .ovx-kartu .ovx-label { font-size: 12px; font-weight: 600; color: var(--web-text-dim, #64748b); display: flex; align-items: center; gap: 6px; }
 .ovx-kartu .ovx-label i { margin-left: auto; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--web-border, #e2e8f0); display: grid; place-items: center; font-style: normal; font-size: 9px; color: var(--web-text-dim, #94a3b8); }
-.ovx-kartu .ovx-nilai { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--web-text, #0f172a); margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ovx-kartu .ovx-nilai { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--web-text, #0f172a); margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: visible; text-overflow: clip; line-height: 1.2; }
+#ov-view-dashboard .ovx-kartu { min-width: 0; }
+.ovx-logo.ovx-logo-asli { position: relative; background: #fff; box-shadow: inset 0 0 0 1px rgba(15,23,42,.08); overflow: visible; }
+.ovx-logo.ovx-logo-asli img { width: 18px; height: 18px; object-fit: contain; border-radius: 4px; }
+.ovx-logo.ovx-logo-asli i { position: absolute; right: -4px; bottom: -4px; min-width: 12px; height: 12px; padding: 0 2px; border-radius: 6px; color: #fff; font: 800 8px/12px system-ui, sans-serif; font-style: normal; text-align: center; box-shadow: 0 0 0 1.5px #fff; }
 .ovx-kartu .ovx-banding { font-size: 11.5px; color: var(--web-text-dim, #64748b); margin-top: 4px; min-height: 16px; }
 .ovx-naik { color: #047857; font-weight: 700; } .ovx-turun { color: #b45309; font-weight: 700; }
 .ovx-kartu .ovx-mini-logo { display: flex; gap: 3px; margin-top: 8px; height: 6px; border-radius: 4px; overflow: hidden; background: #f1f5f9; }
@@ -57020,7 +57125,7 @@ async function mrkSelesaikanKirim() {
 .ovx-kartu.memuat .ovx-nilai { color: transparent; background: linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9); background-size: 200% 100%; animation: ovxKilau 1.2s infinite; border-radius: 6px; width: 70%; }
 @keyframes ovxKilau { to { background-position: -200% 0; } }
 .ovx-logo { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; color: #fff; font-size: 9.5px; font-weight: 800; letter-spacing: .02em; flex: none; }
-.ovx-pop { position: absolute; z-index: 60; width: 300px; background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; box-shadow: 0 18px 48px rgba(15,23,42,.16); padding: 14px; font-size: 12.5px; color: var(--web-text, #0f172a); }
+.ovx-pop { position: absolute; z-index: 60; width: 340px; max-width: calc(100vw - 24px); background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; box-shadow: 0 18px 48px rgba(15,23,42,.16); padding: 14px; font-size: 12.5px; color: var(--web-text, #0f172a); }
 .ovx-pop[hidden] { display: none; }
 .ovx-pop h5 { margin: 0 0 2px; font-size: 13px; }
 .ovx-pop .ovx-pop-sub { color: var(--web-text-dim, #64748b); font-size: 11.5px; margin-bottom: 10px; }
@@ -57029,7 +57134,8 @@ async function mrkSelesaikanKirim() {
 .ovx-pop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .ovx-pop li { display: flex; align-items: center; gap: 7px; }
 .ovx-pop li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ovx-pop li b { font-variant-numeric: tabular-nums; }
+.ovx-pop li b { font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
+.ovx-pop h5 { overflow-wrap: anywhere; }
 .ovx-pop li em { font-style: normal; color: var(--web-text-dim, #94a3b8); font-size: 11px; width: 34px; text-align: right; }
 .ovx-pop .ovx-pop-kosong { color: var(--web-text-dim, #64748b); padding: 6px 0; }
 .ovx-pop .ovx-pop-aksi { margin-top: 10px; display: flex; justify-content: flex-end; }
@@ -57199,16 +57305,24 @@ const OVX_KANAL = {
   'TikTok Shop': ['TT', '#111827'], 'Tokopedia': ['TP', '#03ac0e'], 'Shopee': ['SP', '#ee4d2d'], 'Website': ['WB', '#3f7fc9'],
   'PO Sales': ['PO', '#c9822f'], 'Conner Hardware': ['CH', '#7c5cd9'], 'Pengiriman Kilat': ['KL', '#9333ea'], 'Belum Terhubung': ['?', '#94a3b8'], 'Lainnya': ['··', '#64748b']
 };
-function ovxLogo(k) { const x = OVX_KANAL[k] || [String(k || '?').slice(0, 2).toUpperCase(), '#64748b']; return `<span class="ovx-logo" style="background:${x[1]}" title="${pgrAttr(k)}">${ovxEsc(x[0])}</span>`; }
+// Logo ASLI marketplace (aset yang sama dengan Katalog > Produk Master via omniLogoMpUrl). Channel turunan
+// (Conner = toko TikTok kedua, Pengiriman Kilat = Gudang Shopee) memakai logo induknya + lencana kecil.
+const OVX_LOGO_ASLI = { 'TikTok Shop': ['TikTok Shop', ''], 'Tokopedia': ['Tokopedia', ''], 'Shopee': ['Shopee', ''], 'Website': ['Website', ''], 'Conner Hardware': ['TikTok Shop', 'C'], 'Pengiriman Kilat': ['Shopee', 'K'] };
+function ovxLogo(k) {
+  const asli = OVX_LOGO_ASLI[k], url = asli && typeof omniLogoMpUrl === 'function' ? omniLogoMpUrl(asli[0]) : '';
+  if (url) return `<span class="ovx-logo ovx-logo-asli" title="${pgrAttr(k)}"><img src="${url}" alt="${pgrAttr(k)}" width="22" height="22" decoding="async" draggable="false" />${asli[1] ? `<i style="background:${ovxWarna(k)}">${asli[1]}</i>` : ''}</span>`;
+  if (k === 'PO Sales') return `<span class="ovx-logo" style="background:${ovxWarna(k)}" title="PO Sales (Pesanan Manual)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>`;
+  const x = OVX_KANAL[k] || [String(k || '?').slice(0, 2).toUpperCase(), '#64748b'];
+  return `<span class="ovx-logo" style="background:${x[1]}" title="${pgrAttr(k)}">${ovxEsc(x[0])}</span>`;
+}
 function ovxWarna(k) { return (OVX_KANAL[k] || [0, '#64748b'])[1]; }
 const OVX_METRIK = [
   { k: 'omzet', label: 'Total Penjualan', rp: true, jual: true },
   { k: 'pesanan', label: 'Jumlah Pesanan', jual: true },
   { k: 'aov', label: 'Rata-rata Nilai Pesanan', rp: true, jual: true, rata: true },
   { k: 'resi', label: 'Resi Terkirim' },
-  { k: 'iklan', label: 'Belanja Iklan', rp: true, jual: true, iklan: true },
-  { k: 'pengunjung', label: 'Total Pengunjung', jual: true, trafik: true },
-  { k: 'klik', label: 'Produk Diklik', jual: true, trafik: true }
+  { k: 'iklan', label: 'Belanja Iklan', rp: true, jual: true, iklan: true }
+  // Kartu "Total Pengunjung" & "Produk Diklik" dihapus - integrasi API trafik belum tersedia.
 ];
 let ovxChart = null, ovxPopChart = null, ovxPopTimer = 0, ovxPopKey = '', ovxHasilTerakhir = null;
 let ovxLiveAktif = false, ovxLiveTimer = 0, ovxLiveJalan = false, ovxJamTimer = 0;
@@ -57319,7 +57433,26 @@ function ovRenderKpiGrid(d) {
       <div class="ovx-mini-logo">${bar}</div></div>`;
   }).join('');
   if (ovxPopKey) ovxPopTampil(ovxPopKey, true);
-  ovxMuatTrafikJikaPerlu();
+  ovxPasUkuranAngka(grid);
+  try { omxacRender(); } catch (eAc) { }
+}
+// Angka nominal TIDAK BOLEH terpotong (xx.xxx...): font diperkecil bertahap sampai muat di kartu.
+// Dipanggil ulang saat ukuran layar berubah (ResizeObserver) - murah, hanya mengukur teks di kartu KPI.
+function ovxPasUkuranAngka(grid) {
+  grid = grid || el('ov-kpi-grid-utama');
+  if (!grid) return;
+  grid.querySelectorAll('.ovx-nilai').forEach(n => {
+    n.style.fontSize = '';
+    const lebar = n.clientWidth;
+    if (!lebar) return;
+    let f = parseFloat(getComputedStyle(n).fontSize) || 22;
+    while (n.scrollWidth > lebar + 1 && f > 13) { f -= 1; n.style.fontSize = f + 'px'; }
+  });
+  if (!grid._ovxRo && typeof ResizeObserver !== 'undefined') {
+    let t = 0;
+    grid._ovxRo = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => ovxPasUkuranAngka(grid), 80); });
+    grid._ovxRo.observe(grid);
+  }
 }
 function ovRenderKanalStrip() { const w = el('ov-kanal-strip'); if (w) { w.innerHTML = ''; w.style.display = 'none'; } }
 function omxIklanKartuPerbarui() { // dipanggil modul Iklan setelah data iklan dimuat -> render ulang kartu
@@ -57364,7 +57497,7 @@ function ovxPopTampil(key, segarkan) {
   p.hidden = false;
   const wadah = el('ov-view-dashboard').getBoundingClientRect(), r = kartu.getBoundingClientRect();
   let kiri = r.left - wadah.left;
-  if (kiri + 300 > wadah.width) kiri = Math.max(0, wadah.width - 300);
+  if (kiri + 340 > wadah.width) kiri = Math.max(0, wadah.width - 340);
   p.style.left = kiri + 'px'; p.style.top = (r.bottom - wadah.top + 8) + 'px';
   if (ovxPopChart) { ovxPopChart.destroy(); ovxPopChart = null; }
   const cv = el('ovx-pop-canvas');
@@ -58163,6 +58296,430 @@ async function ccxCariMendalam(manual) {
     }
   } catch (err) { ccxCariInfo = 'Pencarian otomatis gagal: ' + String(err.message || err).replace(/^Error:\s*/, ''); }
   finally { ccxCariJalan = false; if (wpPengirimanSubAktif === 'control') ccRender(); else ccxPerbaruiUI(); }
+}
+</script>
+
+<!-- ==================================================================================
+     OMX MODUL TAMBAHAN (Okt 2026): Action Log · Action Center · Kurir Toko (foto) ·
+     Pembayaran Diterima · Kirim Stok ke Marketplace (S5)
+     ================================================================================== -->
+<style>
+  /* ---------- Action Log ---------- */
+  #omxlog-pill { position: fixed; left: 14px; bottom: 14px; z-index: 9000; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(15,23,42,.12); background: #fff; color: #0f172a; font: 600 12px/1 system-ui, -apple-system, Segoe UI, sans-serif; box-shadow: 0 6px 20px rgba(15,23,42,.12); cursor: pointer; }
+  #omxlog-pill[hidden] { display: none; }
+  #omxlog-pill i { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; display: inline-block; }
+  #omxlog-pill.jalan i { background: #6366f1; animation: omxDenyut 1s infinite; }
+  #omxlog-pill.gagal i { background: #d97706; }
+  @keyframes omxDenyut { 50% { opacity: .35; } }
+  .omx-hp #omxlog-pill { background: #1f2a26; color: #e5e7eb; border-color: rgba(255,255,255,.12); bottom: 76px; }
+  #omxlog-panel { position: fixed; left: 14px; bottom: 56px; z-index: 9001; width: min(380px, calc(100vw - 28px)); max-height: 60vh; overflow: auto; background: #fff; color: #0f172a; border: 1px solid rgba(15,23,42,.12); border-radius: 14px; box-shadow: 0 18px 48px rgba(15,23,42,.18); font: 12.5px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+  #omxlog-panel[hidden] { display: none; }
+  .omx-hp #omxlog-panel { background: #1f2a26; color: #e5e7eb; border-color: rgba(255,255,255,.12); bottom: 118px; }
+  #omxlog-panel header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid rgba(127,127,127,.18); font-weight: 700; position: sticky; top: 0; background: inherit; }
+  #omxlog-panel header button { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 16px; cursor: pointer; }
+  .omxlog-item { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; padding: 9px 14px; border-bottom: 1px solid rgba(127,127,127,.12); align-items: start; }
+  .omxlog-item b { font-weight: 600; }
+  .omxlog-item small { display: block; opacity: .7; font-size: 11px; }
+  .omxlog-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 4px; background: #16a34a; }
+  .omxlog-dot.kirim, .omxlog-dot.ulang { background: #6366f1; animation: omxDenyut 1s infinite; }
+  .omxlog-dot.gagal { background: #d97706; }
+  .omxlog-item button { border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; border-radius: 999px; padding: 3px 10px; font: 600 11px inherit; font-family: inherit; cursor: pointer; }
+  /* ---------- Action Center ---------- */
+  .omxac { background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; padding: 12px 14px; margin: 4px 0 12px; }
+  .omxac[hidden] { display: none; }
+  .omxac-kepala { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--web-text, #0f172a); margin-bottom: 8px; }
+  .omxac-kepala small { font-weight: 500; color: var(--web-text-dim, #64748b); font-size: 11.5px; }
+  .omxac-kepala button { margin-left: auto; border: 1px solid var(--web-border, #e2e8f0); background: transparent; border-radius: 999px; padding: 4px 11px; font: 600 11.5px inherit; font-family: inherit; color: var(--web-text-dim, #64748b); cursor: pointer; }
+  .omxac-daftar { display: flex; flex-wrap: wrap; gap: 8px; }
+  .omxac-butir { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px 7px 8px; border-radius: 10px; border: 1px solid var(--web-border, #e2e8f0); background: #f8fafc; cursor: pointer; font: 500 12.5px inherit; font-family: inherit; color: var(--web-text, #0f172a); text-align: left; max-width: 100%; }
+  .omxac-butir:hover { border-color: #a5b4fc; background: #eef2ff; }
+  .omxac-butir b { min-width: 26px; height: 22px; padding: 0 7px; border-radius: 7px; display: inline-grid; place-items: center; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; background: #64748b; }
+  .omxac-butir.utama b { background: #4f46e5; }
+  .omxac-butir.sedang b { background: #b45309; }
+  .omxac-kosong { color: var(--web-text-dim, #64748b); font-size: 12.5px; }
+  /* ---------- Modal umum ---------- */
+  .omxm-latar { position: fixed; inset: 0; z-index: 9500; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 12px; }
+  .omxm-latar[hidden] { display: none; }
+  .omxm { width: min(560px, 100%); max-height: calc(100vh - 24px); overflow: auto; background: #fff; color: #0f172a; border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.3); font: 13px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  .omxm.lebar { width: min(1100px, 100%); }
+  .omx-hp .omxm { background: #17201c; color: #e5e7eb; }
+  .omxm-kepala { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid rgba(127,127,127,.2); font-weight: 700; font-size: 14px; }
+  .omxm-kepala small { display: block; font-weight: 500; font-size: 11.5px; opacity: .7; }
+  .omxm-kepala .x { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 18px; cursor: pointer; }
+  .omxm-isi { padding: 14px 16px; }
+  .omxm-kaki { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid rgba(127,127,127,.2); flex-wrap: wrap; }
+  .omxm-btn { border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; border-radius: 10px; padding: 9px 14px; font: 600 13px inherit; font-family: inherit; cursor: pointer; }
+  .omxm-btn.utama { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+  .omx-hp .omxm-btn.utama { background: #0d9488; border-color: #0d9488; }
+  .omxm-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .omx-chip-ok { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; background: rgba(22,163,74,.1); color: #15803d; font: 600 12px inherit; font-family: inherit; }
+  .omx-chip-ok[hidden] { display: none; }
+  .omx-chip-ok.menyimpan { background: rgba(99,102,241,.1); color: #4338ca; }
+  .omx-chip-ok a { color: inherit; }
+  /* ---------- Kurir Toko kamera ---------- */
+  .kft-panggung { position: relative; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 3 / 4; max-height: 62vh; margin: 0 auto; }
+  .kft-panggung video, .kft-panggung img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .kft-langkah { display: flex; gap: 6px; margin-bottom: 10px; }
+  .kft-langkah span { flex: 1; text-align: center; padding: 6px; border-radius: 8px; background: rgba(127,127,127,.15); font-size: 11.5px; font-weight: 600; opacity: .6; }
+  .kft-langkah span.aktif { opacity: 1; background: rgba(13,148,136,.22); }
+  .kft-langkah span.ok { opacity: 1; background: rgba(22,163,74,.2); }
+  .kft-info { font-size: 12px; opacity: .8; margin-top: 8px; text-align: center; }
+  .kft-rana { width: 64px; height: 64px; border-radius: 50%; border: 4px solid #fff; background: rgba(255,255,255,.25); position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); cursor: pointer; }
+  /* ---------- Pembayaran ---------- */
+  .byr-ringkas { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 12px; border-radius: 10px; background: rgba(127,127,127,.1); margin-bottom: 12px; }
+  .byr-ringkas b { font-variant-numeric: tabular-nums; }
+  .byr-file { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed rgba(127,127,127,.45); border-radius: 10px; cursor: pointer; }
+  .byr-file img { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; }
+  /* ---------- Kirim stok marketplace ---------- */
+  .smp-alat { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .smp-alat input[type=search] { flex: 1; min-width: 180px; border: 1px solid rgba(127,127,127,.35); border-radius: 10px; padding: 8px 11px; font: inherit; background: transparent; color: inherit; }
+  .smp-tabel-wrap { overflow: auto; max-height: 56vh; border: 1px solid rgba(127,127,127,.2); border-radius: 10px; }
+  .smp-tabel { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .smp-tabel th, .smp-tabel td { padding: 7px 9px; border-bottom: 1px solid rgba(127,127,127,.14); text-align: left; vertical-align: top; }
+  .smp-tabel th { position: sticky; top: 0; background: #f8fafc; font-size: 11.5px; color: #475569; z-index: 1; }
+  .smp-tabel td.angka { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .smp-tabel .smp-kode { font-size: 11px; opacity: .75; word-break: break-all; }
+  .smp-tabel tr.berubah td.kirim { font-weight: 800; color: #4338ca; }
+  .smp-hasil { font-size: 11px; margin-top: 3px; }
+  .smp-hasil.ok { color: #15803d; } .smp-hasil.gagal { color: #b45309; }
+  .omx-stokmp-btn { margin-left: auto; }
+</style>
+
+<div id="omxlog-pill" hidden onclick="omxLogBukaTutup()" role="button" tabindex="0" aria-label="Action Log"><i></i><span id="omxlog-pill-teks">Action Log</span></div>
+<div id="omxlog-panel" hidden role="dialog" aria-label="Action Log"><header>Action Log <small style="font-weight:500; opacity:.65;">semua aksi simpan</small><button type="button" onclick="omxLogBukaTutup()" aria-label="Tutup">✕</button></header><div id="omxlog-isi"></div></div>
+<div class="omxm-latar" id="omxm-latar" hidden><div class="omxm" id="omxm" role="dialog" aria-modal="true"></div></div>
+
+<script>
+/* ======================== UTIL ======================== */
+function omxEsc(v) { return (typeof escapeHtml === 'function') ? escapeHtml(v == null ? '' : String(v)) : String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function omxToast(pesan, jenis) { try { if (typeof omniToast === 'function') return omniToast(pesan, jenis || 'info'); } catch (e) { } try { pgrToast(pesan); } catch (e) { } }
+function omxNamaStaff() { try { return (currentUser && (currentUser.nama || currentUser.email)) || ''; } catch (e) { return ''; } }
+function omxRp(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function omxJam(ms) { const d = new Date(ms || Date.now()); const b = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']; const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())} ${b[d.getMonth()]} ${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+function omxTandaiPerangkat() { document.documentElement.classList.toggle('omx-hp', omxPerangkat_() === 'hp'); }
+setInterval(omxTandaiPerangkat, 2000); setTimeout(omxTandaiPerangkat, 300);
+function omxModal(html, lebar) { const m = el('omxm'); m.className = 'omxm' + (lebar ? ' lebar' : ''); m.innerHTML = html; el('omxm-latar').hidden = false; omxTandaiPerangkat(); return m; }
+function omxModalTutup() { el('omxm-latar').hidden = true; el('omxm').innerHTML = ''; try { kftMatikanKamera(); } catch (e) { } }
+// Kompres gambar (File/Blob/dataURL) -> JPEG dataURL, sisi terpanjang <= maks
+function omxKompres(sumber, maks, mutu) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => { const r = Math.min(1, (maks || 1280) / Math.max(img.width, img.height)); const c = document.createElement('canvas'); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', mutu || 0.78)); };
+    img.onerror = () => rej(new Error('Gambar tidak bisa dibaca'));
+    if (typeof sumber === 'string') img.src = sumber; else { const fr = new FileReader(); fr.onload = () => { img.src = fr.result; }; fr.onerror = () => rej(new Error('File tidak bisa dibaca')); fr.readAsDataURL(sumber); }
+  });
+}
+
+/* ======================== ACTION LOG (semua aksi simpan) ========================
+   Setiap aksi TULIS (lewat postJson / postJsonTulis) dicatat: kapan, apa, status. Aksi berstatus "menunggu"
+   yang punya idPermintaan dikirim ulang OTOMATIS setelah halaman dibuka lagi (server anti dobel per id). */
+const OMXLOG_KUNCI = 'omx_action_log_v1';
+const OMXLOG_LABEL = {
+  kirim_pesanan: 'Kirim pesanan (No Resi)', kirim_kurir_toko: 'Konfirmasi foto Kurir Toko', konfirmasi_pembayaran: 'Pembayaran Diterima',
+  batal_pesanan: 'Batalkan pesanan', update_pesanan: 'Ubah pesanan', simpan_memo_barang_masuk: 'Memo Barang Masuk', simpan_memo_hilang_rusak: 'Memo Hilang/Rusak',
+  simpan_memo_stock_opname: 'Memo Stock Opname', simpan_memo_minta_stock: 'Memo Minta Stock', stok_mp_kirim: 'Kirim stok ke marketplace', buat_invoice: 'Buat invoice'
+};
+let omxLog = (() => { try { return JSON.parse(localStorage.getItem(OMXLOG_KUNCI) || '[]'); } catch (e) { return []; } })();
+const omxLogBody = new Map(); // id -> body lengkap (termasuk foto) untuk tombol "Kirim ulang" selama tab hidup
+function omxLogSimpan_() {
+  omxLog = omxLog.filter(x => Date.now() - x.t < 2 * 86400000).slice(-80);
+  try { localStorage.setItem(OMXLOG_KUNCI, JSON.stringify(omxLog)); }
+  catch (e) { omxLog.forEach(x => { delete x.body; }); try { localStorage.setItem(OMXLOG_KUNCI, JSON.stringify(omxLog)); } catch (e2) { } }
+  omxLogRender_();
+}
+function omxLogLabel_(body) { const a = String(body.aksi || ''); return OMXLOG_LABEL[a] || a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase()); }
+function omxLogMulai(body, label) {
+  if (!body || !body.aksi || body.aksi === 'login') return '';
+  const id = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const ringan = {};
+  Object.keys(body).forEach(k => { const v = body[k]; if (k === 'sessionToken') return; if (typeof v === 'string' && v.length > 20000) return; ringan[k] = v; });
+  const besar = Object.keys(body).some(k => typeof body[k] === 'string' && body[k].length > 20000);
+  omxLogBody.set(id, body);
+  omxLog.push({ id, t: Date.now(), aksi: body.aksi, label: label || omxLogLabel_(body) + (body.noInvoice ? ' · ' + body.noInvoice : (body.noMemo ? ' · ' + body.noMemo : '')), status: 'kirim', idp: body.idPermintaan || '', body: besar ? null : ringan, besar });
+  omxLogSimpan_();
+  return id;
+}
+function omxLogUbah(id, ubah) { const x = omxLog.find(e => e.id === id); if (!x) return; Object.assign(x, ubah); omxLogSimpan_(); }
+function omxLogSelesai(id, data, err) {
+  const x = omxLog.find(e => e.id === id); if (!x) return;
+  if (data && data.success !== false) { x.status = 'ok'; x.pesan = data.duplikat ? 'Sudah tersimpan sebelumnya' : 'Tersimpan'; delete x.body; omxLogBody.delete(id); }
+  else { x.status = 'gagal'; x.pesan = (err && err.message) || (data && data.error) || 'Gagal'; }
+  x.selesai = Date.now();
+  omxLogSimpan_();
+}
+async function omxLogUlang(id) {
+  const x = omxLog.find(e => e.id === id); if (!x) return;
+  const body = omxLogBody.get(id) || x.body;
+  if (!body) { omxToast('Data aksi ini terlalu besar untuk disimpan di HP - ulangi dari layarnya.'); return; }
+  x.status = 'kirim'; x.pesan = 'Mengirim ulang…'; omxLogSimpan_();
+  try { const d = await postJsonTulis(Object.assign({}, body, { idPermintaan: x.idp || body.idPermintaan }), 120000, { tanpaLog: true }); omxLogSelesai(id, d); }
+  catch (e) { omxLogSelesai(id, null, e); }
+}
+function omxLogBukaTutup() { const p = el('omxlog-panel'); p.hidden = !p.hidden; omxLogRender_(); }
+function omxLogRender_() {
+  const pill = el('omxlog-pill'); if (!pill) return;
+  const baru = omxLog.filter(x => Date.now() - x.t < 86400000);
+  const jalan = baru.filter(x => x.status === 'kirim' || x.status === 'ulang').length, gagal = baru.filter(x => x.status === 'gagal').length;
+  pill.hidden = !baru.length;
+  pill.classList.toggle('jalan', jalan > 0); pill.classList.toggle('gagal', !jalan && gagal > 0);
+  el('omxlog-pill-teks').textContent = jalan ? `Menyimpan ${jalan}…` : (gagal ? `${gagal} perlu dikirim ulang` : 'Semua tersimpan');
+  const isi = el('omxlog-isi'); if (!isi || el('omxlog-panel').hidden) return;
+  isi.innerHTML = baru.slice().reverse().map(x => `<div class="omxlog-item"><span class="omxlog-dot ${x.status}"></span><div><b>${omxEsc(x.label)}</b><small>${omxJam(x.t)} · ${omxEsc(x.status === 'ok' ? (x.pesan || 'Tersimpan') : x.status === 'gagal' ? (x.pesan || 'Gagal') : (x.pesan || 'Mengirim…'))}</small></div>${x.status === 'gagal' ? `<button type="button" onclick="omxLogUlang('${x.id}')">Kirim ulang</button>` : ''}</div>`).join('') || '<div class="omxlog-item"><span></span><div>Belum ada aksi.</div></div>';
+}
+// Setelah halaman dibuka lagi: aksi yang terputus di tengah jalan & punya idPermintaan dikirim ulang otomatis
+setTimeout(omxLogRender_, 800);
+setTimeout(() => {
+  omxLog.forEach(x => { if ((x.status === 'kirim' || x.status === 'ulang') && Date.now() - x.t < 86400000) { if (x.idp && x.body) omxLogUlang(x.id); else { x.status = 'gagal'; x.pesan = 'Terputus saat halaman ditutup - cek data lalu ulangi bila perlu'; } } });
+  omxLogSimpan_();
+}, 6000);
+
+/* Simpan INSTAN (optimistic UI): layar langsung berubah, kiriman jalan di latar (dengan retry & anti dobel),
+   kalau server menolak -> tampilan dikembalikan + tercatat di Action Log untuk dikirim ulang. */
+function omxSimpanInstan(body, opsi) {
+  opsi = opsi || {};
+  try { if (opsi.optimis) opsi.optimis(); } catch (e) { console.warn(e); }
+  const b = Object.assign({ email: currentUserEmail() }, body);
+  if (!b.idPermintaan) b.idPermintaan = buatIdPermintaan('i-');
+  return postJsonTulis(b, opsi.timeout || 120000, { labelLog: opsi.label })
+    .then(d => { if (!d || d.success === false) throw new Error((d && d.error) || 'Ditolak server'); try { if (opsi.berhasil) opsi.berhasil(d); } catch (e) { console.warn(e); } return d; })
+    .catch(e => { try { if (opsi.gagal) opsi.gagal(e); } catch (e2) { } omxToast('Gagal menyimpan: ' + e.message + ' - lihat Action Log untuk kirim ulang.', 'error'); el('omxlog-panel').hidden = false; omxLogRender_(); return null; });
+}
+
+/* ======================== ACTION CENTER "Perlu Perhatian" ======================== */
+const OMXAC_KUNCI = 'omx_action_center_v1';
+let omxacData = (() => { try { return JSON.parse(localStorage.getItem(OMXAC_KUNCI) || 'null'); } catch (e) { return null; } })();
+let omxacJalan = false;
+const OMXAC_TUJUAN = {
+  pesanan: () => { try { wpBukaSubMenu('semua'); } catch (e) { gantiTabWeb('pesanan'); } },
+  persediaan: () => persediaanBukaSub('monitor'),
+  katalog: () => { try { katalogBukaSub('produk'); } catch (e) { gantiTabWeb('katalog'); } },
+  pengiriman: () => { try { pengirimanBukaSub('belum-selesai'); } catch (e) { gantiTabWeb('pengiriman'); } },
+  validasi: () => persediaanBukaSub('barangmasuk', 'validasi'),
+  memogudang: () => persediaanBukaSub('barangmasuk', 'memo')
+};
+function omxacRender() {
+  const w = el('omxac'); if (!w) return;
+  const d = omxacData && omxacData.data;
+  if (!d) { w.hidden = true; omxacMuat(false); return; }
+  w.hidden = false;
+  const butir = d.butir || [];
+  w.innerHTML = `<div class="omxac-kepala">Perlu Perhatian <small>${omxEsc(d.dihitungPada || '')}</small><button type="button" onclick="omxacMuat(true)" title="Hitung ulang">${omxacJalan ? 'Menghitung…' : 'Segarkan'}</button></div>` +
+    (butir.length ? `<div class="omxac-daftar">${butir.map((b, i) => `<button type="button" class="omxac-butir ${b.tingkat}" onclick="omxacKlik(${i})" title="${omxEsc((b.contoh || []).join(', '))}"><b>${Number(b.jumlah).toLocaleString('id-ID')}</b>${omxEsc(b.label)}</button>`).join('')}</div>` : '<div class="omxac-kosong">Semua aman - tidak ada yang perlu segera ditindaklanjuti.</div>');
+  if (Date.now() - (omxacData.t || 0) > 5 * 60000) omxacMuat(false);
+}
+function omxacKlik(i) { const b = ((omxacData && omxacData.data && omxacData.data.butir) || [])[i]; if (b && OMXAC_TUJUAN[b.tujuan]) OMXAC_TUJUAN[b.tujuan](); }
+async function omxacMuat(paksa) {
+  if (omxacJalan || document.hidden) return;
+  if (!paksa && omxacData && Date.now() - omxacData.t < 5 * 60000) return;
+  omxacJalan = true;
+  try {
+    const d = await postJson({ aksi: 'lihat_action_center', segar: true, segarkan: !!paksa, email: currentUserEmail() }, 90000, true);
+    if (d && d.success) { omxacData = { t: Date.now(), data: d }; try { localStorage.setItem(OMXAC_KUNCI, JSON.stringify(omxacData)); } catch (e) { } }
+  } catch (e) { } finally { omxacJalan = false; omxacRender(); }
+}
+
+/* ======================== DETAIL PESANAN: tombol baru ======================== */
+function omxBayarChipHtml_(b, menyimpan) { return `✓ Dibayar · ${omxEsc(b.waktu || '')} · ${omxEsc(b.oleh || '')}${b.bukti ? ` · <a href="${omxEsc(b.bukti)}" target="_blank" rel="noopener">bukti</a>` : ''}${menyimpan ? ' (menyimpan…)' : ''}`; }
+function omxDetailAksiWeb_(o, izin, belumSelesai, siap) {
+  const kurirToko = o.kurir === 'Kurir Toko';
+  const bk = el('wp-btn-kurir-toko'), bt = el('wp-btn-kirim-toggle'), bb = el('wp-btn-bayar'), chip = el('wp-bayar-chip');
+  if (kurirToko && belumSelesai) bt.style.display = 'none';
+  bk.style.display = (izin.kirimResi && kurirToko && belumSelesai) ? 'inline-block' : 'none';
+  bk.disabled = !siap;
+  const batal = o.status === 'Dibatalkan';
+  if (o.bayarDiterima) { bb.style.display = 'none'; chip.hidden = false; chip.classList.toggle('menyimpan', !!o.bayarDiterima._menyimpan); chip.innerHTML = omxBayarChipHtml_(o.bayarDiterima, o.bayarDiterima._menyimpan); }
+  else { chip.hidden = true; bb.style.display = (o.bolehLihatHarga && !batal) ? 'inline-block' : 'none'; bb.disabled = !siap; }
+  if (o.kurirToko) { chip.hidden = false; chip.innerHTML = (o.bayarDiterima ? chip.innerHTML + ' &nbsp;|&nbsp; ' : '') + `📷 Diantar ${omxEsc(o.kurirToko.oleh || '')} · ${omxEsc(o.kurirToko.waktu || '')}${o.kurirToko.bukti ? ` · <a href="${omxEsc(o.kurirToko.bukti)}" target="_blank" rel="noopener">foto</a>` : ''}`; }
+}
+function kftBukaDariWeb() { const o = wpCurrentDetailOrder; if (!o) return; kftBuka({ row: wpCurrentDetailRow, noInvoice: o.noInvoice, nama: o.namaPenerima, onSelesai: () => { try { wpDetailCache.delete(wpCurrentDetailRow); wpBukaDetail(wpCurrentDetailRow); } catch (e) { } } }); }
+function byrBukaDariWeb() { const o = wpCurrentDetailOrder; if (!o) return; byrBuka({ row: wpCurrentDetailRow, order: o, render: () => { try { wpRenderDetail_(o); } catch (e) { } }, onSelesai: () => { try { wpDetailCache.delete(wpCurrentDetailRow); } catch (e) { } } }); }
+function omxDetailAksiMobile_(order) {
+  const garis = el('detail-status-line'); if (!garis) return;
+  let w = el('omx-m-aksi');
+  if (!w) { w = document.createElement('div'); w.id = 'omx-m-aksi'; w.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;'; garis.parentNode.insertBefore(w, garis.nextSibling); }
+  const izin = (currentUser && currentUser.izin) || {};
+  let h = '';
+  if (order.bayarDiterima) h += `<span class="omx-chip-ok ${order.bayarDiterima._menyimpan ? 'menyimpan' : ''}">${omxBayarChipHtml_(order.bayarDiterima, order.bayarDiterima._menyimpan)}</span>`;
+  else if (order.status !== 'Dibatalkan' && (izin.buatInvoice || currentUser.isOwner)) h += `<button type="button" class="omxm-btn utama" style="padding:7px 12px; font-size:12.5px;" onclick="byrBukaMobile()">✓ Pembayaran Diterima</button>`;
+  if (order.kurirToko) h += `<span class="omx-chip-ok">📷 Diantar ${omxEsc(order.kurirToko.oleh || '')} · ${omxEsc(order.kurirToko.waktu || '')}</span>`;
+  w.innerHTML = h;
+}
+function byrBukaMobile() { const o = currentDetailOrder; if (!o) return; byrBuka({ row: currentDetailRow, order: o, render: () => omxDetailAksiMobile_(o), onSelesai: () => { try { delete pmDetailCache[currentDetailRow]; } catch (e) { } } }); }
+
+/* ======================== PEMBAYARAN DITERIMA ======================== */
+let byr = null;
+function byrBuka(k) {
+  byr = Object.assign({ fotoData: '', mime: '' }, k);
+  const o = k.order;
+  omxModal(`<div class="omxm-kepala">Pembayaran Diterima<small>${omxEsc(o.noInvoice)} · ${omxEsc(o.namaPembeli || o.namaPenerima || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+    <div class="omxm-isi">
+      <div class="byr-ringkas"><span>Total tagihan</span><b>${o.total !== undefined ? omxRp(o.total) : '-'}</b><span>Dikonfirmasi oleh</span><b>${omxEsc(omxNamaStaff())}</b></div>
+      <label class="byr-file" for="byr-file"><span id="byr-file-pratinjau">📎</span><span><b>Bukti transfer (opsional)</b><br><small style="opacity:.7;">Foto / screenshot / PDF. Boleh dikosongkan.</small></span></label>
+      <input type="file" id="byr-file" accept="image/*,application/pdf" hidden onchange="byrPilihFile(this)" />
+      <div style="font-size:11.5px; opacity:.7; margin-top:10px;">Waktu konfirmasi dicatat otomatis saat tombol ditekan.</div>
+    </div>
+    <div class="omxm-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Batal</button><button type="button" class="omxm-btn utama" id="byr-ok" onclick="byrKonfirmasi()">✓ Pembayaran Diterima</button></div>`);
+}
+async function byrPilihFile(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  try {
+    if (/pdf/i.test(f.type)) {
+      if (f.size > 3.5 * 1024 * 1024) throw new Error('PDF maksimal 3,5 MB');
+      byr.fotoData = await new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => j(new Error('Gagal baca file')); fr.readAsDataURL(f); });
+      byr.mime = 'application/pdf'; el('byr-file-pratinjau').textContent = '📄';
+    } else {
+      byr.fotoData = await omxKompres(f, 1400, 0.8); byr.mime = 'image/jpeg';
+      el('byr-file-pratinjau').innerHTML = `<img src="${byr.fotoData}" alt="Bukti" />`;
+    }
+  } catch (e) { omxToast(e.message, 'error'); byr.fotoData = ''; }
+}
+function byrKonfirmasi() {
+  if (!byr) return;
+  const k = byr, o = k.order, waktuKlikMs = Date.now();
+  omxModalTutup();
+  omxSimpanInstan({ aksi: 'konfirmasi_pembayaran', row: k.row, noInvoice: o.noInvoice, waktuKlikMs, base64: k.fotoData || '', mime: k.mime || '' }, {
+    label: 'Pembayaran Diterima · ' + o.noInvoice,
+    optimis: () => { o.bayarDiterima = { waktu: omxJam(waktuKlikMs), oleh: omxNamaStaff(), bukti: '', _menyimpan: true }; k.render(); },
+    berhasil: d => { o.bayarDiterima = d.bayarDiterima || Object.assign({}, o.bayarDiterima, { _menyimpan: false }); k.render(); if (k.onSelesai) k.onSelesai(); try { playBeep(); } catch (e) { } },
+    gagal: () => { delete o.bayarDiterima; k.render(); }
+  });
+}
+
+/* ======================== KURIR TOKO: FOTO 2 KAMERA ========================
+   Langkah 1: kamera BELAKANG (paket/penerima). Langkah 2: kamera DEPAN (wajah staff yang mengantar).
+   Browser HP umumnya tidak bisa membuka 2 kamera bersamaan, jadi diambil berurutan otomatis lalu
+   digabung jadi 1 foto + watermark (tanggal-jam-detik, No Invoice, penerima, nama staff). */
+let kft = null;
+function kftMatikanKamera() { if (kft && kft.stream) { kft.stream.getTracks().forEach(t => t.stop()); kft.stream = null; } }
+async function kftKamera(arah) {
+  kftMatikanKamera();
+  const coba = [{ video: { facingMode: { exact: arah }, width: { ideal: 1280 }, height: { ideal: 1706 } }, audio: false }, { video: { facingMode: arah }, audio: false }, { video: true, audio: false }];
+  for (const c of coba) { try { return await navigator.mediaDevices.getUserMedia(c); } catch (e) { } }
+  throw new Error('Kamera tidak bisa dibuka - izinkan akses kamera di browser.');
+}
+function kftBuka(k) {
+  kft = Object.assign({ langkah: 1, belakang: null, depan: null, depanTidakAda: false, stream: null, hasil: '' }, k);
+  omxModal(`<div class="omxm-kepala">Konfirmasi Kurir Toko<small>${omxEsc(k.noInvoice)} · ${omxEsc(k.nama || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+    <div class="omxm-isi"><div class="kft-langkah"><span id="kft-l1" class="aktif">1 · Foto paket</span><span id="kft-l2">2 · Foto staff</span><span id="kft-l3">3 · Konfirmasi</span></div>
+    <div class="kft-panggung" id="kft-panggung"><video id="kft-video" playsinline autoplay muted></video><button type="button" class="kft-rana" id="kft-rana" onclick="kftJepret()" aria-label="Ambil foto"></button></div>
+    <div class="kft-info" id="kft-info">Arahkan kamera BELAKANG ke paket / penerima, lalu tekan tombol bulat.</div></div>
+    <div class="omxm-kaki" id="kft-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Batal</button></div>`);
+  kftMulaiLangkah(1);
+}
+async function kftMulaiLangkah(n) {
+  kft.langkah = n;
+  ['kft-l1', 'kft-l2', 'kft-l3'].forEach((id, i) => { const x = el(id); if (x) { x.classList.toggle('aktif', i + 1 === n); x.classList.toggle('ok', i + 1 < n); } });
+  const info = el('kft-info');
+  if (n === 3) return kftPratinjau();
+  try {
+    kft.stream = await kftKamera(n === 1 ? 'environment' : 'user');
+    const v = el('kft-video'); if (!v) { kftMatikanKamera(); return; }
+    v.srcObject = kft.stream; v.style.transform = n === 2 ? 'scaleX(-1)' : '';
+    await v.play().catch(() => { });
+    if (info) info.textContent = n === 1 ? 'Arahkan kamera BELAKANG ke paket / penerima, lalu tekan tombol bulat.' : 'Sekarang kamera DEPAN: tampilkan wajah Anda (staff yang mengantar), lalu tekan tombol bulat.';
+  } catch (e) {
+    if (n === 2) { kft.depanTidakAda = true; omxToast('Kamera depan tidak tersedia - lanjut dengan foto paket saja.'); kftMulaiLangkah(3); return; }
+    if (info) info.textContent = e.message;
+  }
+}
+function kftJepret() {
+  const v = el('kft-video'); if (!v || !v.videoWidth) return;
+  const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
+  const x = c.getContext('2d');
+  if (kft.langkah === 2) { x.translate(c.width, 0); x.scale(-1, 1); }
+  x.drawImage(v, 0, 0);
+  if (kft.langkah === 1) kft.belakang = c; else kft.depan = c;
+  kft.waktuFotoMs = kft.waktuFotoMs || Date.now();
+  try { playBeep(); } catch (e) { }
+  kftMulaiLangkah(kft.langkah + 1);
+}
+function kftGabung_() {
+  const W = 1080, H = 1440, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const tutup = (src, dx, dy, dw, dh) => { const r = Math.max(dw / src.width, dh / src.height), sw = dw / r, sh = dh / r; x.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, dx, dy, dw, dh); };
+  x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  tutup(kft.belakang, 0, 0, W, H);
+  if (kft.depan) { const s = 330, px = W - s - 28, py = 28; x.save(); x.beginPath(); x.roundRect ? x.roundRect(px, py, s, s * 1.25, 22) : x.rect(px, py, s, s * 1.25); x.clip(); tutup(kft.depan, px, py, s, s * 1.25); x.restore(); x.lineWidth = 6; x.strokeStyle = '#fff'; x.strokeRect(px, py, s, s * 1.25); }
+  const tinggiBar = 210; x.fillStyle = 'rgba(0,0,0,.66)'; x.fillRect(0, H - tinggiBar, W, tinggiBar);
+  x.fillStyle = '#fff'; x.textBaseline = 'top';
+  x.font = '700 40px system-ui, sans-serif'; x.fillText('KURIR TOKO · ' + kft.noInvoice, 34, H - tinggiBar + 22);
+  x.font = '600 34px system-ui, sans-serif'; x.fillText(omxJam(kft.waktuFotoMs) + ' WIB', 34, H - tinggiBar + 80);
+  x.font = '500 30px system-ui, sans-serif'; x.fillText(('Staff: ' + omxNamaStaff() + '  ·  Penerima: ' + (kft.nama || '-')).slice(0, 64), 34, H - tinggiBar + 134);
+  return c.toDataURL('image/jpeg', 0.8);
+}
+function kftPratinjau() {
+  kftMatikanKamera();
+  kft.hasil = kftGabung_();
+  el('kft-panggung').innerHTML = `<img src="${kft.hasil}" alt="Pratinjau foto Kurir Toko" />`;
+  el('kft-info').textContent = kft.depanTidakAda ? 'Tanpa foto kamera depan (tidak tersedia di perangkat ini).' : 'Periksa foto. Watermark waktu & nama staff sudah tertanam.';
+  el('kft-kaki').innerHTML = `<button type="button" class="omxm-btn" onclick="kftUlangi()">Ulangi</button><button type="button" class="omxm-btn utama" onclick="kftKonfirmasi()">✓ Konfirmasi - diantar ${omxEsc(omxNamaStaff())}</button>`;
+}
+function kftUlangi() {
+  const k = { row: kft.row, noInvoice: kft.noInvoice, nama: kft.nama, onSelesai: kft.onSelesai };
+  kftBuka(k);
+}
+function kftKonfirmasi() {
+  const k = kft; if (!k || !k.hasil) return;
+  omxModalTutup();
+  omxToast('Konfirmasi Kurir Toko ' + k.noInvoice + ' sedang dikirim…');
+  omxSimpanInstan({ aksi: 'kirim_kurir_toko', row: k.row, noInvoice: k.noInvoice, base64: k.hasil, mime: 'image/jpeg', waktuFotoMs: k.waktuFotoMs }, {
+    label: 'Foto Kurir Toko · ' + k.noInvoice, timeout: 150000,
+    berhasil: () => { omxToast('✓ ' + k.noInvoice + ' tercatat Dikirim (Kurir Toko).'); try { playBeep(); } catch (e) { } if (k.onSelesai) k.onSelesai(); }
+  });
+}
+
+/* ======================== S5: KIRIM STOK KE MARKETPLACE ======================== */
+let smp = { daftar: [], pilih: new Set(), hasil: {}, cari: '', mode: '' };
+async function smpBuka() {
+  omxModal(`<div class="omxm-kepala">Kirim Stok ke Marketplace<small>Stok tersedia (On Hand − Reserve) dikirim ke Shopee &amp; TikTok Shop Waterground</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+    <div class="omxm-isi" id="smp-isi"><div class="omxac-kosong">Menghitung stok tersedia…</div></div>
+    <div class="omxm-kaki"><span id="smp-ringkas" style="margin-right:auto; font-size:12px; opacity:.75; align-self:center;"></span><button type="button" class="omxm-btn" onclick="omxModalTutup()">Tutup</button><button type="button" class="omxm-btn utama" id="smp-kirim" onclick="smpKirim()" disabled>Kirim Stok</button></div>`, true);
+  try {
+    const d = await postJson({ aksi: 'lihat_stok_mp_pratinjau', segar: true, email: currentUserEmail() }, 120000, true);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat');
+    smp.daftar = d.daftar || []; smp.mode = d.mode || ''; smp.hasil = {};
+    smp.pilih = new Set(smp.daftar.filter(x => x.berubah).map(x => x.sku));
+    smpRender(d.dihitungPada);
+  } catch (e) { const i = el('smp-isi'); if (i) i.innerHTML = `<div class="omxac-kosong">Gagal: ${omxEsc(e.message)}</div>`; }
+}
+function smpRender(waktu) {
+  const i = el('smp-isi'); if (!i) return;
+  const kata = smp.cari.toLowerCase();
+  const tampil = smp.daftar.filter(x => !kata || x.sku.toLowerCase().includes(kata) || String(x.nama || '').toLowerCase().includes(kata));
+  const akhir = t => t ? `${Number(t.qty).toLocaleString('id-ID')} · ${omxEsc(t.waktu)}` : 'belum pernah';
+  i.innerHTML = `<div class="smp-alat"><input type="search" placeholder="Cari SKU / nama…" value="${omxEsc(smp.cari)}" oninput="smp.cari=this.value; smpRender()" />
+      <button type="button" class="omxm-btn" onclick="smpPilihBerubah()">Pilih yang berubah</button><button type="button" class="omxm-btn" onclick="smp.pilih.clear(); smpRender()">Kosongkan</button></div>
+    ${smp.mode !== 'LIVE' ? '<div class="omxac-kosong" style="margin-bottom:8px;">Mode DRY RUN: kiriman hanya dicatat, belum menembak API.</div>' : ''}
+    <div class="smp-tabel-wrap"><table class="smp-tabel"><thead><tr><th></th><th>SKU / Produk</th><th class="angka">On Hand</th><th class="angka">Reserve</th><th class="angka">Dikirim</th><th>Shopee (terakhir)</th><th>TikTok (terakhir)</th></tr></thead><tbody>
+    ${tampil.map(x => { const h = smp.hasil[x.sku]; return `<tr class="${x.berubah ? 'berubah' : ''}"><td><input type="checkbox" ${smp.pilih.has(x.sku) ? 'checked' : ''} onchange="smpCentang('${omxEsc(x.sku).replace(/'/g, "\\'")}', this.checked)" aria-label="Pilih ${omxEsc(x.sku)}" /></td>
+      <td><b>${omxEsc(x.sku)}</b><div class="smp-kode">${omxEsc(x.nama || '')}</div>${h ? `<div class="smp-hasil ${h.ok ? 'ok' : 'gagal'}">${omxEsc(h.teks)}</div>` : ''}</td>
+      <td class="angka">${Number(x.onHand || 0).toLocaleString('id-ID')}</td><td class="angka">${Number(x.onReserve || 0).toLocaleString('id-ID')}</td><td class="angka kirim">${Number(x.kirim).toLocaleString('id-ID')}</td>
+      <td>${x.shopee.length ? `<div class="smp-kode">${omxEsc(x.shopee.join(', '))}</div>${akhir(x.terakhirShopee)}` : '<span class="smp-kode">-</span>'}</td>
+      <td>${x.tiktok.length ? `<div class="smp-kode">${omxEsc(x.tiktok.join(', '))}</div>${akhir(x.terakhirTiktok)}` : '<span class="smp-kode">-</span>'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="omxac-kosong">Belum ada produk dengan SKU Terhubung Shopee / TikTok.</td></tr>'}
+    </tbody></table></div>`;
+  const nBerubah = smp.daftar.filter(x => x.berubah).length;
+  el('smp-ringkas').textContent = `${smp.pilih.size} dipilih · ${nBerubah} berbeda dari kiriman terakhir${waktu ? ' · dihitung ' + waktu : ''}`;
+  el('smp-kirim').disabled = !smp.pilih.size;
+}
+function smpCentang(sku, ya) { if (ya) smp.pilih.add(sku); else smp.pilih.delete(sku); smpRender(); }
+function smpPilihBerubah() { smp.pilih = new Set(smp.daftar.filter(x => x.berubah).map(x => x.sku)); smpRender(); }
+async function smpKirim() {
+  const semua = Array.from(smp.pilih); if (!semua.length) return;
+  const tombol = el('smp-kirim'); tombol.disabled = true;
+  for (let i = 0; i < semua.length; i += 50) {
+    const bagian = semua.slice(i, i + 50);
+    tombol.textContent = `Mengirim ${Math.min(i + 50, semua.length)}/${semua.length}…`;
+    try {
+      const d = await postJsonTulis({ aksi: 'stok_mp_kirim', items: bagian.map(sku => ({ sku, channel: 'semua' })), email: currentUserEmail() }, 330000, { labelLog: `Kirim stok ${bagian.length} SKU ke marketplace` });
+      if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+      const per = {};
+      (d.hasil || []).forEach(h => { const p = per[h.sku] = per[h.sku] || { ok: 0, gagal: [] }; if (h.ok) p.ok++; else p.gagal.push(h.channel + ': ' + h.pesan); });
+      Object.keys(per).forEach(sku => { const p = per[sku]; smp.hasil[sku] = { ok: !p.gagal.length, teks: p.gagal.length ? p.gagal.join(' | ') : `✓ ${p.ok} listing diperbarui${d.mode !== 'LIVE' ? ' (dry run)' : ''}` }; if (!p.gagal.length) smp.pilih.delete(sku); });
+    } catch (e) { bagian.forEach(sku => { smp.hasil[sku] = { ok: false, teks: e.message }; }); }
+    smpRender();
+  }
+  tombol.textContent = 'Kirim Stok';
+  smpRender();
 }
 </script>
 
