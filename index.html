@@ -21,12 +21,6 @@
 <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<!-- Supabase (Fase 2: Auth + API Gateway). SENGAJA dimuat sinkron (tanpa defer/async): initApp() di akhir
-     halaman langsung butuh omniAuth. supabase-client.js di-host sejajar dengan file HTML ini. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
-<script src="supabase-client.js"></script>
-<!-- Fase 3: baca Katalog / Penjualan / Pengiriman dari replika Postgres (Supabase JS). Gagal dimuat = jalur lama tetap jalan. -->
-<script src="omni-data.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
@@ -13814,159 +13808,7 @@ function currentUserEmail() {
   return currentUser ? currentUser.email : '';
 }
 
-/* ===================================================================================
-   MIDDLEWARE AUTH (Supabase) - Fase 2
-   -----------------------------------------------------------------------------------
-   Aturan: dashboard (mobile & web) HANYA boleh tampil kalau perangkat memegang sesi Supabase
-   (access token JWT + refresh token). Pemeriksaan lokal instan (tanpa jaringan, tanpa loading
-   layar penuh); validasi JWT ke server Supabase berjalan SENYAP di latar. Keamanan sebenarnya
-   tetap di API Gateway: setiap request wajib JWT valid, tanpa itu data tidak keluar.
-   =================================================================================== */
-let loginNonceMentah = '';
-
-// Dipanggil paling awal oleh initApp(). 'lanjut' = boleh memulihkan sesi tersimpan; 'stop' = sudah ditangani.
-function omniGerbangAwal_() {
-  if (typeof omniAuth === 'undefined') {
-    tampilkanLayarLogin();
-    loginTampilPesan_('Gagal memuat modul login (supabase-client.js). Cek koneksi internet, lalu refresh halaman.', true);
-    return 'stop';
-  }
-  if (omniAuth.kembaliDariOAuth()) {
-    // Balikan dari Google OAuth (jalur cadangan redirect) -> tukar kode jadi sesi, lalu susun profil
-    tampilkanLayarLogin();
-    loginTampilPesan_('Menyelesaikan login Google…');
-    omniAuth.selesaikanOAuth().then(ses => {
-      omniAuth.bersihkanUrl();
-      if (ses) loginLanjutkanDariSesi_();
-      else loginTampilPesan_('Login Google dibatalkan atau gagal. Silakan coba lagi.', true);
-    }).catch(err => { omniAuth.bersihkanUrl(); loginTampilPesan_(omniAuth.pesanError(err), true); });
-    return 'stop';
-  }
-  if (!omniAuth.adaSesiTersimpan()) {
-    // Tidak ada sesi Supabase -> sesi token lama (Apps Script) tidak lagi diterima: wajib login ulang sekali
-    if (localStorage.getItem('trg_user')) { currentUser = null; localStorage.removeItem('trg_user'); }
-    else sesiCadanganHapus_();
-    tampilkanLayarLogin();
-    return 'stop';
-  }
-  if (!localStorage.getItem('trg_user') && !sesiCadanganBaca_()) {
-    // Sesi Supabase ada, profil OmniAI di perangkat hilang -> susun ulang dari server (tanpa login ulang)
-    tampilkanLayarLogin();
-    loginLanjutkanDariSesi_();
-    return 'stop';
-  }
-  // Token di profil lokal diselaraskan dengan JWT terbaru + validasi server di latar
-  omniAuth.tokenAkses().then(t => {
-    if (t && currentUser && currentUser.sessionToken !== t) {
-      currentUser.sessionToken = t;
-      try { localStorage.setItem('trg_user', JSON.stringify(currentUser)); } catch (e) { }
-    }
-  });
-  setTimeout(omniValidasiSesiLatar_, 1500);
-  return 'lanjut';
-}
-
-// Penjaga di pintu dashboard: dipanggil di awal terapkanTampilanLogin(). Tanpa sesi Supabase -> layar login.
-function omniGerbangDashboard_() {
-  const ok = !!(currentUser && currentUser.email && typeof omniAuth !== 'undefined' && omniAuth.adaSesiTersimpan());
-  if (!ok) {
-    currentUser = null;
-    try { localStorage.removeItem('trg_user'); } catch (e) { }
-    setTimeout(() => { try { tampilkanLayarLogin(); } catch (e) { } }, 0);
-  }
-  return ok;
-}
-
-// Validasi JWT ke server Supabase (senyap). Offline TIDAK dianggap logout.
-async function omniValidasiSesiLatar_() {
-  window._omniCekSesiMs = Date.now();
-  if (!currentUser || typeof omniAuth === 'undefined') return;
-  const status = await omniAuth.validasiServer();
-  if (status !== 'tidak_valid' || !currentUser) return;
-  if (await omniAuth.segarkanSesi()) return;
-  logout();
-  loginTampilPesan_('Sesi login berakhir. Silakan login ulang.', true);
-}
-// Tab aktif lagi setelah tersembunyi > 15 menit -> cek ulang sesi di latar (sejalan aturan polling 15 menit)
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden || !currentUser) return;
-  if (Date.now() - (window._omniCekSesiMs || 0) > 15 * 60 * 1000) omniValidasiSesiLatar_();
-});
-
-// Perubahan sesi dari supabase-client.js (refresh token otomatis, logout di tab lain, refresh token dicabut)
-window.addEventListener('omni:auth', function (e) {
-  const ev = e.detail && e.detail.event, ses = e.detail && e.detail.session;
-  if ((ev === 'TOKEN_REFRESHED' || ev === 'SIGNED_IN') && ses && currentUser) {
-    if (currentUser.sessionToken !== ses.access_token) {
-      currentUser.sessionToken = ses.access_token;
-      try { localStorage.setItem('trg_user', JSON.stringify(currentUser)); } catch (x) { }
-    }
-  } else if (ev === 'SIGNED_OUT' && currentUser) {
-    try { logout(); } catch (x) { }
-  }
-});
-
-// Sesi Supabase sudah ada -> minta profil OmniAI (nama, role, izin, status approval) ke gateway.
-// Gateway sekaligus menulis klaim org/role ke JWT -> sesi diperpanjang supaya klaim baru terbawa.
-async function loginMulaiProfil_() {
-  const data = await postJson({ aksi: 'sesi_mulai', segar: true }, 45000);
-  if (data && data.success) {
-    await omniAuth.segarkanSesi();
-    data.sessionToken = await omniAuth.tokenAkses();
-  }
-  return data;
-}
-async function loginLanjutkanDariSesi_() {
-  loginTampilPesan_('Menyiapkan akun…');
-  let data;
-  try { data = await loginMulaiProfil_(); }
-  catch (err) { data = { success: false, error: 'Gagal terhubung: ' + err.message }; }
-  if (!data || !data.success) {
-    loginTampilPesan_(String((data && data.error) || 'Gagal memuat profil akun.').replace(/^Error:\s*/, ''), true);
-    return;
-  }
-  if (data.aktif) loginSelesai_(data);
-  else { currentUser = data; omxSimpanUser_(); loginTampilPesan_(''); tampilkanMenungguApproval(); }
-}
-
-// Login email + password lewat Supabase Auth. Akun lama (password tersimpan di sistem lama) dipindahkan
-// OTOMATIS ke Supabase saat login pertama - user tidak perlu reset password.
-async function loginMasukSupabase_(email, pw) {
-  let r = await omniAuth.masukEmail(email, pw);
-  if (r.error && omniAuth.errorKredensial(r.error)) {
-    const m = await postJson({ aksi: 'migrasi_password_lama', emailLogin: email, password: pw, segar: true }, 45000);
-    if (!m || !m.success) return { success: false, error: String((m && m.error) || 'Email atau password salah.') };
-    r = await omniAuth.masukEmail(email, pw);
-  }
-  if (r.error) return { success: false, error: omniAuth.pesanError(r.error) };
-  return loginMulaiProfil_();
-}
-async function loginDaftarSupabase_(email, pw, nama) {
-  const r = await omniAuth.daftarEmail(email, pw, nama);
-  if (r.error) return { success: false, error: omniAuth.pesanError(r.error) };
-  if (r.sudahTerdaftar) return { success: false, error: 'Email ini sudah terdaftar. Silakan masuk.' };
-  if (!r.session) return { success: true, perluKonfirmasiEmail: true }; // "Confirm email" aktif di Supabase
-  return loginMulaiProfil_();
-}
-
-// Cadangan kalau skrip Google Identity Services gagal dimuat: Google OAuth via redirect (gaya tombol seragam)
-function loginPasangGoogleCadangan_(containerId) {
-  const w = el(containerId);
-  if (!w) return;
-  w.innerHTML = `<button type="button" class="login-alt-btn" style="width:100%; justify-content:center;" onclick="loginGoogleRedirect()">
-    <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.2C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.5 28.5c-.5-1.4-.8-3-.8-4.5s.3-3.1.8-4.5l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.2C6.6 42.6 14.6 48 24 48z"/></svg>
-    &nbsp; Lanjut dengan Google</button>`;
-}
-async function loginGoogleRedirect() {
-  loginTampilPesan_('Mengalihkan ke Google…');
-  try { await omniAuth.masukGoogleRedirect(); }
-  catch (err) { loginTampilPesan_(omniAuth.pesanError(err), true); }
-}
-/* ================= AKHIR MIDDLEWARE AUTH ================= */
-
 function initApp() {
-  // MIDDLEWARE: tanpa sesi Supabase, tidak ada jalan masuk ke dashboard
-  if (omniGerbangAwal_() !== 'lanjut') return;
   let saved = localStorage.getItem('trg_user');
   if (!saved) {
     // localStorage kosong (mis. dibersihkan browser) tapi cadangan cookie masih ada -> pulihkan, lalu lengkapi dari server
@@ -14011,7 +13853,6 @@ function tampilkanLayarLogin() {
   // ⚠️ Google Login lagi dinonaktifkan sementara (lagi bermasalah) - pakai tombol
   // "Login Admin Gudang" / "Login Developer" dulu. Set false lagi begitu Google Login normal.
   if (GOOGLE_LOGIN_DINONAKTIFKAN_SEMENTARA) return;
-  if (typeof omniAuth === 'undefined') return; // modul Supabase gagal dimuat - pesan ditampilkan omniGerbangAwal_()
 
   const statusEl = modeWeb ? el('login-status-web') : el('login-status');
   const containerId = modeWeb ? 'google-signin-button-web' : 'google-signin-button';
@@ -14034,29 +13875,19 @@ function tampilkanLayarLogin() {
         tampilkanLayarLogin();
       } else if (percobaan >= 25) {
         clearInterval(cekUlang);
-        // Skrip Google Identity gagal dimuat -> cadangan Google OAuth (redirect Supabase), login tetap bisa
-        statusEl.textContent = '';
-        statusEl.className = 'status-text';
-        loginPasangGoogleCadangan_(containerId);
+        statusEl.textContent = '⚠️ Gagal memuat skrip Google Sign-In. Cek koneksi internet, lalu refresh halaman.';
+        statusEl.className = 'status-text err';
       }
     }, 200);
     return;
   }
 
   statusEl.textContent = '';
-  // Supabase signInWithIdToken mewajibkan nonce: HASH dikirim ke Google, nilai MENTAH dikirim ke Supabase
-  omniAuth.buatNonce().then(n => {
-    loginNonceMentah = n.mentah;
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleCredentialResponse,
-      nonce: n.hash
-    });
-    google.accounts.id.renderButton(el(containerId), { theme: 'outline', size: 'large', shape: 'pill', width: modeWeb ? 400 : 316 });
-  }).catch(err => {
-    console.error('Nonce Google gagal dibuat:', err);
-    loginPasangGoogleCadangan_(containerId);
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleCredentialResponse
   });
+  google.accounts.id.renderButton(el(containerId), { theme: 'outline', size: 'large', shape: 'pill', width: modeWeb ? 400 : 316 });
 }
 
 // Login Admin Gudang (akun bersama sementara) - diverifikasi SERVER, email & izin datang dari server.
@@ -14075,15 +13906,6 @@ async function loginMintaRahasia_(judul, label) {
   return r.nilai === 'ok' ? String(r.input.rahasia || '') : null;
 }
 async function loginSelesai_(data) {
-  // Login khusus (Admin Gudang / Developer): gateway memverifikasi PIN/password lalu menitipkan
-  // token sekali-pakai -> ditukar jadi sesi Supabase di perangkat ini
-  if (data && data.otp) {
-    try { await omniAuth.tukarOtp(data.otp); }
-    catch (err) { loginTampilPesan_('Gagal membuat sesi: ' + omniAuth.pesanError(err), true); if (typeof playToot === 'function') playToot(); return; }
-    delete data.otp;
-  }
-  data.sessionToken = await omniAuth.tokenAkses();
-  if (!data.sessionToken) { loginTampilPesan_('Sesi login tidak terbentuk. Silakan coba lagi.', true); return; }
   currentUser = data;
   localStorage.setItem('trg_user', JSON.stringify(currentUser));
   loginTampilPesan_('');
@@ -14163,16 +13985,9 @@ function omniPanaskanServer() {
 }
 function loginMulaiVerifikasi() {
   loginHasil = null;
-  const token = loginCredential, nonce = loginNonceMentah;
-  loginJanji = (async () => {
-    // Percobaan ulang dengan akun yang sama tidak perlu menukar token Google lagi
-    const info = loginDecodeJwt(token);
-    const ses = await omniAuth.sesiSekarang();
-    const emailSesi = String((ses && ses.user && ses.user.email) || '').toLowerCase();
-    if (!ses || emailSesi !== String(info.email || '').toLowerCase()) await omniAuth.masukGoogleIdToken(token, nonce);
-    return loginMulaiProfil_();
-  })().then(d => { loginHasil = d || { success: false, error: 'Respons kosong dari server' }; return loginHasil; },
-    err => { loginHasil = { success: false, error: omniAuth.pesanError(err) }; return loginHasil; });
+  loginJanji = postJson({ aksi: 'login', idToken: loginCredential, segar: true }, 45000)
+    .then(d => { loginHasil = d || { success: false, error: 'Respons kosong dari server' }; return loginHasil; },
+      err => { loginHasil = { success: false, error: 'Gagal terhubung: ' + err.message }; return loginHasil; });
   return loginJanji;
 }
 function handleCredentialResponse(response) {
@@ -14233,7 +14048,6 @@ async function loginKonfirmasiMasuk() {
 }
 function loginGantiAkun() {
   loginBersihkanKonfirmasi();
-  try { if (typeof omniAuth !== 'undefined') omniAuth.keluar(); } catch (e) { } // buang sesi akun yang batal dipakai
   try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.prompt(); } catch (e) { }
 }
 function loginBersihkanKonfirmasi() {
@@ -14280,7 +14094,6 @@ async function ceklagiStatusAkses(silent) {
 }
 
 function terapkanTampilanLogin() {
-  if (!omniGerbangDashboard_()) return; // MIDDLEWARE: tanpa sesi Supabase valid, dashboard tidak boleh tampil
   // Patokan "3 detik pertama setelah login" untuk loader penuh Beranda (sekali per sesi tab)
   if (!window.omniLoginMs) window.omniLoginMs = Date.now();
   el('screen-login').style.display = 'none';
@@ -43749,7 +43562,6 @@ function toggleUserMenu() {
 function logout() {
   localStorage.removeItem('trg_user');
   currentUser = null;
-  try { if (typeof omniAuth !== 'undefined') omniAuth.keluar(); } catch (e) { } // sesi Supabase di perangkat ini
   paksaModeMobile = modeMobileDipilih(); // pilihan tampilan tetap diingat setelah logout
   el('user-menu-dropdown').style.display = 'none';
   el('app-web').style.display = 'none';
@@ -43942,46 +43754,43 @@ function sesiToken_() { return (currentUser && currentUser.sessionToken) || ''; 
 let sesiSedangBerakhir_ = false;
 function sesiProsesRespons_(data) {
   if (!data || typeof data !== 'object') return;
-  delete data._sesiBaru; // warisan token Apps Script - tidak dipakai lagi (perpanjangan sesi diurus Supabase)
-  if (data._perluRefreshSesi) {
-    // Gateway memperbarui klaim (status aktif / role) di JWT -> ambil JWT baru diam-diam
-    delete data._perluRefreshSesi;
-    try { omniAuth.segarkanSesi(); } catch (e) { }
+  if (data._sesiBaru && currentUser) {
+    currentUser.sessionToken = data._sesiBaru;
+    try { localStorage.setItem('trg_user', JSON.stringify(currentUser)); } catch (e) { }
+  }
+  delete data._sesiBaru;
+  if (data.sesiHabis && currentUser) {
+    // Tab lain mungkin sudah memperpanjang token -> pakai token terbaru, jangan logout
+    try {
+      const tersimpan = JSON.parse(localStorage.getItem('trg_user') || 'null');
+      if (tersimpan && tersimpan.sessionToken && tersimpan.sessionToken !== currentUser.sessionToken) {
+        currentUser.sessionToken = tersimpan.sessionToken;
+        return;
+      }
+    } catch (e) { }
   }
   if (data.sesiHabis && currentUser && !sesiSedangBerakhir_) {
     sesiSedangBerakhir_ = true;
-    // Tab lain / refresh otomatis mungkin sudah memperpanjang sesi -> coba dulu, logout hanya kalau gagal
-    omniAuth.segarkanSesi().then(ok => {
-      if (ok || !currentUser) return;
+    setTimeout(() => {
       logout();
       const st = el(modeMobileDipilih() ? 'login-status' : 'login-status-web');
       if (st) { st.textContent = 'Sesi login berakhir. Silakan login ulang.'; st.className = 'status-text err'; }
-    }).finally(() => { sesiSedangBerakhir_ = false; });
+      sesiSedangBerakhir_ = false;
+    }, 0);
   }
 }
 
-// API GATEWAY SUPABASE (Edge Function "api"): payload {aksi, ...} SAMA PERSIS dengan doPost lama.
-// Identitas pelaku = JWT Supabase di header Authorization (bukan field di body). JWT ditolak
-// (sesiHabis) -> sesi diperpanjang sekali lalu request diulang otomatis.
-async function kirimKeWebApp(body, waktuTunggu, sudahDiulang) {
-  // Fase 3: aksi baca Katalog / Penjualan / Pengiriman dilayani replika Postgres via Supabase JS bila
-  // modulnya siap (izin & penyaringan harga dicek di server). Tidak siap / gagal -> jalur lama di bawah.
-  if (!sudahDiulang && window.omniData && body && window.omniData.bisaDilayani(body.aksi)) {
-    const dariReplika = await window.omniData.coba(body, waktuTunggu);
-    if (dariReplika) return dariReplika;
-  }
+async function kirimKeWebApp(body, waktuTunggu) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), waktuTunggu);
-  const kirim = Object.assign({}, body);
-  delete kirim.sessionToken;
+  const token = sesiToken_();
+  const kirim = (token && !body.sessionToken) ? Object.assign({}, body, { sessionToken: token }) : body;
   try {
-    const token = await omniAuth.tokenAkses();
-    const headers = { 'Content-Type': 'application/json', 'apikey': OMNI_SB_KEY };
-    if (token) headers.Authorization = 'Bearer ' + token;
-    const res = await fetch(OMNI_API_URL, {
+    const res = await fetch(WEB_APP_URL, {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(kirim),
+      redirect: 'follow',
       signal: controller.signal
     });
     const teks = await res.text();
@@ -43991,9 +43800,6 @@ async function kirimKeWebApp(body, waktuTunggu, sudahDiulang) {
     } catch (eParse) {
       const cuplikan = teks.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
       throw new Error(`Respons server bukan JSON (HTTP ${res.status}). ${cuplikan || '(kosong)'}`);
-    }
-    if (hasilJson && hasilJson.sesiHabis && token && !sudahDiulang && await omniAuth.segarkanSesi()) {
-      return kirimKeWebApp(body, waktuTunggu, true);
     }
     sesiProsesRespons_(hasilJson);
     return hasilJson;
@@ -44110,7 +43916,6 @@ function webAppKunciCache(body) {
 function webAppSedangPaksaSegar() { return webAppPaksaSegarHitung > 0 || Date.now() < webAppPaksaSegarSampai; }
 function webAppBuangCacheBaca() {
   webAppCacheBaca.clear();
-  try { if (window.omniData) window.omniData.tandaiBerubah(); } catch (e) { } // Fase 3: cek ulang kesiapan replika
   try { wpDetailCache.clear(); } catch (e) { } // detail Pesanan Manual ikut segar setelah ada penyimpanan
 }
 // Jalankan fn() sebagai pemicu yang diizinkan (polling 15 menit / tab aktif lagi): request baca di dalamnya
@@ -55366,16 +55171,9 @@ async function loginEmailKirim(e) {
   btn.disabled = true; btn.classList.add('sibuk');
   loginTampilPesan_(daftar ? 'Mendaftarkan akun…' : 'Memverifikasi…');
   let data;
-  try { data = daftar ? await loginDaftarSupabase_(email, pw, nama) : await loginMasukSupabase_(email, pw); }
-  catch (err) { data = { success: false, error: omniAuth.pesanError(err) }; }
+  try { data = await postJson({ aksi: daftar ? 'login_daftar_email' : 'login_email', emailLogin: email, email, password: pw, nama, segar: true }, 30000); }
+  catch (err) { data = { success: false, error: 'Gagal terhubung: ' + err.message }; }
   btn.disabled = false; btn.classList.remove('sibuk');
-  if (data && data.perluKonfirmasiEmail) {
-    el('lgx-password').value = '';
-    loginGantiModeEmail(); // kembali ke mode "Masuk"
-    el('lgx-email').value = email;
-    loginTampilPesan_('Akun dibuat. Buka email ' + email + ', klik tautan konfirmasi, lalu masuk di sini.');
-    return false;
-  }
   if (!data || !data.success) {
     loginTampilPesan_(String((data && data.error) || 'Login gagal.').replace(/^Error:\s*/, ''), true);
     if (typeof playToot === 'function') playToot();
