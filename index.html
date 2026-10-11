@@ -7412,6 +7412,141 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
   .om-kpi-iklan .web-kpi-label { display: flex; align-items: center; gap: 6px; }
   @media (max-width: 1150px) { .ikl-grid2 { grid-template-columns: 1fr; } .ikl-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
+<style>
+  /* =====================================================================
+     PANEL KONFIRMASI AI CEO (Gudang) - pop-up di atas <body>
+     Memakai variabel --web-* yang sama: otomatis terang di web, gelap di mobile.
+     ===================================================================== */
+  .ceo-overlay { position: fixed; inset: 0; z-index: 260; display: flex; align-items: center; justify-content: center; padding: 16px;
+    background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .18s ease; font-family: 'Inter', system-ui, sans-serif; }
+  .ceo-overlay[hidden] { display: none; }
+  .ceo-overlay.ceo-tampil { opacity: 1; }
+  .ceo-kartu { width: min(900px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden;
+    background: var(--web-panel); color: var(--web-text); border: 1px solid var(--web-border); border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.28); transform: translateY(10px) scale(.98); transition: transform .22s cubic-bezier(.2,.9,.3,1.2);
+    font-size: var(--fs-base, 13.5px); line-height: 1.5; }
+  .ceo-overlay.ceo-tampil .ceo-kartu { transform: none; }
+  body.ceo-buka { overflow: hidden; }
+
+  .ceo-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--web-border); }
+  .ceo-avatar { width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px; background: linear-gradient(135deg, var(--web-accent), #6366f1); }
+  .ceo-judul { font-size: var(--fs-md, 14px); font-weight: 700; }
+  .ceo-sub { font-size: var(--fs-xs, 12px); color: var(--web-text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ceo-header-teks { flex: 1; min-width: 0; }
+  .ceo-ikon-btn { border: none; background: transparent; color: var(--web-text-dim); width: 34px; height: 34px; border-radius: 9px; cursor: pointer; font-size: 16px; flex-shrink: 0; }
+  .ceo-ikon-btn:hover { background: rgba(127,127,127,.14); color: var(--web-text); }
+  .ceo-ikon-btn:disabled { opacity: .5; cursor: default; }
+  .ceo-ikon-btn.ceo-putar .oi { animation: ceo-putar .9s linear infinite; }
+  @keyframes ceo-putar { to { transform: rotate(360deg); } }
+
+  .ceo-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .ceo-seksi { border: 1px solid var(--web-border); border-radius: 14px; background: var(--web-bg); padding: 12px; }
+  .ceo-seksi-judul { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: var(--fs-md, 14px); margin-bottom: 10px; }
+  .ceo-seksi-judul .ceo-meta { margin-left: auto; font-weight: 500; font-size: var(--fs-xs, 12px); color: var(--web-text-dim); }
+  .ceo-link-btn { border: none; background: transparent; color: var(--web-accent); font-family: inherit; font-size: var(--fs-xs, 12px); font-weight: 600; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+  .ceo-link-btn:hover { background: color-mix(in srgb, var(--web-accent) 10%, transparent); }
+  .ceo-link-btn:disabled { opacity: .5; cursor: default; }
+
+  /* Ringkasan */
+  .ceo-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .ceo-kpi-item { background: var(--web-panel); border: 1px solid var(--web-border); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .ceo-kpi-label { font-size: var(--fs-xs, 12px); color: var(--web-text-dim); display: flex; align-items: center; gap: 5px; }
+  .ceo-kpi-nilai { font-size: 22px; font-weight: 800; line-height: 1.25; margin-top: 2px; }
+  .ceo-kpi-ket { font-size: var(--fs-xs, 12px); color: var(--web-text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ceo-naik { color: var(--web-accent); } .ceo-turun { color: var(--web-warning); }
+  .ceo-flag-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .ceo-flag { font-size: var(--fs-xs, 12px); padding: 3px 9px; border-radius: 999px; background: var(--web-panel); border: 1px solid var(--web-border); color: var(--web-text-dim); display: inline-flex; align-items: center; gap: 6px; }
+  .ceo-flag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--web-warning); }
+  .ceo-flag.info::before { background: var(--web-info); }
+  .ceo-stok-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .ceo-stok-baris { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center;
+    background: var(--web-panel); border: 1px solid var(--web-border); border-radius: 10px; padding: 7px 10px; font-size: var(--fs-sm, 12.5px); }
+  .ceo-stok-nama { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ceo-stok-nama small { display: block; color: var(--web-text-dim); font-size: 11.5px; }
+  .ceo-angka { text-align: right; white-space: nowrap; color: var(--web-text-dim); font-variant-numeric: tabular-nums; }
+  .ceo-angka b { color: var(--web-text); }
+  .ceo-pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .ceo-pill.HABIS { color: var(--web-danger); background: color-mix(in srgb, var(--web-danger) 10%, transparent); }
+  .ceo-pill.KRITIS { color: var(--web-warning); background: color-mix(in srgb, var(--web-warning) 12%, transparent); }
+  .ceo-pill.MENIPIS { color: var(--web-info); background: color-mix(in srgb, var(--web-info) 10%, transparent); }
+  .ceo-pill.tinggi { color: var(--web-warning); background: color-mix(in srgb, var(--web-warning) 12%, transparent); }
+  .ceo-pill.sedang { color: var(--web-info); background: color-mix(in srgb, var(--web-info) 10%, transparent); }
+  .ceo-pill.rendah { color: var(--web-text-dim); background: rgba(127,127,127,.12); }
+
+  /* Rekomendasi AI */
+  .ceo-eksekutif { background: var(--web-panel); border: 1px solid var(--web-border); border-left: 3px solid var(--web-accent); border-radius: 10px; padding: 10px 12px; }
+  .ceo-skor { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs, 12px); color: var(--web-text-dim); margin-top: 6px; }
+  .ceo-skor-bar { width: 90px; height: 6px; border-radius: 999px; background: rgba(127,127,127,.18); overflow: hidden; }
+  .ceo-skor-bar > span { display: block; height: 100%; background: var(--web-accent); border-radius: 999px; }
+  .ceo-keputusan-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .ceo-keputusan { background: var(--web-panel); border: 1px solid var(--web-border); border-radius: 12px; padding: 10px 12px; transition: border-color .15s, opacity .15s; }
+  .ceo-keputusan.dipilih { border-color: color-mix(in srgb, var(--web-accent) 55%, var(--web-border)); }
+  .ceo-keputusan.selesai { opacity: .8; }
+  .ceo-kep-atas { display: flex; align-items: flex-start; gap: 10px; }
+  .ceo-kep-atas input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--web-accent); flex-shrink: 0; cursor: pointer; }
+  .ceo-kep-judul { font-weight: 700; flex: 1; min-width: 0; }
+  .ceo-kep-judul .ceo-saran { color: var(--web-accent); }
+  .ceo-kep-alasan { color: var(--web-text-dim); font-size: var(--fs-sm, 12.5px); margin: 4px 0 0 28px; }
+  .ceo-kep-item { margin: 8px 0 0 28px; display: flex; flex-direction: column; gap: 5px; }
+  .ceo-kep-item-baris { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm, 12.5px); }
+  .ceo-kep-item-baris .ceo-stok-nama { flex: 1; }
+  .ceo-qty { width: 72px; box-sizing: border-box; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--web-garis-input, var(--web-border));
+    background: var(--web-bg); color: var(--web-text); font-family: inherit; font-size: 13px; text-align: right; }
+  .ceo-qty:disabled { opacity: .6; }
+  .ceo-kep-status { margin: 8px 0 0 28px; font-size: var(--fs-xs, 12px); padding: 6px 9px; border-radius: 8px; background: rgba(127,127,127,.1); color: var(--web-text-dim); }
+  .ceo-kep-status:empty { display: none; }
+  .ceo-kep-status.ok { color: var(--web-accent); background: color-mix(in srgb, var(--web-accent) 10%, transparent); }
+  .ceo-kep-status.gagal { color: var(--web-warning); background: color-mix(in srgb, var(--web-warning) 10%, transparent); }
+  .ceo-perhatian { margin: 10px 0 0; padding-left: 18px; color: var(--web-text-dim); font-size: var(--fs-sm, 12.5px); }
+  .ceo-perhatian li + li { margin-top: 3px; }
+  .ceo-kosong { color: var(--web-text-dim); font-size: var(--fs-sm, 12.5px); padding: 10px 2px; }
+  .ceo-catatan-val { font-size: 11.5px; color: var(--web-text-dim); margin-top: 8px; }
+
+  /* Skeleton loading lokal (bukan loading layar penuh) */
+  .ceo-skel { border-radius: 10px; height: 64px; background: linear-gradient(90deg, rgba(127,127,127,.10), rgba(127,127,127,.20), rgba(127,127,127,.10));
+    background-size: 200% 100%; animation: ceo-shimmer 1.2s ease-in-out infinite; }
+  .ceo-skel.pendek { height: 40px; }
+  @keyframes ceo-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .ceo-error { font-size: var(--fs-sm, 12.5px); color: var(--web-text-dim); background: var(--web-panel); border: 1px dashed var(--web-border); border-radius: 10px; padding: 10px 12px; }
+
+  /* Tombol kontrol */
+  .ceo-footer { border-top: 1px solid var(--web-border); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--web-panel); }
+  .ceo-catatan-tolak { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--web-garis-input, var(--web-border));
+    background: var(--web-bg); color: var(--web-text); font-family: inherit; font-size: 13px; }
+  .ceo-footer-baris { display: flex; align-items: center; gap: 8px; }
+  .ceo-footer-info { flex: 1; min-width: 0; font-size: var(--fs-xs, 12px); color: var(--web-text-dim); }
+  .ceo-btn { font-family: inherit; font-size: 13px; font-weight: 700; padding: 10px 16px; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .ceo-btn:disabled { opacity: .5; cursor: default; }
+  .ceo-btn-tolak { background: transparent; color: var(--web-text); border: 1px solid var(--web-border); }
+  .ceo-btn-tolak:hover:not(:disabled) { background: rgba(127,127,127,.1); }
+  .ceo-btn-setuju { border: none; color: #fff; background: linear-gradient(135deg, var(--web-accent), #6366f1); }
+  .ceo-btn-setuju:hover:not(:disabled) { filter: brightness(1.06); }
+  .ceo-btn .ceo-spin { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: ceo-putar .8s linear infinite; }
+  .ceo-btn-tolak .ceo-spin { border-color: rgba(127,127,127,.4); border-top-color: var(--web-text); }
+
+  /* Pintu masuk */
+  .menu-btn.aiceo { --accent: #6366f1; }
+  .ceo-nav-item .oi { margin-right: 4px; }
+
+  /* Mobile: lembar penuh dari bawah */
+  @media (max-width: 640px) {
+    .ceo-overlay { padding: 0; align-items: flex-end; }
+    .ceo-kartu { max-height: 100%; height: 100%; border-radius: 0; border: none; }
+    .ceo-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ceo-kpi-ket { white-space: normal; }
+    .ceo-seksi-judul { flex-wrap: wrap; row-gap: 2px; }
+    .ceo-seksi-judul .ceo-link-btn { margin-left: auto; }
+    .ceo-seksi-judul .ceo-meta { order: 3; flex-basis: 100%; margin-left: 0; }
+    .ceo-stok-baris { grid-template-columns: minmax(0, 1fr) auto auto; }
+    .ceo-stok-baris .ceo-angka.ceo-sembunyi-hp { display: none; }
+    .ceo-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+    .ceo-btn { flex: 1; justify-content: center; }
+    .ceo-footer-info { display: none; }
+    .ceo-qty { font-size: 16px; } /* cegah zoom otomatis iOS */
+  }
+  html.omni-mobile .ceo-kartu { font-size: 14px; }
+</style>
 </head>
 <body class="tema-terang">
 <script>
@@ -7505,6 +7640,10 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
       <button class="menu-btn biayamob" onclick="fbmBuka()">
         <span class="icon"><span class="oi oi-wallet" aria-hidden="true"></span></span>
         <span class="label">INPUT BIAYA OPERASIONAL</span>
+      </button>
+      <button class="menu-btn aiceo ceo-akses" onclick="ceoBuka()" style="display:none;">
+        <span class="icon"><span class="oi oi-bot" aria-hidden="true"></span></span>
+        <span class="label">PANEL AI CEO GUDANG</span>
       </button>
       <!-- Dipisah dari tombol scan (Keluar/Masuk) supaya tidak tersentuh saat operasional cepat -->
       <div class="menu-pemisah" aria-hidden="true"></div>
@@ -8584,6 +8723,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <a href="#persediaan/barangmasuk" class="web-nav-item web-nav-sub" data-persub="barangmasuk" onclick="persediaanBukaSub('barangmasuk', perBmTabAktif === 'memo' ? 'validasi' : perBmTabAktif)">Barang Masuk <span id="vm-nav-badge" class="vm-nav-badge" style="display:none;"></span></a>
             <a href="#persediaan/opname" class="web-nav-item web-nav-sub" data-persub="opname" onclick="persediaanBukaSub('opname')">Stock Opname</a>
             <a href="#persediaan/riwayat" class="web-nav-item web-nav-sub" data-persub="riwayat" onclick="persediaanBukaSub('riwayat')">Riwayat &amp; Log</a>
+            <a href="#" class="web-nav-item web-nav-sub ceo-nav-item ceo-akses" role="button" style="display:none;" onclick="event.preventDefault(); ceoBuka();"><span class="oi oi-bot" aria-hidden="true"></span>Panel AI CEO</a>
           </div>
         </div>
         <div class="web-nav-group">
@@ -13434,6 +13574,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <div class="oc-title">OmniAI Copilot</div>
           <div class="oc-subtitle" id="oc-konteks">Beranda</div>
         </div>
+        <button type="button" class="oc-icon-btn ceo-akses" style="display:none;" onclick="ceoBuka()" title="Panel AI CEO Gudang" aria-label="Buka Panel AI CEO Gudang"><span class="oi oi-bot" aria-hidden="true"></span></button>
         <button type="button" class="oc-icon-btn" id="oc-btn-full" onclick="ocToggleLayarPenuh()" title="Layar penuh" aria-label="Layar penuh" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
         <button type="button" class="oc-icon-btn" onclick="ocTutup()" title="Tutup (Esc)" aria-label="Tutup"><span class="oi oi-x" aria-hidden="true"></span></button>
       </div>
@@ -17584,12 +17725,14 @@ function ocLabelAksi(a) {
   if (act === 'CANCEL_SCHEDULED_TASK') return `🗑️ Batalkan Agenda ${p.task_id || ''}`;
   if (act === 'GET_SCHEDULED_TASKS') return `📅 Lihat Agenda Terjadwal${p.status && p.status !== 'SEMUA' ? ' (' + p.status + ')' : ''}${p.sku ? ' · ' + p.sku : ''}`;
   if (act === 'GET_ACTION_LOGS') return `📜 Lihat Log Aksi${p.sku ? ' · ' + p.sku : ''}`;
+  if (act === 'CREATE_RESTOCK_MEMO') return `Buat Memo Restock ${(p.items || []).map(x => x.sku + ' x' + x.qty).join(', ').slice(0, 80)}`;
+  if (act === 'GET_WAREHOUSE_SUMMARY') return `Lihat Ringkasan Gudang${p.tanggal ? ' ' + p.tanggal : ''}`;
   if (act === 'CHECK_SKU_MAPPING') return `🔎 Cek Mapping SKU ${p.sku || ''}${p.platform ? ' (' + p.platform + ')' : ''}`;
   return `${act || 'Aksi'} ${JSON.stringify(p).slice(0, 60)}`;
 }
 // Kebijakan Auto-Pilot di sisi UI (server tetap menjadi penentu akhir)
 // Aksi BACA: tidak mengubah data -> langsung dijalankan tanpa klik (hasilnya tampil di kartu & masuk riwayat chat)
-const OC_AKSI_BACA = new Set(['GET_SCHEDULED_TASKS', 'GET_ACTION_LOGS', 'CHECK_SKU_MAPPING']);
+const OC_AKSI_BACA = new Set(['GET_SCHEDULED_TASKS', 'GET_ACTION_LOGS', 'CHECK_SKU_MAPPING', 'GET_WAREHOUSE_SUMMARY']);
 function ocBolehAutoPilot(a) {
   const act = String(a.action || '').toUpperCase(), p = a.params || {};
   if (act === 'UPDATE_PRICE' || OC_AKSI_BACA.has(act)) return true;
@@ -43578,6 +43721,7 @@ function terapkanVisibilitasMenu() {
   tampilkan('.menu-btn.ledgerstock', izin.mintaStock);
   tampilkan('.menu-btn.invoice', izin.buatInvoice || izin.printLabel);
   tampilkan('.menu-btn.biayamob', izin.buatInvoice || currentUser.isOwner);
+  tampilkan('.ceo-akses', izin.buatInvoice || currentUser.isOwner); // Panel AI CEO Gudang (menu HP, sidebar web, header Copilot)
 
   // Label tombol Pesanan Manual beda tergantung izin
   const labelInvoice = document.querySelector('.menu-btn.invoice .label');
@@ -58722,6 +58866,339 @@ async function smpKirim() {
   smpRender();
 }
 </script>
+
+<!-- ===================== PANEL KONFIRMASI AI CEO (Gudang) ===================== -->
+<div id="ceo-modal" class="ceo-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="ceo-judul" onclick="if (event.target === this) ceoTutup()">
+  <div class="ceo-kartu">
+    <div class="ceo-header">
+      <div class="ceo-avatar" aria-hidden="true"><span class="oi oi-bot" aria-hidden="true"></span></div>
+      <div class="ceo-header-teks">
+        <div class="ceo-judul" id="ceo-judul">AI CEO · Gudang</div>
+        <div class="ceo-sub" id="ceo-sub">Laporan harian & keputusan Jaya</div>
+      </div>
+      <button type="button" class="ceo-ikon-btn" id="ceo-btn-perbarui" onclick="ceoPerbarui()" title="Hitung ulang data gudang" aria-label="Perbarui data"><span class="oi oi-refresh" aria-hidden="true"></span></button>
+      <button type="button" class="ceo-ikon-btn" onclick="ceoTutup()" title="Tutup (Esc)" aria-label="Tutup"><span class="oi oi-x" aria-hidden="true"></span></button>
+    </div>
+
+    <div class="ceo-body">
+      <!-- 1. Panel Ringkasan -->
+      <section class="ceo-seksi" aria-labelledby="ceo-ringkasan-judul">
+        <div class="ceo-seksi-judul" id="ceo-ringkasan-judul"><span class="oi oi-chart" aria-hidden="true"></span> Ringkasan Gudang <span class="ceo-meta" id="ceo-ringkasan-meta"></span></div>
+        <div id="ceo-ringkasan"></div>
+      </section>
+
+      <!-- 2. Panel Rekomendasi AI -->
+      <section class="ceo-seksi" aria-labelledby="ceo-rek-judul">
+        <div class="ceo-seksi-judul" id="ceo-rek-judul"><span class="oi oi-sparkle" aria-hidden="true"></span> Rekomendasi AI
+          <span class="ceo-meta" id="ceo-rek-meta"></span>
+          <button type="button" class="ceo-link-btn" id="ceo-btn-analisa-ulang" onclick="ceoMuatAnalisa(true)" title="Minta Jaya menganalisa ulang (memakai token AI)">Analisa ulang</button>
+        </div>
+        <div id="ceo-rekomendasi"></div>
+      </section>
+    </div>
+
+    <!-- 3. Tombol Kontrol -->
+    <div class="ceo-footer">
+      <input type="text" id="ceo-catatan-tolak" class="ceo-catatan-tolak" maxlength="300" placeholder="Catatan untuk Jaya (opsional, ikut terkirim saat Tolak)">
+      <div class="ceo-footer-baris">
+        <div class="ceo-footer-info" id="ceo-footer-info" aria-live="polite"></div>
+        <button type="button" class="ceo-btn ceo-btn-tolak" id="ceo-btn-tolak" onclick="ceoTolak()" disabled><span class="oi oi-ban" aria-hidden="true"></span> Tolak</button>
+        <button type="button" class="ceo-btn ceo-btn-setuju" id="ceo-btn-setuju" onclick="ceoSetujui()" disabled><span class="oi oi-check" aria-hidden="true"></span> Setujui &amp; Eksekusi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PANEL KONFIRMASI AI CEO (Gudang)
+   1) ringkasan_gudang_harian  -> Panel Ringkasan (cepat, dari snapshot server)
+   2) analisa_ceo_gudang       -> Panel Rekomendasi (keputusan Jaya, di-cache per snapshot di server)
+   3) Setujui & Eksekusi       -> execute_ai_action (jalur yang sama dengan Copilot: izin, guardrail, Execution_Logs)
+      Tolak                    -> catat_tolak_ceo (REJECTED_USER, dibaca Jaya di analisa berikutnya)
+   Semua indikator loading LOKAL di dalam panel - tidak ada loading layar penuh.
+   ============================================================ */
+const CEO_STATUS_KEY = 'omni_ceo_status_v1';
+const ceo = { ringkasan: null, analisa: null, status: {}, sibuk: false, muatRingkasan: false, muatAnalisa: false };
+try { ceo.status = JSON.parse(localStorage.getItem(CEO_STATUS_KEY) || '{}') || {}; } catch (e) { ceo.status = {}; }
+
+function ceoBoleh() { return typeof aiaBolehEksekusi === 'function' ? aiaBolehEksekusi() : !!(currentUser && currentUser.isOwner); }
+function ceoEsc(v) { return typeof escapeHtml === 'function' ? escapeHtml(String(v == null ? '' : v)) : String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function ceoAngka(n) { return (Number(n) || 0).toLocaleString('id-ID'); }
+function ceoJam(iso) { try { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+function ceoTglPanjang(t) { try { return new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }); } catch (e) { return t; } }
+function ceoSimpanStatus_() {
+  try {
+    const kunci = Object.keys(ceo.status);
+    if (kunci.length > 60) kunci.slice(0, kunci.length - 60).forEach(k => delete ceo.status[k]);
+    localStorage.setItem(CEO_STATUS_KEY, JSON.stringify(ceo.status));
+  } catch (e) { }
+}
+function ceoIdKeputusan_(i) { return 'ceo-' + String((ceo.analisa && ceo.analisa.kunciSnapshot) || 'x').replace(/[^A-Za-z0-9_]/g, '').slice(-40) + '-' + i; }
+
+/* ---------- Buka / tutup ---------- */
+function ceoBuka() {
+  if (!ceoBoleh()) { omniToast('Panel AI CEO khusus Owner / Admin Keuangan.', 'peringatan'); return; }
+  const m = el('ceo-modal');
+  if (typeof ocTutup === 'function' && el('oc-window') && !el('oc-window').hidden) { try { ocTutup(); } catch (e) { } }
+  m.hidden = false;
+  document.body.classList.add('ceo-buka');
+  requestAnimationFrame(() => m.classList.add('ceo-tampil'));
+  document.addEventListener('keydown', ceoEsc_);
+  if (ceo.ringkasan) { ceoRenderRingkasan(); ceoRenderRekomendasi(); }
+  ceoMuatRingkasan(false);
+}
+function ceoTutup() {
+  const m = el('ceo-modal');
+  if (!m || m.hidden) return;
+  m.classList.remove('ceo-tampil');
+  document.body.classList.remove('ceo-buka');
+  document.removeEventListener('keydown', ceoEsc_);
+  setTimeout(() => { if (!m.classList.contains('ceo-tampil')) m.hidden = true; }, 180);
+}
+function ceoEsc_(e) { if (e.key === 'Escape' && !ceo.sibuk) ceoTutup(); }
+
+/* ---------- Muat data ---------- */
+async function ceoMuatRingkasan(segar) {
+  if (ceo.muatRingkasan) return;
+  ceo.muatRingkasan = true;
+  const btn = el('ceo-btn-perbarui');
+  btn.disabled = true; btn.classList.add('ceo-putar');
+  if (!ceo.ringkasan) el('ceo-ringkasan').innerHTML = '<div class="ceo-kpi"><div class="ceo-skel"></div><div class="ceo-skel"></div><div class="ceo-skel"></div><div class="ceo-skel"></div></div><div class="ceo-skel pendek" style="margin-top:10px"></div>';
+  let r = null;
+  try { r = await postJson({ aksi: 'ringkasan_gudang_harian', email: currentUserEmail(), segar: !!segar }, 180000, true); }
+  catch (e) { r = { success: false, error: e.message || String(e) }; }
+  ceo.muatRingkasan = false;
+  btn.disabled = false; btn.classList.remove('ceo-putar');
+  if (!r || !r.success) {
+    if (!ceo.ringkasan) el('ceo-ringkasan').innerHTML = `<div class="ceo-error">Ringkasan gagal dimuat: ${ceoEsc((r && r.error) || 'tidak ada respons')} <button type="button" class="ceo-link-btn" onclick="ceoMuatRingkasan(true)">Coba lagi</button></div>`;
+    else omniToast('Ringkasan gagal diperbarui: ' + ((r && r.error) || ''), 'peringatan');
+    return;
+  }
+  const berubah = !ceo.ringkasan || ceo.ringkasan.dibuat !== r.ringkasan.dibuat;
+  ceo.ringkasan = r.ringkasan;
+  ceoRenderRingkasan();
+  if (berubah || !ceo.analisa) ceoMuatAnalisa(false);
+}
+
+async function ceoMuatAnalisa(segar) {
+  if (ceo.muatAnalisa) return;
+  ceo.muatAnalisa = true;
+  const btn = el('ceo-btn-analisa-ulang');
+  btn.disabled = true;
+  el('ceo-rek-meta').textContent = 'Jaya sedang menganalisa…';
+  el('ceo-rekomendasi').innerHTML = '<div class="ceo-skel pendek"></div><div class="ceo-skel" style="margin-top:8px"></div>';
+  ceoPerbaruiTombol();
+  let r = null;
+  try { r = await postJson({ aksi: 'analisa_ceo_gudang', email: currentUserEmail(), segar: !!segar }, 180000, true); }
+  catch (e) { r = { success: false, error: e.message || String(e) }; }
+  ceo.muatAnalisa = false;
+  btn.disabled = false;
+  if (!r || !r.success) {
+    el('ceo-rek-meta').textContent = '';
+    el('ceo-rekomendasi').innerHTML = `<div class="ceo-error">Analisa gagal: ${ceoEsc((r && r.error) || 'tidak ada respons')} <button type="button" class="ceo-link-btn" onclick="ceoMuatAnalisa(false)">Coba lagi</button></div>`;
+    ceoPerbaruiTombol();
+    return;
+  }
+  if (r.ringkasan && (!ceo.ringkasan || r.ringkasan.dibuat !== ceo.ringkasan.dibuat)) { ceo.ringkasan = r.ringkasan; ceoRenderRingkasan(); }
+  ceo.analisa = r.analisa;
+  (ceo.analisa.keputusan || []).forEach((k, i) => { k.__id = ceoIdKeputusan_(i); k.__pilih = !ceo.status[k.__id]; });
+  ceoRenderRekomendasi();
+}
+
+function ceoPerbarui() { ceo.analisa = null; ceoMuatRingkasan(true); }
+
+/* ---------- Render: Panel Ringkasan ---------- */
+const CEO_LABEL_FLAG = {
+  OUTBOUND_NOL: 'Belum ada resi keluar', OUTBOUND_TURUN: 'Resi keluar turun', OUTBOUND_NAIK: 'Resi keluar naik',
+  PENDING_TUA: 'Pending > 2 hari', RESI_TANPA_PESANAN: 'Resi tanpa pesanan', RETUR_TINGGI: 'Retur tinggi',
+  HILANG_RUSAK: 'Ada hilang/rusak', STOK_HABIS_ADA_PESANAN: 'Habis tapi ada pesanan', STOK_KRITIS: 'Stok kritis',
+  DATA_TIDAK_LENGKAP: 'Sebagian data gagal dihitung'
+};
+function ceoRenderRingkasan() {
+  const R = ceo.ringkasan;
+  if (!R) return;
+  const k = R.keluar || {}, m = R.masuk || {}, kd = R.kendala || {}, s = R.stok || { jumlah: {} }, j = s.jumlah || {};
+  el('ceo-sub').textContent = `${ceoTglPanjang(R.tanggal)}${R.hariBerjalan ? ' · hari berjalan' : ''}`;
+  el('ceo-ringkasan-meta').textContent = 'Data per ' + ceoJam(R.dibuat);
+  const delta = (k.deltaPct === null || k.deltaPct === undefined) ? 'belum ada pembanding'
+    : `<span class="${k.deltaPct >= 0 ? 'ceo-naik' : 'ceo-turun'}">${k.deltaPct >= 0 ? '+' : ''}${k.deltaPct}%</span> vs rata-rata 7 hari (${ceoAngka(k.rata7Hari)})`;
+  const pend = kd.pending || {};
+  const detailKendala = [
+    kd.retur ? kd.retur + ' retur' : '', pend.total ? pend.total + ' pending' : '',
+    kd.resiTanpaPesanan && kd.resiTanpaPesanan.jumlah ? kd.resiTanpaPesanan.jumlah + ' resi tanpa pesanan' : '',
+    kd.hilangRusak && kd.hilangRusak.memo ? kd.hilangRusak.qty + ' pcs hilang/rusak' : ''
+  ].filter(Boolean).join(' · ') || 'tidak ada kendala';
+  const kurir = Object.entries(k.perKurir || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, v]) => `${n} ${v}`).join(' · ');
+  let html = `
+    <div class="ceo-kpi">
+      <div class="ceo-kpi-item"><div class="ceo-kpi-label"><span class="oi oi-upload" aria-hidden="true"></span> Resi keluar</div>
+        <div class="ceo-kpi-nilai">${ceoAngka(k.resiScan)}</div><div class="ceo-kpi-ket" title="${ceoEsc(kurir)}">${delta}</div></div>
+      <div class="ceo-kpi-item"><div class="ceo-kpi-label"><span class="oi oi-alert" aria-hidden="true"></span> Kendala aktif</div>
+        <div class="ceo-kpi-nilai">${ceoAngka(kd.totalKendalaAktif)}</div><div class="ceo-kpi-ket" title="${ceoEsc(detailKendala)}">${ceoEsc(detailKendala)}</div></div>
+      <div class="ceo-kpi-item"><div class="ceo-kpi-label"><span class="oi oi-redo" aria-hidden="true"></span> Rasio retur</div>
+        <div class="ceo-kpi-nilai">${m.returRatePct === null || m.returRatePct === undefined ? '-' : m.returRatePct + '%'}</div>
+        <div class="ceo-kpi-ket">7 hari: ${m.returRate7HariPct === null || m.returRate7HariPct === undefined ? '-' : m.returRate7HariPct + '%'} · stok masuk ${ceoAngka(m.stockMasukScan)}</div></div>
+      <div class="ceo-kpi-item"><div class="ceo-kpi-label"><span class="oi oi-box" aria-hidden="true"></span> Stok perlu tindakan</div>
+        <div class="ceo-kpi-nilai">${ceoAngka((j.HABIS || 0) + (j.KRITIS || 0))}</div>
+        <div class="ceo-kpi-ket">${j.HABIS || 0} habis · ${j.KRITIS || 0} kritis · ${j.MENIPIS || 0} menipis</div></div>
+    </div>`;
+  const flags = (R.flags || []).filter(f => f !== 'STOK_KRITIS');
+  if (flags.length) html += `<div class="ceo-flag-wrap">${flags.map(f => `<span class="ceo-flag${f === 'OUTBOUND_NAIK' ? ' info' : ''}">${ceoEsc(CEO_LABEL_FLAG[f] || f)}</span>`).join('')}</div>`;
+
+  // Daftar SKU kritis (format kolom+baris dari server)
+  if (s.kolom && s.data && s.data.length) {
+    const ix = {}; s.kolom.forEach((c, i) => ix[c] = i);
+    html += `<div class="ceo-stok-list">` + s.data.slice(0, 8).map(r => `
+      <div class="ceo-stok-baris">
+        <div class="ceo-stok-nama">${ceoEsc(r[ix.nama] || r[ix.sku])}<small>${ceoEsc(r[ix.sku])} · terjual ${ceoAngka(r[ix.jual30])}/30 hari</small></div>
+        <div class="ceo-angka">tersedia <b>${ceoAngka(r[ix.avail])}</b></div>
+        <div class="ceo-angka ceo-sembunyi-hp">${r[ix.hariSisa] === null ? '-' : 'sisa <b>' + r[ix.hariSisa] + '</b> hr'}</div>
+        <span class="ceo-pill ${ceoEsc(r[ix.status])}">${ceoEsc(r[ix.status])}</span>
+      </div>`).join('') + `</div>`;
+    if (s.data.length > 8 || s.tidakDitampilkan) html += `<div class="ceo-catatan-val">+${(s.data.length - Math.min(8, s.data.length)) + (s.tidakDitampilkan || 0)} SKU lain perlu dipantau (lihat Persediaan &gt; Monitor Stok).</div>`;
+  } else if (s.metode) {
+    html += `<div class="ceo-kosong">Semua stok aman untuk ${s.parameter ? s.parameter.hariMenipis : 7} hari ke depan.</div>`;
+  }
+  if (s.metode === 'mock-ambang-unit') html += `<div class="ceo-catatan-val">Belum ada data penjualan 30 hari - status stok memakai ambang unit sementara.</div>`;
+  el('ceo-ringkasan').innerHTML = html;
+}
+
+/* ---------- Render: Panel Rekomendasi AI ---------- */
+function ceoRenderRekomendasi() {
+  const A = ceo.analisa, wadah = el('ceo-rekomendasi');
+  if (!A) { ceoPerbaruiTombol(); return; }
+  const sumber = A.sumber === 'jaya'
+    ? `Jaya · ${ceoEsc(A.model || '')}${A.token ? ' · ' + ceoAngka((A.token.in || 0) + (A.token.out || 0)) + ' token' : ''}${A.dariCache ? ' · tersimpan' : ''}`
+    : 'Saran sistem (AI tidak tersedia)';
+  el('ceo-rek-meta').textContent = sumber;
+  let html = `<div class="ceo-eksekutif">${ceoEsc(A.ringkasanEksekutif || 'Tidak ada catatan.')}`;
+  if (A.skorKesehatan !== null && A.skorKesehatan !== undefined) html += `<div class="ceo-skor">Skor kesehatan gudang <span class="ceo-skor-bar"><span style="width:${Math.max(0, Math.min(100, A.skorKesehatan))}%"></span></span> <b>${A.skorKesehatan}</b>/100</div>`;
+  html += `</div>`;
+
+  const daftar = A.keputusan || [];
+  if (!daftar.length) html += `<div class="ceo-kosong">Tidak ada aksi yang perlu dieksekusi saat ini.</div>`;
+  else html += `<div class="ceo-keputusan-list">` + daftar.map((k, i) => {
+    const st = ceo.status[k.__id];
+    const selesai = !!st;
+    const judul = String(k.judul || '').replace(/^saran:\s*/i, '');
+    const items = (k.detailItem || []).map((it, n) => `
+      <div class="ceo-kep-item-baris">
+        <div class="ceo-stok-nama">${ceoEsc(it.nama || it.sku)} <small>${ceoEsc(it.sku)} · tersedia ${ceoAngka(it.avail)} · saran sistem ${ceoAngka(it.saranQty)}</small></div>
+        <span class="ceo-pill ${ceoEsc(it.status)}">${ceoEsc(it.status)}</span>
+        <input type="number" class="ceo-qty" min="1" step="1" inputmode="numeric" value="${Number(it.qty) || 1}" aria-label="Qty ${ceoEsc(it.sku)}"
+          data-k="${i}" data-n="${n}" oninput="ceoUbahQty(this)" ${selesai ? 'disabled' : ''}>
+      </div>`).join('');
+    return `
+      <div class="ceo-keputusan${k.__pilih && !selesai ? ' dipilih' : ''}${selesai ? ' selesai' : ''}" id="${k.__id}">
+        <div class="ceo-kep-atas">
+          <input type="checkbox" ${k.__pilih && !selesai ? 'checked' : ''} ${selesai ? 'disabled' : ''} onchange="ceoPilih(${i}, this.checked)" aria-label="Pilih keputusan ${i + 1}">
+          <div class="ceo-kep-judul"><span class="ceo-saran">Saran:</span> ${ceoEsc(judul)}</div>
+          <span class="ceo-pill ${ceoEsc(k.prioritas)}">${ceoEsc(k.prioritas || 'sedang')}</span>
+        </div>
+        ${k.alasan ? `<div class="ceo-kep-alasan">${ceoEsc(k.alasan)}</div>` : ''}
+        <div class="ceo-kep-item">${items}</div>
+        <div class="ceo-kep-status ${st ? ceoEsc(st.jenis) : ''}">${st ? ceoEsc(st.teks) : ''}</div>
+      </div>`;
+  }).join('') + `</div>`;
+
+  if ((A.perhatian || []).length) html += `<ul class="ceo-perhatian">${A.perhatian.map(p => `<li>${ceoEsc(p)}</li>`).join('')}</ul>`;
+  if ((A.catatanValidasi || []).length) html += `<div class="ceo-catatan-val">Disaring sistem: ${ceoEsc(A.catatanValidasi.join('; '))}</div>`;
+  wadah.innerHTML = html;
+  ceoPerbaruiTombol();
+}
+
+function ceoPilih(i, nilai) {
+  const k = ceo.analisa && ceo.analisa.keputusan[i];
+  if (!k) return;
+  k.__pilih = !!nilai;
+  const kartu = el(k.__id);
+  if (kartu) kartu.classList.toggle('dipilih', !!nilai);
+  ceoPerbaruiTombol();
+}
+function ceoUbahQty(inp) {
+  const k = ceo.analisa && ceo.analisa.keputusan[+inp.dataset.k];
+  if (!k) return;
+  const n = +inp.dataset.n, q = Math.round(Number(inp.value));
+  if (k.detailItem[n]) k.detailItem[n].qty = q;
+  if (k.params.items[n]) k.params.items[n].qty = q;
+  inp.style.borderColor = q > 0 ? '' : 'var(--web-warning)';
+  ceoPerbaruiTombol();
+}
+function ceoTerpilih_() {
+  return ((ceo.analisa && ceo.analisa.keputusan) || []).filter(k => k.__pilih && !ceo.status[k.__id]);
+}
+function ceoPerbaruiTombol() {
+  const pilih = ceoTerpilih_();
+  const qtyValid = pilih.every(k => (k.params.items || []).every(x => Number(x.qty) > 0));
+  const blok = ceo.sibuk || ceo.muatAnalisa || !pilih.length;
+  el('ceo-btn-setuju').disabled = blok || !qtyValid;
+  el('ceo-btn-tolak').disabled = blok;
+  const sisa = ((ceo.analisa && ceo.analisa.keputusan) || []).filter(k => !ceo.status[k.__id]).length;
+  el('ceo-footer-info').textContent = ceo.muatAnalisa ? 'Menunggu keputusan Jaya…'
+    : !ceo.analisa ? '' : !sisa ? 'Semua keputusan sudah ditangani.'
+    : !qtyValid ? 'Qty harus lebih dari 0.' : `${pilih.length} dari ${sisa} keputusan dipilih.`;
+}
+function ceoSetStatus_(k, jenis, teks) {
+  ceo.status[k.__id] = { jenis, teks, waktu: Date.now() };
+  ceoSimpanStatus_();
+}
+function ceoSetSibukTombol_(btn, sibuk, teksAsli) {
+  if (sibuk) { btn.dataset.asli = btn.innerHTML; btn.innerHTML = '<span class="ceo-spin" aria-hidden="true"></span> ' + teksAsli; }
+  else if (btn.dataset.asli) btn.innerHTML = btn.dataset.asli;
+}
+
+/* ---------- Tombol Kontrol ---------- */
+async function ceoSetujui() {
+  const pilih = ceoTerpilih_();
+  if (!pilih.length || ceo.sibuk) return;
+  ceo.sibuk = true;
+  const btn = el('ceo-btn-setuju');
+  ceoSetSibukTombol_(btn, true, 'Mengeksekusi…');
+  ceoPerbaruiTombol();
+  let ok = 0, gagal = 0;
+  for (const k of pilih) {
+    const kartu = el(k.__id), stEl = kartu && kartu.querySelector('.ceo-kep-status');
+    if (stEl) { stEl.className = 'ceo-kep-status'; stEl.textContent = 'Mengeksekusi…'; }
+    let r;
+    try {
+      r = await ocPanggilEksekutor({ tool_call: 'execute_action', action: k.action, params: k.params, sumber: 'AI', mode: 'manual', actionId: k.__id });
+    } catch (e) { r = { success: false, status: 'FAILED', pesan: e.message || String(e) }; }
+    const status = (r && r.status) || 'FAILED', pesan = (r && (r.pesan || r.error)) || 'tidak ada respons';
+    if (status === 'SUCCESS') { ok++; ceoSetStatus_(k, 'ok', 'Dieksekusi · ' + pesan); }
+    else if (/^REJECTED/.test(status)) { gagal++; ceoSetStatus_(k, 'gagal', 'Ditolak sistem · ' + pesan); }
+    else { gagal++; if (stEl) { stEl.className = 'ceo-kep-status gagal'; stEl.textContent = 'Gagal · ' + pesan + ' (boleh dicoba lagi)'; } }
+    if (typeof ocRiwayatChat !== 'undefined') ocRiwayatChat.push({ role: 'user', content: `[HASIL EKSEKUSI SISTEM] Panel AI CEO: ${k.judul} -> ${status}: ${pesan}`, waktu: new Date().toISOString() });
+  }
+  ceo.sibuk = false;
+  ceoSetSibukTombol_(btn, false);
+  ceoRenderRekomendasi();
+  if (ok) omniToast(ok + ' keputusan berhasil dieksekusi' + (gagal ? ', ' + gagal + ' gagal' : '') + '.', gagal ? 'peringatan' : 'sukses');
+  else if (gagal) omniToast('Eksekusi gagal - lihat keterangan di kartu.', 'peringatan');
+}
+
+async function ceoTolak() {
+  const pilih = ceoTerpilih_();
+  if (!pilih.length || ceo.sibuk) return;
+  ceo.sibuk = true;
+  const btn = el('ceo-btn-tolak'), catatan = el('ceo-catatan-tolak').value.trim();
+  ceoSetSibukTombol_(btn, true, 'Mencatat…');
+  ceoPerbaruiTombol();
+  let r;
+  try {
+    r = await postJson({ aksi: 'catat_tolak_ceo', email: currentUserEmail(), alasan: catatan,
+      keputusan: pilih.map(k => ({ action: k.action, params: k.params, judul: k.judul, alasan: k.alasan })) }, 30000, true);
+  } catch (e) { r = { success: false, error: e.message || String(e) }; }
+  ceo.sibuk = false;
+  ceoSetSibukTombol_(btn, false);
+  if (!r || !r.success) { ceoPerbaruiTombol(); omniToast('Penolakan gagal dicatat: ' + ((r && r.error) || ''), 'peringatan'); return; }
+  pilih.forEach(k => ceoSetStatus_(k, '', 'Ditolak' + (catatan ? ' · ' + catatan : '') + ' - Jaya akan memperhitungkannya di analisa berikutnya.'));
+  el('ceo-catatan-tolak').value = '';
+  ceoRenderRekomendasi();
+  omniToast(pilih.length + ' keputusan ditolak & dicatat.', 'info');
+}
+</script>
+<!-- =================== /PANEL KONFIRMASI AI CEO =================== -->
 
 </body>
 </html>
