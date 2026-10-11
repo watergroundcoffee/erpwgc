@@ -161,6 +161,7 @@
         <div class="baris-aksi" style="margin-top:0">
           <button class="btn" id="btnMuatLama">Muat daftar tab</button>
           <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="ikutProperti" checked> Sertakan Script Properties</label>
+          <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="ikutMemori" checked> Sertakan memori AI Copilot</label>
           <label style="display:flex;gap:6px;align-items:center">Potongan
             <select id="ukuranPotLama" style="width:auto"><option>500</option><option selected>1000</option><option>2000</option></select> baris</label>
         </div>
@@ -460,6 +461,7 @@ function laporan(daftar, sumber, ekstra) {
 let daftarLama = [];
 const kontrolLama = { berhenti: false };
 let hasilProperti = null;
+let hasilMemori = null;
 el('btnMuatLama').addEventListener('click', async () => {
   const b = el('btnMuatLama'); b.disabled = true; status('stSalin', 'Memuat daftar tab dari sistem lama...');
   try {
@@ -488,11 +490,23 @@ el('btnSalin').addEventListener('click', async () => {
         hasilProperti = { jumlah: h.jumlah, cocok: h.cocok, beda: h.beda };
         if (!h.cocok) throw new Error('Script Properties tidak tersimpan sempurna: ' + h.beda.join(', '));
       } : null);
+    if (el('ikutMemori').checked && !kontrolLama.berhenti) {
+      const sebelumnya = el('stSalin').textContent;
+      status('stSalin', 'Menyalin memori AI Copilot...');
+      try {
+        const m = await lama('migrasi_ambil_memori');
+        if (m.ada) { const h = await baru('migrasi_simpan_memori', { isi: m.isi }); hasilMemori = { ukuran: h.ukuran }; status('stSalin', sebelumnya + ` Memori AI Copilot ikut disalin (${fmt(h.ukuran)} karakter).`, 'ok'); }
+        else { hasilMemori = { ada: false }; status('stSalin', sebelumnya + ' (Belum ada memori AI Copilot di sistem lama.)', 'ok'); }
+      } catch (eM) {
+        if (/Aksi tidak dikenali/.test(eM.message)) eM.message = 'Code.gs lama belum diperbarui dengan aksi migrasi_ambil_memori (deploy ulang Web App).';
+        status('stSalin', sebelumnya + ' Memori AI GAGAL disalin: ' + eM.message, 'galat');
+      }
+    }
   } catch (e) { status('stSalin', e.message, 'galat'); }
   finally { el('btnSalin').disabled = false; el('btnHentiLama').disabled = true; el('btnMuatLama').disabled = false; el('btnLaporanLama').disabled = false; }
 });
 el('btnHentiLama').addEventListener('click', () => { kontrolLama.berhenti = true; status('stSalin', 'Menghentikan setelah potongan yang sedang berjalan...'); });
-el('btnLaporanLama').addEventListener('click', () => unduh('laporan-migrasi-api-' + Date.now() + '.json', laporan(daftarLama, 'api', { scriptProperties: hasilProperti })));
+el('btnLaporanLama').addEventListener('click', () => unduh('laporan-migrasi-api-' + Date.now() + '.json', laporan(daftarLama, 'api', { scriptProperties: hasilProperti, memoriAI: hasilMemori })));
 
 /* =====================================================================
    JALUR 2: FILE EXCEL
