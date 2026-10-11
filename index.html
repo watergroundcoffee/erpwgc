@@ -13,6 +13,602 @@
   } catch (e) { }
 })();
 </script>
+<script>
+/* =====================================================================================
+   STATISTIK PENGGUNA (OmniAI Analitik) v2026.10.12
+   Merekam cara aplikasi dipakai - TANPA memperlambat aplikasi:
+     - semua catatan disimpan dulu di memori + IndexedDB perangkat (ditulis per 1,5 detik, bukan per catatan)
+     - dikirim diam-diam ke backend (aksi "analitik_kirim") tiap 5 menit / tiap 50 catatan / saat aplikasi
+       disembunyikan atau ditutup (navigator.sendBeacon) - mana yang lebih dulu
+     - offline: tetap tersimpan, dikirim saat online lagi. Tiap catatan punya id unik -> server menolak dobel
+   Yang direkam: aksi ke backend (nama, berhasil/gagal, pesan error, durasi, jaringan vs server), kunjungan
+   halaman & lama dipakai, waktu muat halaman & aplikasi, klik tombol, pencarian, filter, form yang ditinggal,
+   error JavaScript, aplikasi macet (long task), pesan error yang dilihat staff, scan resi end-to-end.
+   TIDAK direkam: password, token sesi, foto/base64, kunci API, nomor HP & alamat pembeli (disamarkan).
+   Cek dari Console browser: omxAnalitik.status()
+   ===================================================================================== */
+(function () {
+  'use strict';
+  if (window.omxAnalitik) return;
+  var VERSI = 'v2026.10.12-a';
+  var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
+  var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
+  var A = {
+    antre: new Map(), tulisBuf: [], hapusBuf: [], db: null, dbSiap: null, tulisTimer: 0,
+    sedangKirim: false, terakhirKirim: Date.now(), gagalBeruntun: 0, jedaSampai: 0, n: 0,
+    lokasi: 'memuat', halaman: null, ukurMuat: null, klikTerakhir: 0, macet: { n: 0, total: 0, maks: 0 },
+    error: {}, nError: 0, offlineSejak: 0, idpDilihat: new Set(), formKotor: new Map(), cariTimer: new WeakMap(), cariAkhir: new WeakMap(),
+    rage: { el: null, n: 0, t: 0 }, siapDicatat: false, sentuh: 0, kirimJalan: 0, inflight: new Set(), baruSelesai: []
+  };
+  function sekarang() { return Date.now(); }
+  function acak(n) {
+    var c = 'abcdefghijklmnopqrstuvwxyz0123456789', s = '', b = null;
+    try { b = crypto.getRandomValues(new Uint8Array(n)); } catch (e) { }
+    for (var i = 0; i < n; i++) s += c[(b ? b[i] : Math.floor(Math.random() * 256)) % 36];
+    return s;
+  }
+  function bulat(v) { var x = Number(v); return isFinite(x) && v !== null && v !== undefined && v !== '' ? Math.round(x) : undefined; }
+  function bersih(v, maks) {
+    if (v === null || v === undefined) return '';
+    var s = String(v)
+      .replace(/data:[a-z0-9.+\/-]+;base64,[A-Za-z0-9+\/=]+/gi, '[data]')
+      .replace(/[A-Za-z0-9+\/=_-]{120,}/g, '[panjang]')
+      .replace(/(\+?62|\b0)8[0-9 .-]{7,14}[0-9]/g, '[nomor-hp]')
+      .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
+      .replace(/\s+/g, ' ').trim();
+    return s.length > (maks || 200) ? s.slice(0, maks || 200) : s;
+  }
+  function pengguna() { try { if (typeof currentUser !== 'undefined' && currentUser) return currentUser; } catch (e) { } return null; }
+  function token() { var u = pengguna(); return (u && u.sessionToken) || ''; }
+  function urlServer() { try { if (typeof WEB_APP_URL !== 'undefined' && WEB_APP_URL) return WEB_APP_URL; } catch (e) { } return URL_CADANGAN; }
+  function koneksi() {
+    if (navigator.onLine === false) return 'offline';
+    try { var c = navigator.connection; if (c && c.effectiveType) return c.effectiveType; } catch (e) { }
+    return 'online';
+  }
+  function terlihat(el) { return !!(el && el.getClientRects && el.getClientRects().length); }
+
+  /* ---------- Sesi & konteks ---------- */
+  var sesi = '', sesiMulai = sekarang();
+  function sesiBaru() {
+    sesi = 'S' + sekarang().toString(36) + acak(5); sesiMulai = sekarang();
+    try { sessionStorage.setItem('omx_an_sesi', sesi); sessionStorage.setItem('omx_an_mulai', String(sesiMulai)); } catch (e) { }
+  }
+  (function () {
+    var id = '', akhir = 0, mulai = 0;
+    try { id = sessionStorage.getItem('omx_an_sesi') || ''; akhir = +sessionStorage.getItem('omx_an_akhir') || 0; mulai = +sessionStorage.getItem('omx_an_mulai') || 0; } catch (e) { }
+    if (id && sekarang() - akhir < SESI_DIAM_MS) { sesi = id; sesiMulai = mulai || sekarang(); } else sesiBaru();
+  })();
+  function sentuhSesi(t) {
+    if (t - A.sentuh < 5000) return;
+    if (A.sentuh && t - A.sentuh > SESI_DIAM_MS) sesiBaru(); // lama tidak dipakai -> sesi baru
+    A.sentuh = t;
+    try { sessionStorage.setItem('omx_an_akhir', String(t)); } catch (e) { }
+  }
+  function infoUa() {
+    var ua = navigator.userAgent || '', m, os = 'Lainnya', br = 'Lainnya', jp = 'Laptop/PC';
+    if ((m = /Android ([0-9]+)/.exec(ua))) os = 'Android ' + m[1];
+    else if ((m = /(?:iPhone|iPad|iPod).*? OS ([0-9]+)/.exec(ua))) os = 'iOS ' + m[1];
+    else if (/Windows NT/.test(ua)) os = 'Windows';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/CrOS/.test(ua)) os = 'ChromeOS';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    if ((m = /Edg(?:A|iOS)?\/([0-9]+)/.exec(ua))) br = 'Edge ' + m[1];
+    else if ((m = /SamsungBrowser\/([0-9]+)/.exec(ua))) br = 'Samsung Internet ' + m[1];
+    else if ((m = /OPR\/([0-9]+)/.exec(ua))) br = 'Opera ' + m[1];
+    else if ((m = /(?:Firefox|FxiOS)\/([0-9]+)/.exec(ua))) br = 'Firefox ' + m[1];
+    else if ((m = /CriOS\/([0-9]+)/.exec(ua))) br = 'Chrome ' + m[1];
+    else if ((m = /Chrome\/([0-9]+)/.exec(ua))) br = 'Chrome ' + m[1];
+    else if ((m = /Version\/([0-9]+).*Safari/.exec(ua))) br = 'Safari ' + m[1];
+    if (/iPad|Tablet|PlayBook|Silk/i.test(ua) || (/Android/.test(ua) && !/Mobile/.test(ua)) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) jp = 'Tablet';
+    else if (/Mobi|iPhone|iPod|Android/i.test(ua)) jp = 'HP';
+    return { os: os, browser: br, jenis_perangkat: jp };
+  }
+  var UA = infoUa();
+  var tglFile = (function () { try { var d = new Date(document.lastModified); return isNaN(d) ? '' : d.toISOString().slice(0, 16).replace('T', ' '); } catch (e) { return ''; } })();
+  function konteks(id) {
+    var u = pengguna();
+    return {
+      id: id || sesi, email: (u && u.email) || '', nama: (u && u.nama) || '', role: (u && (u.role || (u.isOwner ? 'Owner' : ''))) || '',
+      tampilan: document.documentElement.classList.contains('omni-mobile') ? 'mobile' : 'web',
+      jenis_perangkat: UA.jenis_perangkat, os: UA.os, browser: UA.browser,
+      layar: (screen.width || 0) + 'x' + (screen.height || 0) + ' @' + (window.devicePixelRatio || 1).toFixed(1) + ' · jendela ' + innerWidth + 'x' + innerHeight,
+      versi: VERSI + (tglFile ? ' · file ' + tglFile : ''), mulai: sesiMulai
+    };
+  }
+  // konteks sesi-sesi lama yang catatannya belum terkirim (disimpan kecil di localStorage)
+  var KUNCI_KTX = 'omx_an_konteks';
+  function simpanKonteks() {
+    try {
+      var semua = JSON.parse(localStorage.getItem(KUNCI_KTX) || '{}');
+      semua[sesi] = konteks(); semua[sesi].aktif = false;
+      var ids = Object.keys(semua).sort(function (a, b) { return (semua[b].mulai || 0) - (semua[a].mulai || 0); });
+      ids.slice(30).forEach(function (k) { delete semua[k]; });
+      localStorage.setItem(KUNCI_KTX, JSON.stringify(semua));
+    } catch (e) { }
+  }
+
+  /* ---------- Antrean + IndexedDB ---------- */
+  function bukaDb() {
+    return new Promise(function (res) {
+      try {
+        var r = indexedDB.open('omx_analitik', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('antre', { keyPath: 'id' }); };
+        r.onsuccess = function () { res(r.result); };
+        r.onerror = function () { res(null); };
+        r.onblocked = function () { res(null); };
+      } catch (e) { res(null); }
+    });
+  }
+  A.dbSiap = bukaDb().then(function (db) {
+    A.db = db;
+    if (!db) return;
+    return new Promise(function (res) {
+      try {
+        var q = db.transaction('antre', 'readonly').objectStore('antre').getAll();
+        q.onsuccess = function () { (q.result || []).forEach(function (e) { if (!A.antre.has(e.id)) A.antre.set(e.id, e); }); res(); };
+        q.onerror = function () { res(); };
+      } catch (e) { res(); }
+    });
+  });
+  function jadwalTulis(segera) {
+    if (A.tulisTimer && !segera) return;
+    clearTimeout(A.tulisTimer);
+    A.tulisTimer = setTimeout(tulisDb, segera ? 0 : 1500);
+  }
+  function tulisDb() {
+    A.tulisTimer = 0;
+    if (!A.db) return;
+    var tulis = A.tulisBuf.splice(0), hapus = A.hapusBuf.splice(0);
+    if (!tulis.length && !hapus.length) return;
+    try {
+      var st = A.db.transaction('antre', 'readwrite').objectStore('antre');
+      tulis.forEach(function (e) { if (A.antre.has(e.id)) st.put(e); });
+      hapus.forEach(function (id) { st.delete(id); });
+    } catch (e) { }
+  }
+  function buangTertua() {
+    var arr = Array.from(A.antre.values()).sort(function (a, b) { return a.t - b.t; });
+    var buang = arr.slice(0, A.antre.size - MAKS_ANTRE);
+    buang.sort(function (a, b) { return (a.j === 'klik' ? 0 : 1) - (b.j === 'klik' ? 0 : 1); });
+    buang.forEach(function (e) { A.antre.delete(e.id); A.hapusBuf.push(e.id); });
+  }
+  function belumTerkirim() {
+    var t = sekarang(), n = 0;
+    A.antre.forEach(function (e) { if (!e.b || t - e.b > 120000) n++; });
+    return n;
+  }
+
+  /* ---------- Mencatat ---------- */
+  function catat(j, n, o) {
+    try {
+      o = o || {};
+      var t = o.t || sekarang();
+      sentuhSesi(t);
+      var u = pengguna();
+      var e = { id: sesi + '.' + (++A.n).toString(36) + acak(3), t: t, s: sesi, j: j, n: bersih(n, 200), l: o.l !== undefined ? o.l : A.lokasi, k: koneksi() };
+      if (u && u.email) e.u = u.email;
+      var d = bulat(o.d); if (d !== undefined) e.d = d;
+      var sv = bulat(o.sv); if (sv !== undefined) e.sv = sv;
+      var jr = bulat(o.jr); if (jr !== undefined) e.jr = jr;
+      if (typeof o.ok === 'boolean') e.ok = o.ok;
+      if (o.p) e.p = bersih(o.p, 300);
+      if (o.x) e.x = o.x;
+      A.antre.set(e.id, e);
+      A.tulisBuf.push(e);
+      if (A.antre.size > MAKS_ANTRE) buangTertua();
+      jadwalTulis();
+      if (!A.sedangKirim && belumTerkirim() >= KIRIM_TIAP_JUMLAH && navigator.onLine !== false && sekarang() >= A.jedaSampai) setTimeout(kirim, 0);
+      return e.id;
+    } catch (err) { return ''; }
+  }
+
+  /* ---------- Mengirim ---------- */
+  function ambilBatch(maks, maksByte, termasukBeacon) {
+    var t = sekarang();
+    var arr = Array.from(A.antre.values()).filter(function (e) { return termasukBeacon || !e.b || t - e.b > 120000; })
+      .sort(function (a, b) { return a.t - b.t; }).slice(0, maks);
+    var hasil = [], byte = 0;
+    for (var i = 0; i < arr.length; i++) {
+      var p = JSON.stringify(salinKirim(arr[i])).length + 1;
+      if (hasil.length && byte + p > maksByte) break;
+      hasil.push(arr[i]); byte += p;
+    }
+    return hasil;
+  }
+  function salinKirim(e) { var c = {}; for (var k in e) if (k !== 'b') c[k] = e[k]; return c; }
+  function susunBody(daftar) {
+    var ktxLama = {};
+    try { ktxLama = JSON.parse(localStorage.getItem(KUNCI_KTX) || '{}'); } catch (e) { }
+    var kini = konteks(); kini.aktif = true;
+    var daftarSesi = [kini], ada = {}; ada[sesi] = 1;
+    daftar.forEach(function (e) { if (e.s && !ada[e.s]) { ada[e.s] = 1; if (ktxLama[e.s]) daftarSesi.push(ktxLama[e.s]); } });
+    return { aksi: 'analitik_kirim', sessionToken: token(), sesi: daftarSesi, peristiwa: daftar.map(salinKirim) };
+  }
+  function kirim() {
+    if (A.sedangKirim || navigator.onLine === false || sekarang() < A.jedaSampai) return Promise.resolve(false);
+    A.sedangKirim = true;
+    return Promise.resolve(A.dbSiap).then(function () {
+      var daftar = ambilBatch(400, 240000, false);
+      if (!daftar.length) { A.terakhirKirim = sekarang(); return false; }
+      var body = JSON.stringify(susunBody(daftar));
+      A.kirimJalan++;
+      return fetch(urlServer(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body, keepalive: body.length < 60000 })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || !j.success) throw new Error((j && j.error) || 'gagal');
+          daftar.forEach(function (e) { A.antre.delete(e.id); A.hapusBuf.push(e.id); });
+          jadwalTulis(true);
+          A.gagalBeruntun = 0; A.terakhirKirim = sekarang();
+          if (belumTerkirim() >= KIRIM_TIAP_JUMLAH) setTimeout(kirim, 300);
+          return true;
+        });
+    }).catch(function () {
+      A.gagalBeruntun++;
+      A.jedaSampai = sekarang() + Math.min(300000, 15000 * A.gagalBeruntun); // dicoba lagi di latar, pengguna tidak menunggu
+      return false;
+    }).then(function (ok) { A.sedangKirim = false; return ok; });
+  }
+  // Saat aplikasi disembunyikan / ditutup: sendBeacon (tetap terkirim walau tab ditutup)
+  function kirimBeacon() {
+    try {
+      if (!navigator.sendBeacon || navigator.onLine === false) return;
+      var daftar = ambilBatch(400, 58000, false);
+      if (!daftar.length) return;
+      var body = JSON.stringify(susunBody(daftar));
+      var ok = navigator.sendBeacon(urlServer(), new Blob([body], { type: 'text/plain;charset=UTF-8' }));
+      // catatan TIDAK dihapus: dikirim ulang lain kali (server menolak id yang sama -> tidak dobel, tidak hilang)
+      if (ok) { var t = sekarang(); daftar.forEach(function (e) { e.b = t; }); A.terakhirKirim = t; }
+    } catch (e) { }
+  }
+
+  /* ---------- Aksi ke backend (dipanggil dari kirimKeWebApp) ---------- */
+  function mulaiPermintaan() {
+    var tok = { t0: sekarang(), p0: performance.now(), ukur: null };
+    if (A.ukurMuat && !A.ukurMuat.selesai) { tok.ukur = A.ukurMuat; A.ukurMuat.aktif++; A.ukurMuat.req++; }
+    A.inflight.add(tok);
+    return tok;
+  }
+  function selesaiPermintaan(tok, info) {
+    try {
+      var d = performance.now() - tok.p0;
+      A.inflight.delete(tok);
+      if (tok.ukur) { tok.ukur.aktif = Math.max(0, tok.ukur.aktif - 1); tok.ukur.akhir = sekarang(); }
+      A.baruSelesai.push({ t0: tok.t0, akhir: sekarang() }); if (A.baruSelesai.length > 20) A.baruSelesai.shift();
+      info = info || {};
+      var data = info.data, err = info.err, res = info.res;
+      var sv, boot;
+      try { if (res && res.headers) { sv = res.headers.get('x-goodang-ms'); boot = res.headers.get('x-goodang-boot-ms'); } } catch (e) { }
+      sv = bulat(sv);
+      var pesan = err ? (err.message || String(err)) : (data && data.success === false ? (data.error || 'success=false') : '');
+      var x = { kb_kirim: Math.round((info.kirimByte || 0) / 102.4) / 10, kb_terima: Math.round((info.terimaByte || 0) / 102.4) / 10 };
+      if (res && res.status) x.http = res.status;
+      if (bulat(boot) !== undefined) x.boot_ms = bulat(boot);
+      if (info.idp) { if (A.idpDilihat.has(info.idp)) x.ulang = true; else A.idpDilihat.add(info.idp); }
+      if (data && data.sibuk) x.sibuk = true;
+      if (data && data.duplikat) x.duplikat = true;
+      if (/^Timeout/.test(pesan)) x.timeout = true;
+      if (document.hidden) x.latar = true;
+      if (info.jumlah) x.jumlah = info.jumlah;
+      catat('aksi', info.aksi || '(tanpa aksi)', {
+        t: tok.t0, d: d, sv: sv, jr: sv !== undefined ? Math.max(0, d - sv) : undefined,
+        ok: !err && !!data && data.success !== false, p: pesan, x: x
+      });
+    } catch (e) { }
+  }
+
+  /* ---------- Lokasi (halaman/menu/tab) ---------- */
+  var layarHp = null;
+  function lokasiSekarang() {
+    var d = document;
+    var lw = d.getElementById('screen-login-web');
+    if (lw && lw.style.display && lw.style.display !== 'none') return 'web:login';
+    var w = d.getElementById('app-web');
+    if (w && w.style.display === 'block') {
+      var tab = '?', sub = '';
+      try { tab = tabWebAktif; } catch (e) { }
+      try { if (lokasiWebAktif && lokasiWebAktif.tab === tab && lokasiWebAktif.sub) sub = lokasiWebAktif.sub; } catch (e) { }
+      return 'web:' + tab + (sub ? '/' + sub : '');
+    }
+    var app = d.getElementById('app');
+    if (app && terlihat(app)) {
+      var lg = d.getElementById('screen-login');
+      if (lg && lg.style.display !== 'none' && terlihat(lg)) return 'hp:login';
+      if (!layarHp) layarHp = Array.prototype.slice.call(app.querySelectorAll('[id^="screen-"]'));
+      for (var i = 0; i < layarHp.length; i++) {
+        var s = layarHp[i];
+        if (s.id !== 'screen-login' && s.style.display && s.style.display !== 'none') {
+          var nm = 'hp:' + s.id.replace(/^screen-/, '');
+          if (s.id === 'screen-scan') { try { if (currentMode) nm += ':' + currentMode; } catch (e) { } }
+          return nm;
+        }
+      }
+      return 'hp:menu';
+    }
+    return 'memuat';
+  }
+  function judulLokasi(lok) {
+    try {
+      if (lok.indexOf('web:') === 0) { var t = document.getElementById('web-page-title'); return t ? bersih(t.textContent, 60) : ''; }
+      if (lok.indexOf('hp:') === 0) {
+        var id = 'screen-' + lok.slice(3).split(':')[0], s = document.getElementById(id);
+        var h = s && s.querySelector('.title, h1, h2');
+        return h ? bersih(h.textContent, 60) : '';
+      }
+    } catch (e) { }
+    return '';
+  }
+  function mulaiHalaman(lok, t0) {
+    A.halaman = { lokasi: lok, mulai: t0, terlihatSejak: document.hidden ? 0 : sekarang(), akumulasi: 0, judul: '' };
+    setTimeout(function () { if (A.halaman && A.halaman.lokasi === lok) A.halaman.judul = judulLokasi(lok); }, 600);
+    var u = A.ukurMuat = { lokasi: lok, t0: t0, req: 0, aktif: 0, akhir: t0, selesai: false };
+    // permintaan yang sudah mulai sejak klik (sebelum perpindahan layar terdeteksi) ikut dihitung
+    A.inflight.forEach(function (tok) { if (!tok.ukur && tok.t0 >= t0 - 50) { tok.ukur = u; u.aktif++; u.req++; } });
+    A.baruSelesai.forEach(function (r) { if (r.t0 >= t0 - 50) { u.req++; u.akhir = Math.max(u.akhir, r.akhir); } });
+    jadwalCekMuat();
+  }
+  function tutupHalaman(alasan) {
+    var h = A.halaman;
+    if (!h || h.lokasi === 'memuat') return;
+    var t = sekarang(), lama = h.akumulasi + (h.terlihatSejak ? t - h.terlihatSejak : 0);
+    if (lama >= 300) catat('halaman', h.lokasi, { t: h.mulai, l: h.lokasi, d: lama, x: { judul: h.judul || judulLokasi(h.lokasi) || undefined, alasan: alasan || undefined } });
+    h.akumulasi = 0; h.terlihatSejak = 0; h.mulai = t;
+  }
+  function jadwalCekMuat() {
+    var u = A.ukurMuat;
+    if (!u || u.selesai) return;
+    setTimeout(function () {
+      if (A.ukurMuat !== u || u.selesai) return;
+      var t = sekarang();
+      if (t - u.t0 > 60000 || (u.aktif === 0 && t - Math.max(u.akhir, u.t0) >= 350)) {
+        u.selesai = true;
+        if (u.lokasi !== 'memuat') catat('muat', u.lokasi, { t: u.t0, l: u.lokasi, d: u.req ? u.akhir - u.t0 : 0, x: { permintaan: u.req, instan: u.req === 0, terlalu_lama: t - u.t0 > 60000 || undefined } });
+        return;
+      }
+      jadwalCekMuat();
+    }, 120);
+  }
+  function cekLokasi() {
+    var lok = lokasiSekarang();
+    if (lok === A.lokasi) return;
+    var t = sekarang();
+    var t0 = (t - A.klikTerakhir < 1500) ? A.klikTerakhir : t;
+    tutupHalaman();
+    if (!A.siapDicatat && lok !== 'memuat') catatSiap(lok);
+    A.lokasi = lok;
+    mulaiHalaman(lok, t0);
+  }
+  function cekLokasiAman() { try { cekLokasi(); } catch (e) { } }
+  function catatSiap(lok) {
+    A.siapDicatat = true;
+    var x = { layar_pertama: lok };
+    try {
+      var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      if (nav) {
+        x.dom_siap_ms = Math.round(nav.domContentLoadedEventEnd);
+        x.load_ms = Math.round(nav.loadEventEnd) || undefined;
+        x.unduh_kb = Math.round((nav.transferSize || 0) / 1024);
+        x.dari_cache = nav.transferSize === 0;
+        x.tipe = nav.type;
+      }
+    } catch (e) { }
+    x.sudah_login = !!pengguna();
+    var d = performance.now();
+    // angka navigasi (DOM siap, load) baru lengkap setelah event load -> catat setelahnya
+    var tulis = function () {
+      try {
+        var nav2 = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+        if (nav2) { x.dom_siap_ms = Math.round(nav2.domContentLoadedEventEnd) || undefined; x.load_ms = Math.round(nav2.loadEventEnd) || undefined; }
+      } catch (e) { }
+      catat('buka_aplikasi', lok, { t: sekarang() - Math.round(performance.now() - d), d: d, x: x });
+    };
+    if (document.readyState === 'complete') setTimeout(tulis, 0); else window.addEventListener('load', function () { setTimeout(tulis, 0); }, { once: true });
+  }
+
+  /* ---------- Klik, cari, filter, form ---------- */
+  var RE_KIRIM = /simpan|kirim|buat|tambah|konfirmasi|setuju|terapkan|upload|unggah|proses|catat|bayar|eksekusi|selesai|ajukan|update|perbarui|\bok\b|\bya\b/i;
+  function labelEl(t) {
+    var s = t.getAttribute('aria-label') || t.getAttribute('title') || t.innerText || t.textContent || t.value || '';
+    return bersih(s, 50);
+  }
+  function wadahForm(t) {
+    try { return t.closest('[id*="modal" i], [id*="form" i], [id*="drawer" i], [id^="screen-"], [role="dialog"], .omxm, dialog, form'); } catch (e) { return null; }
+  }
+  function namaField(t) { return bersih(t.id || t.name || t.getAttribute('aria-label') || t.placeholder || t.tagName.toLowerCase(), 60); }
+  function apakahCari(t) {
+    if (t.type === 'search') return true;
+    var s = (t.id || '') + ' ' + (t.name || '') + ' ' + (t.placeholder || '') + ' ' + (t.getAttribute('aria-label') || '');
+    return /cari|search|filter|saring|temukan/i.test(s);
+  }
+  document.addEventListener('pointerdown', function () { A.klikTerakhir = sekarang(); }, true);
+  document.addEventListener('click', function (ev) {
+    try {
+      A.klikTerakhir = sekarang();
+      var t = ev.target && ev.target.closest && ev.target.closest('button, a, [role="button"], .menu-btn, .web-nav-item, .web-nav-sub, input[type="submit"], input[type="button"], summary');
+      if (!t) return;
+      var label = labelEl(t) || t.id || t.tagName.toLowerCase();
+      var r = A.rage, tt = sekarang();
+      if (r.el === t && tt - r.t < 1200) { r.n++; if (r.n === 3) catat('klik_marah', label, { p: 'Diklik 3x+ dalam 1 detik (tombol terasa tidak merespons?)', x: { id: t.id || undefined } }); }
+      else { r.el = t; r.n = 1; }
+      r.t = tt;
+      catat('klik', label, { x: { id: t.id || undefined } });
+      setTimeout(cekLokasiAman, 0); setTimeout(cekLokasiAman, 150); // perpindahan layar terdeteksi seketika
+      if (RE_KIRIM.test(label)) { var w = wadahForm(t); if (w) A.formKotor.delete(w); }
+    } catch (e) { }
+  }, true);
+  document.addEventListener('input', function (ev) {
+    try {
+      var t = ev.target;
+      if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') || t.type === 'password' || t.type === 'file') return;
+      if (apakahCari(t)) {
+        clearTimeout(A.cariTimer.get(t));
+        A.cariTimer.set(t, setTimeout(function () {
+          var kata = String(t.value || '').trim().toLowerCase();
+          if (kata.length < 2 || A.cariAkhir.get(t) === kata) return;
+          A.cariAkhir.set(t, kata);
+          catat('cari', bersih(kata, 60), { x: { field: namaField(t) } });
+        }, 1200));
+        return;
+      }
+      if (/scan|resi/i.test(t.id || '')) return; // input scanner bukan form
+      var w = wadahForm(t);
+      if (!w) return;
+      var f = A.formKotor.get(w);
+      if (!f) { f = { mulai: sekarang(), field: new Set(), nama: w.id || (w.className && String(w.className).split(' ')[0]) || w.tagName.toLowerCase() }; A.formKotor.set(w, f); }
+      f.field.add(t.id || t.name || f.field.size);
+    } catch (e) { }
+  }, true);
+  document.addEventListener('change', function (ev) {
+    try {
+      var t = ev.target;
+      if (!t) return;
+      var jenis = t.tagName === 'SELECT' ? 'select' : (t.type || '');
+      if (!/select|checkbox|radio|date|month|week|range|time/.test(jenis)) return;
+      var nilai = t.tagName === 'SELECT' ? (t.options[t.selectedIndex] ? t.options[t.selectedIndex].text : t.value) : (/checkbox|radio/.test(jenis) ? (t.checked ? 'ya' : 'tidak') : t.value);
+      catat('filter', namaField(t), { x: { nilai: bersih(nilai, 40), jenis: jenis } });
+    } catch (e) { }
+  }, true);
+  function cekFormDitinggal() {
+    A.formKotor.forEach(function (f, w) {
+      if (document.contains(w) && terlihat(w)) return;
+      catat('form_batal', f.nama, { d: sekarang() - f.mulai, x: { isian: f.field.size } });
+      A.formKotor.delete(w);
+    });
+  }
+
+  /* ---------- Error JS, macet, koneksi ---------- */
+  function catatError(pesan, letak, stack) {
+    pesan = bersih(pesan || 'Error', 200);
+    var n = (A.error[pesan] || 0) + 1;
+    A.error[pesan] = n;
+    if (n > 3 || ++A.nError > 60) return; // pesan sama maks 3x per sesi
+    var baris = String(stack || '').split('\n').slice(1, 3).map(function (s) { return s.trim(); }).join(' | ');
+    catat('error_js', pesan, { p: bersih((letak || '') + (baris ? ' · ' + baris : ''), 300), ok: false });
+  }
+  window.addEventListener('error', function (ev) {
+    try { if (ev && ev.message) catatError(ev.message, (String(ev.filename || '').split('/').pop() || 'inline') + ':' + ev.lineno + ':' + ev.colno, ev.error && ev.error.stack); } catch (e) { }
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    try { var r = ev && ev.reason; catatError('Promise: ' + ((r && r.message) || String(r)), '', r && r.stack); } catch (e) { }
+  });
+  try {
+    new PerformanceObserver(function (list) {
+      list.getEntries().forEach(function (e) {
+        if (e.duration >= 200) { A.macet.n++; A.macet.total += e.duration; A.macet.maks = Math.max(A.macet.maks, e.duration); }
+      });
+    }).observe({ type: 'longtask', buffered: true });
+  } catch (e) { }
+  function laporMacet() {
+    if (!A.macet.n) return;
+    catat('macet', A.lokasi, { d: A.macet.maks, x: { jumlah: A.macet.n, total_ms: Math.round(A.macet.total) } });
+    A.macet = { n: 0, total: 0, maks: 0 };
+  }
+  window.addEventListener('offline', function () { A.offlineSejak = sekarang(); });
+  window.addEventListener('online', function () {
+    if (A.offlineSejak) { catat('koneksi', 'offline', { t: A.offlineSejak, d: sekarang() - A.offlineSejak }); A.offlineSejak = 0; }
+    A.jedaSampai = 0; kirim();
+  });
+
+  /* ---------- Siklus tampil / sembunyi / tutup ---------- */
+  document.addEventListener('visibilitychange', function () {
+    var h = A.halaman;
+    if (document.hidden) {
+      laporMacet();
+      tutupHalaman('disembunyikan');
+      if (h) h.terlihatSejak = 0;
+      simpanKonteks();
+      tulisDb();
+      kirimBeacon();
+    } else if (h) {
+      h.terlihatSejak = sekarang(); h.mulai = sekarang();
+    }
+  });
+  window.addEventListener('hashchange', function () { setTimeout(cekLokasiAman, 0); });
+  window.addEventListener('pagehide', function () { laporMacet(); tutupHalaman('ditutup'); simpanKonteks(); tulisDb(); kirimBeacon(); });
+
+  /* ---------- Sambungan ke fungsi aplikasi (setelah semua skrip dimuat) ---------- */
+  function pasangKait() {
+    // Pesan error yang dilihat staff (toast)
+    try {
+      if (typeof omniToast === 'function' && !omniToast.__omxAn) {
+        var asliToast = omniToast;
+        omniToast = function (pesan, jenis) {
+          try { if (jenis === 'error' || jenis === 'peringatan') catat('pesan_error', jenis, { p: pesan }); } catch (e) { }
+          return asliToast.apply(this, arguments);
+        };
+        omniToast.__omxAn = true;
+      }
+    } catch (e) { }
+    // Scan resi: dari resi discan sampai ada kepastian (berhasil / gagal / dobel)
+    try {
+      if (typeof scanMasukAntrean === 'function' && typeof scanRenderAntrean === 'function' && !scanMasukAntrean.__omxAn) {
+        var mulaiScan = new Map();
+        var asliMasuk = scanMasukAntrean, asliRender = scanRenderAntrean;
+        scanMasukAntrean = function (noResi) {
+          try {
+            var k = String(noResi);
+            var pending = false; try { pending = !!scanPendingModeAktif; } catch (e) { }
+            if (!pending) {
+              if (typeof scanSudahAdaDiSesi === 'function' && scanSudahAdaDiSesi(noResi)) catat('ukur', 'scan_dobel_ditolak', { d: 0, ok: true });
+              else if (!mulaiScan.has(k)) { var md = ''; try { md = currentMode || ''; } catch (e) { } mulaiScan.set(k, { t: sekarang(), mode: md }); }
+            }
+          } catch (e) { }
+          return asliMasuk.apply(this, arguments);
+        };
+        scanRenderAntrean = function () {
+          var r = asliRender.apply(this, arguments);
+          try {
+            mulaiScan.forEach(function (v, resi) {
+              if (scanAntrean.some(function (it) { return String(it.noResi) === resi; })) return;
+              var ok = scanBerhasil.some(function (it) { return String(it.noResi) === resi; });
+              var gagal = scanGagal.some(function (it) { return String(it.noResi) === resi; });
+              catat('ukur', 'scan_resi', { t: v.t, d: sekarang() - v.t, ok: ok || !gagal, x: { hasil: ok ? 'berhasil' : (gagal ? 'gagal' : 'sudah_pernah'), mode: v.mode || undefined } });
+              mulaiScan.delete(resi);
+            });
+          } catch (e) { }
+          return r;
+        };
+        scanMasukAntrean.__omxAn = true;
+      }
+    } catch (e) { }
+  }
+  function tampilkanMenuOwner() {
+    var u = pengguna(), owner = !!(u && u.isOwner);
+    ['btn-nav-statistik', 'btn-statistik-mobile'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) { var tampil = owner ? '' : 'none'; if (b.style.display !== tampil) b.style.display = tampil; }
+    });
+  }
+
+  /* ---------- Jalankan ---------- */
+  var detik = 0;
+  function tiapDetik() {
+    detik++;
+    try { cekLokasi(); } catch (e) { }
+    try { cekFormDitinggal(); } catch (e) { }
+    if (detik % 2 === 0) try { tampilkanMenuOwner(); } catch (e) { }
+    if (detik % 60 === 0) { laporMacet(); simpanKonteks(); }
+    if (sekarang() - A.terakhirKirim >= KIRIM_TIAP_MS) kirim();
+  }
+  function mulai() {
+    pasangKait();
+    simpanKonteks();
+    setInterval(tiapDetik, 1000);
+    tiapDetik();
+    setTimeout(kirim, 8000); // catatan lama dari sesi sebelumnya dikirim setelah aplikasi tenang
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mulai); else mulai();
+
+  window.omxAnalitik = {
+    versi: VERSI, catat: catat, mulaiPermintaan: mulaiPermintaan, selesaiPermintaan: selesaiPermintaan,
+    kirimSekarang: function () { A.jedaSampai = 0; return kirim(); },
+    status: function () {
+      return { versi: VERSI, sesi: sesi, lokasi: A.lokasi, antre: A.antre.size, belum_terkirim: belumTerkirim(), indexedDB: !!A.db,
+        terakhir_kirim: new Date(A.terakhirKirim).toLocaleString('id-ID'), gagal_beruntun: A.gagalBeruntun };
+    }
+  };
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>OmniAI - Waterground Coffee</title>
 <meta name="author" content="HERMAWAN" />
@@ -7577,6 +8173,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
   <div id="user-menu-dropdown" style="display:none;">
     <div id="user-menu-email" style="font-size:11px; color:var(--text-dim); padding:8px 14px;"></div>
     <button class="user-menu-item" id="btn-kelola-akses" style="display:none;" onclick="bukaKelolaAkses()"><span class="oi oi-key" aria-hidden="true"></span> Kelola Akses Staff</button>
+    <button class="user-menu-item" id="btn-statistik-mobile" style="display:none;" onclick="el('user-menu-dropdown').style.display = 'none'; window.open('statistik.html', '_blank', 'noopener')"><span class="oi oi-chart" aria-hidden="true"></span> Statistik Pengguna</button>
     <button class="user-menu-item" onclick="bukaWebDariMobile()"><span class="oi oi-monitor" aria-hidden="true"></span> Buka Versi Web</button>
     <button class="user-menu-item" onclick="bukaTesBluetooth()"><span class="oi oi-dot-biru" aria-hidden="true"></span> Tes Print Bluetooth (Eksperimental)</button>
     <button class="user-menu-item" onclick="logout()">Logout</button>
@@ -8851,6 +9448,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               <a href="#pengaturan/tampilan" class="web-nav-item omtb-item" role="menuitem" data-tab="pengaturan" id="btn-nav-pengaturan" style="display:none;" onclick="omtbTutupSemua(); gantiTabWeb('pengaturan'); pgtBukaSubMenu('tampilan')"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg> Pengaturan Sistem</a>
               <a href="#tagihan" class="web-nav-item omtb-item" role="menuitem" data-tab="tagihan" id="btn-nav-tagihan" style="display:none;" onclick="omtbTutupSemua(); gantiTabWeb('tagihan'); billingMuatPengaturan();"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/></svg> Tagihan</a>
               <a href="#pesandev" class="web-nav-item omtb-item" role="menuitem" data-tab="pesandev" id="btn-nav-pesandev" style="display:none;" onclick="omtbTutupSemua(); gantiTabWeb('pesandev')"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Pesan Dari Pengguna</a>
+              <a href="statistik.html" target="_blank" rel="noopener" class="omtb-item" role="menuitem" id="btn-nav-statistik" style="display:none;" onclick="omtbTutupSemua()"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 3 5-7"/></svg> Statistik Pengguna</a>
               <button type="button" class="omtb-item" role="menuitem" onclick="omtbTutupSemua(); bukaMobileDariWeb()"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg> Buka Versi Mobile</button>
               <div class="omtb-garis"></div>
               <button type="button" class="omtb-item keluar" role="menuitem" onclick="omtbTutupSemua(); logout()"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg> Logout</button>
@@ -43977,15 +44575,21 @@ async function kirimKeWebApp(body, waktuTunggu) {
   const kirim = (token && !body.sessionToken) ? Object.assign({}, body, { sessionToken: token }) : Object.assign({}, body);
   // P1: server perlu tahu kiriman berasal dari tampilan HP atau Web (memo gudang dari HP = langsung masuk stok)
   if (!kirim.perangkat) kirim.perangkat = omxPerangkat_();
+  // Statistik Pengguna: catat nama aksi, berhasil/gagal, durasi, waktu server vs jaringan (tidak menunda apa pun)
+  const anTok = window.omxAnalitik ? omxAnalitik.mulaiPermintaan() : null;
+  let anRes = null, anData = null, anErr = null, anTerima = 0;
+  const badanKirim = JSON.stringify(kirim);
   try {
     const res = await fetch(WEB_APP_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(kirim),
+      body: badanKirim,
       redirect: 'follow',
       signal: controller.signal
     });
+    anRes = res;
     const teks = await res.text();
+    anTerima = teks.length;
     let hasilJson;
     try {
       hasilJson = JSON.parse(teks);
@@ -43994,12 +44598,20 @@ async function kirimKeWebApp(body, waktuTunggu) {
       throw new Error(`Respons server bukan JSON (HTTP ${res.status}). ${cuplikan || '(kosong)'}`);
     }
     sesiProsesRespons_(hasilJson);
+    anData = hasilJson;
     return hasilJson;
   } catch (err) {
-    if (err.name === 'AbortError') throw new Error(`Timeout: server tidak menjawab dalam ${Math.round(waktuTunggu / 1000)} detik`);
+    if (err.name === 'AbortError') { anErr = new Error(`Timeout: server tidak menjawab dalam ${Math.round(waktuTunggu / 1000)} detik`); throw anErr; }
+    anErr = err;
     throw err;
   } finally {
     clearTimeout(timer);
+    if (anTok) {
+      try {
+        omxAnalitik.selesaiPermintaan(anTok, { aksi: kirim.aksi, idp: kirim.idPermintaan, res: anRes, data: anData, err: anErr,
+          kirimByte: badanKirim.length, terimaByte: anTerima, jumlah: Array.isArray(kirim.daftarNoResi) ? kirim.daftarNoResi.length : undefined });
+      } catch (eAn) { }
+    }
   }
 }
 
