@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.17-a';
+  var VERSI = 'v2026.10.18-a';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -919,6 +919,7 @@ window.omxSaatChartSiap = function (fn) {
   .fin2-det-rumus { color: var(--web-text-dim, #475569); }
   .fin2-det-daftar { list-style: none; margin: 8px 0 0; padding: 0; }
   .fin2-det-daftar li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px dashed var(--web-border, #e2e8f0); }
+  .lbl-sudah { display: inline-block; margin-left: 4px; font-size: 12px; opacity: .85; cursor: help; vertical-align: middle; }
   .kanal-logo { display: inline-flex; align-items: center; gap: 6px; }
   .kanal-logo img { width: 22px; height: 22px; border-radius: 6px; object-fit: contain; display: block; }
   .kanal-manual { color: #9a5b13; font-size: 11.5px; font-weight: 600; }
@@ -9229,6 +9230,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
 
       <div class="toolbar-row mgm-toolbar" style="width:100%;">
         <button class="lihat-btn" onclick="mgmBukaRiwayat()"><span class="oi oi-file" aria-hidden="true"></span> Riwayat</button>
+        <button class="lihat-btn" id="mgm-btn-sku-gudang" style="display:none;" onclick="skgBuka()">🏷️ Buat SKU Gudang</button>
       </div>
 
       <!-- Input Ketik/Scanner (satu-satunya mode). Kamera = tombol di kanan input, TAHAN untuk membuka. -->
@@ -10065,6 +10067,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               <span id="wp-gab-bulk-count" style="font-size:13px; font-weight:600;">0 dipilih</span>
               <button class="web-btn-secondary" onclick="wpGabunganResetPilihan()">Reset</button>
               <div style="flex:1;"></div>
+              <button class="web-btn-primary" onclick="wpCetakLabelResmi()" title="Label resmi Shopee / TikTok Shop, diperkecil 75% di kiri atas kertas 10x15 cm">🖨 Cetak Label Resmi</button>
               <button class="web-btn-primary" onclick="wpGabunganAksiMassal('invoice')"><span class="oi oi-clipboard" aria-hidden="true"></span> Cetak Invoice</button>
               <button class="web-btn-primary" onclick="wpGabunganAksiMassal('cetak')"><span class="oi oi-file" aria-hidden="true"></span> Cetak Surat Jalan</button>
               <button class="web-btn-primary" onclick="wpGabunganAksiMassal('pembeli')"><span class="oi oi-edit" aria-hidden="true"></span> Input Data Pembeli</button>
@@ -20424,6 +20427,193 @@ function wpGabunganFokusKe(kunci) {
   }
 }
 
+/* ============================================================
+   v2026.10.18 - CETAK LABEL RESMI MARKETPLACE (Penjualan > centang pesanan > "Cetak Label Resmi")
+   Label asli Shopee / TikTok Shop / Tokopedia diperkecil jadi 75% dan ditaruh di KIRI ATAS kertas 10x15 cm,
+   sisi kanan & bawah kosong untuk stiker "wajib video unboxing" / "fragile". Semua label digabung jadi 1 PDF.
+   ============================================================ */
+const LBL_SKALA = 0.75, LBL_W_PT = 100 / 25.4 * 72, LBL_H_PT = 150 / 25.4 * 72;
+let lblDicetakPeta = null, lblDicetakMemuat = false;
+function lblMuatPdfLib() {
+  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  if (window.__lblPdfLibJanji) return window.__lblPdfLibJanji;
+  window.__lblPdfLibJanji = new Promise((ok, gagal) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+    sc.onload = () => window.PDFLib ? ok(window.PDFLib) : gagal(new Error('Library PDF gagal dimuat'));
+    sc.onerror = () => { window.__lblPdfLibJanji = null; gagal(new Error('Library PDF gagal dimuat - cek koneksi internet')); };
+    document.head.appendChild(sc);
+  });
+  return window.__lblPdfLibJanji;
+}
+function lblBase64KeBytes(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+// Semua PDF label -> 1 PDF 10x15 cm, tiap label 75% di kiri atas
+async function lblSusun75(daftarPdf) {
+  const { PDFDocument } = await lblMuatPdfLib();
+  const out = await PDFDocument.create();
+  let n = 0;
+  for (const it of daftarPdf) {
+    const src = await PDFDocument.load(lblBase64KeBytes(it.base64), { ignoreEncryption: true });
+    const halaman = await out.embedPages(src.getPages());
+    for (const ep of halaman) {
+      const pg = out.addPage([LBL_W_PT, LBL_H_PT]);
+      const s = Math.min(LBL_W_PT / ep.width, LBL_H_PT / ep.height) * LBL_SKALA;
+      pg.drawPage(ep, { x: 0, y: LBL_H_PT - ep.height * s, width: ep.width * s, height: ep.height * s });
+      n++;
+    }
+  }
+  return { bytes: await out.save(), halaman: n };
+}
+async function wpCetakLabelResmi() {
+  const pilih = (wpGabunganCache || []).filter(o => wpGabunganTerpilih.has(wpGabunganKunciUnik(o)));
+  if (!pilih.length) { omniNotif('Pilih minimal 1 pesanan dulu.'); return; }
+  if (pilih.length > 30) { omniNotif('Maksimal 30 pesanan sekali cetak - kurangi pilihannya.'); return; }
+  const tab = window.open('', '_blank'); // dibuka SEKARANG supaya tidak diblokir pop-up blocker
+  if (tab) tab.document.write('<p style="font:14px system-ui;padding:20px">Mengambil label resmi dari marketplace…</p>');
+  omniToast('Mengambil ' + pilih.length + ' label resmi…');
+  try {
+    const [d] = await Promise.all([
+      postJson({ aksi: 'label_resmi_ambil', daftar: pilih.map(o => ({ sumber: o.sumber, no: o.noReferensi, packageId: o.packageId || '' })), email: currentUserEmail() }, 170000, true),
+      lblMuatPdfLib()
+    ]);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal mengambil label');
+    const ok = (d.hasil || []).filter(h => h.ok), gagal = (d.hasil || []).filter(h => !h.ok);
+    if ((d.pdf || []).length) {
+      const r = await lblSusun75(d.pdf);
+      const url = URL.createObjectURL(new Blob([r.bytes], { type: 'application/pdf' }));
+      if (tab) tab.location.href = url; else window.open(url, '_blank');
+      postJsonTulis({ aksi: 'label_tandai_dicetak', daftar: ok.map(h => ({ sumber: h.sumber, no: h.no })), email: currentUserEmail() })
+        .then(() => { lblDicetakPeta = null; wpGabunganRenderHalaman(); }).catch(() => { });
+    } else if (tab) tab.close();
+    if (gagal.length) {
+      omxModal('Sebagian label belum bisa dicetak', `<div style="font-size:12.5px; margin-bottom:8px;">${ok.length} label berhasil, ${gagal.length} belum:</div>
+        <ul style="margin:0; padding-left:18px; font-size:12.5px; line-height:1.5;">${gagal.map(h => `<li><b>${escapeHtml(h.sumber)} ${escapeHtml(h.no)}</b> - ${escapeHtml(h.pesan || '')}</li>`).join('')}</ul>
+        <div class="omx-aksi"><button type="button" class="web-btn-primary" onclick="omxTutupModal()">OK</button></div>`);
+    } else omniToast(ok.length + ' label siap dicetak (10×15 cm, label 75% di kiri atas)', 'sukses');
+  } catch (err) {
+    if (tab) tab.close();
+    omniNotif('Gagal: ' + String(err.message || err).replace(/^Error:\s*/, ''));
+  }
+}
+function lblBadgeHtml(o) {
+  if (!lblDicetakPeta) { if (!lblDicetakMemuat) { lblDicetakMemuat = true; postJson({ aksi: 'label_dicetak_lihat', email: currentUserEmail() }, 30000, true).then(d => { lblDicetakPeta = (d && d.success && d.peta) || {}; lblDicetakMemuat = false; wpGabunganRenderHalaman(); }).catch(() => { lblDicetakPeta = {}; lblDicetakMemuat = false; }); } return ''; }
+  const x = lblDicetakPeta[o.sumber + '|' + o.noReferensi];
+  return x ? `<span class="lbl-sudah" title="Label resmi sudah dicetak ${escapeHtml(x.t)}${x.oleh ? ' oleh ' + escapeHtml(x.oleh) : ''}${x.n > 1 ? ' (' + x.n + '×)' : ''}">🖨${x.n > 1 ? x.n : ''}</span>` : '';
+}
+
+/* ============================================================
+   v2026.10.18 - SKU GUDANG (Memo Gudang HP > Stock Opname, khusus Owner)
+   Buat SKU baru GDG-YYMM-NNN (tanpa SKU supplier / marketplace), langsung masuk keranjang opname,
+   lalu cetak stiker barcode di printer thermal 58 mm:
+   - "Bluetooth": langsung dari Chrome Android (Web Bluetooth, perintah ESC/POS - barcode dibuat printer)
+   - "Aplikasi printer": halaman cetak 58 mm (untuk printer yang dipasang lewat aplikasi seperti RawBT)
+   ============================================================ */
+const SKG_BLE_SERVIS = ['000018f0-0000-1000-8000-00805f9b34fb', '0000ff00-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', '0000ffe0-0000-1000-8000-00805f9b34fb', '0000fee7-0000-1000-8000-00805f9b34fb'];
+let skgPrinter = null, skgTerakhir = null;
+function skgBuka() {
+  if (!omxApakahOwner_()) { pgrToast('Buat SKU Gudang hanya untuk akun Owner.'); return; }
+  omxModal('Buat SKU Gudang', `
+    <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:10px;">SKU dibuat otomatis (GDG-tahunbulan-nomor), tidak terhubung ke supplier / marketplace. Bisa dilengkapi nanti dari Katalog.</div>
+    <label class="omx-lbl" for="skg-nama">Nama barang</label>
+    <input id="skg-nama" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0 0 10px;" maxlength="150" placeholder="Mis. Kardus 20x20x15" autocomplete="off">
+    <label class="omx-lbl" for="skg-jml">Jumlah stiker</label>
+    <input id="skg-jml" type="number" inputmode="numeric" min="1" max="50" value="1" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0;" onfocus="this.select()">
+    <div class="status-text" id="skg-status" style="text-align:left; margin-top:10px;" role="status" aria-live="polite"></div>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button>
+      <button type="button" class="web-btn-primary" id="skg-btn" onclick="skgBuat()">Buat SKU</button></div>`);
+  setTimeout(() => { const i = el('skg-nama'); if (i) i.focus(); }, 80);
+}
+async function skgBuat() {
+  const btn = el('skg-btn'), st = el('skg-status'); if (!btn || btn.disabled) return;
+  const nama = el('skg-nama').value.trim(), jml = Math.max(1, Math.min(50, parseInt(el('skg-jml').value, 10) || 1));
+  if (!nama) { st.textContent = 'Isi nama barang dulu'; st.className = 'status-text err'; return; }
+  btn.disabled = true; st.textContent = 'Membuat SKU…'; st.className = 'status-text';
+  try {
+    const d = await postJsonTulis({ aksi: 'sku_gudang_buat', nama, email: currentUserEmail() });
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal membuat SKU');
+    skgTerakhir = { sku: d.sku, nama: d.nama, jml };
+    // langsung masuk keranjang Stock Opname
+    try {
+      const cart = mgmCarts[mgmTabAktif];
+      if (cart && !cart.some(it => it.sku === d.sku)) { cart.unshift({ sku: d.sku, nama: d.nama, qty: 1, catatan: 'SKU Gudang baru', fotoUrl: '' }); mgmSimpanDraftLokal(); mgmRenderCart(true); }
+    } catch (e) { }
+    omxTutupModal();
+    skgDialogCetak();
+  } catch (err) { st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; }
+}
+function skgDialogCetak() {
+  const s = skgTerakhir; if (!s) return;
+  omxModal('Cetak stiker ' + s.sku, `
+    <div style="font-size:13px; margin-bottom:6px;"><b>${escapeHtml(s.sku)}</b> · ${escapeHtml(s.nama)} · ${s.jml} stiker</div>
+    <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:12px;">SKU sudah masuk keranjang Stock Opname. Pilih cara cetak:</div>
+    <div class="status-text" id="skg-cetak-status" style="text-align:left; margin-bottom:10px;" role="status" aria-live="polite"></div>
+    <div class="omx-aksi" style="flex-wrap:wrap;">
+      <button type="button" class="web-btn-secondary" onclick="skgCetakBrowser()">Aplikasi printer</button>
+      <button type="button" class="web-btn-primary" id="skg-ble-btn" onclick="skgCetakBluetooth()">🖨 Bluetooth${skgPrinter ? ' (tersambung)' : ''}</button></div>`);
+}
+function skgTeksBytes(t) { return Array.from(String(t).normalize('NFKD').replace(/[^\x20-\x7E]/g, '')).map(c => c.charCodeAt(0)); }
+function skgEscPos(sku, nama, jml) {
+  const b = [];
+  const tambah = (...x) => x.forEach(v => Array.isArray(v) ? b.push(...v) : b.push(v));
+  tambah(0x1B, 0x40);                                   // reset
+  for (let i = 0; i < jml; i++) {
+    tambah(0x1B, 0x61, 0x01);                           // tengah
+    tambah(0x1B, 0x45, 0x01, skgTeksBytes(nama.slice(0, 32)), 0x0A, 0x1B, 0x45, 0x00);
+    if (nama.length > 32) tambah(skgTeksBytes(nama.slice(32, 64)), 0x0A);
+    const data = skgTeksBytes('{B' + sku);
+    tambah(0x1D, 0x68, 70, 0x1D, 0x77, 0x02, 0x1D, 0x48, 0x02, 0x1D, 0x66, 0x00); // tinggi 70, lebar 2, teks di bawah
+    tambah(0x1D, 0x6B, 0x49, data.length, data, 0x0A);  // CODE128
+    tambah(0x0A, 0x0A, 0x0A);
+  }
+  return new Uint8Array(b);
+}
+async function skgSambungPrinter() {
+  if (!navigator.bluetooth) throw new Error('Browser ini belum bisa Bluetooth. Pakai Chrome di Android, atau pilih "Aplikasi printer".');
+  const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: SKG_BLE_SERVIS });
+  const gatt = await dev.gatt.connect();
+  dev.addEventListener('gattserverdisconnected', () => { skgPrinter = null; });
+  for (const uuid of SKG_BLE_SERVIS) {
+    try {
+      const sv = await gatt.getPrimaryService(uuid);
+      const c = (await sv.getCharacteristics()).find(x => x.properties.writeWithoutResponse || x.properties.write);
+      if (c) { skgPrinter = c; return c; }
+    } catch (e) { /* servis lain */ }
+  }
+  throw new Error('Printer tersambung, tapi jalur cetaknya tidak dikenali. Coba "Aplikasi printer".');
+}
+async function skgCetakBluetooth() {
+  const s = skgTerakhir, st = el('skg-cetak-status'), btn = el('skg-ble-btn'); if (!s) return;
+  if (btn) btn.disabled = true;
+  try {
+    if (st) { st.textContent = skgPrinter ? 'Mencetak…' : 'Pilih printer Bluetooth Anda…'; st.className = 'status-text'; }
+    const c = skgPrinter || await skgSambungPrinter();
+    const data = skgEscPos(s.sku, s.nama, s.jml);
+    for (let i = 0; i < data.length; i += 100) {
+      const potong = data.slice(i, i + 100);
+      if (c.properties.writeWithoutResponse && c.writeValueWithoutResponse) await c.writeValueWithoutResponse(potong); else await c.writeValue(potong);
+      await new Promise(r => setTimeout(r, 25));
+    }
+    if (st) { st.textContent = '✓ Terkirim ke printer'; st.className = 'status-text ok'; }
+  } catch (err) {
+    skgPrinter = null;
+    if (st) { st.textContent = String(err.message || err).replace(/^(Error|NotFoundError):\s*/, ''); st.className = 'status-text err'; }
+  } finally { if (btn) btn.disabled = false; }
+}
+function skgCetakBrowser() {
+  const s = skgTerakhir; if (!s) return;
+  const w = window.open('', '_blank');
+  if (!w) { pgrToast('Izinkan pop-up untuk mencetak'); return; }
+  const stiker = Array.from({ length: s.jml }, () => `<div class="st"><div class="n">${escapeHtml(s.nama)}</div><svg class="bc"></svg></div>`).join('');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(s.sku)}</title>
+    <style>@page{size:58mm auto;margin:0} body{margin:0;width:58mm;font:600 11px/1.25 system-ui,sans-serif;color:#000}
+    .st{width:54mm;margin:0 2mm;padding:2mm 0 4mm;text-align:center;break-inside:avoid;page-break-inside:avoid;border-bottom:1px dashed #999}
+    .n{margin-bottom:1mm;word-break:break-word} svg{width:52mm;height:auto} @media print{.st{border:0}}</style>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script></head><body>${stiker}
+    <script>document.querySelectorAll('.bc').forEach(function(s){JsBarcode(s,${JSON.stringify(s.sku)},{format:'CODE128',width:2,height:45,fontSize:14,margin:0,displayValue:true});});setTimeout(function(){window.print()},400);<\/script></body></html>`);
+  w.document.close();
+}
+
 /* v2026.10.15 - Kolom Channel: logo asli (ICON_CHANNEL_MAP) menggantikan kapsul teks. Nama tetap muncul saat kursor diarahkan. */
 function kanalLogoHtml(sumber) {
   const s = String(sumber || '');
@@ -20457,7 +20647,7 @@ function wpGabunganRenderHalaman(idBaruMasuk) {
     <tr class="${[iniBaru ? 'wp-row-baru-masuk' : '', wpGabBarisTersimpan.has(kunci) ? 'wp-row-tersimpan' : ''].join(' ').trim()}" ${wpGabBarisMemuat.has(kunci) ? 'aria-busy="true"' : ''} data-kunci="${escapeHtml(kunci)}" data-idx="${idx}">
       <td><input type="checkbox" class="wp-gab-row-check" data-idx="${idx}" ${wpGabunganTerpilih.has(kunci) ? 'checked' : ''} /></td>
       <td>${tokoKapsulHtml(o.toko || 'Waterground')}</td>
-      <td>${kanalLogoHtml(o.sumber)}</td>
+      <td>${kanalLogoHtml(o.sumber)}${lblBadgeHtml(o)}</td>
       <td class="wp-dim" style="white-space:nowrap;">${escapeHtml(o.tanggal)}</td>
       <td>${escapeHtml(o.noReferensi)}${iniBaru ? ' <span class="wp-badge-baru">BARU</span>' : ''}</td>
       <td>${wpGabSelPembeliHtml(o, kunci)}</td>
@@ -48262,6 +48452,7 @@ function mgmPastikanKatalog() {
 }
 
 function mgmGantiTab(tab) {
+  try { const bS = el('mgm-btn-sku-gudang'); if (bS) bS.style.display = (tab === 'stockopname' && omxApakahOwner_()) ? '' : 'none'; } catch (eS) { }
   // P1: Stock Opname hanya untuk akun Owner
   if (tab === 'stockopname' && !omxApakahOwner_()) { tab = 'mintastock'; try { pgrToast('Stock Opname hanya untuk akun Owner'); } catch (e) { } }
   const tabSo = el('mgm-tab-stockopname'); if (tabSo) tabSo.style.display = omxApakahOwner_() ? '' : 'none';
