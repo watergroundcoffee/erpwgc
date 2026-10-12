@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.14-a';
+  var VERSI = 'v2026.10.16-a';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -865,6 +865,30 @@
 <script>
 /* v2026.10.14 - Grafik menunggu library Chart.js (dimuat "defer"). Dulu Beranda yang dibuka langsung dari cache
    menggambar grafik SEBELUM Chart.js siap -> error "Chart is not defined" & grafik kosong. */
+/* v2026.10.15 - Qty tanpa ketuk "+" berulang: TAHAN tombol +/− -> qty naik/turun terus (makin lama makin cepat).
+   Kotak angka qty: sekali ketuk langsung tersorot, tinggal ketik angkanya. */
+(function () {
+  var SEL = '.mgm-qty-btn, .mg-qty-btn, .qty-step-btn';
+  var timer = null, jalan = false, abaikanKlik = false;
+  function berhenti() { clearTimeout(timer); timer = null; if (jalan) { abaikanKlik = true; setTimeout(function () { abaikanKlik = false; }, 400); } jalan = false; }
+  document.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest && e.target.closest(SEL);
+    if (!b || e.button > 0) return;
+    var semua = Array.prototype.slice.call(document.querySelectorAll(SEL)), pos = semua.indexOf(b), n = 0;
+    var ulang = function () {
+      var t = document.querySelectorAll(SEL)[pos]; // daftar dirender ulang tiap perubahan -> ambil tombol di posisi yang sama
+      if (!t) return berhenti();
+      jalan = true; n++; t.click();
+      timer = setTimeout(ulang, n < 8 ? 150 : n < 25 ? 70 : 35);
+    };
+    timer = setTimeout(ulang, 420);
+  }, true);
+  ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(function (ev) { document.addEventListener(ev, function () { if (timer || jalan) berhenti(); }, true); });
+  document.addEventListener('click', function (e) {
+    if (abaikanKlik && e.isTrusted && e.target.closest && e.target.closest(SEL)) { e.stopPropagation(); e.preventDefault(); abaikanKlik = false; }
+  }, true);
+  document.addEventListener('contextmenu', function (e) { if (e.target.closest && e.target.closest(SEL)) e.preventDefault(); }, true);
+})();
 window.omxSaatChartSiap = function (fn) {
   if (typeof Chart !== 'undefined') { try { fn(); } catch (e) { console.error(e); } return; }
   (window.__omxAntreChart = window.__omxAntreChart || []).push(fn);
@@ -882,6 +906,22 @@ window.omxSaatChartSiap = function (fn) {
 };
 </script>
 <style>
+  .mgm-qty-btn, .mg-qty-btn, .qty-step-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+  .rak-chip { display: inline-flex; align-items: center; gap: 3px; margin-top: 3px; padding: 1px 7px; border-radius: 999px; border: 1px solid #c7d2fe; background: #eef2ff; color: #3730a3; font: 600 10.5px/1.5 inherit; cursor: pointer; }
+  .rak-chip.kosong { border-style: dashed; background: none; color: var(--web-text-dim, #64748b); border-color: var(--web-border, #cbd5e1); }
+  .rak-saran { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .per-btn-hapus-stok { margin-top: 3px; padding: 1px 7px; border-radius: 6px; border: 1px solid #fcd34d; background: #fffbeb; color: #b45309; font: 600 10.5px/1.5 inherit; cursor: pointer; }
+  .kanal-logo { display: inline-flex; align-items: center; gap: 6px; }
+  .kanal-logo img { width: 22px; height: 22px; border-radius: 6px; object-fit: contain; display: block; }
+  .kanal-manual { color: #9a5b13; font-size: 11.5px; font-weight: 600; }
+  .kanal-logo .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tp-terkunci { background: var(--web-bg, #f1f5f9) !important; color: var(--web-text-dim, #64748b) !important; cursor: not-allowed; }
+  .per-minus-info { margin-top: 6px; font-size: 11.5px; line-height: 1.35; color: #92400e; background: rgba(251, 191, 36, .14); border-radius: 8px; padding: 5px 8px; }
+  .cc-gantung-aksi { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .cc-btn-mini { padding: 3px 9px; border-radius: 7px; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #1e293b); font: 600 11.5px/1.3 inherit; cursor: pointer; }
+  .cc-btn-mini:hover { border-color: var(--gm-aksen, #4f46e5); }
+  .cc-btn-hapus { color: #b45309; }
+  .mrk-btn-wa { margin-right: 8px; }
   .tp-isi-ai { margin: 0 8px 0 auto; padding: 2px 4px; border: 0; background: none; color: var(--gm-aksen-teks, #4338ca); font: 600 12.5px/1.2 inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
   .tp-isi-ai:hover { opacity: .8; }
   .tp-ai-latar { position: fixed; inset: 0; z-index: 400; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .45); }
@@ -13694,6 +13734,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               <div class="per-rekon-info" id="per-mon-rekon-info"><span class="oi oi-moon" aria-hidden="true"></span> Rekonsiliasi Malam: memuat...</div>
               <div class="per-rekon-aksi">
                 <button class="web-btn-secondary per-btn-kecil" id="per-mon-btn-trigger" style="display:none;" onclick="perMonPasangTrigger()"><span class="oi oi-settings" aria-hidden="true"></span> Aktifkan Jadwal 02:00</button>
+                <button class="web-btn-secondary per-btn-kecil" onclick="rakMuat(true).then(rakCetakDaftarOpname)" title="Cetak daftar stok urut rak untuk opname berurutan">🖨 Daftar Opname per Rak</button>
                 <button class="web-btn-secondary per-btn-kecil" id="per-mon-btn-rekon" onclick="perMonJalankanRekon()">▶ Rekon Sekarang</button>
               </div>
             </div>
@@ -20374,6 +20415,14 @@ function wpGabunganFokusKe(kunci) {
   }
 }
 
+/* v2026.10.15 - Kolom Channel: logo asli (ICON_CHANNEL_MAP) menggantikan kapsul teks. Nama tetap muncul saat kursor diarahkan. */
+function kanalLogoHtml(sumber) {
+  const s = String(sumber || '');
+  const kunci = /shopee/i.test(s) ? 'Shopee' : /tokopedia/i.test(s) ? 'Tokopedia' : /tiktok|conner/i.test(s) ? 'TikTok Shop' : /website/i.test(s) ? 'Website' : '';
+  const b64 = kunci && typeof ICON_CHANNEL_MAP !== 'undefined' ? ICON_CHANNEL_MAP[kunci] : '';
+  if (b64) return `<span class="kanal-logo" title="${pgrAttr(s)}"><img src="data:image/png;base64,${b64}" alt="${pgrAttr(s)}" width="22" height="22" loading="lazy"><span class="sr-only">${escapeHtml(s)}</span></span>`;
+  return `<span class="kanal-logo kanal-manual" title="${pgrAttr(s || 'Manual')}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg><span class="kanal-manual-teks">${escapeHtml(/po sales/i.test(s) ? 'Manual' : (s || 'Manual'))}</span></span>`;
+}
 function wpGabunganRenderHalaman(idBaruMasuk) {
   idBaruMasuk = Array.isArray(idBaruMasuk) ? idBaruMasuk : [];
   const f = wpGabunganAmbilFilter();
@@ -20399,7 +20448,7 @@ function wpGabunganRenderHalaman(idBaruMasuk) {
     <tr class="${[iniBaru ? 'wp-row-baru-masuk' : '', wpGabBarisTersimpan.has(kunci) ? 'wp-row-tersimpan' : ''].join(' ').trim()}" ${wpGabBarisMemuat.has(kunci) ? 'aria-busy="true"' : ''} data-kunci="${escapeHtml(kunci)}" data-idx="${idx}">
       <td><input type="checkbox" class="wp-gab-row-check" data-idx="${idx}" ${wpGabunganTerpilih.has(kunci) ? 'checked' : ''} /></td>
       <td>${tokoKapsulHtml(o.toko || 'Waterground')}</td>
-      <td><span class="web-status-pill aktif">${escapeHtml(o.sumber)}</span></td>
+      <td>${kanalLogoHtml(o.sumber)}</td>
       <td class="wp-dim" style="white-space:nowrap;">${escapeHtml(o.tanggal)}</td>
       <td>${escapeHtml(o.noReferensi)}${iniBaru ? ' <span class="wp-badge-baru">BARU</span>' : ''}</td>
       <td>${wpGabSelPembeliHtml(o, kunci)}</td>
@@ -21131,6 +21180,8 @@ function pgrPasangDelegasi() {
   root.addEventListener('click', e => {
     const btnCopy = e.target.closest('[data-pgr-copy]');
     if (btnCopy) { e.preventDefault(); pgrSalinTeks(btnCopy.dataset.pgrCopy, btnCopy); return; }
+    const btnHapusCc = e.target.closest('[data-cc-hapus]');
+    if (btnHapusCc) { e.preventDefault(); ccHapusResiDialog(btnHapusCc.dataset.ccHapus, btnHapusCc.dataset.ccRow); return; }
     const btnLink = e.target.closest('[data-pgr-tautkan]');
     if (btnLink) { e.preventDefault(); pgrTautkanManual(btnLink.dataset.pgrTautkan, btnLink.dataset.pgrKilat === '1'); }
   });
@@ -25289,6 +25340,12 @@ async function perFetchLaporanInventoryDetail() {
     if (!data.success) { el('li-body').innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error||'')}</td></tr>`; return; }
     perLapCache = data.laporan || [];
     el('per-lap-total-nilai').textContent = 'Rp ' + Number(data.totalNilaiInventory).toLocaleString('id-ID');
+    // v2026.10.15: stok minus dipisah dari nilai inventory (catatan lembut, bukan merah)
+    { const kartu = el('per-lap-total-nilai').parentElement; let inf = el('per-lap-minus-info');
+      const m = data.stokMinus || { jumlahSku: perLapCache.filter(p => Number(p.stockFisik) < 0).length, totalQty: 0 };
+      if (!inf && kartu) { inf = document.createElement('div'); inf.id = 'per-lap-minus-info'; inf.className = 'per-minus-info'; kartu.appendChild(inf); }
+      if (inf) { inf.style.display = m.jumlahSku ? '' : 'none';
+        inf.textContent = m.jumlahSku ? `${m.jumlahSku} SKU stok minus${m.totalQty ? ' (' + m.totalQty.toLocaleString('id-ID') + ' pcs)' : ''} tidak dihitung - terjual sebelum stok masuk tercatat. Cek & opname SKU tsb.` : ''; } }
     el('per-lap-tidak-laku').textContent = perLapCache.filter(p => p.tidakLaku).length;
     el('per-lap-menipis').textContent = perLapCache.filter(p => p.menipis).length;
     perLapRenderHalaman();
@@ -30503,12 +30560,25 @@ function tpSinkronSkuUtama(dariInput) {
   if (info) info.innerHTML = u && u.sku && u.sku.trim()
     ? `★ SKU Utama: <b>${escapeHtml(u.sku.trim())}</b>${hm > 0 ? ` · Harga Modal <b>Rp ${hm.toLocaleString('id-ID')}</b> dipakai sebagai acuan Katalog &gt; Harga` : ' · isi Harga Modal-nya supaya jadi acuan Katalog &gt; Harga'}`
     : 'Baris paling atas otomatis menjadi <b>SKU Utama</b> - geser (⋮⋮) untuk mengubah urutan.';
-  if (!dariInput || !u) return;
-  if (hm > 0) {
-    const inp = el('tp-harga-supplier');
-    if ((parseFloat(inp.value) || 0) !== hm) { inp.value = hm; katalogHitungHargaJualOtomatis(); }
+  // v2026.10.15: ada SKU Supplier Utama ber-Harga Modal -> Harga Beli & Harga Jual read-only (sumber tunggal)
+  const adaUtama = !!(u && u.sku && u.sku.trim() && hm > 0);
+  if (adaUtama) {
+    const inpU = el('tp-harga-supplier');
+    if ((parseFloat(inpU.value) || 0) !== hm) { inpU.value = hm; katalogHitungHargaJualOtomatis(); }
   }
+  tpKunciHarga_(adaUtama);
+  if (!dariInput || !u) return;
   if (u.url && String(u.url).trim()) el('tp-url-supplier').value = String(u.url).trim();
+}
+function tpKunciHarga_(kunci) {
+  const a = el('tp-harga-supplier'), b = el('tp-harga'), h = el('tp-harga-helper');
+  if (!a || !b) return;
+  [a, b].forEach(x => { x.readOnly = kunci; x.classList.toggle('tp-terkunci', kunci); x.title = kunci ? 'Mengikuti SKU Supplier Utama' : ''; });
+  if (h) {
+    if (h.dataset.asli === undefined) h.dataset.asli = h.textContent;
+    if (kunci) h.textContent = '🔒 Harga Beli mengikuti Harga Modal SKU Supplier Utama (ubah di daftar SKU Supplier). Harga Jual dihitung dari margin - ubah di Katalog > Harga.';
+    else if (/^🔒/.test(h.textContent)) h.textContent = h.dataset.asli;
+  }
 }
 function tpTambahBarisSkuSupplier() {
   tpBarisSupplier.push({ sku: '', namaSupplier: '', url: '', hargaModal: 0 });
@@ -42672,18 +42742,115 @@ function perMonFotoHtml(p) {
   return `<td class="per-col-foto"><div class="tabel-img-wrapper per-foto"><img src="${src}" class="tabel-thumb" alt="${alt}" loading="lazy"><img src="${src}" class="tabel-img-zoom" alt="${alt}" loading="lazy"></div></td>`;
 }
 
+/* ============================================================
+   v2026.10.16 - HAPUS STOK (Owner) + LOKASI RAK di Monitor Stok
+   ============================================================ */
+let rakPeta = null, rakMemuat = null;
+function rakMuat(paksa) {
+  if (rakPeta && !paksa) return Promise.resolve(rakPeta);
+  if (rakMemuat) return rakMemuat;
+  rakMemuat = postJson({ aksi: 'rak_lihat', email: currentUserEmail() }, 30000, true)
+    .then(d => { rakPeta = (d && d.success) ? (d.peta || {}) : (rakPeta || {}); return rakPeta; })
+    .catch(() => { rakPeta = rakPeta || {}; return rakPeta; })
+    .finally(() => { rakMemuat = null; });
+  return rakMemuat;
+}
+function rakChipHtml(sku) {
+  const r = rakPeta ? rakPeta[sku] : '';
+  const skuAman = pgrAttr(sku);
+  return r ? `<button type="button" class="rak-chip" data-rak-sku="${skuAman}" title="Lokasi rak - klik untuk ubah">📍 ${escapeHtml(r)}</button>`
+    : (rakPeta ? `<button type="button" class="rak-chip kosong" data-rak-sku="${skuAman}" title="Isi lokasi rak">+ Rak</button>` : '');
+}
+function rakEditDialog(sku) {
+  const lama = (rakPeta && rakPeta[sku]) || '';
+  omxModal('Lokasi rak · ' + sku, `
+    <label class="omx-lbl" for="rak-inp">Rak (disarankan Zona-Rak-Tingkat, mis. A-03-2)</label>
+    <input id="rak-inp" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0;" maxlength="30" value="${pgrAttr(lama)}" placeholder="A-03-2" autocomplete="off">
+    <div class="rak-saran">${[...new Set(Object.values(rakPeta || {}))].sort().slice(0, 24).map(r => `<button type="button" class="rak-chip" onclick="el('rak-inp').value='${pgrAttr(r)}'">${escapeHtml(r)}</button>`).join('')}</div>
+    <div class="status-text" id="rak-status" style="text-align:left; margin-top:8px;" role="status" aria-live="polite"></div>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button>
+      <button type="button" class="web-btn-primary" id="rak-btn" onclick="rakSimpanDialog('${pgrAttr(sku)}')">Simpan</button></div>`);
+  setTimeout(() => { const i = el('rak-inp'); if (i) { i.select(); i.addEventListener('keydown', e => { if (e.key === 'Enter') rakSimpanDialog(sku); }); } }, 60);
+}
+async function rakSimpanDialog(sku) {
+  const btn = el('rak-btn'), st = el('rak-status'); if (!btn || btn.disabled) return;
+  const rak = el('rak-inp').value.trim().toUpperCase().replace(/\s+/g, '');
+  btn.disabled = true; st.textContent = 'Menyimpan…';
+  try {
+    const d = await postJsonTulis({ aksi: 'rak_simpan', sku, rak, email: currentUserEmail() });
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal menyimpan');
+    rakPeta = rakPeta || {}; if (rak) rakPeta[sku] = rak; else delete rakPeta[sku];
+    omxTutupModal(); omniToast(rak ? `${sku} → rak ${rak}` : `Rak ${sku} dikosongkan`, 'sukses');
+    if (typeof perMonRender === 'function') perMonRender();
+  } catch (err) { st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; }
+}
+// Daftar opname urut rak (bisa dicetak): rak -> SKU, nama, stok sistem, kolom fisik kosong
+function rakCetakDaftarOpname() {
+  const data = (typeof perMonDataTersaring === 'function' ? perMonDataTersaring() : []).filter(p => p.terdaftar !== false);
+  const grup = {};
+  data.forEach(p => { const r = (rakPeta && rakPeta[p.sku]) || 'TANPA RAK'; (grup[r] = grup[r] || []).push(p); });
+  const urut = Object.keys(grup).sort((a, b) => a === 'TANPA RAK' ? 1 : b === 'TANPA RAK' ? -1 : a.localeCompare(b, 'id', { numeric: true }));
+  const w = window.open('', '_blank');
+  if (!w) { pgrToast('Izinkan pop-up untuk mencetak daftar opname'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Daftar Opname per Rak</title><style>
+    body{font:12px/1.4 system-ui,sans-serif;margin:18px;color:#111} h1{font-size:16px;margin:0 0 4px} .k{color:#555;margin-bottom:12px}
+    h2{font-size:13px;margin:16px 0 4px;padding:4px 8px;background:#eef2f7;border-radius:4px} table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #ccc;padding:4px 6px;text-align:left} th{background:#f7f7f7} td.n{text-align:right;width:70px} td.f{width:90px}
+    @media print{h2{break-after:avoid} tr{break-inside:avoid}}</style></head><body>
+    <h1>Daftar Stock Opname per Rak</h1><div class="k">${new Date().toLocaleString('id-ID')} · ${data.length} SKU · isi kolom "Fisik" sambil berjalan dari rak ke rak</div>
+    ${urut.map(r => `<h2>📍 ${escapeHtml(r)} <small>(${grup[r].length} SKU)</small></h2><table><thead><tr><th>SKU</th><th>Nama</th><th>Stok sistem</th><th>Fisik</th></tr></thead><tbody>
+      ${grup[r].sort((a, b) => String(a.sku).localeCompare(String(b.sku))).map(p => `<tr><td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.nama || '')}</td><td class="n">${Number(p.onHand) || 0}</td><td class="f"></td></tr>`).join('')}</tbody></table>`).join('')}
+    <script>setTimeout(function(){window.print()},300)<\/script></body></html>`);
+  w.document.close();
+}
+function hapusStokDialog(sku) {
+  const p = (typeof perMonDataTersaring === 'function' ? perMonDataTersaring() : []).find(x => x.sku === sku) || { sku, onHand: 0 };
+  omxModal('Hapus stok · ' + sku, `
+    <div style="font-size:12.5px; margin-bottom:10px;">Stok sistem sekarang: <b>${perFmtAngka ? perFmtAngka(p.onHand) : p.onHand}</b>. Penghapusan dicatat sebagai penyesuaian stok (Smart Opname) - riwayatnya tetap ada.</div>
+    <label style="display:flex; gap:6px; align-items:center; font-size:12.5px; margin-bottom:8px;"><input type="checkbox" id="hs-semua" checked onchange="el('hs-qty').disabled=this.checked"> Hapus semua stok SKU ini</label>
+    <label class="omx-lbl" for="hs-qty">Qty yang dihapus</label>
+    <input id="hs-qty" type="number" inputmode="decimal" min="1" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0 0 10px;" value="${Math.max(0, Number(p.onHand) || 0)}" disabled>
+    <label class="omx-lbl" for="hs-alasan">Alasan</label>
+    <select id="hs-alasan" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0 0 8px;">${['Salah input stok', 'SKU dobel / salah SKU', 'Barang dibuang / kedaluwarsa', 'Barang hilang', 'Lainnya'].map(a => `<option>${a}</option>`).join('')}</select>
+    <input id="hs-catatan" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0;" maxlength="150" placeholder="Catatan (opsional)">
+    <div class="status-text" id="hs-status" style="text-align:left; margin-top:10px;" role="status" aria-live="polite"></div>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button>
+      <button type="button" class="web-btn-primary" id="hs-btn" style="background:#b45309;" onclick="hapusStokKirim('${pgrAttr(sku)}')">Hapus stok</button></div>`);
+}
+async function hapusStokKirim(sku) {
+  const btn = el('hs-btn'), st = el('hs-status'); if (!btn || btn.disabled) return;
+  const semua = el('hs-semua').checked, qty = Number(el('hs-qty').value) || 0;
+  const alasan = el('hs-alasan').value + (el('hs-catatan').value.trim() ? ' - ' + el('hs-catatan').value.trim() : '');
+  if (!semua && !(qty > 0)) { st.textContent = 'Isi qty yang dihapus'; st.className = 'status-text err'; return; }
+  btn.disabled = true; st.textContent = 'Menyimpan…'; st.className = 'status-text';
+  try {
+    const d = await postJsonTulis({ aksi: 'hapus_stok_owner', sku, semua, qty, alasan, email: currentUserEmail() });
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    omxTutupModal();
+    omniToast(`Stok ${sku}: ${d.stokSebelum} → ${d.stokSesudah}`, 'sukses');
+    try { if (typeof perFetchMonitorStok === 'function') perFetchMonitorStok(true); } catch (e) { }
+  } catch (err) { st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; }
+}
+document.addEventListener('click', e => {
+  const r = e.target.closest && e.target.closest('[data-rak-sku]');
+  if (r && !r.closest('.omx-modal')) { e.preventDefault(); rakEditDialog(r.dataset.rakSku); return; }
+  const h = e.target.closest && e.target.closest('[data-hapus-stok]');
+  if (h) { e.preventDefault(); hapusStokDialog(h.dataset.hapusStok); }
+});
+
 function perMonRender() {
   if (!katalogProdukCache.length && !perMonRender._muatKatalog) {
     perMonRender._muatKatalog = true;
     katalogFetchProduk().then(() => { if (el('per-mon-body')) perMonRender(); }); // untuk foto (cache lokal dulu)
   }
+  if (!rakPeta && !rakMemuat) rakMuat().then(() => perMonRender());
   const data = perMonDataTersaring();
   el('per-mon-empty').style.display = data.length === 0 ? 'block' : 'none';
   const halamanIni = halamanDataPaginasi(data, perMonPaginasiState);
   el('per-mon-body').innerHTML = halamanIni.map(p => {
     const skuAman = String(p.sku).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const kolomSku = p.terdaftar
-      ? `<td style="font-weight:600;">${escapeHtml(p.sku)}</td>`
+      ? `<td style="font-weight:600;">${escapeHtml(p.sku)}<div>${rakChipHtml(p.sku)}</div></td>`
       : `<td style="font-weight:600;"><span title="SKU belum terdaftar di Produk Master">⚠️</span> ${escapeHtml(p.sku)}
            <button class="per-btn-master" onclick="perBukaModalMaster('${skuAman}')">+ Master</button></td>`;
     const opname = p.opnameTerakhir
@@ -42704,7 +42871,7 @@ function perMonRender() {
       ${perMonSel(p.onOrder)}
       ${perMonSel(p.onReserve)}
       ${perMonSel(p.onAvailable, 'available')}
-      <td style="font-size:11px; color:var(--web-text-dim); white-space:nowrap;">${opname}</td>
+      <td style="font-size:11px; color:var(--web-text-dim); white-space:nowrap;">${opname}${omxApakahOwner_() && Number(p.onHand) ? `<div><button type="button" class="per-btn-hapus-stok" data-hapus-stok="${pgrAttr(p.sku)}" title="Hapus stok (khusus Owner)">Hapus stok</button></div>` : ''}</td>
     </tr>`;
   }).join('');
   renderPaginasi('per-mon-paginasi', data.length, perMonPaginasiState, perMonRender);
@@ -48597,7 +48764,7 @@ function mgmKartuHtml(it, jumlahInvoiceChecklist) {
           </div>
           <div class="mgm-qty-inline">
             <button class="mgm-qty-btn" onclick="mgmUbahQty(mgmIdx(this),-1)">−</button>
-            <input class="mgm-qty-input-sm" type="number" inputmode="decimal" value="${escapeHtml(String(it.qty))}" onchange="mgmSetQtyLangsung(mgmIdx(this),this.value)" />
+            <input class="mgm-qty-input-sm" type="number" inputmode="decimal" enterkeyhint="done" value="${escapeHtml(String(it.qty))}" onfocus="this.select()" onkeydown="if(event.key==='Enter'){this.blur();}" onchange="mgmSetQtyLangsung(mgmIdx(this),this.value)" />
             <button class="mgm-qty-btn" onclick="mgmUbahQty(mgmIdx(this),1)">+</button>
           </div>
         </div>
@@ -57739,7 +57906,9 @@ function ccBarisHtml(d) {
     inv = `<span class="cc-inv-kosong">Belum terhubung <button type="button" class="cc-btn-tautkan" data-pgr-tautkan="${pgrAttr(resi)}">Tautkan</button></span>`;
   }
   const status = d.jenis === 'transfer' ? tgsBadgeHtml(d.statusTransfer, d) : pgrPillStatus(d.statusPesanan);
-  const alasan = cc.h === 'gantung' && cc.alasan ? `<div class="cc-alasan">${CC_IKON.awas} ${escapeHtml(cc.alasan)}</div>` : '';
+  const alasan = (cc.h === 'gantung' && cc.alasan ? `<div class="cc-alasan">${CC_IKON.awas} ${escapeHtml(cc.alasan)}</div>` : '')
+    + (cc.h === 'gantung' ? `<div class="cc-gantung-aksi">${d.noInvoice && d.jenis !== 'transfer' ? `<button type="button" class="cc-btn-mini" data-pgr-tautkan="${pgrAttr(resi)}" title="Hubungkan resi ini ke invoice lain">Ganti invoice</button>` : ''}`
+      + `<button type="button" class="cc-btn-mini cc-btn-hapus" data-cc-hapus="${pgrAttr(resi)}" data-cc-row="${pgrAttr(d.row || '')}" title="Hapus resi (salah scan, dobel, dll.)">Hapus resi</button></div>` : '');
   const v = ccNilai(d);
   const retur = d.resiRetur
     ? `<span class="cc-resi"><span class="pgr-mono" style="font-size:12px;">${escapeHtml(d.resiRetur)}</span><button type="button" class="cc-salin" data-pgr-copy="${pgrAttr(d.resiRetur)}" title="Salin Resi Retur" aria-label="Salin Resi Retur">${CC_IKON.salin}</button></span>`
@@ -57917,7 +58086,7 @@ function mrkRender() {
   mrkCache.forEach(m => { if (m.status === 'Menunggu Klaim') { n.tunggu++; if (m.nilai !== null && m.nilai !== undefined) { nilaiTunggu += m.nilai; adaNilai = true; } } else n.selesai++; });
   el('mrk-seg').innerHTML = [['tunggu', 'Menunggu Klaim'], ['selesai', 'Selesai'], ['semua', 'Semua']]
     .map(([k, l]) => `<button type="button" class="${mrkSeg === k ? 'aktif' : ''}" onclick="mrkSeg='${k}'; mrkRender();">${l} <em>${n[k]}</em></button>`).join('');
-  el('mrk-ringkas').innerHTML = `<span><b>${n.tunggu}</b> memo menunggu klaim</span>${adaNilai ? `<span>Nilai tertahan <b>${omxRp(nilaiTunggu)}</b></span>` : ''}<span><b>${n.selesai}</b> sudah selesai</span>`;
+  el('mrk-ringkas').innerHTML = (n.tunggu ? `<button type="button" class="mrk-aksi-btn mrk-btn-wa" onclick="mrkTeksKlaimBuka()" title="Buat teks klaim per supplier, tinggal salin ke WhatsApp">Buat teks klaim WA</button>` : '') + `<span><b>${n.tunggu}</b> memo menunggu klaim</span>${adaNilai ? `<span>Nilai tertahan <b>${omxRp(nilaiTunggu)}</b></span>` : ''}<span><b>${n.selesai}</b> sudah selesai</span>`;
   const rows = mrkCache.filter(m => mrkSeg === 'semua' || (mrkSeg === 'tunggu' ? m.status === 'Menunggu Klaim' : m.status !== 'Menunggu Klaim'));
   body.innerHTML = rows.length ? rows.slice(0, 300).map(m => `
     <tr>
@@ -57930,6 +58099,38 @@ function mrkRender() {
       <td>${mrkPill(m)}${m.status !== 'Menunggu Klaim' ? `<div class="cc-waktu">${escapeHtml(m.penyelesaian === 'Uang' && m.diterima !== null ? omxRp(m.diterima) : String(m.diterima || ''))}${m.tglSelesai ? ' · ' + escapeHtml(m.tglSelesai) : ''}</div>` : (m.stokDikurangi ? '' : '<div class="cc-waktu">stok tidak dikurangi</div>')}</td>
       <td>${m.status === 'Menunggu Klaim' ? `<button type="button" class="mrk-aksi-btn" onclick="mrkBukaSelesaikan('${pgrAttr(m.noMemo)}')">Selesaikan Klaim</button>` : ''}</td>
     </tr>`).join('') : `<tr><td colspan="7" style="text-align:center; color:var(--web-text-dim); padding:18px;">${mrkSeg === 'tunggu' ? 'Tidak ada memo yang menunggu klaim.' : 'Belum ada memo.'}</td></tr>`;
+}
+/* v2026.10.15 - Teks klaim kurang/rusak siap WA (per supplier): No Invoice, SKU, nama, qty. */
+function mrkTeksKlaimSusun(supplier) {
+  const daftar = (mrkCache || []).filter(m => m.status === 'Menunggu Klaim' && (m.supplier || 'Tanpa supplier') === supplier);
+  const perInv = {};
+  daftar.forEach(m => { const k = m.noInvoice || 'Tanpa no invoice'; (perInv[k] = perInv[k] || []).push(m); });
+  let total = 0, no = 0;
+  const bagian = Object.keys(perInv).map(inv => 'Invoice ' + inv + '\n' + perInv[inv].map(m => {
+    total += Number(m.qty) || 0; no++;
+    return `${no}. ${m.nama || m.sku} (SKU ${m.sku}) - ${m.jenis === 'Kurang' ? 'kurang' : 'rusak'} ${m.qty} pcs${(m.foto || []).length ? ' (foto terlampir)' : ''}${m.catatan ? ' - ' + m.catatan : ''}`;
+  }).join('\n'));
+  return { jumlah: daftar.length, teks: `Halo kak${supplier && supplier !== 'Tanpa supplier' ? ' ' + supplier : ''}, kami mau klaim barang kurang/rusak:\n\n`
+    + bagian.join('\n\n') + `\n\nTotal ${total} pcs. Mohon dibantu penggantian barang / refund ya kak. Terima kasih 🙏` };
+}
+function mrkTeksKlaimBuka() {
+  const supp = [...new Set((mrkCache || []).filter(m => m.status === 'Menunggu Klaim').map(m => m.supplier || 'Tanpa supplier'))];
+  if (!supp.length) { pgrToast('Tidak ada memo yang menunggu klaim.'); return; }
+  omxModal('Teks klaim ke supplier', `
+    <label class="omx-lbl" for="mrkwa-supp">Supplier</label>
+    <select id="mrkwa-supp" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0 0 10px;" onchange="mrkTeksKlaimIsi()">${supp.map(x => `<option>${escapeHtml(x)}</option>`).join('')}</select>
+    <textarea id="mrkwa-teks" class="web-form-input" style="width:100%; box-sizing:border-box; min-height:240px; margin:0; font-size:12.5px;"></textarea>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Tutup</button>
+      <button type="button" class="web-btn-secondary" onclick="window.open('https://wa.me/?text=' + encodeURIComponent(el('mrkwa-teks').value), '_blank', 'noopener')">Buka WhatsApp</button>
+      <button type="button" class="web-btn-primary" onclick="mrkTeksKlaimSalin()">Salin teks</button></div>`, { lebar: true });
+  mrkTeksKlaimIsi();
+}
+function mrkTeksKlaimIsi() { const t = el('mrkwa-teks'); if (t) t.value = mrkTeksKlaimSusun(el('mrkwa-supp').value).teks; }
+function mrkTeksKlaimSalin() {
+  const t = el('mrkwa-teks'); if (!t) return;
+  const ok = () => omniToast('Teks klaim disalin - tinggal tempel di WhatsApp', 'sukses');
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value).then(ok).catch(() => { t.select(); document.execCommand('copy'); ok(); });
+  else { t.select(); document.execCommand('copy'); ok(); }
 }
 // Ringkasan memo di Detail Pembelian (per invoice)
 function mrkRenderDetail() {
@@ -59401,7 +59602,9 @@ function ccBarisHtml(d) {
   }
   let status = d.jenis === 'transfer' ? tgsBadgeHtml(d.statusTransfer, d) : pgrPillStatus(d.statusPesanan);
   if (ins && ins.statusKirim) status += `<span class="ccx-kirim" title="${pgrAttr(ins.detailKirim || '')}">${escapeHtml(ins.statusKirim)}${ins.waktu ? ' · ' + new Date(ins.waktu).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>`;
-  const alasan = cc.h === 'gantung' && cc.alasan ? `<div class="cc-alasan">${CC_IKON.awas} ${escapeHtml(cc.alasan)}</div>` : '';
+  const alasan = (cc.h === 'gantung' && cc.alasan ? `<div class="cc-alasan">${CC_IKON.awas} ${escapeHtml(cc.alasan)}</div>` : '')
+    + (cc.h === 'gantung' ? `<div class="cc-gantung-aksi">${d.noInvoice && d.jenis !== 'transfer' ? `<button type="button" class="cc-btn-mini" data-pgr-tautkan="${pgrAttr(resi)}" title="Hubungkan resi ini ke invoice lain">Ganti invoice</button>` : ''}`
+      + `<button type="button" class="cc-btn-mini cc-btn-hapus" data-cc-hapus="${pgrAttr(resi)}" data-cc-row="${pgrAttr(d.row || '')}" title="Hapus resi (salah scan, dobel, dll.)">Hapus resi</button></div>` : '');
   const v = ccNilai(d);
   const retur = d.resiRetur
     ? `<span class="cc-resi"><span class="pgr-mono" style="font-size:12px;">${escapeHtml(d.resiRetur)}</span>${salin(d.resiRetur, 'Resi Retur')}</span>`
@@ -59419,6 +59622,37 @@ function ccBarisHtml(d) {
   </tr>`;
 }
 
+/* v2026.10.15 - Tab Menggantung: hapus resi dengan alasan (salah scan, dobel, dst.). Isi baris tetap diarsipkan
+   (bisa dipulihkan dari filter "Resi dihapus") + alasan dicatat di sheet arsip. */
+const CC_ALASAN_HAPUS = ['Salah scan', 'Resi dobel', 'Batal kirim / pesanan dibatalkan', 'Paket tidak jadi dikirim', 'Resi uji coba', 'Lainnya'];
+function ccHapusResiDialog(resi, row) {
+  omxModal('Hapus resi ' + resi, `
+    <label class="omx-lbl" for="cch-alasan">Alasan</label>
+    <select id="cch-alasan" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0 0 10px;">${CC_ALASAN_HAPUS.map(a => `<option>${escapeHtml(a)}</option>`).join('')}</select>
+    <label class="omx-lbl" for="cch-catatan">Catatan (opsional)</label>
+    <input id="cch-catatan" class="web-form-input" style="width:100%; box-sizing:border-box; margin:0;" maxlength="200" placeholder="Mis. resi ditempel ulang di paket lain">
+    <div class="status-text" id="cch-status" style="text-align:left; margin-top:10px;" role="status" aria-live="polite"></div>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button>
+      <button type="button" class="web-btn-primary" id="cch-btn" onclick="ccHapusResiKirim('${pgrAttr(resi)}', '${pgrAttr(row || '')}')">Hapus resi</button></div>`);
+}
+async function ccHapusResiKirim(resi, row) {
+  const btn = el('cch-btn'), st = el('cch-status');
+  if (!btn || btn.disabled) return;
+  const catatan = el('cch-catatan').value.trim();
+  const alasan = el('cch-alasan').value + (catatan ? ' - ' + catatan : '');
+  btn.disabled = true; st.textContent = 'Menghapus…'; st.className = 'status-text';
+  try {
+    const d = await postJsonTulis({ aksi: 'hapus', tipe: 'keluar', row: parseInt(row, 10) || 2, noResi: resi, alasan, email: currentUserEmail() });
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal menghapus');
+    omxTutupModal();
+    omniToast('Resi ' + resi + ' dihapus · ' + alasan, 'sukses');
+    const tr = document.querySelector(`tr[data-resi="${CSS.escape(resi)}"]`); if (tr) tr.remove();
+    try { hapusCacheTTL('log_resi_riwayat'); } catch (e) { }
+    try { await wpMuatAktifPengiriman(); wpRenderPengirimanTab(); } catch (e) { }
+  } catch (err) {
+    st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false;
+  }
+}
 /* Proses latar: resolusi kurir instan + cari pesanan mendalam (senyap, indikator hanya di status kecil) */
 function ccxProsesLatar() {
   if (typeof wpPengirimanSubAktif !== 'undefined' && wpPengirimanSubAktif !== 'control') return;
