@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.12-a';
+  var VERSI = 'v2026.10.13-a';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -627,6 +627,251 @@
 <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+/* ============================================================
+   KAMERA SCAN v2026.10.13 - barcode 1D panjang (SiCepat, AnterAja, J&T) jauh lebih mudah terbaca
+   Penyebab lama:
+   1. Resolusi kamera tidak pernah diminta -> HP memakai 640x480, garis barcode panjang jadi kabur.
+   2. ZXing mencoba SEMUA jenis kode (QR, Aztec, PDF417, MaxiCode...) di tiap gambar, tanpa jeda -> lambat & layar macet.
+   3. Pembaca barcode bawaan HP (BarcodeDetector, Android Chrome) tidak dipakai.
+   Perbaikan (otomatis berlaku untuk SEMUA kamera scan yang memakai ZXing.BrowserMultiFormatReader):
+   - Kamera diminta Full HD (1920x1080).
+   - Pembaca bawaan HP dipakai kalau ada; hasil barcode 1D harus terbaca sama 2x berturut-turut (anti salah baca).
+   - Cadangan ZXing (mis. iPhone): hanya jenis kode resi/SKU, membaca jalur tengah (kotak pemandu) dengan cepat,
+     tiap percobaan ke-4 membaca seluruh layar dengan mode "berusaha keras" (barcode miring / di luar kotak).
+   - Kotak pemandu di tengah kamera.
+   - Statistik: jenis "ukur", nama "kamera_baca" (mesin, resolusi, format, panjang kode, lama sampai terbaca).
+   ============================================================ */
+(function () {
+  var FORMAT_NATIF = ['code_128', 'code_39', 'code_93', 'codabar', 'itf', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'data_matrix'];
+  var FORMAT_DUA_KALI = { codabar: 1, itf: 1, code_39: 1, code_93: 1, code_128: 1, upc_e: 1 };
+  var janjiDetektor = null;
+
+  function siapkanDetektor() {
+    if (janjiDetektor) return janjiDetektor;
+    janjiDetektor = (async function () {
+      try {
+        if (!('BarcodeDetector' in window)) return null;
+        var ada = await window.BarcodeDetector.getSupportedFormats();
+        var pakai = FORMAT_NATIF.filter(function (f) { return ada.indexOf(f) !== -1; });
+        if (pakai.indexOf('code_128') === -1) return null; // tanpa Code 128 = tidak berguna untuk resi
+        return new window.BarcodeDetector({ formats: pakai });
+      } catch (e) { return null; }
+    })();
+    return janjiDetektor;
+  }
+
+  // { video: { facingMode: 'environment' } } -> + width/height ideal Full HD (kalau belum diatur)
+  function naikkanResolusi(c) {
+    try {
+      if (!c || typeof c !== 'object') return c;
+      var v = c.video;
+      if (v === true || v === undefined) v = { facingMode: 'environment' };
+      if (!v || typeof v !== 'object' || v.width || v.height || v.deviceId) return c;
+      return Object.assign({}, c, { video: Object.assign({}, v, { width: { ideal: 1920 }, height: { ideal: 1080 } }) });
+    } catch (e) { return c; }
+  }
+  window.kameraNaikkanResolusi = naikkanResolusi;
+
+  // ---------- Kotak pemandu ----------
+  function pasangPemandu(video) {
+    try {
+      var wadah = video && video.parentElement;
+      if (!wadah) return;
+      if (wadah.querySelector(':scope > .cam-guideline')) return; // kamera ini sudah punya garis panduan sendiri
+      if (getComputedStyle(wadah).position === 'static') wadah.style.position = 'relative';
+      var p = wadah.querySelector(':scope > .kamera-pemandu');
+      if (!p) {
+        p = document.createElement('div');
+        p.className = 'kamera-pemandu';
+        p.setAttribute('aria-hidden', 'true');
+        p.innerHTML = '<span class="kamera-pemandu-garis"></span><span class="kamera-pemandu-teks">Arahkan barcode ke dalam kotak</span>';
+        wadah.appendChild(p);
+      }
+      var atur = function () {
+        if (!video.isConnected || !p.isConnected) return;
+        var t = video.offsetTop, l = video.offsetLeft, w = video.offsetWidth, h = video.offsetHeight;
+        if (!w || !h) return;
+        p.style.left = (l + w * 0.05) + 'px'; p.style.width = (w * 0.90) + 'px';
+        p.style.top = (t + h * 0.32) + 'px'; p.style.height = (h * 0.36) + 'px';
+      };
+      atur();
+      if (!video.__omxPemanduRO && 'ResizeObserver' in window) {
+        video.__omxPemanduRO = new ResizeObserver(atur);
+        video.__omxPemanduRO.observe(video);
+      }
+      video.addEventListener('loadedmetadata', atur, { once: true });
+      p.style.display = '';
+    } catch (e) { }
+  }
+  function lepasPemandu(video) {
+    try {
+      var p = video && video.parentElement && video.parentElement.querySelector(':scope > .kamera-pemandu');
+      if (p) p.style.display = 'none';
+    } catch (e) { }
+  }
+
+  // ---------- Statistik ringan ----------
+  function catatBaca(video, teks, format, mesin, mulai) {
+    try {
+      if (!window.omxAnalitik || !omxAnalitik.catat) return;
+      var st = video.__omxBaca || (video.__omxBaca = { teks: '', t: 0 });
+      var now = Date.now();
+      if (teks === st.teks && now - st.t < 8000) { st.t = now; return; }
+      var dari = Math.max(mulai || 0, st.t || 0);
+      st.teks = teks; st.t = now;
+      omxAnalitik.catat('ukur', 'kamera_baca', { d: dari ? now - dari : 0, ok: true,
+        x: { mesin: mesin, resolusi: video.videoWidth + 'x' + video.videoHeight, format: String(format || ''), panjang: String(teks || '').length } });
+    } catch (e) { }
+  }
+
+  // Area video yang BENAR-BENAR terlihat di layar (object-fit: cover memotong tepi + zoom digital), dalam piksel video
+  function areaTerlihat(video) {
+    var vw = video.videoWidth, vh = video.videoHeight, now = Date.now();
+    var c = video.__omxArea;
+    if (c && c.vw === vw && c.vh === vh && now - c.t < 1000) return c;
+    var lw = vw, lh = vh;
+    try {
+      var ew = video.clientWidth, eh = video.clientHeight;
+      if (ew && eh && getComputedStyle(video).objectFit === 'cover') {
+        var ra = ew / eh, rv = vw / vh;
+        if (rv > ra) lw = vh * ra; else lh = vw / ra;
+      }
+    } catch (e) { }
+    var zf = (video.classList.contains('kamera-zoom-digital') && video.dataset.zoomHw !== '1') ? (Number(video.dataset.zoomTarget) || 1.5) : 1;
+    lw /= zf; lh /= zf;
+    c = { vw: vw, vh: vh, t: now, x: (vw - lw) / 2, y: (vh - lh) / 2, w: lw, h: lh };
+    video.__omxArea = c;
+    return c;
+  }
+
+  // Pilih kode yang paling dekat ke tengah area yang TERLIHAT (zoom digital memotong tepi gambar)
+  function pilihKode(daftar, video) {
+    if (!daftar || !daftar.length) return null;
+    var vw = video.videoWidth, vh = video.videoHeight;
+    var a = areaTerlihat(video), lx = a.x, ly = a.y, lw = a.w, lh = a.h;
+    var terbaik = null, jarak = Infinity;
+    for (var i = 0; i < daftar.length; i++) {
+      var k = daftar[i];
+      if (!k || !k.rawValue) continue;
+      var b = k.boundingBox || { x: vw / 2, y: vh / 2, width: 0, height: 0 };
+      var cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      if (cx < lx || cx > lx + lw || cy < ly || cy > ly + lh) continue; // di luar layar yang terlihat
+      var d = Math.pow(cx - vw / 2, 2) + Math.pow(cy - vh / 2, 2);
+      if (d < jarak) { jarak = d; terbaik = k; }
+    }
+    return terbaik;
+  }
+  function hasilSemu(teks, format) {
+    return { text: teks, getText: function () { return teks; }, getBarcodeFormat: function () { return format; },
+      getResultPoints: function () { return []; }, getRawBytes: function () { return null; }, getTimestamp: function () { return Date.now(); } };
+  }
+
+  function pasang() {
+    var Z = window.ZXing;
+    if (!Z || !Z.BrowserMultiFormatReader) return false;
+    if (Z.BrowserMultiFormatReader.__omniV2) return true;
+    var Asli = Z.BrowserMultiFormatReader, F = Z.BarcodeFormat, H = Z.DecodeHintType;
+    function hint(daftar, keras) { var m = new Map(); m.set(H.POSSIBLE_FORMATS, daftar); if (keras) m.set(H.TRY_HARDER, true); return m; }
+    var F1D = [F.CODE_128, F.CODE_39, F.CODE_93, F.CODABAR, F.ITF, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E];
+    var FSEMUA = F1D.concat([F.QR_CODE, F.DATA_MATRIX]);
+
+    class OmniReader extends Asli {
+      constructor(hints, jeda) {
+        super(hints || hint(FSEMUA, true), jeda === undefined ? 300 : jeda);
+        try { this.timeBetweenDecodingAttempts = 50; } catch (e) { }
+        this.__r1d = new Z.MultiFormatReader(); this.__r1d.setHints(hint(F1D, false));
+        this.__rAll = new Z.MultiFormatReader(); this.__rAll.setHints(hint(FSEMUA, true));
+        this.__n = 0; this.__gen = 0; this.__kanvas = null; this.__ktx = null; this.__mulai = 0;
+      }
+      decodeFromConstraints(c, video, cb) { return super.decodeFromConstraints(naikkanResolusi(c), video, cb); }
+      // Cadangan ZXing: jalur tengah (cepat, khusus 1D) bergantian dengan seluruh layar (semua jenis, berusaha keras)
+      decode(el) {
+        if (!(el instanceof HTMLVideoElement)) return super.decode(el);
+        var vw = el.videoWidth, vh = el.videoHeight;
+        if (!vw || !vh) throw new Z.NotFoundException();
+        var penuh = (++this.__n % 4 === 0);
+        var sx = 0, sy = 0, sw = vw, sh = vh, rd = this.__rAll; // tiap ke-4: seluruh gambar kamera
+        if (!penuh) {
+          // Jalur tengah area yang terlihat. Bingkai sudah melebar (mis. kamera Scan Resi) -> seluruh area terlihat.
+          var a = areaTerlihat(el);
+          sx = a.x; sw = a.w; sh = (a.w / a.h >= 1.2) ? a.h : Math.round(a.h * 0.4); sy = a.y + (a.h - sh) / 2; rd = this.__r1d;
+        }
+        var skala = Math.min(1, (penuh ? 1280 : 1600) / Math.max(sw, sh));
+        var cw = Math.max(1, Math.round(sw * skala)), ch = Math.max(1, Math.round(sh * skala));
+        var kv = this.__kanvas || (this.__kanvas = document.createElement('canvas'));
+        if (kv.width !== cw || kv.height !== ch) { kv.width = cw; kv.height = ch; this.__ktx = null; }
+        var ktx = this.__ktx || (this.__ktx = kv.getContext('2d', { willReadFrequently: true }));
+        ktx.drawImage(el, sx, sy, sw, sh, 0, 0, cw, ch);
+        var bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(kv)));
+        return rd.decodeWithState(bmp);
+      }
+      decodeContinuously(el, cb) {
+        var self = this;
+        if (!(el instanceof HTMLVideoElement)) return super.decodeContinuously(el, cb);
+        var gen = this.__gen;
+        this.__mulai = Date.now();
+        pasangPemandu(el);
+        var cbStat = function (mesin) {
+          return function (hasil, err) {
+            if (hasil) { try { var fm = hasil.getBarcodeFormat ? hasil.getBarcodeFormat() : ''; if (typeof fm === 'number' && F[fm]) fm = F[fm]; catatBaca(el, hasil.getText(), fm, mesin, self.__mulai); } catch (e) { } }
+            return cb(hasil, err);
+          };
+        };
+        siapkanDetektor().then(function (det) {
+          if (self.__gen !== gen) return; // kamera sudah ditutup sebelum detektor siap
+          if (!det) { el.dataset.mesinScan = 'zxing'; return Asli.prototype.decodeContinuously.call(self, el, cbStat('zxing')); }
+          el.dataset.mesinScan = 'bawaan';
+          var lapor = cbStat('bawaan');
+          var calon = '', kali = 0;
+          self._stopContinuousDecode = false;
+          var loop = async function () {
+            if (self._stopContinuousDecode || self.__gen !== gen) { self._stopContinuousDecode = undefined; return; }
+            var jeda = 80;
+            try {
+              if (el.readyState >= 2 && el.videoWidth) {
+                var k = pilihKode(await det.detect(el), el);
+                if (k) {
+                  if (FORMAT_DUA_KALI[k.format] && k.rawValue !== calon) { calon = k.rawValue; kali = 1; }
+                  else {
+                    kali++;
+                    if (!FORMAT_DUA_KALI[k.format] || kali >= 2) { lapor(hasilSemu(k.rawValue, k.format), null); jeda = self.timeBetweenScansMillis; }
+                  }
+                } else { calon = ''; kali = 0; }
+              } else jeda = 150;
+            } catch (e) { jeda = 200; }
+            if (self._stopContinuousDecode || self.__gen !== gen) { self._stopContinuousDecode = undefined; return; }
+            setTimeout(loop, jeda);
+          };
+          loop();
+        });
+      }
+      reset() {
+        this.__gen++;
+        try { lepasPemandu(this.videoElement); } catch (e) { }
+        return super.reset();
+      }
+    }
+    OmniReader.__omniV2 = true;
+    Z.BrowserMultiFormatReader = OmniReader;
+    siapkanDetektor();
+    return true;
+  }
+  window.kameraPasangPembacaV2 = pasang;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasang); else pasang();
+  window.addEventListener('load', pasang);
+})();
+</script>
+<style>
+  .kamera-pemandu { position: absolute; z-index: 2; pointer-events: none; box-sizing: border-box; border: 2px solid rgba(255,255,255,.85);
+    border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,.22); }
+  .kamera-pemandu-garis { position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; margin-top: -1px; border-radius: 2px;
+    background: rgba(45,212,191,.9); box-shadow: 0 0 8px rgba(45,212,191,.8); animation: kameraPemanduDenyut 1.6s ease-in-out infinite; }
+  .kamera-pemandu-teks { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; text-align: center; font: 600 12px/1.3 Inter, system-ui, sans-serif;
+    color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  @keyframes kameraPemanduDenyut { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .kamera-pemandu-garis { animation: none; } }
+</style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41497,7 +41742,9 @@ function mgBukaKamera(target) {
 
   if (!window.ZXing) { el('mg-kamera-error').textContent = 'Library kamera gagal dimuat. Cek internet.'; return; }
   const videoEl = el('mg-kamera-video');
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(async stream => {
+  // Scan barcode: kamera Full HD (barcode panjang lebih tajam). Foto: resolusi biasa (ukuran upload tetap kecil).
+  const batasanKamera = { video: { facingMode: 'environment' } };
+  navigator.mediaDevices.getUserMedia(!isFoto && window.kameraNaikkanResolusi ? window.kameraNaikkanResolusi(batasanKamera) : batasanKamera).then(async stream => {
     videoEl.srcObject = stream;
     await kameraTerapkanZoomFokus(videoEl);
     if (!isFoto) {
@@ -45793,7 +46040,13 @@ async function kameraTerapkanZoomFokus(videoEl) {
       if (tanpaZoom) advanced.push({ zoom: cap.zoom.min || 1 });
       else if (cap.zoom.max >= target) advanced.push({ zoom: Math.max(cap.zoom.min || 1, target) });
     }
-    for (const c of advanced) { try { await track.applyConstraints({ advanced: [c] }); if (c.zoom && !tanpaZoom) zoomHw = true; } catch (e) { /* tidak didukung - lanjut */ } }
+    for (const c of advanced) {
+      try {
+        await track.applyConstraints({ advanced: [c] });
+        if (c.zoom && !tanpaZoom) zoomHw = true;
+        if (c.focusMode === 'continuous') videoEl.dataset.fokusKontinu = '1'; // kamera fokus sendiri -> tidak perlu dipaksa fokus ulang
+      } catch (e) { /* tidak didukung - lanjut */ }
+    }
   }
   videoEl.dataset.zoomHw = (zoomHw || tanpaZoom) ? '1' : '';
   videoEl.style.setProperty('--kamera-zoom', String(target));
@@ -47837,7 +48090,8 @@ function buatKameraTahan(cfg) {
           const w = el(cfg.wrapId);
           if (w) { w.classList.remove('kamera-berhasil'); void w.offsetWidth; w.classList.add('kamera-berhasil'); }
         } else lepas(false);
-        if (cfg.modeToggle) setTimeout(() => { if (s === sesi) kameraFokusAman(videoEl); }, 700); // setelah scan -> fokus ulang (cegah blur)
+        // Setelah scan -> fokus ulang, HANYA untuk kamera tanpa fokus otomatis kontinu (yang kontinu justru jadi buram sesaat kalau dipaksa)
+        if (cfg.modeToggle && videoEl.dataset.fokusKontinu !== '1') setTimeout(() => { if (s === sesi) kameraFokusAman(videoEl); }, 700);
         try { cfg.onHasil(String(teks || '').trim()); } catch (e) { console.error(e); }
       });
       if (s !== sesi) { try { r.reset(); } catch (e) {} return; } // tombol sudah dilepas saat kamera baru siap
@@ -47847,8 +48101,16 @@ function buatKameraTahan(cfg) {
         if (s === sesi) await mgmTerapkanFlash(track, cfg.errorId);
         // Fokus otomatis tiap kamera dibuka + fokus ulang berkala selama dipakai (kamera tidak "terkunci" blur)
         setTimeout(() => { if (s === sesi) kameraFokusAman(videoEl); }, 300);
+        // Fokus ulang HANYA kalau 6 detik tidak ada barcode terbaca (dulu dipaksa tiap 3,5 detik -> gambar sempat buram tepat saat membaca)
         clearInterval(fokusTimer);
-        fokusTimer = setInterval(() => { if (s === sesi) kameraFokusAman(videoEl); else clearInterval(fokusTimer); }, 3500);
+        let fokusTerakhir = Date.now();
+        fokusTimer = setInterval(() => {
+          if (s !== sesi) { clearInterval(fokusTimer); return; }
+          const kini = Date.now();
+          if (kini - Math.max(waktuAkhir, fokusTerakhir) < 6000) return;
+          fokusTerakhir = kini;
+          kameraFokusAman(videoEl);
+        }, 2000);
       } catch (e) { /* fitur tambahan opsional */ }
     } catch (err) {
       try { r.reset(); } catch (e) {}
