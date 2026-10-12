@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.16-a';
+  var VERSI = 'v2026.10.17-a';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -911,6 +911,14 @@ window.omxSaatChartSiap = function (fn) {
   .rak-chip.kosong { border-style: dashed; background: none; color: var(--web-text-dim, #64748b); border-color: var(--web-border, #cbd5e1); }
   .rak-saran { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
   .per-btn-hapus-stok { margin-top: 3px; padding: 1px 7px; border-radius: 6px; border: 1px solid #fcd34d; background: #fffbeb; color: #b45309; font: 600 10.5px/1.5 inherit; cursor: pointer; }
+  .fin2-bar-klik { cursor: pointer; border-radius: 8px; }
+  .fin2-bar-klik:hover, .fin2-bar-klik:focus-visible { background: rgba(99, 102, 241, .06); outline: none; }
+  .fin2-bar-klik.aktif { background: rgba(99, 102, 241, .10); }
+  .fin2-alur-detail:not(:empty) { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--web-bg, #f8fafc); border: 1px solid var(--web-border, #e2e8f0); font-size: 12.5px; line-height: 1.5; }
+  .fin2-det-judul { font-weight: 700; margin-bottom: 4px; }
+  .fin2-det-rumus { color: var(--web-text-dim, #475569); }
+  .fin2-det-daftar { list-style: none; margin: 8px 0 0; padding: 0; }
+  .fin2-det-daftar li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px dashed var(--web-border, #e2e8f0); }
   .kanal-logo { display: inline-flex; align-items: center; gap: 6px; }
   .kanal-logo img { width: 22px; height: 22px; border-radius: 6px; object-fit: contain; display: block; }
   .kanal-manual { color: #9a5b13; font-size: 11.5px; font-weight: 600; }
@@ -11904,8 +11912,9 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
 
           <div class="fin2-grid2">
             <div class="fin2-kartu">
-              <div class="fin2-kartu-judul">Dari omzet ke laba bersih <span>periode ini</span></div>
+              <div class="fin2-kartu-judul">Dari omzet ke laba bersih <span>periode ini · klik baris untuk lihat cara hitungnya</span></div>
               <div id="fin2-alur" class="fin2-alur"></div>
+              <div id="fin2-alur-detail" class="fin2-alur-detail" role="region" aria-live="polite"></div>
             </div>
             <div class="fin2-kartu">
               <div class="fin2-kartu-judul">Tren 6 bulan <span><i class="fin2-leg omzet"></i>Omzet <i class="fin2-leg laba"></i>Laba bersih</span></div>
@@ -26566,6 +26575,48 @@ function fin2RenderRingkasan(L) {
     : '<div class="fin2-kosong">Belum ada biaya tercatat. <button type="button" class="fin2-link" onclick="finBukaSubMenu(\'biaya\')">Catat sekarang</button></div>';
 
   fin2RenderTren(L.tren || []);
+  fin2AlurPasangDetail(L);
+}
+
+/* v2026.10.17 - Laba Rugi 1 halaman: setiap baris "Dari omzet ke laba bersih" bisa diklik -> rumus dalam bahasa biasa
+   + rincian singkat (maks 6 baris) + persen dari omzet. Tidak menambah panggilan server (data dari laporan yang sama). */
+function fin2AlurPasangDetail(L) {
+  const wadah = el('fin2-alur'), det = el('fin2-alur-detail');
+  if (!wadah || !det) return;
+  const k = L.kpi || {}, lr = L.labaRugi || {}, om = k.omzet || 0;
+  const pct = v => om ? ' (' + fin2Persen(Math.abs(v) / om) + ' dari omzet)' : '';
+  const daftar = (arr, f) => (arr || []).filter(x => x && x.nilai).sort((a, b) => b.nilai - a.nilai).slice(0, 6)
+    .map(x => `<li><span>${escapeHtml(f(x))}</span><b>${fin2Rp(x.nilai)}</b></li>`).join('');
+  const opex = (lr.totalBebanUmum || 0) + (lr.bebanKerugianPersediaan || 0) + (lr.bebanPenyusutan || 0);
+  const info = {
+    'Omzet': { rumus: 'Jumlah nilai semua pesanan di periode ini dari semua toko & marketplace (setelah diskon penjual), dihitung otomatis dari data pesanan.',
+      isi: daftar(lr.pendapatan, x => x.kanal || x.nama) },
+    '− Modal barang (HPP)': { rumus: 'Untuk setiap barang terjual: qty × harga modal rata-rata dari modul Pembelian. Total HPP ' + fin2Rp(lr.hpp) + pct(lr.hpp) + '.'
+      + (k.skuTanpaHarga ? ` ⚠️ ${k.skuTanpaHarga} SKU terjual belum punya harga modal - HPP-nya dihitung 0, jadi laba terlihat lebih besar dari sebenarnya.` : ''), isi: '' },
+    '− Potongan marketplace': { rumus: 'Komisi, biaya layanan, biaya program & potongan lain yang dipotong marketplace dari setiap pesanan (dari data pencairan marketplace).' + pct(lr.totalBebanPenjualan),
+      isi: daftar(lr.bebanPenjualan, x => x.nama || x.kanal) },
+    '− Biaya operasional': { rumus: 'Semua biaya harian yang dicatat di menu Biaya (gaji, listrik, kemasan, iklan manual, dll.) + barang rusak/hilang + penyusutan aset.' + pct(opex),
+      isi: daftar((lr.bebanUmum || []).concat(lr.bebanKerugianPersediaan ? [{ label: 'Barang rusak / hilang', nilai: lr.bebanKerugianPersediaan }] : [], lr.bebanPenyusutan ? [{ label: 'Penyusutan aset', nilai: lr.bebanPenyusutan }] : []), x => (x.ikon ? x.ikon + ' ' : '') + (x.label || x.nama)) },
+    '= Laba bersih': { rumus: `Omzet ${fin2Rp(om)} − HPP ${fin2Rp(lr.hpp)} − potongan marketplace ${fin2Rp(lr.totalBebanPenjualan)} − biaya operasional ${fin2Rp(opex)}`
+      + (lr.pendapatanLain ? ` + pendapatan lain ${fin2Rp(lr.pendapatanLain)}` : '') + (lr.bebanLain ? ` − bunga ${fin2Rp(lr.bebanLain)}` : '') + (lr.bebanPajak ? ` − pajak ${fin2Rp(lr.bebanPajak)}` : '')
+      + ` = <b>${fin2Rp(lr.labaBersih)}</b>` + (om ? ` · margin bersih ${fin2Persen(lr.labaBersih / om)}` : '') + '.', isi: '', html: true }
+  };
+  wadah.querySelectorAll('.fin2-bar-baris').forEach(b => {
+    const nama = (b.querySelector('.fin2-bar-nama') || {}).textContent || '';
+    const i = info[nama.trim()];
+    if (!i) return;
+    b.classList.add('fin2-bar-klik'); b.tabIndex = 0; b.setAttribute('role', 'button'); b.setAttribute('aria-expanded', 'false');
+    const buka = () => {
+      const aktif = b.classList.contains('aktif');
+      wadah.querySelectorAll('.fin2-bar-klik').forEach(x => { x.classList.remove('aktif'); x.setAttribute('aria-expanded', 'false'); });
+      if (aktif) { det.innerHTML = ''; return; }
+      b.classList.add('aktif'); b.setAttribute('aria-expanded', 'true');
+      det.innerHTML = `<div class="fin2-det-judul">${escapeHtml(nama.trim())}</div><div class="fin2-det-rumus">${i.html ? i.rumus : escapeHtml(i.rumus)}</div>${i.isi ? `<ul class="fin2-det-daftar">${i.isi}</ul>` : ''}`;
+    };
+    b.onclick = buka;
+    b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); buka(); } };
+  });
+  det.innerHTML = '';
 }
 
 function fin2RenderTren(tren) {
@@ -30564,20 +30615,40 @@ function tpSinkronSkuUtama(dariInput) {
   const adaUtama = !!(u && u.sku && u.sku.trim() && hm > 0);
   if (adaUtama) {
     const inpU = el('tp-harga-supplier');
-    if ((parseFloat(inpU.value) || 0) !== hm) { inpU.value = hm; katalogHitungHargaJualOtomatis(); }
+    const berubah = (parseFloat(inpU.value) || 0) !== hm;
+    if (berubah) inpU.value = hm;
+    const hj = parseFloat(el('tp-harga').value) || 0;
+    // v2026.10.17 FIX: dulu Harga Jual dihitung di SETIAP ketukan angka Harga Modal (1 -> 12 -> 129 ...) lalu
+    // terkunci di angka setengah jadi (mis. Rp 200 padahal HPP Rp 12.900). Sekarang dihitung SETELAH selesai mengetik,
+    // dan Harga Jual yang 0 / di bawah HPP selalu dihitung ulang dari margin.
+    clearTimeout(window.__tpTimerJual);
+    if (dariInput && berubah) window.__tpTimerJual = setTimeout(tpHitungJualDariMargin_, 600);
+    else if (hj <= 0 || hj < hm) tpHitungJualDariMargin_();
+    katalogCekHppVsHargaForm();
   }
   tpKunciHarga_(adaUtama);
   if (!dariInput || !u) return;
   if (u.url && String(u.url).trim()) el('tp-url-supplier').value = String(u.url).trim();
 }
+// Harga Jual = Harga Beli / (1 - margin default); dibulatkan ke Rp 100
+function tpHitungJualDariMargin_() {
+  const hpp = parseFloat(el('tp-harga-supplier').value) || 0, m = katalogMarginDefaultCache;
+  if (hpp <= 0 || m === null || m === undefined) return false;
+  el('tp-harga').value = (m <= 0 || m >= 100) ? hpp : Math.round((hpp / (1 - m / 100)) / 100) * 100;
+  katalogCekHppVsHargaForm();
+  tpKunciHarga_(true);
+  return true;
+}
 function tpKunciHarga_(kunci) {
   const a = el('tp-harga-supplier'), b = el('tp-harga'), h = el('tp-harga-helper');
   if (!a || !b) return;
-  [a, b].forEach(x => { x.readOnly = kunci; x.classList.toggle('tp-terkunci', kunci); x.title = kunci ? 'Mengikuti SKU Supplier Utama' : ''; });
+  const adaMargin = katalogMarginDefaultCache !== null && katalogMarginDefaultCache !== undefined;
+  const kunciJual = kunci && adaMargin; // margin belum termuat -> Harga Jual tetap bisa diisi manual
+  [[a, kunci], [b, kunciJual]].forEach(([x, k]) => { x.readOnly = k; x.classList.toggle('tp-terkunci', k); x.title = k ? 'Otomatis dari SKU Supplier Utama' : ''; });
   if (h) {
     if (h.dataset.asli === undefined) h.dataset.asli = h.textContent;
-    if (kunci) h.textContent = '🔒 Harga Beli mengikuti Harga Modal SKU Supplier Utama (ubah di daftar SKU Supplier). Harga Jual dihitung dari margin - ubah di Katalog > Harga.';
-    else if (/^🔒/.test(h.textContent)) h.textContent = h.dataset.asli;
+    if (kunci) h.textContent = 'ℹ️ Harga Beli otomatis = Harga Modal SKU Supplier Utama.' + (kunciJual ? ` Harga Jual otomatis dari margin ${katalogMarginDefaultCache}% (ubah margin di Katalog > Harga).` : ' Harga Jual boleh diisi manual.');
+    else if (/^(🔒|ℹ️)/.test(h.textContent)) h.textContent = h.dataset.asli;
   }
 }
 function tpTambahBarisSkuSupplier() {
