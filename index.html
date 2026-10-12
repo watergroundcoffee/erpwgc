@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.13-a';
+  var VERSI = 'v2026.10.14-a';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -862,7 +862,38 @@
   window.addEventListener('load', pasang);
 })();
 </script>
+<script>
+/* v2026.10.14 - Grafik menunggu library Chart.js (dimuat "defer"). Dulu Beranda yang dibuka langsung dari cache
+   menggambar grafik SEBELUM Chart.js siap -> error "Chart is not defined" & grafik kosong. */
+window.omxSaatChartSiap = function (fn) {
+  if (typeof Chart !== 'undefined') { try { fn(); } catch (e) { console.error(e); } return; }
+  (window.__omxAntreChart = window.__omxAntreChart || []).push(fn);
+  if (window.__omxTungguChart) return;
+  window.__omxTungguChart = true;
+  var mulai = Date.now();
+  var cek = function () {
+    if (typeof Chart !== 'undefined') {
+      var a = window.__omxAntreChart || []; window.__omxAntreChart = []; window.__omxTungguChart = false;
+      a.forEach(function (f) { try { f(); } catch (e) { console.error(e); } });
+    } else if (Date.now() - mulai < 60000) setTimeout(cek, 150);
+    else window.__omxTungguChart = false;
+  };
+  setTimeout(cek, 150);
+};
+</script>
 <style>
+  .tp-isi-ai { margin: 0 8px 0 auto; padding: 2px 4px; border: 0; background: none; color: var(--gm-aksen-teks, #4338ca); font: 600 12.5px/1.2 inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .tp-isi-ai:hover { opacity: .8; }
+  .tp-ai-latar { position: fixed; inset: 0; z-index: 400; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .45); }
+  .tp-ai-panel { width: min(640px, 100%); max-height: 92vh; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 14px; background: var(--web-panel, #fff); color: var(--web-text, #1e293b); box-shadow: 0 20px 50px -20px rgba(0,0,0,.4); }
+  .tp-ai-kepala { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
+  .tp-ai-x { border: 0; background: none; font-size: 16px; cursor: pointer; color: inherit; }
+  .tp-ai-bantu { font-size: 12.5px; color: var(--web-text-dim, #64748b); line-height: 1.45; }
+  .tp-ai-teks { width: 100%; box-sizing: border-box; min-height: 42vh; margin: 0; resize: vertical; font-size: 12.5px; }
+  .tp-ai-status { min-height: 18px; font-size: 12.5px; color: var(--web-text-dim, #64748b); }
+  .tp-ai-aksi { display: flex; justify-content: flex-end; gap: 8px; }
+  @keyframes tpAiSorot { 0% { background-color: rgba(250, 204, 21, .45); } 100% { background-color: rgba(250, 204, 21, .12); } }
+  .tp-ai-sorot { animation: tpAiSorot 1.2s ease-out forwards; }
   .kamera-pemandu { position: absolute; z-index: 2; pointer-events: none; box-sizing: border-box; border: 2px solid rgba(255,255,255,.85);
     border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,.22); }
   .kamera-pemandu-garis { position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; margin-top: -1px; border-radius: 2px;
@@ -13382,6 +13413,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <div class="web-panel" style="max-width:560px; width:100%; max-height:90vh; overflow-y:auto; padding-top:0;">
             <div class="web-panel-header modal-header-sticky">
               <span id="tp-judul-modal">+ Tambah Produk Baru</span>
+              <button type="button" class="tp-isi-ai" onclick="tpIsiAiBuka()" title="Tempel teks halaman produk, kolom terisi otomatis">✦ Isi dengan AI</button>
               <button class="web-btn-secondary" style="padding:4px 10px; margin:0;" onclick="katalogTutupModalTambahProduk()"><span class="oi oi-x" aria-hidden="true"></span></button>
             </div>
 
@@ -16527,6 +16559,7 @@ function ovRenderKanalStrip(d) {
 }
 
 function renderWebChartLine(tren) {
+  if (typeof Chart === 'undefined') { omxSaatChartSiap(() => renderWebChartLine(tren)); return; }
   tren = tren || [];
   if (ovTrenJenisAktif === 'channel') {
     const ctxC = el('web-chart-line').getContext('2d');
@@ -16577,6 +16610,7 @@ function gantiJenisChartOverview(jenis) {
 }
 
 function renderWebChartOverview() {
+  if (typeof Chart === 'undefined') { omxSaatChartSiap(renderWebChartOverview); return; }
   const ctx = el('web-chart-overview').getContext('2d');
   if (webChartOverview) webChartOverview.destroy();
   const data = webDataStockRendahCache;
@@ -22392,11 +22426,11 @@ function rt2KecilkanFoto(file) {
   return new Promise(res => {
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => {
-      const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)); // 1600 px cukup jelas untuk bukti unboxing
       const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      res({ base64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mime: 'image/jpeg', nama: file.name.replace(/\.[^.]+$/, '') + '.jpg' });
+      res({ base64: c.toDataURL('image/jpeg', 0.8).split(',')[1], mime: 'image/jpeg', nama: file.name.replace(/\.[^.]+$/, '') + '.jpg' });
     };
     img.onerror = async () => { URL.revokeObjectURL(url); res({ base64: await rt2BacaBase64(file), mime: file.type || 'image/jpeg', nama: file.name }); };
     img.src = url;
@@ -24007,9 +24041,10 @@ async function aksiLatarJalankan(job) {
   logTindakan.ubah(job.logId, 'proses', job.teksProses || 'Memproses di server…');
   job.percobaan++;
   try {
-    const r = await postJsonTulis(job.body, job.timeout || 90000, { onCoba: (n, teks) => logTindakan.ubah(job.logId, 'proses', teks) });
+    const r = await postJsonTulis(job.body, job.timeout || 90000, { mulaiRingan: !!job.cekRingan, onCoba: (n, teks) => logTindakan.ubah(job.logId, 'proses', teks) });
     if (r && !r.success && r.duplikat) {
-      // Permintaan yang sama masih dikerjakan server -> tunggu sebentar lalu tanyakan lagi (tidak dobel)
+      // Permintaan yang sama masih dikerjakan server -> tunggu sebentar lalu tanyakan lagi (tidak dobel, tanpa kirim ulang file)
+      job.cekRingan = true;
       logTindakan.ubah(job.logId, 'proses', 'Server masih mengerjakan…');
       setTimeout(() => aksiLatarJalankan(job), 4000);
       return;
@@ -31178,6 +31213,96 @@ katalogRenderFotoGrid(); // render 5 kotak kosong pas halaman pertama kali dimua
 
 function katalogTutupModalTambahProduk() {
   el('katalog-modal-tambah-produk').style.display = 'none';
+}
+
+/* ============================================================
+   SMART PASTE PRODUK v2026.10.14 - tulisan kecil "✦ Isi dengan AI" di judul Edit / Tambah Produk.
+   Tempel teks halaman produk -> kolom terisi otomatis (disorot), bisa dibatalkan.
+   Format yang sudah pernah dibaca AI dipelajari server -> berikutnya instan tanpa AI.
+   SKU, kategori, harga & foto TIDAK diubah.
+   ============================================================ */
+const TP_AI_KOLOM = [
+  { id: 'tp-nama', k: 'nama', label: 'Nama' }, { id: 'tp-merk', k: 'merk', label: 'Merk' }, { id: 'tp-tipe', k: 'tipe', label: 'Tipe' },
+  { id: 'tp-material', k: 'material', label: 'Material' }, { id: 'tp-volume', k: 'volume', label: 'Volume' }, { id: 'tp-warna', k: 'warna', label: 'Warna' },
+  { id: 'tp-deskripsi', k: 'deskripsi', label: 'Deskripsi' }
+];
+let tpAiSebelum = null;
+function tpIsiAiBuka() {
+  let w = el('tp-ai-latar');
+  if (!w) {
+    w = document.createElement('div');
+    w.id = 'tp-ai-latar'; w.className = 'tp-ai-latar';
+    w.innerHTML = `<div class="tp-ai-panel" role="dialog" aria-modal="true" aria-label="Isi dengan AI">
+      <div class="tp-ai-kepala"><b>✦ Isi dengan AI</b><button type="button" class="tp-ai-x" aria-label="Tutup" onclick="tpIsiAiTutup()">✕</button></div>
+      <div class="tp-ai-bantu">Buka halaman produk di website supplier / marketplace, tekan <b>Ctrl+A</b> lalu <b>Ctrl+C</b>, kemudian tempel (<b>Ctrl+V</b>) di sini.</div>
+      <textarea id="tp-ai-teks" class="web-form-input tp-ai-teks" spellcheck="false" placeholder="Tempel teks halaman produk di sini…"></textarea>
+      <div class="tp-ai-status" id="tp-ai-status" role="status" aria-live="polite"></div>
+      <div class="tp-ai-aksi"><button type="button" class="web-btn-secondary" onclick="tpIsiAiTutup()">Batal</button>
+        <button type="button" class="web-btn-primary" id="tp-ai-btn" onclick="tpIsiAiBaca()">Isi Otomatis</button></div>
+    </div>`;
+    w.addEventListener('mousedown', e => { if (e.target === w) tpIsiAiTutup(); });
+    document.body.appendChild(w);
+    el('tp-ai-teks').addEventListener('paste', () => setTimeout(() => { if (el('tp-ai-teks').value.trim().length >= 20) tpIsiAiBaca(); }, 30));
+  }
+  el('tp-ai-teks').value = '';
+  el('tp-ai-status').textContent = '';
+  el('tp-ai-btn').disabled = false;
+  w.style.display = 'flex';
+  setTimeout(() => el('tp-ai-teks').focus(), 40);
+}
+function tpIsiAiTutup() { const w = el('tp-ai-latar'); if (w) w.style.display = 'none'; }
+async function tpIsiAiBaca(paksaAI) {
+  const teks = el('tp-ai-teks').value.trim();
+  const st = el('tp-ai-status'), btn = el('tp-ai-btn');
+  if (teks.length < 20) { st.textContent = 'Teks terlalu pendek - tempel seluruh isi halaman produk.'; return; }
+  if (btn.disabled && !paksaAI) return;
+  btn.disabled = true;
+  st.textContent = paksaAI ? 'AI membaca ulang…' : 'Membaca…';
+  try {
+    const r = await postJson({ aksi: 'smart_paste_produk', teks, paksaAI: !!paksaAI, email: currentUserEmail() }, 120000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal membaca');
+    const n = tpIsiAiTerapkan(r.data || {});
+    tpIsiAiTutup();
+    const info = r.sumber === 'pola' ? `dibaca pakai pola "${r.namaPola}" (tanpa AI)` : (r.polaDisimpan ? `dibaca AI · format "${r.namaPola}" dipelajari, berikutnya instan` : 'dibaca AI');
+    const s = el('tp-status');
+    if (s) {
+      s.className = 'status-text ok';
+      s.innerHTML = `✦ ${n} kolom terisi (${escapeHtml(info)}). Cek kolom yang disorot sebelum menyimpan. `
+        + `<a href="#" onclick="tpIsiAiBatalkan(); return false;">Batalkan isian</a>`
+        + (r.sumber === 'pola' ? ` · <a href="#" onclick="tpIsiAiUlangAI(); return false;">Baca ulang dengan AI</a>` : '');
+    }
+    if (!n) pgrToast('Tidak ada data produk yang terbaca dari teks ini.');
+  } catch (err) {
+    st.textContent = '✗ ' + String(err.message || err).replace(/^Error:\s*/, '');
+  } finally { btn.disabled = false; }
+}
+function tpIsiAiUlangAI() { tpIsiAiBuka(); el('tp-ai-teks').value = tpIsiAiTeksTerakhir || ''; if (tpIsiAiTeksTerakhir) tpIsiAiBaca(true); }
+let tpIsiAiTeksTerakhir = '';
+function tpIsiAiTerapkan(d) {
+  tpIsiAiTeksTerakhir = el('tp-ai-teks') ? el('tp-ai-teks').value : '';
+  tpAiSebelum = {};
+  let n = 0;
+  const isi = (id, v) => {
+    const e = el(id); if (!e || v === undefined || v === null || v === '') return;
+    if (String(e.value) === String(v)) return;
+    tpAiSebelum[id] = e.value;
+    e.value = v; n++;
+    e.classList.remove('tp-ai-sorot'); void e.offsetWidth; e.classList.add('tp-ai-sorot');
+    e.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  TP_AI_KOLOM.forEach(c => isi(c.id, d[c.k]));
+  if (d.beratGram > 0) {
+    if (el('tp-berat-satuan')) { tpAiSebelum['tp-berat-satuan'] = el('tp-berat-satuan').value; el('tp-berat-satuan').value = 'Gram'; }
+    isi('tp-berat-angka', String(d.beratGram));
+  }
+  if (d.panjangCm && d.lebarCm && d.tinggiCm) { isi('tp-dimensi-p', String(d.panjangCm)); isi('tp-dimensi-l', String(d.lebarCm)); isi('tp-dimensi-t', String(d.tinggiCm)); }
+  return n;
+}
+function tpIsiAiBatalkan() {
+  if (!tpAiSebelum) return;
+  Object.keys(tpAiSebelum).forEach(id => { const e = el(id); if (e) { e.value = tpAiSebelum[id]; e.classList.remove('tp-ai-sorot'); } });
+  tpAiSebelum = null;
+  const s = el('tp-status'); if (s) { s.textContent = 'Isian AI dibatalkan.'; s.className = 'status-text'; }
 }
 
 async function katalogSimpanProdukBaru() {
@@ -44891,6 +45016,20 @@ function buatIdPermintaan(awalan) { return (awalan || 'w-') + Date.now().toStrin
 function webAppErrorSementara(pesan) {
   return /bukan JSON|Failed to fetch|NetworkError|Load failed|network|Timeout|ECONN|aborted|HTTP 5\d\d|HTTP 429|HTTP 404|Sistem sibuk/i.test(String(pesan || ''));
 }
+// v2026.10.14: salinan kiriman TANPA isi file besar (foto/video base64) - dipakai saat hanya menanyakan
+// "permintaan ini sudah selesai?" (idPermintaan sama). Dulu setiap pertanyaan mengirim ulang seluruh file
+// (video bisa puluhan MB) -> upload retur gagal 37 dari 52 kali & HP boros kuota.
+function kirimRinganUntukCek_(kirim) {
+  let berat = false;
+  const out = {};
+  Object.keys(kirim).forEach(k => {
+    const v = kirim[k];
+    if (typeof v === 'string' && v.length > 50000) { berat = true; out[k] = ''; } else out[k] = v;
+  });
+  if (!berat) return null;
+  out.hanyaCekStatus = true;
+  return out;
+}
 async function postJsonTulis(body, timeoutMs, opsi) {
   opsi = opsi || {};
   if (body.toko === undefined) body.toko = currentToko;
@@ -44904,14 +45043,23 @@ async function postJsonTulis(body, timeoutMs, opsi) {
   const idLogT = (!opsi.tanpaLog && typeof omxLogMulai === 'function') ? omxLogMulai(kirim, opsi.labelLog) : '';
   const onCobaAsli = opsi.onCoba;
   opsi.onCoba = function (n, pesan) { if (idLogT) omxLogUbah(idLogT, { status: 'ulang', pesan: pesan, coba: n }); if (onCobaAsli) return onCobaAsli(n, pesan); };
+  const ringan = kirimRinganUntukCek_(kirim);
+  let kirimAktif = (opsi.mulaiRingan && ringan) ? ringan : kirim, sudahKirimPenuhLagi = false;
   try {
     for (let coba = 1; ; coba++) {
       try {
-        const data = await kirimKeWebApp(kirim, timeoutMs || 90000);
+        const data = await kirimKeWebApp(kirimAktif, timeoutMs || 90000);
         if (data && data.success === false && data.duplikat && !data.ringkas && coba < maksCoba + 4) {
-          // Permintaan yang sama masih dikerjakan server -> tunggu hasilnya (tidak dikerjakan ulang)
+          // Permintaan yang sama masih dikerjakan server -> tunggu hasilnya (tidak dikerjakan ulang).
+          // Pertanyaan berikutnya cukup kiriman ringan (tanpa isi file).
+          if (ringan) kirimAktif = ringan;
           if (opsi.onCoba) try { opsi.onCoba(coba, 'Server masih memproses…'); } catch (e) { }
           await new Promise(r => setTimeout(r, 3500));
+          continue;
+        }
+        if (kirimAktif === ringan && ringan && data && data.success === false && !data.duplikat && (data.perluKirimUlang || !sudahKirimPenuhLagi)) {
+          // Kiriman pertama ternyata gagal di server (penanda sudah dihapus) -> kirim ulang LENGKAP sekali
+          kirimAktif = kirim; sudahKirimPenuhLagi = true;
           continue;
         }
         if (data && data.success === false && data.errorDetail) console.error(`[Backend error] aksi=${kirim.aksi}`, data.errorDetail);
@@ -58640,6 +58788,7 @@ function ovxSeriJam(t, jenis) {
 }
 function renderWebChartLine() {
   const cv = el('web-chart-line');
+  if (cv && ovRekap && typeof Chart === 'undefined') { omxSaatChartSiap(renderWebChartLine); return; }
   if (!cv || typeof Chart === 'undefined' || !ovRekap) return;
   if (typeof webChartLine !== 'undefined' && webChartLine) { try { webChartLine.destroy(); } catch (e) { } webChartLine = null; }
   if (ovxChart) { ovxChart.destroy(); ovxChart = null; }
@@ -59428,7 +59577,9 @@ function omxRp(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id
 function omxJam(ms) { const d = new Date(ms || Date.now()); const b = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']; const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())} ${b[d.getMonth()]} ${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 function omxTandaiPerangkat() { document.documentElement.classList.toggle('omx-hp', omxPerangkat_() === 'hp'); }
 setInterval(omxTandaiPerangkat, 2000); setTimeout(omxTandaiPerangkat, 300);
-function omxModal(html, lebar) { const m = el('omxm'); m.className = 'omxm' + (lebar ? ' lebar' : ''); m.innerHTML = html; el('omxm-latar').hidden = false; omxTandaiPerangkat(); return m; }
+/* v2026.10.14: dulu bernama omxModal() juga -> MENIMPA omxModal(judul, isi, opsi) milik Pengaturan Akun/Toko, Pengiriman Kilat,
+   Memo Rusak/Kurang, Klaim, Kategori & Kelola Produk (error "Cannot read properties of null"). Sekarang namanya terpisah. */
+function omxmModal(html, lebar) { const m = el('omxm'); m.className = 'omxm' + (lebar ? ' lebar' : ''); m.innerHTML = html; el('omxm-latar').hidden = false; omxTandaiPerangkat(); return m; }
 function omxModalTutup() { el('omxm-latar').hidden = true; el('omxm').innerHTML = ''; try { kftMatikanKamera(); } catch (e) { } }
 // Kompres gambar (File/Blob/dataURL) -> JPEG dataURL, sisi terpanjang <= maks
 function omxKompres(sumber, maks, mutu) {
@@ -59581,7 +59732,7 @@ let byr = null;
 function byrBuka(k) {
   byr = Object.assign({ fotoData: '', mime: '' }, k);
   const o = k.order;
-  omxModal(`<div class="omxm-kepala">Pembayaran Diterima<small>${omxEsc(o.noInvoice)} · ${omxEsc(o.namaPembeli || o.namaPenerima || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+  omxmModal(`<div class="omxm-kepala">Pembayaran Diterima<small>${omxEsc(o.noInvoice)} · ${omxEsc(o.namaPembeli || o.namaPenerima || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
     <div class="omxm-isi">
       <div class="byr-ringkas"><span>Total tagihan</span><b>${o.total !== undefined ? omxRp(o.total) : '-'}</b><span>Dikonfirmasi oleh</span><b>${omxEsc(omxNamaStaff())}</b></div>
       <label class="byr-file" for="byr-file"><span id="byr-file-pratinjau">📎</span><span><b>Bukti transfer (opsional)</b><br><small style="opacity:.7;">Foto / screenshot / PDF. Boleh dikosongkan.</small></span></label>
@@ -59629,7 +59780,7 @@ async function kftKamera(arah) {
 }
 function kftBuka(k) {
   kft = Object.assign({ langkah: 1, belakang: null, depan: null, depanTidakAda: false, stream: null, hasil: '' }, k);
-  omxModal(`<div class="omxm-kepala">Konfirmasi Kurir Toko<small>${omxEsc(k.noInvoice)} · ${omxEsc(k.nama || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+  omxmModal(`<div class="omxm-kepala">Konfirmasi Kurir Toko<small>${omxEsc(k.noInvoice)} · ${omxEsc(k.nama || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
     <div class="omxm-isi"><div class="kft-langkah"><span id="kft-l1" class="aktif">1 · Foto paket</span><span id="kft-l2">2 · Foto staff</span><span id="kft-l3">3 · Konfirmasi</span></div>
     <div class="kft-panggung" id="kft-panggung"><video id="kft-video" playsinline autoplay muted></video><button type="button" class="kft-rana" id="kft-rana" onclick="kftJepret()" aria-label="Ambil foto"></button></div>
     <div class="kft-info" id="kft-info">Arahkan kamera BELAKANG ke paket / penerima, lalu tekan tombol bulat.</div></div>
@@ -59701,7 +59852,7 @@ function kftKonfirmasi() {
 /* ======================== S5: KIRIM STOK KE MARKETPLACE ======================== */
 let smp = { daftar: [], pilih: new Set(), hasil: {}, cari: '', mode: '' };
 async function smpBuka() {
-  omxModal(`<div class="omxm-kepala">Kirim Stok ke Marketplace<small>Stok tersedia (On Hand − Reserve) dikirim ke Shopee &amp; TikTok Shop Waterground</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+  omxmModal(`<div class="omxm-kepala">Kirim Stok ke Marketplace<small>Stok tersedia (On Hand − Reserve) dikirim ke Shopee &amp; TikTok Shop Waterground</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
     <div class="omxm-isi" id="smp-isi"><div class="omxac-kosong">Menghitung stok tersedia…</div></div>
     <div class="omxm-kaki"><span id="smp-ringkas" style="margin-right:auto; font-size:12px; opacity:.75; align-self:center;"></span><button type="button" class="omxm-btn" onclick="omxModalTutup()">Tutup</button><button type="button" class="omxm-btn utama" id="smp-kirim" onclick="smpKirim()" disabled>Kirim Stok</button></div>`, true);
   try {
