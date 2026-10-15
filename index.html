@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.19-b';
+  var VERSI = 'v2026.10.20';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -8353,6 +8353,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
     background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .18s ease; font-family: 'Inter', system-ui, sans-serif; }
   .ceo-overlay[hidden] { display: none; }
   .ceo-overlay.ceo-tampil { opacity: 1; }
+  .ceo-akses { display: none !important; } /* v2026.10.20: AI CEO Gudang tidak ditampilkan lagi */
   .ceo-kartu { width: min(900px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden;
     background: var(--web-panel); color: var(--web-text); border: 1px solid var(--web-border); border-radius: 18px;
     box-shadow: 0 24px 60px rgba(0,0,0,.28); transform: translateY(10px) scale(.98); transition: transform .22s cubic-bezier(.2,.9,.3,1.2);
@@ -10143,6 +10144,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               </label>
               <div class="wp-kapsul-baris" id="wp-gab-kapsul" role="tablist" aria-label="Filter channel"></div>
             </div>
+            <div id="wp-gab-sku-info" class="omx-sku-info" role="status" aria-live="polite" hidden></div>
             <!-- KAPSUL "MANUAL ORDER": daftar pesanan manual (PO Sales) - alur & fungsi sama persis dengan tab lama -->
             <div id="wp-view-list" style="display:none;">
               <div class="wpm-alat">
@@ -13699,8 +13701,8 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <div style="font-size:10.5px; color:var(--web-text-dim); margin-top:-8px; margin-bottom:12px;" id="tp-harga-helper">Dihitung otomatis dari margin default yang kamu set sebelumnya - boleh diubah manual kalau perlu.</div>
 
             <!-- 7. URL Supplier -->
-            <label style="font-size:12px; font-weight:600;">URL Supplier</label>
-            <input id="tp-url-supplier" type="text" class="web-form-input" placeholder="Opsional" />
+            <label style="font-size:12px; font-weight:600;">URL Supplier <span style="font-weight:400; color:var(--web-text-dim);">· otomatis dari ★ SKU Supplier Utama</span></label>
+            <input id="tp-url-supplier" type="text" class="web-form-input tp-terkunci" placeholder="Tambah SKU Supplier di bawah untuk mengisi URL" readonly />
 
             <!-- 7b. SKU Supplier & SKU Marketplace - C1: bisa langsung diisi sejak awal pembuatan produk,
                  nggak perlu nunggu buka halaman Detail Produk dulu. -->
@@ -13842,6 +13844,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
                 <tbody id="katalog-harga-body"></tbody>
               </table>
             </div>
+            <div id="harga-sku-info" class="omx-sku-info" role="status" aria-live="polite" hidden></div>
             <div class="web-placeholder" id="katalog-harga-empty" style="display:none;">Belum ada produk di Master Produk.</div>
             <div id="katalog-harga-paginasi"></div>
           </div>
@@ -20445,7 +20448,7 @@ function wpGabunganLolosFilter(o, f, abaikanCari) {
       if (f.sampai !== null && ts > f.sampai) return false;
     }
   }
-  if (!abaikanCari && f.cari && !wpCocokCari(o, f.cari)) return false;
+  if (!abaikanCari && f.cari && !wpCocokCari(o, f.cari) && !(typeof wpSkuCocok_ === 'function' && wpSkuCocok_(o, f.cari))) return false;
   return true;
 }
 
@@ -20470,6 +20473,7 @@ function wpOmniKetik(dariFokus) {
     wpOmniRenderRekomendasi();
     if (!dariFokus) { wpGabunganPaginasiState.page = 1; wpGabunganRenderHalaman(); }
   }, 150);
+  if (!dariFokus && typeof wpSkuCariJadwalkan_ === 'function') wpSkuCariJadwalkan_();
 }
 
 function wpOmniSorot(teks, q) {
@@ -20565,6 +20569,7 @@ function wpOmniBersihkan() {
   el('wp-gab-cari').value = '';
   el('wp-gab-cari-clear').style.display = 'none';
   el('wp-omni-dropdown').style.display = 'none';
+  if (typeof wpSkuCariJadwalkan_ === 'function') wpSkuCariJadwalkan_();
   wpGabunganFilterBerubah();
   el('wp-gab-cari').focus();
 }
@@ -30995,8 +31000,27 @@ function tpSinkronSkuUtama(dariInput) {
     katalogCekHppVsHargaForm();
   }
   tpKunciHarga_(adaUtama);
-  if (!dariInput || !u) return;
-  if (u.url && String(u.url).trim()) el('tp-url-supplier').value = String(u.url).trim();
+  tpKunciUrlSupplier_(dariInput);
+}
+// v2026.10.20: URL Supplier di atas = READ-ONLY, selalu mengikuti URL baris ★ SKU Supplier Utama (sumber tunggal).
+// Saat jendela dibuka (dariInput=false): produk lama yang URL-nya hanya ada di kolom atas -> URL dipindah ke baris Utama
+// (yang URL-nya masih kosong) supaya tidak hilang saat disimpan.
+function tpKunciUrlSupplier_(dariInput) {
+  const f = el('tp-url-supplier');
+  if (!f) return;
+  const u = tpBarisSupplier[0];
+  if (u) {
+    const urlU = String(u.url || '').trim(), urlF = String(f.value || '').trim();
+    if (!urlU && urlF && !dariInput) {
+      u.url = urlF;
+      const inp = document.querySelector('#tp-baris-sku-supplier .sku-supp-baris.utama .sku-supp-bawah input[inputmode="url"]');
+      if (inp && !inp.value) inp.value = urlF;
+    } else f.value = urlU;
+  }
+  f.readOnly = true;
+  f.classList.add('tp-terkunci');
+  f.placeholder = u ? 'Isi URL di baris ★ SKU Utama di bawah' : 'Tambah SKU Supplier di bawah untuk mengisi URL';
+  f.title = 'Otomatis dari URL ★ SKU Supplier Utama - ubah di baris SKU Supplier';
 }
 // Harga Jual = Harga Beli / (1 - margin default); dibulatkan ke Rp 100
 function tpHitungJualDariMargin_() {
@@ -31155,6 +31179,7 @@ function katalogIsiFormEdit(p) {
   el('tp-merk').value = p.brand || '';
   katalogIsiOpsiKategoriModal(p.kategori || '');
   el('tp-url-supplier').value = p.urlSupplier || '';
+  tpKunciUrlSupplier_(false);
   el('tp-tipe').value = p.tipe || '';
   el('tp-harga').value = p.hargaDefault || '';
   el('tp-harga-supplier').value = p.hargaSupplier || '';
@@ -34220,15 +34245,19 @@ function hargaDaftarTampil() {
   if (!kw) return katalogHargaCache;
   const kwNorm = hargaNormKode(kw);
   // Cari lewat nama, SKU master, dan SKU TERHUBUNG apa pun (Shopee / TikTok / Tokopedia / Supplier)
+  const hs = typeof hargaSkuServer !== 'undefined' ? hargaSkuServer : null;
+  const dariServer = hs && hs.kunci && hs.kunci === omxNormSku_(kw) ? hs.set : null;
   return katalogHargaCache.filter(p => (p.nama || '').toLowerCase().includes(kw)
     || hargaKodeCocok(p.sku, kw, kwNorm)
-    || hargaDaftarTerhubung(p).some(x => hargaKodeCocok(x.kode, kw, kwNorm)));
+    || hargaDaftarTerhubung(p).some(x => hargaKodeCocok(x.kode, kw, kwNorm))
+    || (!!dariServer && dariServer.has(String(p.sku || '').toUpperCase())));
 }
 
 function hargaCariBerubah() {
   hargaCariKeyword = el('harga-cari-input').value || '';
   katalogHargaPaginasiState.page = 1;
   katalogHargaRenderHalaman();
+  if (typeof hargaSkuCariJadwalkan_ === 'function') hargaSkuCariJadwalkan_();
 }
 
 function katalogHargaToggleSemua(checked) {
@@ -34570,6 +34599,7 @@ function katalogHargaRenderHalaman() {
   const daftar = hargaDaftarTampil();
   el('katalog-harga-empty').style.display = daftar.length === 0 ? 'block' : 'none';
   el('katalog-harga-empty').textContent = katalogHargaCache.length === 0 ? 'Belum ada produk di Master Produk.' : 'Tidak ada produk yang cocok dengan pencarian.';
+  if (typeof hargaSkuInfoRender_ === 'function') hargaSkuInfoRender_(daftar.length);
   const halamanIni = halamanDataPaginasi(daftar, katalogHargaPaginasiState);
   katalogHargaUpdateBulkCount();
   hargaSembunyikanPopoverFoto();
@@ -45309,7 +45339,7 @@ function terapkanVisibilitasMenu() {
   tampilkan('.menu-btn.ledgerstock', izin.mintaStock);
   tampilkan('.menu-btn.invoice', izin.buatInvoice || izin.printLabel);
   tampilkan('.menu-btn.biayamob', izin.buatInvoice || currentUser.isOwner);
-  tampilkan('.ceo-akses', izin.buatInvoice || currentUser.isOwner); // Panel AI CEO Gudang (menu HP, sidebar web, header Copilot)
+  tampilkan('.ceo-akses', false); // v2026.10.20: Panel AI CEO Gudang DIHAPUS dari tampilan (permintaan Owner) - fungsi AI tetap jalan di balik layar
 
   // Label tombol Pesanan Manual beda tergantung izin
   const labelInvoice = document.querySelector('.menu-btn.invoice .label');
@@ -60974,7 +61004,7 @@ function ptRenderMemuat_() {
 
 function ptPilihFilter(f) { ptState.filter = f; ptState.batas = 60; ptRender(); }
 function ptGantiUrut(v) { ptState.urut = v; ptState.batas = 60; ptRender(); }
-function ptCari(v) { ptState.cari = String(v || '').trim().toLowerCase(); ptState.batas = 60; ptRender(); }
+function ptCari(v) { ptState.cari = String(v || '').trim().toLowerCase(); ptState.batas = 60; ptRender(); if (typeof ptSkuCariJadwalkan_ === 'function') ptSkuCariJadwalkan_(); }
 function ptTampilLagi() { ptState.batas += 100; ptRender(); }
 
 function ptRender() {
@@ -60994,15 +61024,23 @@ function ptRender() {
     <div class="fin2-kpi pt-klik" onclick="ptPilihFilter('kurang')" title="Lihat produk yang datanya belum lengkap"><div class="fin2-kpi-atas"><span class="fin2-kpi-ikon pt-ikon-warn">⚠️</span><span class="fin2-kpi-label">Data Produk Belum Lengkap</span></div>
       <div class="fin2-kpi-nilai">${ptAngka_(r.belumLengkap)} SKU</div><div class="fin2-kpi-sub">Foto / harga modal / URL supplier kosong</div></div>`;
   const nKurang = (d.daftar || []).filter(b => b.kurang.length).length + tidakLaku.filter(b => b.kurang.length).length;
+  const nLepas = (d.daftar || []).filter(b => b.diMaster === false).length;
   const chip = (k, teks, n) => `<button type="button" class="fin2-chip${ptState.filter === k ? ' aktif' : ''}" onclick="ptPilihFilter('${k}')">${teks}<span class="pt-chip-n">${n}</span></button>`;
   el('pt-filter').innerHTML = chip('semua', 'Semua terjual', (d.daftar || []).length) + chip('bintang', '⭐ Bintang', lab.bintang || 0) + chip('andalan', '🐄 Andalan', lab.andalan || 0)
-    + chip('lambat', '🐢 Lambat', lab.lambat || 0) + chip('tidaklaku', '💤 Tidak laku', r.tidakLaku || 0) + chip('kurang', '⚠️ Belum lengkap', nKurang);
+    + chip('lambat', '🐢 Lambat', lab.lambat || 0) + chip('tidaklaku', '💤 Tidak laku', r.tidakLaku || 0) + chip('kurang', '⚠️ Belum lengkap', nKurang)
+    + (nLepas || ptState.filter === 'lepas' ? chip('lepas', '🔗 Belum di Produk Master', nLepas) : '');
 
   const modeMati = ptState.filter === 'tidaklaku';
   let rows = ptState.filter === 'tidaklaku' ? tidakLaku.slice()
     : ptState.filter === 'kurang' ? (d.daftar || []).filter(b => b.kurang.length).concat(tidakLaku.filter(b => b.kurang.length))
+    : ptState.filter === 'lepas' ? (d.daftar || []).filter(b => b.diMaster === false)
     : (d.daftar || []).filter(b => ptState.filter === 'semua' || b.label === ptState.filter);
-  if (ptState.cari) rows = rows.filter(b => String(b.sku).toLowerCase().includes(ptState.cari) || String(b.nama).toLowerCase().includes(ptState.cari));
+  if (ptState.cari) {
+    const ps = typeof ptSkuServer !== 'undefined' ? ptSkuServer : null;
+    const srv = ps && ps.kunci && ps.kunci === omxNormSku_(ptState.cari) ? ps.set : null;
+    rows = rows.filter(b => String(b.sku).toLowerCase().includes(ptState.cari) || String(b.nama).toLowerCase().includes(ptState.cari)
+      || (!!srv && srv.has(String(b.sku).toUpperCase())));
+  }
   const kunciUrut = {
     omzet: b => b.omzet !== undefined ? b.omzet : b.nilaiStok || 0, qty: b => b.qty || 0, margin: b => (b.marginPct === null || b.marginPct === undefined) ? -1e9 : b.marginPct,
     tren: b => (b.trenPct === null || b.trenPct === undefined) ? (b.baru ? 1e9 : -1e9) : b.trenPct, cukup: b => (b.cukupHari === null || b.cukupHari === undefined) ? 1e9 : -b.cukupHari
@@ -61040,6 +61078,7 @@ function ptTags_(b) {
   let h = '';
   const L = PT_LABEL[b.label];
   if (L) h += `<span class="pt-tag ${b.label}" title="${pgrAttr(L.ket)}">${L.ikon} ${L.teks}</span>`;
+  if (b.diMaster === false) h += `<span class="pt-tag lepas" title="SKU ini tercatat terjual tetapi belum ada / belum terhubung di Produk Master. Hubungkan di Katalog > Produk Master (SKU Marketplace) supaya terhitung ke produk yang benar.">🔗 Belum di Produk Master</span>`;
   if (b.kurang && b.kurang.length) h += `<button type="button" class="pt-tag kurang" data-pt-edit="${pgrAttr(b.sku)}" title="Buka Edit Produk untuk melengkapi">⚠️ Kurang ${escapeHtml(b.kurang.join(', '))} · ✏️ Lengkapi</button>`;
   return h;
 }
@@ -61515,6 +61554,129 @@ async function dvnUnduh(format) {
   omniToast('File permintaan pengembangan diunduh (' + rows.length + ' catatan).', 'sukses');
 }
 </script>
+
+<script>
+/* ================= CARI SEMUA JENIS SKU v2026.10.20 =================
+   Dipakai Katalog > Harga, Penjualan > Pesanan, Finance > Produk Terjual.
+   Pencarian lokal tetap jalan seperti biasa; kalau yang diketik mirip kode SKU, server (aksi cari_sku_semua /
+   cari_pesanan_sku) menerjemahkan SKU jenis apa pun -> SKU Produk Master. Hasil di-cache 2 menit di browser. */
+const OMX_SKU_CACHE = {};
+function omxNormSku_(t) { return String(t || '').replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, '').replace(/^'+/, '').toUpperCase().replace(/[\s\-_.\/]+/g, ''); }
+// "Mirip kode SKU": 1 kata, >= 4 karakter, huruf/angka/-_./, minimal ada 1 angka (nama produk biasa tidak dikirim ke server)
+function omxMiripSku_(q) {
+  const t = String(q || '').trim();
+  return t.length >= 4 && t.length <= 60 && /^[A-Za-z0-9\-_.\/']+$/.test(t) && /\d/.test(t);
+}
+async function omxSkuServer_(aksi, q) {
+  const k = aksi + '|' + omxNormSku_(q);
+  const c = OMX_SKU_CACHE[k];
+  if (c && Date.now() - c.t < 120000) return c.r;
+  let r;
+  try { r = await postJson({ aksi, q: String(q || '').trim(), email: currentUserEmail() }, 45000, true); }
+  catch (e) { r = { success: false, error: e.message || String(e) }; }
+  if (r && r.success) OMX_SKU_CACHE[k] = { t: Date.now(), r };
+  return r;
+}
+function omxSkuJenisLabel_(c) { return escapeHtml(c.kode) + ' <small>(' + escapeHtml(c.jenis || '') + ')</small>'; }
+// Kalimat penjelasan untuk SKU yang tidak tampil (arsip / belum terhubung)
+function omxSkuPenjelasan_(r) {
+  if (!r || !r.success) return '';
+  const bag = [];
+  const arsip = (r.hasil || []).filter(h => h.arsip);
+  if (arsip.length) bag.push('Diarsipkan di Produk Master: ' + arsip.slice(0, 3).map(h => `<b>${escapeHtml(h.sku)}</b> ${escapeHtml(h.nama || '')}`).join(', ') + ' - aktifkan lagi lewat Katalog > Produk Master > centang "Tampilkan Arsip".');
+  const lepas = r.tidakTerhubung || [];
+  if (lepas.length) bag.push('Pernah dipakai di pesanan tetapi BELUM terhubung ke Produk Master: ' + lepas.slice(0, 3).map(x => `<b>${escapeHtml(x.kode)}</b> (${escapeHtml((x.kanal || []).join(', '))}, ${x.jumlahPesanan} pesanan)`).join(', ') + ' - hubungkan di Edit Produk > + Tambah SKU Marketplace.');
+  return bag.join('<br>');
+}
+
+/* ---- Katalog > Harga ---- */
+var hargaSkuServer = { kunci: '', set: null, r: null };
+var hargaSkuTimer = null;
+function hargaSkuCariJadwalkan_() {
+  clearTimeout(hargaSkuTimer);
+  const q = String(hargaCariKeyword || '').trim();
+  if (!omxMiripSku_(q)) { if (hargaSkuServer.kunci) { hargaSkuServer = { kunci: '', set: null, r: null }; hargaSkuInfoRender_(hargaDaftarTampil().length); } return; }
+  hargaSkuTimer = setTimeout(async () => {
+    const r = await omxSkuServer_('cari_sku_semua', q);
+    if (omxNormSku_(hargaCariKeyword) !== omxNormSku_(q)) return; // sudah mengetik yang lain
+    hargaSkuServer = { kunci: omxNormSku_(q), set: new Set(((r && r.success && r.hasil) || []).map(h => String(h.sku).toUpperCase())), r };
+    katalogHargaRenderHalaman();
+  }, 400);
+}
+function hargaSkuInfoRender_(nTampil) {
+  const box = el('harga-sku-info');
+  if (!box) return;
+  const r = hargaSkuServer.r;
+  const aktif = r && hargaSkuServer.kunci && hargaSkuServer.kunci === omxNormSku_(hargaCariKeyword);
+  const teks = aktif ? omxSkuPenjelasan_(r) : '';
+  const kosong = aktif && r.success && !(r.hasil || []).length && !(r.tidakTerhubung || []).length && !nTampil;
+  box.hidden = !teks && !kosong;
+  box.innerHTML = teks ? '🔎 ' + teks : kosong ? `🔎 Kode <b>${escapeHtml(hargaCariKeyword.trim())}</b> tidak ditemukan di Produk Master, SKU Supplier, SKU Marketplace, maupun rincian pesanan.` : '';
+}
+
+/* ---- Penjualan > Pesanan ---- */
+var wpSkuCari = { kunci: '', ids: null, r: null };
+var wpSkuTimer = null;
+function wpSkuCocok_(o, cari) {
+  return !!wpSkuCari.ids && wpSkuCari.kunci === omxNormSku_(cari) && wpSkuCari.ids.has(String(o.noReferensi || ''));
+}
+function wpSkuCariJadwalkan_() {
+  clearTimeout(wpSkuTimer);
+  const inp = el('wp-gab-cari');
+  const q = inp ? String(inp.value || '').trim() : '';
+  if (!omxMiripSku_(q)) { if (wpSkuCari.kunci) { wpSkuCari = { kunci: '', ids: null, r: null }; wpSkuInfoRender_(); } return; }
+  wpSkuTimer = setTimeout(async () => {
+    const box = el('wp-gab-sku-info');
+    if (box) { box.hidden = false; box.innerHTML = `🔎 Mencari pesanan dengan SKU <b>${escapeHtml(q)}</b>…`; }
+    const r = await omxSkuServer_('cari_pesanan_sku', q);
+    const kini = el('wp-gab-cari') ? String(el('wp-gab-cari').value || '').trim() : '';
+    if (omxNormSku_(kini) !== omxNormSku_(q)) return;
+    wpSkuCari = { kunci: omxNormSku_(q), ids: new Set(Object.keys((r && r.success && r.pesanan) || {})), r };
+    wpSkuInfoRender_();
+    wpGabunganPaginasiState.page = 1;
+    wpGabunganRenderHalaman();
+  }, 450);
+}
+function wpSkuInfoRender_() {
+  const box = el('wp-gab-sku-info');
+  if (!box) return;
+  const r = wpSkuCari.r;
+  if (!r || !wpSkuCari.kunci) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  if (!r.success) { box.innerHTML = '⚠️ Pencarian SKU gagal: ' + escapeHtml(r.error || 'tidak ada respons') + ' - pencarian teks biasa tetap jalan.'; return; }
+  const sas = r.sasaran || [];
+  let h;
+  if (sas.length) h = `🔎 SKU <b>${escapeHtml(r.q)}</b> = ${sas.slice(0, 4).map(x => `<b>${escapeHtml(x.sku)}</b> ${escapeHtml(x.nama || '')}${x.arsip ? ' <small>(arsip)</small>' : ''}`).join(', ')}${sas.length > 4 ? ` +${sas.length - 4} produk` : ''} · <b>${(r.jumlahPesanan || 0).toLocaleString('id-ID')}</b> pesanan (${(r.jumlahQty || 0).toLocaleString('id-ID')} pcs)`;
+  else if (r.jumlahPesanan) h = `🔎 Kode <b>${escapeHtml(r.q)}</b> belum terhubung ke Produk Master, tetapi ada di <b>${r.jumlahPesanan.toLocaleString('id-ID')}</b> pesanan.`;
+  else if (r.terlaluBanyak) h = `🔎 <b>${escapeHtml(r.q)}</b> cocok dengan ${r.terlaluBanyak} produk - ketik SKU lebih lengkap untuk menyaring pesanan.`;
+  else h = `🔎 Tidak ada pesanan dengan SKU <b>${escapeHtml(r.q)}</b> (dicari di rincian SKU pesanan Shopee, TikTok Shop, Conner & PO Sales).`;
+  if (r.dipotong) h += ' <small>(ditampilkan 3.000 pesanan terakhir)</small>';
+  box.innerHTML = h + ' <small>Pesanan Website hanya dicari lewat nama produk.</small>';
+}
+
+/* ---- Finance > Produk Terjual ---- */
+var ptSkuServer = { kunci: '', set: null };
+var ptSkuTimer = null;
+function ptSkuCariJadwalkan_() {
+  clearTimeout(ptSkuTimer);
+  const q = String(ptState.cari || '').trim();
+  if (!omxMiripSku_(q)) { ptSkuServer = { kunci: '', set: null }; return; }
+  ptSkuTimer = setTimeout(async () => {
+    const r = await omxSkuServer_('cari_sku_semua', q);
+    if (omxNormSku_(ptState.cari) !== omxNormSku_(q) || !r || !r.success) return;
+    const set = new Set((r.hasil || []).map(h => String(h.sku).toUpperCase()));
+    (r.tidakTerhubung || []).forEach(x => set.add(String(x.kode).toUpperCase()));
+    ptSkuServer = { kunci: omxNormSku_(q), set };
+    ptRender();
+  }, 400);
+}
+</script>
+<style>
+  .omx-sku-info { margin: 8px 0; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.5;
+    background: var(--web-info-soft, rgba(59,130,246,.08)); border: 1px solid var(--web-border); color: var(--web-text, inherit); }
+  .omx-sku-info small { color: var(--web-text-dim); }
+  .pt-tag.lepas { background: rgba(245,158,11,.14); color: #b45309; border: 1px solid rgba(245,158,11,.35); }
+</style>
 
 </body>
 </html>
