@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.20';
+  var VERSI = 'v2026.10.21';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -58305,6 +58305,7 @@ function ccResetKlasifikasi() { [wpPengirimanAktifCache, wpPengirimanRiwayatCach
 function ccRender() {
   const body = el('cc-body'); if (!body) return;
   pgrPasangDelegasi();
+  if (typeof krsMuatPeta_ === 'function') krsMuatPeta_();
   const dataAda = wpPengirimanAktifCache !== null || wpPengirimanRiwayatCache !== null;
   if (!dataAda) {
     body.innerHTML = Array.from({ length: 6 }, () => '<tr class="cc-skel"><td colspan="6"></td></tr>').join('');
@@ -60050,7 +60051,7 @@ function ccxPerbaruiUI() {
   if (st) {
     const belum = ccxMentah.filter(d => !d.noInvoice && d.jenis !== 'transfer').length;
     st.innerHTML = ccxCariJalan ? `<i class="ccx-putar"></i> ${ovxEsc(ccxCariInfo || 'Mencari pesanan…')}`
-      : (belum ? `${ccxCariInfo ? ovxEsc(ccxCariInfo) + ' · ' : ''}<button type="button" class="web-chart-toggle-btn" style="padding:4px 10px;" onclick="ccxCariMendalam(true)">Cari pesanan otomatis (${belum})</button>` : ovxEsc(ccxCariInfo));
+      : (belum ? `${ccxCariInfo ? ovxEsc(ccxCariInfo) + ' · ' : ''}<button type="button" class="web-chart-toggle-btn" style="padding:4px 10px;" onclick="ccxCariMendalam(true)">Cari pesanan otomatis (${belum})</button>${typeof ccxAdaPenyebab_ === 'function' && ccxAdaPenyebab_() ? ' <button type="button" class="web-chart-toggle-btn" style="padding:4px 10px;" onclick="ccxLihatPenyebab()">Lihat penyebab</button>' : ''}` : ovxEsc(ccxCariInfo));
   }
 }
 
@@ -60066,7 +60067,8 @@ function ccBarisHtml(d) {
       ? `<div class="cc-inv"><span class="cc-resi"><b>${escapeHtml(d.noInvoice)}</b><span class="ccx-kilat" title="Pengiriman Kilat - No Reservasi dipakai sebagai No Pesanan">Kilat</span>${salin(d.noInvoice, 'No Reservasi')}</span><small>No Reservasi${d.orderPembeliKilat ? ' · pesanan ' + escapeHtml(d.orderPembeliKilat) : ''}</small></div>`
       : `<span class="cc-inv-kosong">No Reservasi kosong <span class="ccx-kilat">Kilat</span> <button type="button" class="cc-btn-tautkan" data-pgr-tautkan="${pgrAttr(resi)}" data-pgr-kilat="1">Isi</button></span>`;
   } else if (d.noInvoice) {
-    inv = `<div class="cc-inv"><span class="cc-resi"><b>${escapeHtml(d.noInvoice)}</b>${instan ? '<span class="ccx-instan" title="Kurir instan">Instan</span>' : ''}${salin(d.noInvoice, 'No Invoice')}</span><small>${escapeHtml([d.sumber, d.pembeli].filter(Boolean).join(' · '))}</small></div>`;
+    const krs = typeof krsInfoResi_ === 'function' ? krsInfoResi_(resi) : null;
+    inv = `<div class="cc-inv"><span class="cc-resi"><b>${escapeHtml(d.noInvoice)}</b>${instan ? '<span class="ccx-instan" title="Kurir instan">Instan</span>' : ''}${krs ? `<span class="ccx-koreksi" title="${pgrAttr('Discan sebagai ' + krs.salah + (krs.waktu ? ' · dikoreksi ' + krs.waktu : '') + ' (beda ' + krs.jarak + ' karakter dari resi asli marketplace)')}">🔧 Dikoreksi sistem</span>` : ''}${salin(d.noInvoice, 'No Invoice')}</span><small>${escapeHtml([d.sumber, d.pembeli].filter(Boolean).join(' · '))}</small></div>`;
   } else {
     inv = `<span class="cc-inv-kosong">Belum terhubung <button type="button" class="cc-btn-tautkan" data-pgr-tautkan="${pgrAttr(resi)}">Tautkan</button></span>`;
   }
@@ -60166,7 +60168,9 @@ async function ccxCariMendalam(manual) {
     if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
     if (d.sedangJalan) { ccxCariInfo = 'Pencarian sedang berjalan di sesi lain'; return; }
     const n = Object.keys(d.ditemukan || {}).length;
-    ccxCariInfo = n ? `${n} resi berhasil terhubung otomatis` : `${d.dicek || belum.length} resi dicek ke marketplace, belum ada yang cocok`;
+    ccxAlasan = { alasan: d.alasan || {}, ringkas: d.ringkasAlasan || {}, laporan: d.laporan || {}, waktu: Date.now() };
+    ccxCariInfo = n ? `${n} resi berhasil terhubung otomatis${d.dikoreksi ? ` (${d.dikoreksi} dikoreksi dari salah scan)` : ''}` : `${d.dicek || belum.length} resi dicek ke marketplace, belum ada yang cocok`;
+    if (d.dikoreksi) { krsPetaWaktu = 0; krsMuatPeta_(true); }
     if (n) {
       await wpMuatAktifPengiriman();
       hapusCacheTTL('log_resi_riwayat'); wpPengirimanRiwayatCache = null;
@@ -61676,6 +61680,68 @@ function ptSkuCariJadwalkan_() {
     background: var(--web-info-soft, rgba(59,130,246,.08)); border: 1px solid var(--web-border); color: var(--web-text, inherit); }
   .omx-sku-info small { color: var(--web-text-dim); }
   .pt-tag.lepas { background: rgba(245,158,11,.14); color: #b45309; border: 1px solid rgba(245,158,11,.35); }
+</style>
+
+<script>
+/* ================= KOREKSI SALAH SCAN + PENYEBAB RESI BELUM TERHUBUNG v2026.10.21 =================
+   Backend: krsJalankan_ (otomatis tiap ±5 menit + saat Cari pesanan otomatis), aksi koreksi_resi_lihat.
+   Frontend: tanda "🔧 Dikoreksi sistem" di Pengiriman > Control + jendela "Lihat penyebab". */
+var krsPeta = null, krsPetaWaktu = 0, krsPetaMemuat = false;
+var ccxAlasan = null;
+async function krsMuatPeta_(paksa) {
+  if (krsPetaMemuat || (!paksa && krsPeta && Date.now() - krsPetaWaktu < 300000)) return;
+  krsPetaMemuat = true;
+  try {
+    const r = await postJson({ aksi: 'koreksi_resi_lihat', email: currentUserEmail() }, 30000, true);
+    if (r && r.success) {
+      const berubah = JSON.stringify(Object.keys(r.peta || {})) !== JSON.stringify(Object.keys(krsPeta || {}));
+      krsPeta = r.peta || {}; krsPetaWaktu = Date.now();
+      if (berubah && Object.keys(krsPeta).length && typeof wpPengirimanSubAktif !== 'undefined' && wpPengirimanSubAktif === 'control') ccRender();
+    }
+  } catch (e) { /* tanda opsional */ }
+  finally { krsPetaMemuat = false; }
+}
+function krsInfoResi_(resi) {
+  if (!krsPeta) return null;
+  const k = typeof kunciResi === 'function' ? kunciResi(resi) : String(resi || '').toUpperCase();
+  return krsPeta[k] || null;
+}
+function ccxAdaPenyebab_() {
+  if (!ccxAlasan || !ccxAlasan.alasan) return false;
+  return ccxMentah.some(d => !d.noInvoice && d.jenis !== 'transfer' && ccxAlasan.alasan[d.noResiScan]);
+}
+const KRS_LABEL_ALASAN = {
+  tanpaResi: 'Resi belum diberikan / belum tertarik dari marketplace', ragu: 'Mirip beberapa resi - pilih manual', dobel: 'Kemungkinan scan dobel',
+  pendek: 'Bukan resi / kode terlalu pendek', tidakDikenal: 'Tidak ditemukan di pesanan mana pun'
+};
+function ccxLihatPenyebab() {
+  if (!ccxAlasan) return;
+  const belum = ccxMentah.filter(d => !d.noInvoice && d.jenis !== 'transfer' && ccxAlasan.alasan[d.noResiScan]);
+  const perKurir = {};
+  belum.forEach(d => { const a = ccxAlasan.alasan[d.noResiScan]; const k = a.kurir || d.kurir || 'Tidak dikenal'; (perKurir[k] = perKurir[k] || {})[a.kode] = ((perKurir[k] || {})[a.kode] || 0) + 1; });
+  const ringkas = Object.keys(perKurir).sort((a, b) => Object.values(perKurir[b]).reduce((x, y) => x + y, 0) - Object.values(perKurir[a]).reduce((x, y) => x + y, 0))
+    .map(k => `<tr><td><b>${escapeHtml(k)}</b></td><td>${Object.keys(perKurir[k]).map(kd => `${escapeHtml(KRS_LABEL_ALASAN[kd] || kd)}: <b>${perKurir[k][kd]}</b>`).join('<br>')}</td></tr>`).join('');
+  const rinci = belum.slice(0, 200).map(d => {
+    const a = ccxAlasan.alasan[d.noResiScan];
+    return `<tr><td class="pgr-mono" style="white-space:nowrap;">${escapeHtml(d.noResiScan)}</td><td>${escapeHtml(a.kurir || d.kurir || '-')}</td><td>${escapeHtml(a.teks)}</td>
+      <td><button type="button" class="cc-btn-tautkan" data-r="${pgrAttr(d.noResiScan)}" onclick="const r = this.dataset.r; omxTutupModal(); pgrTautkanManual(r, false);">Tautkan</button></td></tr>`;
+  }).join('');
+  const lap = ccxAlasan.laporan ? Object.keys(ccxAlasan.laporan).map(k => `${escapeHtml(k)}: ${escapeHtml(String(ccxAlasan.laporan[k]))}`).join(' · ') : '';
+  omxModal('Penyebab resi belum terhubung', `
+    <div style="font-size:12.5px; line-height:1.5;">
+      <p style="margin:0 0 8px;">Hasil pencarian otomatis terakhir (${new Date(ccxAlasan.waktu).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}). Resi yang salah scan 1-2 karakter sudah dikoreksi otomatis dan ditandai <b>🔧 Dikoreksi sistem</b>; yang di bawah ini masih perlu perhatian.</p>
+      <div style="overflow-x:auto;"><table class="krs-tabel"><thead><tr><th>Kurir</th><th>Penyebab</th></tr></thead><tbody>${ringkas || '<tr><td colspan="2">-</td></tr>'}</tbody></table></div>
+      <div style="overflow-x:auto; margin-top:10px;"><table class="krs-tabel"><thead><tr><th>Resi discan</th><th>Kurir</th><th>Penjelasan</th><th></th></tr></thead><tbody>${rinci}</tbody></table></div>
+      ${lap ? `<p style="margin:8px 0 0; color:var(--web-text-dim); font-size:11.5px;">Pengecekan marketplace: ${lap}</p>` : ''}
+    </div>`, { lebar: true });
+}
+</script>
+<style>
+  .ccx-koreksi { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+    background: rgba(14,165,233,.12); color: #0369a1; border: 1px solid rgba(14,165,233,.35); white-space: nowrap; }
+  .krs-tabel { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .krs-tabel th, .krs-tabel td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--web-border); vertical-align: top; }
+  .krs-tabel th { font-size: 11px; color: var(--web-text-dim); font-weight: 700; }
 </style>
 
 </body>
