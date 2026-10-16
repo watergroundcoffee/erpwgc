@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.22';
+  var VERSI = 'v2026.10.23';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -22534,6 +22534,7 @@ function rt2HtmlBaris(d) {
       <td>${rt2HtmlSelEdit(d, 'noLaporan', 'No laporan...', 'No Laporan', false)}</td>
       <td>
         <button type="button" class="rt2-status rt2-status-btn rt2-st-${rt2KelasStatus(d.statusCek)}" onclick="rt2BukaMenuStatus('${k}', this)" aria-haspopup="menu" aria-label="Status pengecekan ${k}">${escapeHtml(d.statusCek || '- Belum dicek -')}</button>
+        ${d.stokDiproses ? '<div class="rt2-media-ringkas p10-stok-ok">✓ stok sudah diproses</div>' : ''}${d.klaimTahap ? `<div class="rt2-media-ringkas">Klaim: ${escapeHtml(d.klaimHasil && d.klaimHasil !== 'Dalam proses' ? d.klaimHasil : d.klaimTahap)}</div>` : ''}
         ${d.jumlahFoto || d.jumlahVideo || pending ? `<div class="rt2-media-ringkas">${d.jumlahFoto ? '🖼 ' + d.jumlahFoto : ''} ${d.jumlahVideo ? '🎬 ' + d.jumlahVideo : ''} ${pending ? '⬆ ' + pending + ' diunggah' : ''}</div>` : ''}
       </td>
       <td><button type="button" class="rt2-panah" onclick="rt2ToggleDetail('${k}')" aria-expanded="${buka}" aria-label="Detail retur ${k}">⏷</button></td>
@@ -22644,14 +22645,9 @@ async function rt2PilihStatusMenu(noResi, status) {
   rt2TutupMenuStatus();
   const d = rt2Data(noResi);
   if (!d || (d.statusCek || '') === status) return;
-  if (status === 'Diterima Baik') {
-    const ya = await omniKonfirmasi({
-      ikon: '📦', judul: 'Yakin sudah diterima dalam kondisi baik?',
-      pesan: `Resi ${noResi} - semua isi paket akan ditandai "Sesuai". Proses berjalan di latar.`,
-      ya: 'Ya, diterima baik', tidak: 'Batal'
-    });
-    if (!ya) return;
-  }
+  // v2026.10.23 (DN-193035-693): Diterima Baik -> konfirmasi rincian barang dulu, lalu otomatis masuk stok
+  if (status === 'Diterima Baik' && !d.stokDiproses && typeof rt2DialogTerima === 'function') { rt2DialogTerima(noResi); return; }
+  if (d.stokDiproses && !(await omniKonfirm_(`Barang retur ${noResi} sudah dimasukkan ke stok. Mengganti status TIDAK mengubah stok.\n\nTetap ganti status ke "${status || 'Belum dicek'}"?`))) return;
   rt2UbahStatus(noResi, status);
 }
 function rt2BukaAlasanLain(btn) {
@@ -22777,7 +22773,8 @@ async function rt2MuatDetail(noResi) {
     aktual.forEach(x => { lama[String(x.sku).toUpperCase()] = x.status; });
     aktual = seharusnya.map(x => ({ sku: x.sku, nama: x.nama, qty: x.qty, status: lama[String(x.sku).toUpperCase()] || '' }));
     if (d.statusCek === 'Diterima Baik' || d.statusCek === 'Tidak Terima') aktual = rt2TerapkanStatusKeItem(d.statusCek, aktual);
-    rt2.detail[noResi] = { pesanan: r.pesanan, idDipakai: r.idDipakai, itemAktual: aktual, foto: r.foto || [], video: r.video || [], unggah: 0 };
+    rt2.detail[noResi] = { pesanan: r.pesanan, idDipakai: r.idDipakai, itemAktual: aktual, foto: r.foto || [], video: r.video || [], unggah: 0, terima: r.terima || null, klaim: r.klaim || null, bolehKlaim: !!r.bolehKlaim };
+    if (r.terima && r.terima.t) { d.stokDiproses = true; rt2.detail[noResi].itemAktual = r.itemAktual && r.itemAktual.length ? r.itemAktual : aktual; }
     rt2RenderDetail(noResi);
   } catch (err) {
     if (box) { box.classList.remove('rl-skel'); box.style.display = ''; box.innerHTML = `<div class="rt2-kosong" style="color:var(--web-danger);">Gagal memuat detail: ${escapeHtml(err.message)}</div>`; }
@@ -22800,6 +22797,7 @@ function rt2RenderDetail(noResi) {
         <td>${d.statusCek === 'Tidak Terima' ? '<span class="rt2-seg-tolak">Tidak Terima</span>' : `<div class="rt2-seg" role="radiogroup">${RT2_STATUS_ITEM.map(s => `<button type="button" role="radio" aria-checked="${x.status === s}" class="${x.status === s ? 'aktif rt2-seg-' + s.toLowerCase() : ''}" ${kunciEdit ? '' : 'disabled'} onclick="rt2UbahItem('${k}', ${i}, '${s}')">${s}</button>`).join('')}</div>`}</td></tr>`).join('')}</tbody></table>
        ${d.statusCek === 'Diterima Baik' ? '<div class="rt2-waktu">Status "Diterima Baik" → semua otomatis Sesuai. Ubah ke "Komplain Rusak" untuk mengisi per produk.</div>' : ''}`
     : '<div class="rt2-kosong">Akan terisi otomatis sesuai isi paket seharusnya.</div>';
+  const blokTerima = typeof p10BlokTerimaHtml === 'function' ? p10BlokTerimaHtml(noResi, det, d) : '';
   const pendingSemua = (rt2.unggah || {})[noResi] || [];
   const galeri = (jenis, list) => {
     const pend = pendingSemua.filter(x => x.jenis === jenis);
@@ -22809,7 +22807,7 @@ function rt2RenderDetail(noResi) {
       <div class="rt2-media-judul">${jenis === 'foto' ? '🖼 Foto unboxing' : '🎬 Video unboxing'} <span>(${list.length}${pend.length ? ' + ' + pend.length + ' diunggah' : ''})</span></div>
       <div class="rt2-media-list">
         ${list.map((m, i) => jenis === 'foto'
-          ? `<button type="button" class="rt2-thumb" onclick="rt2BukaMedia('${k}', 'foto', ${i})" aria-label="Buka foto ${i + 1}"><img src="${pgrAttr(m.thumb || '')}" alt="Foto unboxing ${i + 1}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'🖼'}))" /></button>`
+          ? `<button type="button" class="rt2-thumb" onclick="rt2BukaMedia('${k}', 'foto', ${i})" aria-label="Buka foto ${i + 1}"><img src="${pgrAttr(p10UrlFoto(m, 400))}" data-cadangan="${pgrAttr(p10UrlFotoCadangan(m, 400))}" alt="Foto unboxing ${i + 1}" loading="lazy" onerror="p10FotoGagal(this)" /></button>`
           : `<button type="button" class="rt2-thumb rt2-thumb-video" onclick="rt2BukaMedia('${k}', 'video', ${i})" aria-label="Putar video ${i + 1}"><span>▶</span><i>${escapeHtml(m.nama || 'Video ' + (i + 1))}</i></button>`).join('')}
         ${pend.map(x => `<div class="rt2-up ${x.status}" title="${x.status === 'gagal' ? 'Upload gagal - buka Log Tindakan (kanan bawah) untuk mencoba lagi' : 'Mengunggah di latar…'} · ${pgrAttr(x.nama)}">${x.preview && jenis === 'foto' ? `<img src="${pgrAttr(x.preview)}" alt="Foto sedang diunggah" />` : '<span>🎬</span>'}<i class="rt2-up-ind">${x.status === 'gagal' ? '!' : ''}</i></div>`).join('')}
       </div>
@@ -22819,7 +22817,7 @@ function rt2RenderDetail(noResi) {
   box.innerHTML = `
     <div class="rt2-detail-grid">
       <div class="rt2-kartu"><div class="rt2-kartu-judul">a. Isi paket seharusnya ${p ? `<span>${escapeHtml(p.noPesanan)} · ${escapeHtml(p.sumber)}</span>` : ''}</div>${tabelSeharusnya}</div>
-      <div class="rt2-kartu"><div class="rt2-kartu-judul">b. Isi paket aktual</div>${tabelAktual}</div>
+      <div class="rt2-kartu"><div class="rt2-kartu-judul">b. Isi paket aktual</div>${tabelAktual}${blokTerima}</div>
       <div class="rt2-kartu"><div class="rt2-kartu-judul">Info pembeli</div>
         <dl class="rt2-info">
           <dt>Username</dt><dd>${escapeHtml((p && p.username) || '-')}</dd>
@@ -22829,14 +22827,16 @@ function rt2RenderDetail(noResi) {
           <dt>Status pesanan</dt><dd>${escapeHtml((p && p.status) || '-')}</dd>
         </dl>
       </div>
-      <div class="rt2-kartu rt2-kartu-media" data-rt2-drop="${k}"><div class="rt2-kartu-judul">c. Foto &amp; video unboxing <span>opsional · tersimpan di Drive</span></div>
+      <div class="rt2-kartu rt2-kartu-media" data-rt2-drop="${k}"><div class="rt2-kartu-judul">c. Foto &amp; video unboxing <span>opsional · foto dikecilkan &amp; video dikompres otomatis</span></div>
         ${media || '<div class="rt2-kosong">Belum ada foto / video.</div>'}
+        ${typeof p10MediaAlatHtml === 'function' ? p10MediaAlatHtml(noResi, det) : ''}
         <div class="rt2-drop-zona" tabindex="0" aria-label="Area unggah foto atau video unboxing ${k}">
           <span class="rt2-drop-ikon" aria-hidden="true">⬆</span>
           <div><b>Tarik &amp; lepas foto / video ke sini</b><small>Dari WhatsApp, browser, atau folder · bisa juga klik area ini lalu Ctrl+V · upload berjalan di latar, boleh lanjut kerja</small></div>
           <label class="rt2-drop-btn">Pilih file<input type="file" accept="image/*,video/*" multiple hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" /></label>
         </div>
       </div>
+      ${typeof p10KlaimHtml === 'function' ? p10KlaimHtml(noResi, det, d) : ''}
     </div>`;
 }
 
@@ -22858,11 +22858,11 @@ function rt2KecilkanFoto(file) {
   return new Promise(res => {
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => {
-      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)); // 1600 px cukup jelas untuk bukti unboxing
+      const k = Math.min(1, 1440 / Math.max(img.naturalWidth, img.naturalHeight)); // v2026.10.23: 1440 px - tulisan label/resi tetap terbaca
       const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      res({ base64: c.toDataURL('image/jpeg', 0.8).split(',')[1], mime: 'image/jpeg', nama: file.name.replace(/\.[^.]+$/, '') + '.jpg' });
+      res({ base64: c.toDataURL('image/jpeg', 0.72).split(',')[1], mime: 'image/jpeg', nama: file.name.replace(/\.[^.]+$/, '') + '.jpg' });
     };
     img.onerror = async () => { URL.revokeObjectURL(url); res({ base64: await rt2BacaBase64(file), mime: file.type || 'image/jpeg', nama: file.name }); };
     img.src = url;
@@ -22880,7 +22880,12 @@ function rt2BukaMedia(noResi, jenis, i) {
   const m = (rt2.detail[noResi] || {})[jenis] && rt2.detail[noResi][jenis][i];
   if (!m) return;
   if (jenis === 'foto') { // foto -> jendela lampiran dengan zoom & geser antar foto
-    lampiranBuka(rt2.detail[noResi].foto.map(f => `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.id)}&sz=w2000`), i, { gambar: true });
+    lampiranBuka(rt2.detail[noResi].foto.map(f => p10UrlFoto(f, 2000)), i, { gambar: true });
+    return;
+  }
+  if (p10DiStorage(m)) { // v2026.10.23: file di Supabase Storage diputar langsung (bisa diunduh / disalin)
+    el('rt2-lb-isi').innerHTML = `<video src="${pgrAttr(m.url)}" controls playsinline style="max-width:100%; max-height:78vh; border-radius:12px; background:#000;"></video><a href="${pgrAttr(m.url)}" target="_blank" rel="noopener" download>Unduh / buka di tab baru ↗</a>`;
+    el('rt2-lightbox').style.display = 'flex';
     return;
   }
   el('rt2-lb-isi').innerHTML = jenis === 'foto'
@@ -47709,7 +47714,9 @@ function rlHtmlKartu(it, pakaiInvoice) {
   const dihapus = !!it.dihapus;
   const kelasKartu = !pakaiInvoice ? '' : (cocok ? ' rc-ok' : ' rc-err');
 
-  const kiriAtas = `<div class="rc-tl"><span class="rc-resi rc-tap" data-rl-copy="${pgrAttr(it.noResi)}" data-rl-jenis="Resi" title="Tap untuk menyalin">${escapeHtml(it.noResi)}</span></div>`;
+  // v2026.10.23: ID Pesanan yang discan -> tampilkan resi asli (No Pesanan tetap di kanan)
+  const resiTampil = it.resiAsli || it.noResi;
+  const kiriAtas = `<div class="rc-tl"><span class="rc-resi rc-tap" data-rl-copy="${pgrAttr(resiTampil)}" data-rl-jenis="Resi" title="${it.resiAsli ? pgrAttr('Resi asli dari marketplace · yang discan: ' + it.noResi) : 'Tap untuk menyalin'}">${escapeHtml(resiTampil)}</span></div>`;
 
   let kananAtas = '<div class="rc-tr"></div>';
   let status = '';
@@ -54184,6 +54191,17 @@ function rt2UnggahSumber(noResi, list) {
 async function rt2UnggahMulai(noResi, s) {
   var f = s.file;
   var jenis = f ? (/^video\//.test(f.type || '') ? 'video' : 'foto') : 'foto';
+  // v2026.10.23 (DN-192716-799): video dikompres dulu di HP/browser (480p) - file asli dipakai bila kompres tidak didukung
+  if (f && jenis === 'video' && !s.sudahKompres && typeof p10KompresVideo === 'function') {
+    var pk = { id: 'kp' + Date.now().toString(36), jenis: 'video', nama: f.name + ' (mengompres…)', preview: '', status: 'proses' };
+    if (!rt2.unggah) rt2.unggah = {};
+    (rt2.unggah[noResi] = rt2.unggah[noResi] || []).push(pk); rt2SegarkanMedia(noResi); rt2Render();
+    var kecil = null;
+    try { kecil = await p10KompresVideo(f); } catch (eK) { kecil = null; }
+    rt2UnggahBuang(noResi, pk); rt2Render();
+    if (kecil && kecil.size < f.size) { pgrToast('🎬 Video dikompres ' + Math.round(f.size / 1048576 * 10) / 10 + ' MB → ' + Math.round(kecil.size / 1048576 * 10) / 10 + ' MB'); f = kecil; }
+    s = { file: f, sudahKompres: true };
+  }
   if (f && jenis === 'video' && f.size > RT2_MAKS_VIDEO_MB * 1048576) {
     pgrToast('✗ ' + f.name + ' terlalu besar (' + Math.round(f.size / 1048576) + ' MB). Maks ' + RT2_MAKS_VIDEO_MB + ' MB per video - potong / kompres dulu.');
     return;
@@ -60086,14 +60104,23 @@ function ccBarisHtml(d) {
       + `<button type="button" class="cc-btn-mini cc-btn-hapus" data-cc-hapus="${pgrAttr(resi)}" data-cc-row="${pgrAttr(d.row || '')}" title="Hapus resi (salah scan, dobel, dll.)">Hapus resi</button></div>` : '');
   const v = ccNilai(d);
   const retur = d.resiRetur
-    ? `<span class="cc-resi"><span class="pgr-mono" style="font-size:12px;">${escapeHtml(d.resiRetur)}</span>${salin(d.resiRetur, 'Resi Retur')}</span>`
+    ? `<span class="cc-resi"><span class="pgr-mono" style="font-size:12px;">${escapeHtml(d.resiRetur)}</span>${salin(d.resiRetur, 'Resi Retur')}</span>${typeof p10StatusReturHtml === 'function' ? p10StatusReturHtml(d.statusRetur) : ''}`
     : (cc.h === 'retur' && d.jenis === 'transfer' ? '<span style="font-size:11.5px; color:var(--web-text-dim);">resi sama</span>' : '<span style="color:var(--web-text-dim);">-</span>');
-  const resiTampil = instan && ins && ins.resiAsli ? ins.resiAsli : resi;
-  const subResi = !instan ? '' : (ins && ins.resiAsli ? `<span class="ccx-sub">ID Pesanan discan: ${escapeHtml(resi)}${ins.resiSebelumnya ? ` · resi driver diperbarui (sebelumnya ${escapeHtml(ins.resiSebelumnya)})` : ''}</span>`
-    : `<span class="ccx-sub">${ins ? (ins.error ? 'Gagal cek: ' + escapeHtml(ins.error) : (ins.instan ? 'Menunggu driver - resi belum terbit' : 'Resi belum terbit di marketplace')) : 'ID Pesanan discan · mencari resi asli…'}</span>`);
+  // v2026.10.23: yang discan ID Pesanan -> tampil resi asli (hasil cek / dari server); yang discan resi asli -> tetap resinya
+  const scanIdPes = !!(d.noInvoice && d.jenis !== 'transfer' && ovxNorm(resi) === ovxNorm(d.noInvoice));
+  const resiAsliX = scanIdPes ? ((ins && ins.resiAsli) || d.resiAsli || '') : '';
+  const resiTampil = resiAsliX || resi;
+  let subResi = '';
+  if (scanIdPes) {
+    subResi = resiAsliX
+      ? `<span class="ccx-sub">ID Pesanan discan: ${escapeHtml(resi)}${ins && ins.resiSebelumnya ? ` · resi driver diperbarui (sebelumnya ${escapeHtml(ins.resiSebelumnya)})` : ''}</span>`
+      : `<span class="ccx-sub">${ins ? (ins.error ? 'Gagal cek: ' + escapeHtml(ins.error) : (ins.instan ? 'Menunggu driver - resi belum terbit' : 'Resi belum terbit di marketplace')) : 'ID Pesanan discan · mencari resi asli…'}</span>`;
+  } else if (instan && ins && ins.resiAsli && ovxNorm(ins.resiAsli) !== ovxNorm(resi)) {
+    subResi = `<span class="ccx-sub">Resi terbaru di marketplace: ${escapeHtml(ins.resiAsli)}</span>`;
+  }
   return `<tr data-resi="${pgrAttr(resi)}" class="${cc.h === 'gantung' ? 'cc-gantung' : ''}">
     <td><span class="cc-resi"><span class="pgr-mono">${escapeHtml(resiTampil)}</span>${salin(resiTampil, 'No Resi')}</span>${subResi}<div class="cc-waktu">${escapeHtml(waktu)}${d.dicatatOleh ? ' · ' + escapeHtml(d.dicatatOleh) : ''}</div></td>
-    <td><span class="cc-kurir-chip">${escapeHtml(cc.kurir)}</span></td>
+    <td><span class="cc-kurir-chip"${d.kurirDariPesanan ? ' title="Diambil dari data pesanan marketplace"' : ''}>${escapeHtml(cc.kurir)}</span></td>
     <td>${inv}</td>
     <td>${status}${alasan}</td>
     <td>${retur}</td>
@@ -61754,5 +61781,289 @@ function ccxLihatPenyebab() {
   .ccx-instan.ccx-idpes { background: rgba(100,116,139,.12); color: #475569; border-color: rgba(100,116,139,.35); }
 </style>
 
+<style>
+/* ============ PAKET 10 (v2026.10.23) - Pengiriman & Retur ============ */
+.p10-rt { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text-dim, #64748b); white-space: nowrap; }
+.p10-rt i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+.p10-rt.baik { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.p10-rt.rusak { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.p10-rt.tolak { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.p10-rt-klaim { display: block; font-size: 10.5px; color: var(--web-text-dim, #64748b); margin-top: 2px; white-space: normal; }
+.p10-stok-ok { color: #047857; font-weight: 600; }
+.p10-terima-blok { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--web-border, #e2e8f0); font-size: 12px; }
+.p10-terima-blok .web-btn-primary { margin: 0; font-size: 12.5px; padding: 7px 14px; }
+.p10-tabel { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.p10-tabel th { text-align: left; font-size: 11px; color: var(--web-text-dim, #64748b); font-weight: 600; padding: 6px 6px; border-bottom: 1px solid var(--web-border, #e2e8f0); }
+.p10-tabel td { padding: 6px; border-bottom: 1px solid var(--web-border, #e2e8f0); vertical-align: middle; }
+.p10-tabel input, .p10-tabel select { width: 100%; box-sizing: border-box; padding: 5px 7px; border-radius: 8px; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #1e293b); font: inherit; font-size: 12.5px; }
+.p10-tabel input.p10-salah { border-color: #f59e0b; background: #fffbeb; }
+.p10-info { font-size: 11.5px; color: var(--web-text-dim, #64748b); line-height: 1.5; margin: 8px 0 0; }
+.p10-info b { color: var(--web-text, #1e293b); }
+.p10-wrap { overflow-x: auto; }
+.p10-klaim { grid-column: 1 / -1; }
+.p10-tahap { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.p10-tahap button { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #1e293b); border-radius: 999px; padding: 5px 11px; font: inherit; font-size: 12px; cursor: pointer; }
+.p10-tahap button.aktif { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-weight: 700; }
+.p10-klaim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.p10-klaim-grid label { font-size: 11px; color: var(--web-text-dim, #64748b); display: block; }
+.p10-klaim-grid label > input, .p10-klaim-grid label > textarea { display: block; width: 100% !important; max-width: none !important; min-width: 0 !important; }
+.p10-tabel input[type=number] { width: 100% !important; min-width: 0 !important; }
+.p10-klaim-grid input, .p10-klaim-grid textarea { width: 100%; box-sizing: border-box; margin-top: 3px; padding: 6px 8px; border-radius: 9px; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #1e293b); font: inherit; font-size: 12.5px; }
+.p10-hasil { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(15,23,42,0.03); border: 1px solid var(--web-border, #e2e8f0); font-size: 12px; }
+.p10-hasil b.ok { color: #047857; } .p10-hasil b.no { color: #b91c1c; } .p10-hasil b.proses { color: #4338ca; }
+.p10-riwayat { list-style: none; margin: 8px 0 0; padding: 0; font-size: 11.5px; color: var(--web-text-dim, #64748b); }
+.p10-riwayat li { padding: 2px 0; }
+.p10-alat { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.p10-alat label, .p10-alat button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #1e293b); border-radius: 9px; padding: 6px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.p10-alat .p10-gagal { font-size: 11px; color: #b45309; align-self: center; }
+</style>
+<script>
+/* ============================ PAKET 10 (v2026.10.23) - PENGIRIMAN & RETUR ============================
+   A. Kurir: "SPX Instant" punya nama sendiri (tidak tergabung ke Shopee Express). Server kini mengisi kurir dari data pesanan
+      (kolom kurir kosong / Tidak Diketahui) + resi asli untuk ID Pesanan yang discan (web Control & daftar HP).
+   A2. HP: ID Pesanan yang discan dicek ke marketplace di latar (senyap, tiap 5 menit per resi) -> resi asli & kurir.
+   B. Control: status penerimaan retur di bawah No Resi Retur.
+   C. Resi Masuk: dialog terima (rincian barang -> stok), salah kirim, klaim marketplace, foto/video (kamera + kompres + salin Drive). */
+(function () {
+  try { if (typeof CC_KURIR_KANON !== 'undefined' && !CC_KURIR_KANON.some(x => x[0] === 'SPX Instant')) CC_KURIR_KANON.unshift(['SPX Instant', /(spx|shopee)[^a-z0-9]*(express\s*)?(instan|instant|same\s*day|sameday)/i]); } catch (e) { }
+})();
+
+/* ---------- B. status retur di Control ---------- */
+function p10StatusReturHtml(sr) {
+  if (!sr) return '';
+  const peta = { 'Diterima Baik': ['baik', 'Diterima baik'], 'Komplain Rusak': ['rusak', 'Diterima · ada rusak'], 'Tidak Terima': ['tolak', 'Tidak diterima'] };
+  const x = peta[sr.s] || ['', 'Belum diterima'];
+  const klaim = sr.klaim ? `<span class="p10-rt-klaim">Klaim: ${escapeHtml(sr.hasil && sr.hasil !== 'Dalam proses' ? sr.hasil : sr.klaim)}</span>` : '';
+  return `<div><span class="p10-rt ${x[0]}" title="Status penerimaan dari Resi Masuk (Kelola Resi Retur)${sr.stok ? ' · stok sudah diproses' : ''}"><i></i>${x[1]}${sr.stok ? ' · stok ✓' : ''}</span>${klaim}</div>`;
+}
+
+/* ---------- C5. alamat foto/video (Supabase Storage / Google Drive lama) ---------- */
+function p10DiStorage(m) { return !!m && (String(m.id || '').indexOf('/') !== -1 || /\/storage\/v1\/object\//.test(String(m.url || ''))); }
+function p10UrlFoto(m, sz) {
+  if (!m) return '';
+  if (p10DiStorage(m)) return m.url || m.thumb || '';
+  return m.id ? `https://lh3.googleusercontent.com/d/${encodeURIComponent(m.id)}=w${sz || 1600}` : (m.thumb || m.url || '');
+}
+function p10UrlFotoCadangan(m, sz) {
+  if (!m || p10DiStorage(m)) return '';
+  return m.id ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(m.id)}&sz=w${sz || 400}` : '';
+}
+function p10FotoGagal(img) {
+  const c = img.getAttribute('data-cadangan');
+  if (c && img.src !== c) { img.removeAttribute('data-cadangan'); img.src = c; return; }
+  img.replaceWith(Object.assign(document.createElement('span'), { textContent: '🖼', title: 'Foto lama di Google Drive belum bisa ditampilkan - tekan "Salin ke Supabase"' }));
+}
+function p10MediaAlatHtml(noResi, det) {
+  const k = pgrAttr(noResi);
+  const lama = (det.foto || []).concat(det.video || []).filter(m => m && m.id && !p10DiStorage(m));
+  const gagal = lama.filter(m => m.salinGagal).length;
+  return `<div class="p10-alat">
+    <label title="Buka kamera HP untuk memotret">📷 Ambil foto<input type="file" accept="image/*" capture="environment" hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" /></label>
+    <label title="Rekam video lalu dikompres otomatis sebelum diunggah">🎥 Rekam video<input type="file" accept="video/*" capture="environment" hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" /></label>
+    ${lama.length ? `<button type="button" onclick="p10SalinDrive('${k}', this)" title="Salin file Google Drive lama ke Supabase supaya bisa dilihat, diunduh & disalin">⇪ Salin ${lama.length} file Drive ke Supabase</button>` : ''}
+    ${gagal ? `<span class="p10-gagal">${gagal} file belum bisa disalin (cek di Drive apakah dibagikan "Siapa saja yang memiliki link")</span>` : ''}
+  </div>`;
+}
+async function p10SalinDrive(noResi, btn) {
+  const det = rt2.detail[noResi]; if (!det) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyalin…'; }
+  let total = 0, putaran = 0;
+  try {
+    while (putaran++ < 15) {
+      const r = await postJsonTulis({ aksi: 'retur_media_salin', noResi, email: currentUserEmail() }, 120000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+      det.foto = r.foto || det.foto; det.video = r.video || det.video;
+      total += r.disalin || 0;
+      rt2RenderDetail(noResi);
+      if (!r.sisa || !(r.disalin || r.gagal)) break;
+    }
+    pgrToast(total ? `✓ ${total} file disalin ke Supabase` : 'Tidak ada file yang bisa disalin');
+  } catch (err) { pgrToast('✗ Salin gagal: ' + String(err.message || err).replace(/^Error:\s*/, '')); rt2RenderDetail(noResi); }
+}
+
+/* ---------- C6. kompres video di browser (480p, ±700 kbps). null = tidak didukung -> file asli ---------- */
+function p10KompresVideo(file) {
+  return new Promise(resolve => {
+    if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) { resolve(null); return; }
+    const tipe = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } });
+    if (!tipe) { resolve(null); return; }
+    const url = URL.createObjectURL(file), v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+    let selesai = false;
+    const akhiri = hasil => { if (selesai) return; selesai = true; try { URL.revokeObjectURL(url); } catch (e) { } resolve(hasil); };
+    const batas = setTimeout(() => akhiri(null), 15 * 60000);
+    v.onerror = () => { clearTimeout(batas); akhiri(null); };
+    v.onloadedmetadata = () => {
+      try {
+        const w0 = v.videoWidth || 640, h0 = v.videoHeight || 480, skala = Math.min(1, 854 / Math.max(w0, h0));
+        const c = document.createElement('canvas'); c.width = Math.round(w0 * skala / 2) * 2; c.height = Math.round(h0 * skala / 2) * 2;
+        const g = c.getContext('2d'), stream = c.captureStream(24);
+        try { const sa = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null); if (sa) sa.getAudioTracks().forEach(t => stream.addTrack(t)); } catch (e) { }
+        const rec = new MediaRecorder(stream, { mimeType: tipe, videoBitsPerSecond: 700000, audioBitsPerSecond: 48000 });
+        const potong = [];
+        rec.ondataavailable = e => { if (e.data && e.data.size) potong.push(e.data); };
+        rec.onstop = () => {
+          clearTimeout(batas);
+          const b = new Blob(potong, { type: tipe.split(';')[0] });
+          const ekst = /mp4/.test(tipe) ? 'mp4' : 'webm';
+          akhiri(b.size > 1000 ? new File([b], file.name.replace(/\.[^.]+$/, '') + '-kecil.' + ekst, { type: tipe.split(';')[0] }) : null);
+        };
+        let jalan = true;
+        const gambar = () => { if (!jalan) return; try { g.drawImage(v, 0, 0, c.width, c.height); } catch (e) { } (v.requestVideoFrameCallback ? v.requestVideoFrameCallback(gambar) : requestAnimationFrame(gambar)); };
+        v.onended = () => { jalan = false; try { rec.stop(); } catch (e) { akhiri(null); } };
+        rec.start(1000);
+        v.play().then(gambar).catch(() => { jalan = false; try { rec.stop(); } catch (e) { } clearTimeout(batas); akhiri(null); });
+      } catch (e) { clearTimeout(batas); akhiri(null); }
+    };
+  });
+}
+
+/* ---------- C1/C3. Terima retur: rincian barang -> stok ---------- */
+function p10BlokTerimaHtml(noResi, det, d) {
+  const k = pgrAttr(noResi), t = det.terima;
+  if (t && t.t) {
+    const w = new Date(t.t).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const salah = (t.items || []).filter(x => x.salahKirim).length;
+    return `<div class="p10-terima-blok"><span class="p10-stok-ok">✓ Sudah diproses ke stok</span> · ${escapeHtml(w)} · ${escapeHtml(t.oleh || '-')}${t.ledger ? ' · ' + escapeHtml(t.ledger) : ''}${t.jurnal ? ' · ' + t.jurnal + ' baris jurnal penyesuaian negatif' : ''}${salah ? ' · ' + salah + ' salah kirim' : ''}</div>`;
+  }
+  return `<div class="p10-terima-blok"><button type="button" class="web-btn-primary" onclick="rt2DialogTerima('${k}')">📦 Terima &amp; masukkan stok</button>
+    <div class="p10-info">Cek rincian barang dulu. Yang <b>baik</b> masuk stok utama; yang <b>rusak / tidak kembali</b> dicatat negatif di Jurnal Penyesuaian Stok.</div></div>`;
+}
+async function rt2DialogTerima(noResi) {
+  const d = rt2Data(noResi) || {};
+  if (!rt2.detail[noResi]) { pgrToast('Memuat isi paket…'); await rt2MuatDetail(noResi); }
+  const det = rt2.detail[noResi];
+  if (!det) { pgrToast('✗ Isi paket belum bisa dimuat'); return; }
+  if (det.terima && det.terima.t) { pgrToast('Retur ini sudah diproses ke stok'); return; }
+  const items = ((det.pesanan && det.pesanan.items) || []).filter(x => x.sku);
+  const k = pgrAttr(noResi);
+  const baris = (x, i) => `<tr data-p10-baris="${i}">
+      <td><b>${escapeHtml(x.sku)}</b><div class="rt2-waktu">${escapeHtml(x.nama || '')}</div><input type="hidden" data-f="sku" value="${pgrAttr(x.sku)}"><input type="hidden" data-f="nama" value="${pgrAttr(x.nama || '')}"></td>
+      <td style="width:62px;"><input type="number" min="1" data-f="qty" value="${Number(x.qty) || 1}" aria-label="Qty dikirim ${pgrAttr(x.sku)}"></td>
+      <td style="width:72px;"><input type="number" min="0" data-f="terima" value="${Number(x.qty) || 1}" aria-label="Qty diterima ${pgrAttr(x.sku)}"></td>
+      <td style="width:96px;"><select data-f="kondisi" aria-label="Kondisi ${pgrAttr(x.sku)}"><option>Baik</option><option>Rusak</option></select></td>
+      <td style="width:130px;"><input data-f="skuDiterima" value="${pgrAttr(x.sku)}" oninput="this.classList.toggle('p10-salah', this.value.trim().toUpperCase() !== '${pgrAttr(String(x.sku).toUpperCase())}')" aria-label="SKU yang benar-benar diterima"></td>
+    </tr>`;
+  omxModal('Terima retur ' + noResi, `
+    <div class="rt2-waktu" style="margin-bottom:8px;">${det.pesanan ? escapeHtml(det.pesanan.noPesanan + ' · ' + det.pesanan.sumber) : 'Isi paket tidak ditemukan di data penjualan - tambahkan barangnya manual.'}</div>
+    <div class="p10-wrap"><table class="p10-tabel"><thead><tr><th>Barang pesanan</th><th>Dikirim</th><th>Diterima</th><th>Kondisi</th><th>SKU diterima</th></tr></thead>
+      <tbody id="p10-terima-body">${items.map(baris).join('')}</tbody></table></div>
+    <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+      <input id="p10-tambah-sku" class="web-form-input" style="margin:0; flex:1; min-width:140px;" placeholder="Tambah barang: SKU" />
+      <input id="p10-tambah-qty" class="web-form-input" style="margin:0; width:80px;" type="number" min="1" value="1" aria-label="Qty" />
+      <button type="button" class="web-btn-secondary" style="margin:0;" onclick="p10TambahBarisTerima()">＋ Tambah</button>
+    </div>
+    <p class="p10-info"><b>Diterima</b> lebih kecil dari Dikirim = sisanya tidak kembali. <b>SKU diterima</b> diganti bila yang terkirim ternyata barang lain (salah kirim):
+      barang pesanan dikembalikan ke stok karena sebenarnya tidak pernah keluar; barang yang salah terkirim bila rusak / tidak kembali dicatat Rusak/Hilang.</p>
+    <div class="status-text" id="p10-terima-status" style="text-align:left; margin-top:8px;" role="status" aria-live="polite"></div>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button>
+      <button type="button" class="web-btn-primary" id="p10-terima-btn" onclick="rt2KirimTerima('${k}')">Ya, terima &amp; masukkan stok</button></div>`, { lebar: true });
+  window.__p10BarisHtml = baris;
+}
+function p10TambahBarisTerima() {
+  const sku = String(el('p10-tambah-sku').value || '').trim().toUpperCase().replace(/\s+/g, '');
+  const qty = Math.max(1, parseInt(el('p10-tambah-qty').value, 10) || 1);
+  if (!sku) { el('p10-tambah-sku').focus(); return; }
+  const body = el('p10-terima-body'), i = body.children.length;
+  body.insertAdjacentHTML('beforeend', window.__p10BarisHtml({ sku, nama: '', qty }, i));
+  el('p10-tambah-sku').value = ''; el('p10-tambah-qty').value = '1';
+}
+async function rt2KirimTerima(noResi) {
+  const btn = el('p10-terima-btn'), st = el('p10-terima-status');
+  if (!btn || btn.disabled) return;
+  const items = Array.from(document.querySelectorAll('#p10-terima-body [data-p10-baris]')).map(tr => {
+    const o = {}; tr.querySelectorAll('[data-f]').forEach(x => { o[x.dataset.f] = x.value; });
+    o.qty = parseInt(o.qty, 10) || 0; o.terima = Math.min(o.qty, Math.max(0, parseInt(o.terima, 10) || 0));
+    if (String(o.skuDiterima || '').trim().toUpperCase() === String(o.sku).toUpperCase()) o.skuDiterima = '';
+    return o;
+  }).filter(o => o.sku && o.qty > 0);
+  if (!items.length) { st.textContent = 'Tambahkan minimal 1 barang.'; st.className = 'status-text err'; return; }
+  const d = rt2Data(noResi) || {}, det = rt2.detail[noResi] || {};
+  btn.disabled = true; st.textContent = 'Memproses ke stok…'; st.className = 'status-text';
+  try {
+    const r = await postJsonTulis({ aksi: 'retur_terima', noResi, idPesanan: d.idManual || d.idSistem || det.idDipakai || '', items, email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    d.statusCek = r.statusCek; d.stokDiproses = true;
+    det.terima = r.terima; if (r.itemAktual) det.itemAktual = r.itemAktual;
+    pmSnapSimpan('retur_log|' + currentUserEmail(), wpLogMasukCache);
+    omxTutupModal(); rt2Render();
+    if (rt2.buka[noResi]) rt2RenderDetail(noResi);
+    try { if (typeof smInvalidasiLokal === 'function') smInvalidasiLokal(); } catch (e) { }
+    pgrToast(`✓ ${r.statusCek}${r.masukStok ? ' · ' + r.masukStok + ' pcs masuk stok' : ''}${r.jurnalNegatif ? ' · ' + r.jurnalNegatif + ' dicatat jurnal negatif' : ''}`);
+  } catch (err) { st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; }
+}
+
+/* ---------- C4. progres klaim marketplace ---------- */
+const P10_TAHAP = ['Belum diajukan', 'Diajukan', 'Diminta data tambahan', 'Disetujui', 'Ditolak', 'Retur batal - dana diterima'];
+function p10KlaimHtml(noResi, det, d) {
+  if (!det.bolehKlaim) return '';
+  const k = pgrAttr(noResi), kl = det.klaim || {};
+  const dr = det._kd || (det._kd = { tahap: kl.tahap || 'Belum diajukan', noKlaim: kl.noKlaim || '', nilai: kl.nilai || '', catatan: kl.catatan || '' });
+  const kelas = kl.hasil === 'Klaim berhasil' || kl.hasil === 'Penjualan berhasil' ? 'ok' : (kl.hasil === 'Klaim gagal' ? 'no' : 'proses');
+  const riw = (kl.riwayat || []).slice(0, 5).map(x => `<li>${new Date(x.t).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · <b>${escapeHtml(x.tahap)}</b>${x.nilai ? ' · ' + omxRp(x.nilai) : ''} · ${escapeHtml(x.oleh || '')}${x.catatan ? ' - ' + escapeHtml(x.catatan) : ''}</li>`).join('');
+  return `<div class="rt2-kartu p10-klaim"><div class="rt2-kartu-judul">d. Progres klaim ke marketplace <span>${escapeHtml(d.kurir || '')}${d.sumberSistem ? ' · ' + escapeHtml(d.sumberSistem) : ''}</span></div>
+    <div class="p10-tahap" role="radiogroup" aria-label="Tahap klaim">${P10_TAHAP.map(t => `<button type="button" role="radio" aria-checked="${dr.tahap === t}" class="${dr.tahap === t ? 'aktif' : ''}" onclick="p10KlaimTahap('${k}', '${t}')">${t}</button>`).join('')}</div>
+    <div class="p10-klaim-grid">
+      <label>No laporan / klaim<input value="${pgrAttr(dr.noKlaim)}" oninput="p10KlaimIsi('${k}','noKlaim',this.value)" placeholder="mis. nomor tiket Shopee"></label>
+      <label>Nilai ganti rugi (Rp)${dr.tahap === 'Disetujui' ? ' *' : ''}<input type="number" min="0" value="${pgrAttr(dr.nilai)}" oninput="p10KlaimIsi('${k}','nilai',this.value)" placeholder="diisi saat disetujui"></label>
+      <label style="grid-column: span 2;">Catatan (mis. data tambahan yang diminta)<textarea rows="2" oninput="p10KlaimIsi('${k}','catatan',this.value)">${escapeHtml(dr.catatan)}</textarea></label>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:8px;"><button type="button" class="web-btn-primary" style="margin:0; font-size:12.5px; padding:7px 14px;" onclick="p10KlaimSimpan('${k}', this)">Simpan progres klaim</button></div>
+    ${kl.hasil ? `<div class="p10-hasil">Hasil akhir: <b class="${kelas}">${escapeHtml(kl.hasil)}</b>${kl.akuntansi ? `<div class="rt2-waktu">Akuntansi: ${escapeHtml(kl.akuntansi)}${kl.refJurnal ? ' · ' + escapeHtml(kl.refJurnal) : ''}</div>` : ''}</div>` : ''}
+    ${riw ? `<ul class="p10-riwayat">${riw}</ul>` : ''}
+  </div>`;
+}
+function p10KlaimIsi(noResi, f, v) { const det = rt2.detail[noResi]; if (det && det._kd) det._kd[f] = v; }
+function p10KlaimTahap(noResi, t) { const det = rt2.detail[noResi]; if (!det) return; (det._kd || {}).tahap = t; rt2RenderDetail(noResi); }
+async function p10KlaimSimpan(noResi, btn) {
+  const det = rt2.detail[noResi], d = rt2Data(noResi) || {};
+  if (!det || !det._kd) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan…'; }
+  try {
+    const r = await postJsonTulis({ aksi: 'retur_klaim_simpan', noResi, tahap: det._kd.tahap, noKlaim: det._kd.noKlaim, nilai: det._kd.nilai, catatan: det._kd.catatan, kanal: d.sumberSistem || '', email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    det.klaim = r.klaim; delete det._kd;
+    d.klaimTahap = r.klaim.tahap; d.klaimHasil = r.klaim.hasil;
+    pmSnapSimpan('retur_log|' + currentUserEmail(), wpLogMasukCache);
+    rt2Render(); rt2RenderDetail(noResi);
+    pgrToast('✓ Progres klaim tersimpan' + (r.klaim.hasil ? ' · ' + r.klaim.hasil : ''));
+  } catch (err) { pgrToast('✗ ' + String(err.message || err).replace(/^Error:\s*/, '')); if (btn) { btn.disabled = false; btn.textContent = 'Simpan progres klaim'; } }
+}
+
+/* ---------- A2. HP: ID Pesanan yang discan -> resi asli & kurir (senyap) ---------- */
+const p10HpDicoba = {};
+let p10HpJalan = false;
+async function p10HpCekInstan() {
+  if (p10HpJalan || typeof currentMode === 'undefined' || currentMode !== 'keluar') return;
+  const now = Date.now();
+  const perlu = (currentListItems || []).filter(it => !it.dihapus && it.noInvoice && kunciResi(it.noResi) === kunciResi(it.noInvoice) &&
+    (!it.resiAsli || /instan|instant|same\s*day/i.test(it.kurir || '')) && !(p10HpDicoba[it.noResi] && now - p10HpDicoba[it.noResi] < 300000)).slice(0, 25);
+  if (!perlu.length) return;
+  p10HpJalan = true;
+  perlu.forEach(it => { p10HpDicoba[it.noResi] = now; });
+  try {
+    const r = await postJson({ aksi: 'cek_resi_instan', daftar: perlu.map(it => ({ scan: it.noResi, noInvoice: it.noInvoice, sumber: it.sumber || '' })), email: currentUserEmail() }, 240000, true);
+    if (r && r.success && r.hasil) {
+      let ubah = false;
+      (currentListItems || []).forEach(it => {
+        const h = r.hasil[it.noResi]; if (!h) return;
+        if (h.resiAsli && h.resiAsli !== it.resiAsli) { it.resiAsli = h.resiAsli; ubah = true; }
+        if (h.kurir && (!it.kurir || /tidak\s*diketahui/i.test(it.kurir))) { it.kurir = h.kurir + (h.instan && !/instan|instant/i.test(h.kurir) ? ' (Instan)' : ''); ubah = true; }
+      });
+      if (ubah) { try { rlBangunKelompokKurir(); renderRingkasanKurirUI(); } catch (e) { } applyListFilters(); }
+    }
+  } catch (e) { /* senyap */ }
+  finally { p10HpJalan = false; }
+}
+(function () {
+  const asli = window.rlTerapkanData;
+  if (typeof asli !== 'function') return;
+  window.rlTerapkanData = function () {
+    const r = asli.apply(this, arguments);
+    try { setTimeout(p10HpCekInstan, 400); } catch (e) { }
+    return r;
+  };
+})();
+</script>
 </body>
 </html>
