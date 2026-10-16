@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.21';
+  var VERSI = 'v2026.10.22';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -13919,11 +13919,11 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             </div>
 
             <div class="per-rekon-bar" id="per-mon-rekon-bar">
-              <div class="per-rekon-info" id="per-mon-rekon-info"><span class="oi oi-moon" aria-hidden="true"></span> Rekonsiliasi Malam: memuat...</div>
+              <div class="per-rekon-info" id="per-mon-rekon-info">⏱️ Stok dihitung langsung dari Smart Opname terakhir + mutasi sesudahnya...</div>
               <div class="per-rekon-aksi">
                 <button class="web-btn-secondary per-btn-kecil" id="per-mon-btn-trigger" style="display:none;" onclick="perMonPasangTrigger()"><span class="oi oi-settings" aria-hidden="true"></span> Aktifkan Jadwal 02:00</button>
                 <button class="web-btn-secondary per-btn-kecil" onclick="rakMuat(true).then(rakCetakDaftarOpname)" title="Cetak daftar stok urut rak untuk opname berurutan">🖨 Daftar Opname per Rak</button>
-                <button class="web-btn-secondary per-btn-kecil" id="per-mon-btn-rekon" onclick="perMonJalankanRekon()">▶ Rekon Sekarang</button>
+                <button class="web-btn-secondary per-btn-kecil" id="per-mon-btn-rekon" style="display:none;" onclick="perMonJalankanRekon()">▶ Rekon Sekarang</button>
               </div>
             </div>
             <div class="status-text" id="per-mon-rekon-status" style="text-align:left; margin:-4px 0 8px;"></div>
@@ -14473,7 +14473,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <div class="per-tabs">
             <button class="per-tab active" id="per-log-tab-mutasi" onclick="perLogGantiTab('mutasi')"><span class="oi oi-refresh" aria-hidden="true"></span> Log Mutasi</button>
             <button class="per-tab" id="per-log-tab-opname" onclick="perLogGantiTab('opname')"><span class="oi oi-calc" aria-hidden="true"></span> Log Opname</button>
-            <button class="per-tab" id="per-log-tab-rekon" onclick="perLogGantiTab('rekon')"><span class="oi oi-moon" aria-hidden="true"></span> Log Rekonsiliasi Malam</button>
+            <button class="per-tab" id="per-log-tab-rekon" onclick="perLogGantiTab('rekon')"><span class="oi oi-moon" aria-hidden="true"></span> Log Rekonsiliasi (arsip)</button>
           </div>
 
           <!-- TAB: LOG MUTASI -->
@@ -42827,7 +42827,7 @@ async function mgbMuatAutoApprove(aksiTambahan) {
       const r = d.ringkas;
       info.textContent = `Dicek ${r.dicek} memo · disetujui ${r.disetujui.length}${r.dilewati.length ? ' · dilewati ' + r.dilewati.length + ' (ada selisih / invoice tidak cocok)' : ''}`;
       if (r.disetujui.length) mgFetchRiwayat('barangmasuk');
-    } else info.textContent = d.aktif ? 'Aktif - jalan otomatis tiap malam ±01:30 (sebelum Rekonsiliasi 02:00).' : 'Nonaktif.';
+    } else info.textContent = d.aktif ? 'Aktif - jalan otomatis tiap malam ±01:30.' : 'Nonaktif.';
   } catch (err) { info.textContent = 'Gagal: ' + err.message; }
 }
 async function mgbToggleAutoApprove() {
@@ -43142,15 +43142,13 @@ function perMonTerapkanData(data) {
   el('per-mon-kpi-avail-minus').style.color = r.availableMinus ? 'var(--web-danger)' : '';
   el('per-mon-kpi-master').style.color = r.belumMaster ? 'var(--web-warning)' : '';
 
-  const rk = data.rekonTerakhir;
-  let info = rk
-    ? `🌙 Rekonsiliasi terakhir: <b>${escapeHtml(rk.waktu || '-')}</b> (${escapeHtml(rk.oleh || '-')}) · ${rk.jumlahSku ?? 0} SKU · ${rk.skuBerubah ?? 0} berubah`
-    : '🌙 Rekonsiliasi Malam belum pernah dijalankan.';
-  if (data.triggerAktif === true) info += ' · <span style="color:var(--web-accent); font-weight:600;">Jadwal 02:00 aktif</span>';
-  else if (data.triggerAktif === false) info += ' · <span style="color:var(--web-warning); font-weight:600;">Jadwal 02:00 belum aktif</span>';
+  // v2026.10.22: Rekonsiliasi Malam dihentikan - stok selalu dihitung langsung per detik
+  let info = '⏱️ Stok dihitung langsung: <b>Smart Opname terakhir + semua mutasi sesudahnya</b> (mengikuti timestamp, tanpa rekonsiliasi malam).';
+  if (data.opnameAwal && data.opnameAwal.jumlahSku) info += ` <span style="color:var(--web-text-dim);" title="SKU yang belum pernah di-opname diberi titik awal = stok sistem saat rekonsiliasi dihentikan.">· titik awal otomatis ${escapeHtml(String(data.opnameAwal.jumlahSku))} SKU (${escapeHtml(data.opnameAwal.waktu || '')})</span>`;
   if (data.orderKeluarTanpaScan) info += ` · <span style="color:var(--web-warning);" title="Pesanan marketplace berstatus terkirim tapi resinya tidak pernah discan keluar - dipotong memakai waktu order (kurang akurat untuk opname).">⚠️ ${data.orderKeluarTanpaScan} order keluar tanpa scan</span>`;
   el('per-mon-rekon-info').innerHTML = info;
-  el('per-mon-btn-trigger').style.display = data.triggerAktif === false ? 'inline-flex' : 'none';
+  el('per-mon-btn-trigger').style.display = 'none';
+  if (el('per-mon-btn-rekon')) el('per-mon-btn-rekon').style.display = 'none';
   el('per-mon-dihitung').textContent = data.dihitungPada ? ` Dihitung: ${data.dihitungPada}.` : '';
   perMonPaginasiState.page = 1;
   perMonRender();
@@ -43324,7 +43322,7 @@ function perMonRender() {
            <button class="per-btn-master" onclick="perBukaModalMaster('${skuAman}')">+ Master</button></td>`;
     const opname = p.opnameTerakhir
       ? `<span title="${escapeHtml((p.sumberOpname || '') + ' · qty ' + (p.qtyOpname ?? '-'))}">${escapeHtml(p.opnameTerakhir)}</span>`
-      : '<span style="color:var(--web-warning);">Belum pernah</span>';
+      : (p.titikAwal ? `<span style="color:var(--web-warning);" title="${escapeHtml('Belum pernah di-opname fisik. Titik awal otomatis ' + p.titikAwal + ' = stok sistem saat Rekonsiliasi Malam dihentikan (qty ' + (p.qtyOpname ?? '-') + '), lalu ditambah/dikurangi mutasi sesudahnya.')}">Belum pernah<small style="display:block; color:var(--web-text-dim); font-weight:400;">titik awal ${escapeHtml(p.titikAwal)}</small></span>` : '<span style="color:var(--web-warning);">Belum pernah</span>');
     const kunci = String(p.sku).toUpperCase();
     const terpilih = !p.terdaftar && perMonTerpilih.has(kunci);
     const kelas = [perMonFlashSet.has(kunci) ? 'per-row-flash' : '', terpilih ? 'per-row-terpilih' : ''].filter(Boolean).join(' ');
@@ -44149,9 +44147,7 @@ async function perFetchLogRekon() {
     const data = await postJson({ aksi: 'lihat_log_rekonsiliasi', email: currentUserEmail() });
     if (!data.success) { el('per-logrekon-body').innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--web-danger);">Gagal: ${escapeHtml(data.error || '')}</td></tr>`; return; }
     const daftar = data.daftar || [];
-    el('per-logrekon-info').innerHTML = data.triggerAktif === false
-      ? '⚠️ Jadwal otomatis 02:00 <b>belum aktif</b> — aktifkan dari Monitor Stok, atau menu Sheets <i>Tracking Resi › Aktifkan Rekonsiliasi Mutasi Malam</i>.'
-      : 'Setiap malam ±02:00, sistem menghitung ulang On Hand semua SKU (Qty Opname + Masuk − Keluar sejak detik opname) lalu menimpa tabel <b>Master Stok</b>.';
+    el('per-logrekon-info').innerHTML = 'Arsip. <b>Rekonsiliasi Malam sudah dihentikan</b> (v2026.10.22) - stok kini selalu dihitung langsung dari Smart Opname terakhir + mutasi sesudahnya, jadi tidak ada lagi tabel yang ditimpa tiap malam.';
     el('per-logrekon-empty').style.display = daftar.length === 0 ? 'block' : 'none';
     el('per-logrekon-body').innerHTML = daftar.map(d => `
       <tr>
@@ -59938,7 +59934,12 @@ function ccxApakahInstan(d) {
   if (d.noInvoice && ovxNorm(d.noResiScan) && ovxNorm(d.noResiScan) === ovxNorm(d.noInvoice)) return true; // yang discan = ID Pesanan
   return /instan|instant|same\s*day|sameday|gosend|go-send|gojek|grab/i.test(String(d.kurir || ''));
 }
-function ccxJenis(d) { return d.jenis === 'transfer' ? 'kilat' : (ccxApakahInstan(d) ? 'instan' : 'penjualan'); }
+function ccxJenis(d) {
+  if (d.jenis === 'transfer') return 'kilat';
+  if (!ccxApakahInstan(d)) return 'penjualan';
+  const ins = ccxInstan[String(d.noResiScan || '')];
+  return ins && ins.instan === false ? 'penjualan' : 'instan'; // v2026.10.22: hasil cek marketplace menentukan
+}
 function ccxRentangTgl() {
   const h = ovTglLokal();
   switch (ccx.rentang) {
@@ -59966,7 +59967,12 @@ function ccxLolos(d) {
 (function () {
   const semuaAsli = window.ccSemua, renderAsli = window.ccRender;
   if (typeof semuaAsli !== 'function' || typeof renderAsli !== 'function') return;
-  window.ccSemua = function () { const s = semuaAsli.apply(this, arguments); ccxMentah = s; return s.filter(ccxLolos); };
+  window.ccSemua = function () {
+    const s = semuaAsli.apply(this, arguments);
+    // v2026.10.22: ID Pesanan yang discan -> kurir diambil dari hasil cek marketplace (bukan "Tidak Diketahui")
+    s.forEach(d => { if (!d._cc || !ccxApakahInstan(d)) return; const ins = ccxInstan[String(d.noResiScan || '')]; if (ins && ins.kurir) d._cc.kurir = ccKurirNama(ins.kurir); });
+    ccxMentah = s; return s.filter(ccxLolos);
+  };
   window.ccRender = function () {
     const r = renderAsli.apply(this, arguments);
     try { ccxPasangUI(); ccxPerbaruiUI(); ccxProsesLatar(); } catch (e) { console.error('[ccx]', e); }
@@ -60068,7 +60074,8 @@ function ccBarisHtml(d) {
       : `<span class="cc-inv-kosong">No Reservasi kosong <span class="ccx-kilat">Kilat</span> <button type="button" class="cc-btn-tautkan" data-pgr-tautkan="${pgrAttr(resi)}" data-pgr-kilat="1">Isi</button></span>`;
   } else if (d.noInvoice) {
     const krs = typeof krsInfoResi_ === 'function' ? krsInfoResi_(resi) : null;
-    inv = `<div class="cc-inv"><span class="cc-resi"><b>${escapeHtml(d.noInvoice)}</b>${instan ? '<span class="ccx-instan" title="Kurir instan">Instan</span>' : ''}${krs ? `<span class="ccx-koreksi" title="${pgrAttr('Discan sebagai ' + krs.salah + (krs.waktu ? ' · dikoreksi ' + krs.waktu : '') + ' (beda ' + krs.jarak + ' karakter dari resi asli marketplace)')}">🔧 Dikoreksi sistem</span>` : ''}${salin(d.noInvoice, 'No Invoice')}</span><small>${escapeHtml([d.sumber, d.pembeli].filter(Boolean).join(' · '))}</small></div>`;
+    const tagInstan = !instan ? '' : (ins && ins.instan === false ? '<span class="ccx-instan ccx-idpes" title="Yang discan ID Pesanan - resi asli diambil dari marketplace">ID Pesanan</span>' : '<span class="ccx-instan" title="Kurir instan - resi driver diperbarui otomatis">Instan</span>');
+    inv = `<div class="cc-inv"><span class="cc-resi"><b>${escapeHtml(d.noInvoice)}</b>${tagInstan}${krs ? `<span class="ccx-koreksi" title="${pgrAttr('Discan sebagai ' + krs.salah + (krs.waktu ? ' · dikoreksi ' + krs.waktu : '') + ' (beda ' + krs.jarak + ' karakter dari resi asli marketplace)')}">🔧 Dikoreksi sistem</span>` : ''}${salin(d.noInvoice, 'No Invoice')}</span><small>${escapeHtml([d.sumber, d.pembeli].filter(Boolean).join(' · '))}</small></div>`;
   } else {
     inv = `<span class="cc-inv-kosong">Belum terhubung <button type="button" class="cc-btn-tautkan" data-pgr-tautkan="${pgrAttr(resi)}">Tautkan</button></span>`;
   }
@@ -60082,8 +60089,8 @@ function ccBarisHtml(d) {
     ? `<span class="cc-resi"><span class="pgr-mono" style="font-size:12px;">${escapeHtml(d.resiRetur)}</span>${salin(d.resiRetur, 'Resi Retur')}</span>`
     : (cc.h === 'retur' && d.jenis === 'transfer' ? '<span style="font-size:11.5px; color:var(--web-text-dim);">resi sama</span>' : '<span style="color:var(--web-text-dim);">-</span>');
   const resiTampil = instan && ins && ins.resiAsli ? ins.resiAsli : resi;
-  const subResi = !instan ? '' : (ins && ins.resiAsli ? `<span class="ccx-sub">ID Pesanan discan: ${escapeHtml(resi)}</span>`
-    : `<span class="ccx-sub">${ins ? (ins.error ? 'Gagal cek: ' + escapeHtml(ins.error) : 'Resi belum terbit di marketplace') : 'Kurir instan · mencari resi asli…'}</span>`);
+  const subResi = !instan ? '' : (ins && ins.resiAsli ? `<span class="ccx-sub">ID Pesanan discan: ${escapeHtml(resi)}${ins.resiSebelumnya ? ` · resi driver diperbarui (sebelumnya ${escapeHtml(ins.resiSebelumnya)})` : ''}</span>`
+    : `<span class="ccx-sub">${ins ? (ins.error ? 'Gagal cek: ' + escapeHtml(ins.error) : (ins.instan ? 'Menunggu driver - resi belum terbit' : 'Resi belum terbit di marketplace')) : 'ID Pesanan discan · mencari resi asli…'}</span>`);
   return `<tr data-resi="${pgrAttr(resi)}" class="${cc.h === 'gantung' ? 'cc-gantung' : ''}">
     <td><span class="cc-resi"><span class="pgr-mono">${escapeHtml(resiTampil)}</span>${salin(resiTampil, 'No Resi')}</span>${subResi}<div class="cc-waktu">${escapeHtml(waktu)}${d.dicatatOleh ? ' · ' + escapeHtml(d.dicatatOleh) : ''}</div></td>
     <td><span class="cc-kurir-chip">${escapeHtml(cc.kurir)}</span></td>
@@ -60139,9 +60146,10 @@ async function ccxResolveInstan() {
   const perlu = ccxMentah.filter(d => {
     if (!ccxApakahInstan(d) || !d.noInvoice) return false;
     const k = String(d.noResiScan), x = ccxInstan[k];
-    if (ccxInstanDicoba[k] && sekarang - ccxInstanDicoba[k] < 10 * 60000) return false;
+    if (ccxInstanDicoba[k] && sekarang - ccxInstanDicoba[k] < (x && x.instan ? 4 : 10) * 60000) return false;
     if (!x) return true;
-    return sekarang - (x.t || 0) > 20 * 60000 && !/terkirim|delivered|selesai|completed/i.test((x.statusKirim || '') + ' ' + (x.statusPesanan || ''));
+    // v2026.10.22: kurir instan dicek ulang tiap 5 menit (resi driver bisa berganti), lainnya 20 menit
+    return sekarang - (x.t || 0) > (x.instan ? 5 : 20) * 60000 && !/terkirim|delivered|selesai|completed/i.test((x.statusKirim || '') + ' ' + (x.statusPesanan || ''));
   }).slice(0, 25);
   if (!perlu.length) return;
   ccxInstanJalan = true;
@@ -61712,7 +61720,8 @@ function ccxAdaPenyebab_() {
 }
 const KRS_LABEL_ALASAN = {
   tanpaResi: 'Resi belum diberikan / belum tertarik dari marketplace', ragu: 'Mirip beberapa resi - pilih manual', dobel: 'Kemungkinan scan dobel',
-  pendek: 'Bukan resi / kode terlalu pendek', tidakDikenal: 'Tidak ditemukan di pesanan mana pun'
+  pendek: 'Bukan resi / kode terlalu pendek', tidakDikenal: 'Tidak ditemukan di pesanan mana pun',
+  belumTertarik: 'Kemungkinan pesanan toko yang belum tertarik ke sistem'
 };
 function ccxLihatPenyebab() {
   if (!ccxAlasan) return;
@@ -61742,6 +61751,7 @@ function ccxLihatPenyebab() {
   .krs-tabel { width: 100%; border-collapse: collapse; font-size: 12px; }
   .krs-tabel th, .krs-tabel td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--web-border); vertical-align: top; }
   .krs-tabel th { font-size: 11px; color: var(--web-text-dim); font-weight: 700; }
+  .ccx-instan.ccx-idpes { background: rgba(100,116,139,.12); color: #475569; border-color: rgba(100,116,139,.35); }
 </style>
 
 </body>
