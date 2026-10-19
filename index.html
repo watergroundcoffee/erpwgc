@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.24';
+  var VERSI = 'v2026.10.25';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -263,9 +263,14 @@
   }
 
   /* ---------- Aksi ke backend (dipanggil dari kirimKeWebApp) ---------- */
-  function mulaiPermintaan() {
-    var tok = { t0: sekarang(), p0: performance.now(), ukur: null };
-    if (A.ukurMuat && !A.ukurMuat.selesai) { tok.ukur = A.ukurMuat; A.ukurMuat.aktif++; A.ukurMuat.req++; }
+  // v2026.10.25 (Paket 12): proses LATAR (pencarian/sinkron otomatis) tidak dihitung sebagai "waktu muat halaman" -
+  // statistik 19 Okt: Pengiriman > Control tercatat ±40 dtk karena ikut menunggu cari_resi_mendalam & sinkron_booking_shopee.
+  var AKSI_LATAR = { cari_resi_mendalam: 1, sinkron_booking_shopee: 1, cek_resi_instan: 1, kilat_cek_resi: 1, lengkapi_resi_belum_terhubung: 1,
+    retur_media_salin: 1, memo_sesi_sinkron: 1, siklus_resi_daftar: 1, ping: 1, cek_antrian_ai: 1 };
+  function mulaiPermintaan(aksi, otomatis) {
+    var latar = !!(otomatis || AKSI_LATAR[aksi]);
+    var tok = { t0: sekarang(), p0: performance.now(), ukur: null, latar: latar };
+    if (!latar && A.ukurMuat && !A.ukurMuat.selesai) { tok.ukur = A.ukurMuat; A.ukurMuat.aktif++; A.ukurMuat.req++; }
     A.inflight.add(tok);
     return tok;
   }
@@ -274,7 +279,7 @@
       var d = performance.now() - tok.p0;
       A.inflight.delete(tok);
       if (tok.ukur) { tok.ukur.aktif = Math.max(0, tok.ukur.aktif - 1); tok.ukur.akhir = sekarang(); }
-      A.baruSelesai.push({ t0: tok.t0, akhir: sekarang() }); if (A.baruSelesai.length > 20) A.baruSelesai.shift();
+      A.baruSelesai.push({ t0: tok.t0, akhir: sekarang(), latar: tok.latar }); if (A.baruSelesai.length > 20) A.baruSelesai.shift();
       info = info || {};
       var data = info.data, err = info.err, res = info.res;
       var sv, boot;
@@ -289,6 +294,7 @@
       if (data && data.duplikat) x.duplikat = true;
       if (/^Timeout/.test(pesan)) x.timeout = true;
       if (document.hidden) x.latar = true;
+      if (tok.latar) x.proses_latar = true;
       if (info.jumlah) x.jumlah = info.jumlah;
       catat('aksi', info.aksi || '(tanpa aksi)', {
         t: tok.t0, d: d, sv: sv, jr: sv !== undefined ? Math.max(0, d - sv) : undefined,
@@ -343,8 +349,8 @@
     setTimeout(function () { if (A.halaman && A.halaman.lokasi === lok) A.halaman.judul = judulLokasi(lok); }, 600);
     var u = A.ukurMuat = { lokasi: lok, t0: t0, req: 0, aktif: 0, akhir: t0, selesai: false };
     // permintaan yang sudah mulai sejak klik (sebelum perpindahan layar terdeteksi) ikut dihitung
-    A.inflight.forEach(function (tok) { if (!tok.ukur && tok.t0 >= t0 - 50) { tok.ukur = u; u.aktif++; u.req++; } });
-    A.baruSelesai.forEach(function (r) { if (r.t0 >= t0 - 50) { u.req++; u.akhir = Math.max(u.akhir, r.akhir); } });
+    A.inflight.forEach(function (tok) { if (!tok.ukur && !tok.latar && tok.t0 >= t0 - 50) { tok.ukur = u; u.aktif++; u.req++; } });
+    A.baruSelesai.forEach(function (r) { if (!r.latar && r.t0 >= t0 - 50) { u.req++; u.akhir = Math.max(u.akhir, r.akhir); } });
     jadwalCekMuat();
   }
   function tutupHalaman(alasan) {
@@ -21400,7 +21406,7 @@ async function pgrRefreshRiwayat() {
 }
 
 const PGR_KATEGORI_MAP = { 'belum-selesai': 'Belum Selesai', 'perlu-dicek': 'Perlu Dicek', 'selesai': 'Selesai', 'komplain-batal': 'Komplain/Batal' };
-const PGR_PILL_STATUS = { 'Menunggu Kurir': 'aktif', 'Dalam Pengiriman': 'dikirim', 'Pesanan Selesai': 'dikirim', 'Retur': 'batal' };
+const PGR_PILL_STATUS = { 'Menunggu Kurir': 'aktif', 'Dalam Pengiriman': 'dikirim', 'Terkirim': 'dikirim', 'Pesanan Selesai': 'dikirim', 'Retur': 'batal' };
 
 /* ===== Pengiriman v2: Control Bar (cari + filter kurir + aksi massal), checkbox, pill badge,
    quick copy. Dipakai 4 tab kategori (Belum Selesai, Perlu Dicek, Selesai, Komplain/Batal).
@@ -21413,7 +21419,7 @@ const PGR_KURIR_ALIAS = {
   jne: ['jne'],
   sicepat: ['sicepat', 'si cepat']
 };
-const PGR_PILL_KELAS = { 'Menunggu Kurir': 'pgr-pill-menunggu', 'Dalam Pengiriman': 'pgr-pill-dikirim', 'Pesanan Selesai': 'pgr-pill-selesai', 'Retur': 'pgr-pill-retur' };
+const PGR_PILL_KELAS = { 'Menunggu Kurir': 'pgr-pill-menunggu', 'Dalam Pengiriman': 'pgr-pill-dikirim', 'Terkirim': 'pgr-pill-dikirim', 'Pesanan Selesai': 'pgr-pill-selesai', 'Retur': 'pgr-pill-retur' };
 const PGR_LABEL_AKSI_MASSAL = { 'selesai': 'Tandai Selesai', 'retur': 'Tandai Retur', 'cetak-label': 'Cetak Ulang Label', 'export-csv': 'Export CSV' };
 let pgrTerpilih = new Set();   // No Resi yang dicentang
 let pgrResiTampil = [];        // No Resi yang lagi tampil di halaman tabel saat ini
@@ -45587,7 +45593,7 @@ async function kirimKeWebApp(body, waktuTunggu) {
   // P1: server perlu tahu kiriman berasal dari tampilan HP atau Web (memo gudang dari HP = langsung masuk stok)
   if (!kirim.perangkat) kirim.perangkat = omxPerangkat_();
   // Statistik Pengguna: catat nama aksi, berhasil/gagal, durasi, waktu server vs jaringan (tidak menunda apa pun)
-  const anTok = window.omxAnalitik ? omxAnalitik.mulaiPermintaan() : null;
+  const anTok = window.omxAnalitik ? omxAnalitik.mulaiPermintaan(kirim.aksi, !!kirim.otomatis) : null;
   let anRes = null, anData = null, anErr = null, anTerima = 0;
   const badanKirim = JSON.stringify(kirim);
   try {
@@ -47395,7 +47401,7 @@ let rlTanggalDataAktif = '';   // tanggal asli dari server (yyyy-MM-dd) buat kun
 // Jejak soft delete selama sesi ini (hilang kalau halaman di-reload), kunci: tipe|tanggal
 const rlJejakHapus = {};
 const RL_FILTER_DIHAPUS = '__RESI_DIHAPUS__'; // nilai khusus activeKurirFilter: tampilkan resi yang dihapus
-const RL_DOT = { 'Menunggu Kurir': 'rc-dot-menunggu', 'Dalam Pengiriman': 'rc-dot-dikirim', 'Pesanan Selesai': 'rc-dot-selesai', 'Retur': 'rc-dot-retur' };
+const RL_DOT = { 'Menunggu Kurir': 'rc-dot-menunggu', 'Dalam Pengiriman': 'rc-dot-dikirim', 'Terkirim': 'rc-dot-dikirim', 'Pesanan Selesai': 'rc-dot-selesai', 'Retur': 'rc-dot-retur' };
 
 function rlFormatTanggal(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -60203,7 +60209,7 @@ async function ccxCariMendalam(manual) {
   try { localStorage.setItem(CCX_CARI_T, String(Date.now())); } catch (e) { }
   ccxPerbaruiUI();
   try {
-    const d = await postJson({ aksi: 'cari_resi_mendalam', resi: belum, email: currentUserEmail() }, 300000, true);
+    const d = await postJson({ aksi: 'cari_resi_mendalam', resi: belum, segar: !!manual, email: currentUserEmail() }, 300000, true);
     if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
     if (d.sedangJalan) { ccxCariInfo = 'Pencarian sedang berjalan di sesi lain'; return; }
     const n = Object.keys(d.ditemukan || {}).length;
@@ -62373,5 +62379,335 @@ async function dvkUnduhSaja() {
   } catch (e) { omniToast(String(e.message || e), 'gagal'); }
 }
 </script>
+<!-- ===================================================================================
+     PAKET 12 (v2026.10.25) - Siklus akhir resi (Control), memo barang masuk bersama antar-HP,
+     tata letak "Perlu Perhatian" (DN-261019-095025-626), kartu klaim di sebelah media (DN-261019-074436-434)
+     =================================================================================== -->
+<style>
+  .p12-ov-atas { display: flex; gap: 12px; align-items: flex-start; }
+  .p12-ov-kiri { flex: 1; min-width: 0; }
+  .p12-ov-atas > .omxac { flex: 0 0 300px; width: 300px; margin: 0 0 12px; box-sizing: border-box; }
+  .p12-ov-atas > .omxac .omxac-daftar { flex-direction: column; flex-wrap: nowrap; gap: 4px; }
+  .p12-ov-atas > .omxac .omxac-butir { width: 100%; display: flex; background: transparent; border-color: transparent; padding: 6px 6px; gap: 10px; border-radius: 8px; }
+  .p12-ov-atas > .omxac .omxac-butir:hover { background: var(--web-hover, #f1f5f9); border-color: var(--web-border, #e2e8f0); }
+  .p12-ov-atas > .omxac .omxac-butir b { background: transparent !important; color: #64748b; min-width: 40px; height: auto; padding: 0; place-items: center end; display: inline-block; text-align: right; font-size: 14px; }
+  .p12-ov-atas > .omxac .omxac-butir.utama b { color: #4f46e5; }
+  .p12-ov-atas > .omxac .omxac-butir.sedang b { color: #b45309; }
+  @media (max-width: 1100px) { .p12-ov-atas { flex-direction: column-reverse; } .p12-ov-atas > .omxac { flex: none; width: 100%; } }
+  .rt2-detail-grid > .rt2-kartu-media { grid-column: 1 / 3; }
+  .rt2-detail-grid > .p10-klaim { grid-column: 3 / 4; }
+  @media (max-width: 1200px) { .rt2-detail-grid > .rt2-kartu-media { grid-column: 1 / 2; } .rt2-detail-grid > .p10-klaim { grid-column: 2 / 3; } }
+  @media (max-width: 760px) { .rt2-detail-grid > .rt2-kartu-media, .rt2-detail-grid > .p10-klaim { grid-column: 1 / -1; } }
+  .cc-kpi-k.k-kompensasi b { color: #0e7490; }
+  .p12-tahap { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
+  .p12-tahap.akhir-sukses { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+  .p12-tahap.akhir-retur { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+  .p12-lapor-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .p12-lapor-grid { grid-template-columns: 1fr; } }
+  .p12-lapor-teks { width: 100%; box-sizing: border-box; min-height: 260px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px; border-radius: 10px; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #0f172a); resize: vertical; }
+  .p12-lapor-kanan label { display: block; font-size: 11.5px; color: var(--web-text-dim, #64748b); margin: 8px 0 3px; }
+  .p12-lapor-kanan select, .p12-lapor-kanan input, .p12-lapor-kanan textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 9px; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #0f172a); font: inherit; font-size: 12.5px; }
+  .p12-lapor-kanan ul { margin: 6px 0 0 16px; padding: 0; font-size: 12px; color: var(--web-text, #0f172a); }
+  .p12-lapor-kanan li { margin-bottom: 4px; }
+  .p12-lapor-riwayat { font-size: 11.5px; color: var(--web-text-dim, #64748b); margin-top: 8px; max-height: 120px; overflow: auto; }
+  .p12-lapor-aksi { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .p12-memo-bersama { width: 100%; box-sizing: border-box; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; background: rgba(16,185,129,0.1); border: 1px solid #10b981; color: inherit; }
+  .p12-memo-bersama.selesai { background: rgba(245,158,11,0.12); border-color: #f59e0b; }
+  .mgm-card .p12-oleh { font-size: 10.5px; opacity: .75; margin-top: 2px; }
+</style>
+<script>
+/* ---------------- A. SIKLUS AKHIR RESI (Pengiriman > Control) ----------------
+   Akhir resi: Sukses (jadi uang) / Retur / Hilang-Rusak dikompensasi. Bermasalah ("Menggantung") bila belum ada
+   kepastian setelah 14 hari (reguler) / 2 hari (kurir instan). Tahap tindak lanjut disimpan di server (siklus_resi_*). */
+let p12Siklus = { peta: {}, t: 0, tahap: [], jalan: false };
+const P12_BATAS_HARI = { reguler: 14, instan: 2 };
+function p12KunciResi(r) { return String(r || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function p12SiklusResi(d) { return p12Siklus.peta[p12KunciResi(d && d.noResiScan)] || null; }
+async function p12MuatSiklus(paksa) {
+  if (p12Siklus.jalan || (!paksa && Date.now() - p12Siklus.t < 5 * 60000)) return;
+  p12Siklus.jalan = true;
+  try {
+    const r = await postJson({ aksi: 'siklus_resi_daftar', email: currentUserEmail() }, 60000, true);
+    if (r && r.success) {
+      const peta = {};
+      Object.keys(r.peta || {}).forEach(k => { peta[p12KunciResi(k)] = r.peta[k]; });
+      p12Siklus.peta = peta; p12Siklus.tahap = r.tahap || []; p12Siklus.t = Date.now();
+      if (typeof ccResetKlasifikasi === 'function') ccResetKlasifikasi();
+      if (typeof wpPengirimanSubAktif !== 'undefined' && wpPengirimanSubAktif === 'control' && typeof ccRender === 'function') ccRender();
+    }
+  } catch (e) { /* senyap */ } finally { p12Siklus.jalan = false; }
+}
+(function () {
+  if (typeof ccKlasifikasi !== 'function') return;
+  const asli = ccKlasifikasi;
+  ccKlasifikasi = function (d) {
+    const s = p12SiklusResi(d);
+    if (s && s.akhir === 'kompensasi') return { h: 'kompensasi', alasan: 'Kompensasi diterima' + (s.nilai ? ' ' + omxRp(s.nilai) : '') };
+    if (s && s.akhir === 'sukses') return { h: 'sukses' };
+    if (s && s.akhir === 'retur') return { h: 'retur' };
+    const c = asli(d) || { h: 'proses' };
+    if (c.h === 'sukses' || c.h === 'retur' || d.jenis === 'transfer') return c;
+    const umur = typeof ccUmurHari === 'function' ? ccUmurHari(d) : null, hari = umur === null ? 0 : Math.floor(umur);
+    const instan = typeof ccxApakahInstan === 'function' && ccxApakahInstan(d);
+    const batas = instan ? P12_BATAS_HARI.instan : P12_BATAS_HARI.reguler;
+    const tindak = s && s.tahap && s.tahap !== 'Perlu tindakan' ? ' · ' + s.tahap : '';
+    if (!d.noInvoice) return c.h === 'gantung' ? Object.assign({}, c, { alasan: c.alasan + tindak }) : c; // belum terhubung: tetap perlu ditautkan
+    if (umur !== null && umur >= batas) return { h: 'gantung', alasan: `Bermasalah: ${hari} hari tanpa kepastian (batas ${batas} hari ${instan ? 'instan' : 'reguler'}) - siapkan komplain${tindak}` };
+    if (c.h === 'gantung') return { h: 'proses', alasan: c.alasan }; // di bawah batas: dipantau, belum bermasalah
+    return c;
+  };
+})();
+(function () {
+  if (typeof ccRender !== 'function') return;
+  const asli = ccRender;
+  ccRender = function () {
+    const r = asli.apply(this, arguments);
+    try { p12TambahKpiKompensasi(); } catch (e) { }
+    if (Date.now() - p12Siklus.t > 5 * 60000) p12MuatSiklus(false);
+    return r;
+  };
+})();
+function p12TambahKpiKompensasi() {
+  const kpi = el('cc-kpi'), seg = el('cc-seg');
+  if (!kpi || !kpi.children.length || typeof ccSemua !== 'function') return;
+  const semua = ccSemua().filter(d => !ccState.kurir || (d._cc && d._cc.kurir === ccState.kurir));
+  const daftar = semua.filter(d => d._cc && d._cc.h === 'kompensasi');
+  const nilai = daftar.reduce((t, d) => t + ((p12SiklusResi(d) || {}).nilai || 0), 0);
+  const pct = semua.length ? Math.round(daftar.length / semua.length * 100) + '%' : '0%';
+  if (!kpi.querySelector('[data-cc-hasil="kompensasi"]')) {
+    kpi.insertAdjacentHTML('beforeend', `<button type="button" class="cc-kpi-k k-kompensasi ${ccState.hasil === 'kompensasi' ? 'aktif' : ''}" data-cc-hasil="kompensasi" title="Paket hilang / rusak di perjalanan yang sudah mendapat ganti rugi"><span>Hilang/Rusak · dikompensasi</span><b>${daftar.length.toLocaleString('id-ID')}</b><i>${pct}${nilai ? ' · ' + omxRp(nilai) : ''}</i></button>`);
+  }
+  if (seg && !seg.querySelector('[data-cc-hasil="kompensasi"]')) {
+    seg.insertAdjacentHTML('beforeend', `<button type="button" class="${ccState.hasil === 'kompensasi' ? 'aktif' : ''}" data-cc-hasil="kompensasi">Dikompensasi <em>${daftar.length}</em></button>`);
+  }
+  const btnG = kpi.querySelector('[data-cc-hasil="gantung"] span');
+  if (btnG && !/14 hari/.test(btnG.title || '')) btnG.title = 'Belum ada kepastian setelah 14 hari (reguler) / 2 hari (instan), atau belum terhubung ke pesanan';
+}
+(function () {
+  if (typeof ccBarisHtml !== 'function') return;
+  const asli = ccBarisHtml;
+  ccBarisHtml = function (d) {
+    let html = asli(d);
+    try {
+      const s = p12SiklusResi(d), cc = d._cc || {}, resi = String(d.noResiScan || '');
+      const badge = s && s.tahap ? `<div><span class="p12-tahap ${s.akhir === 'sukses' ? 'akhir-sukses' : (s.akhir === 'retur' ? 'akhir-retur' : '')}" title="${pgrAttr((s.oleh ? 'oleh ' + s.oleh : '') + (s.t ? ' · ' + new Date(s.t).toLocaleString('id-ID') : ''))}">${escapeHtml(s.tahap)}${s.akhir === 'kompensasi' && s.nilai ? ' · ' + omxRp(s.nilai) : ''}</span></div>` : '';
+      const tombol = (cc.h === 'gantung' || cc.h === 'kompensasi' || s) && d.jenis !== 'transfer' && d.noInvoice
+        ? `<button type="button" class="cc-btn-mini" data-p12-lapor="${pgrAttr(resi)}" title="Data siap lapor ke Pusat Resolusi + catat tahap komplain">📋 Data komplain</button>` : '';
+      const sisip = badge + (tombol && html.indexOf('<div class="cc-gantung-aksi">') === -1 ? `<div class="cc-gantung-aksi">${tombol}</div>` : '');
+      if (tombol && html.indexOf('<div class="cc-gantung-aksi">') !== -1) html = html.replace('<div class="cc-gantung-aksi">', '<div class="cc-gantung-aksi">' + tombol);
+      if (sisip) {
+        const iNilai = html.indexOf('<td class="cc-nilai">');
+        const iRetur = iNilai > 0 ? html.lastIndexOf('<td>', iNilai) : -1;
+        const iTutup = iRetur > 0 ? html.lastIndexOf('</td>', iRetur) : -1;
+        if (iTutup > 0) html = html.slice(0, iTutup) + sisip + html.slice(iTutup);
+      }
+      if (cc.h === 'kompensasi') html = html.replace('<tr data-resi=', '<tr class="p12-kompensasi" data-resi=');
+    } catch (e) { }
+    return html;
+  };
+})();
+document.addEventListener('click', e => {
+  const b = e.target && e.target.closest ? e.target.closest('[data-p12-lapor]') : null;
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  p12BukaDataLapor(b.getAttribute('data-p12-lapor'));
+}, true);
+function p12CariBarisResi(resi) {
+  const k = p12KunciResi(resi);
+  return (typeof ccSemua === 'function' ? ccSemua() : []).find(d => p12KunciResi(d.noResiScan) === k) || null;
+}
+async function p12BukaDataLapor(resi) {
+  const d = p12CariBarisResi(resi) || { noResiScan: resi };
+  const umur = typeof ccUmurHari === 'function' ? ccUmurHari(d) : null;
+  omxModal('Data komplain · ' + resi, '<div style="padding:18px; text-align:center; color:var(--web-text-dim);">Menyusun data…</div>', { lebar: true });
+  let r = null;
+  try {
+    r = await postJson({ aksi: 'siklus_resi_data_lapor', noResi: resi, noPesanan: d.noInvoice || '', sumber: d.sumber || '', kurir: (d._cc && d._cc.kurir) || d.kurir || '',
+      tanggalScan: d.tanggal || '', statusTerakhir: d.statusPesanan || '', umurHari: umur || 0, nilai: (ccNilai(d) || {}).v || 0, email: currentUserEmail() }, 90000);
+  } catch (err) { r = { success: false, error: err.message }; }
+  const isi = document.querySelector('#omx-modal .omx-modal-isi');
+  if (!isi) return;
+  if (!r || !r.success) { isi.innerHTML = `<div style="color:var(--danger,#dc2626); padding:12px;">Gagal: ${escapeHtml((r && r.error) || '')}</div>`; return; }
+  const s = r.siklus || p12SiklusResi(d) || {};
+  const opsiTahap = (p12Siklus.tahap.length ? p12Siklus.tahap : ['Perlu tindakan', 'Data komplain disiapkan', 'Komplain diajukan', 'Diminta data tambahan', 'Kompensasi diterima', 'Komplain ditolak', 'Ternyata sampai (berhasil)', 'Barang kembali (retur)'])
+    .map(t => `<option ${t === (s.tahap || 'Data komplain disiapkan') ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
+  const rk = r.ringkas || {};
+  isi.innerHTML = `<div class="p12-lapor-grid">
+    <div>
+      <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:6px;">Teks siap tempel ke Pusat Resolusi ${escapeHtml(rk.sumber || 'marketplace')} (boleh diedit dulu):</div>
+      <textarea class="p12-lapor-teks" id="p12-lapor-teks">${escapeHtml(r.teks || '')}</textarea>
+      <div class="p12-lapor-aksi">
+        <button type="button" class="web-btn-primary" onclick="p12SalinLapor()">📋 Salin teks</button>
+        ${rk.noPesanan ? `<button type="button" class="web-btn-secondary" onclick="navigator.clipboard && navigator.clipboard.writeText(${pgrAttr(JSON.stringify(rk.noPesanan))}); pgrToast('No Pesanan disalin')">Salin No Pesanan</button>` : ''}
+      </div>
+      <div style="font-size:12px; margin-top:10px;"><b>Nilai pesanan</b> ${rk.nilaiJual ? omxRp(rk.nilaiJual) : '-'} · <b>Modal barang</b> ${rk.nilaiModal ? omxRp(rk.nilaiModal) : '-'}${rk.dicatatOleh ? ' · discan oleh ' + escapeHtml(rk.dicatatOleh) : ''}</div>
+    </div>
+    <div class="p12-lapor-kanan">
+      <b style="font-size:12.5px;">Cara melapor</b>
+      <ul>${(r.panduan || []).map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+      <b style="font-size:12.5px; display:block; margin-top:8px;">Bukti yang dilampirkan</b>
+      <ul>${(r.bukti || []).map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+      <label for="p12-tahap">Tahap sekarang</label><select id="p12-tahap" onchange="p12TahapBerubah()">${opsiTahap}</select>
+      <div id="p12-nilai-wrap"><label for="p12-nilai">Nilai kompensasi diterima (Rp)</label><input id="p12-nilai" type="number" min="0" value="${Number(s.nilai) || ''}" placeholder="mis. ${rk.nilaiModal || 50000}"></div>
+      <label for="p12-nolap">No Laporan / Tiket (opsional)</label><input id="p12-nolap" value="${pgrAttr(s.noLaporan || '')}">
+      <label for="p12-cat">Catatan</label><textarea id="p12-cat" rows="2">${escapeHtml(s.catatan || '')}</textarea>
+      <div class="p12-lapor-aksi"><button type="button" class="web-btn-primary" id="p12-simpan" onclick="p12SimpanTahap(${pgrAttr(JSON.stringify(resi))}, ${pgrAttr(JSON.stringify(rk.noPesanan || d.noInvoice || ''))}, ${pgrAttr(JSON.stringify(rk.sumber || d.sumber || ''))})">Simpan tahap</button></div>
+      <div class="p12-lapor-riwayat">${(s.riwayat || []).map(h => `${new Date(h.t).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${escapeHtml(h.tahap)}${h.nilai ? ' ' + omxRp(h.nilai) : ''} · ${escapeHtml(h.oleh || '')}`).join('<br>') || 'Belum ada riwayat tindak lanjut.'}</div>
+    </div></div>`;
+  p12TahapBerubah();
+}
+function p12TahapBerubah() { const t = el('p12-tahap'), w = el('p12-nilai-wrap'); if (t && w) w.style.display = t.value === 'Kompensasi diterima' ? '' : 'none'; }
+function p12SalinLapor() {
+  const t = el('p12-lapor-teks'); if (!t) return;
+  try { navigator.clipboard.writeText(t.value).then(() => pgrToast('Teks komplain disalin - tempel di Pusat Resolusi')).catch(() => { t.select(); document.execCommand('copy'); pgrToast('Teks komplain disalin'); }); }
+  catch (e) { t.select(); document.execCommand('copy'); pgrToast('Teks komplain disalin'); }
+  const tahap = el('p12-tahap'); if (tahap && tahap.value === 'Perlu tindakan') tahap.value = 'Data komplain disiapkan';
+}
+async function p12SimpanTahap(resi, noPesanan, sumber) {
+  const btn = el('p12-simpan'); if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan…'; }
+  try {
+    const tahap = el('p12-tahap').value;
+    const r = await postJsonTulis({ aksi: 'siklus_resi_simpan', noResi: resi, noPesanan, sumber, tahap, nilai: Number(el('p12-nilai').value) || 0,
+      noLaporan: el('p12-nolap').value, catatan: el('p12-cat').value, email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
+    p12Siklus.peta[p12KunciResi(resi)] = r.siklus;
+    if (typeof ccResetKlasifikasi === 'function') ccResetKlasifikasi();
+    if (typeof ccRender === 'function') ccRender();
+    omxTutupModal();
+    pgrToast(r.siklus.akhir === 'kompensasi' ? '✓ Kompensasi dicatat sebagai Pendapatan Klaim' : '✓ Tahap disimpan: ' + tahap);
+  } catch (err) { pgrToast('Gagal: ' + err.message); if (btn) { btn.disabled = false; btn.textContent = 'Simpan tahap'; } }
+}
+
+/* ---------------- D. MEMO BARANG MASUK BERSAMA ANTAR-HP (DN-261016-174622-137) ----------------
+   Checklist dari invoice yang sama dikerjakan beberapa HP: tiap perubahan qty dikirim (±0,6 dtk setelah ketuk),
+   perubahan HP lain ditarik tiap ±4 detik. Barang yang sedang diubah di HP ini tidak ditimpa sampai terkirim. */
+const P12_PERANGKAT = (() => { try { let x = localStorage.getItem('p12_perangkat'); if (!x) { x = 'hp' + Math.random().toString(36).slice(2, 8); localStorage.setItem('p12_perangkat', x); } return x; } catch (e) { return 'hp' + Math.random().toString(36).slice(2, 8); } })();
+let p12MS = { kunci: '', rev: 0, snap: new Map(), kotor: new Set(), kirimTimer: null, jalan: false, staf: [], selesai: null, terakhir: 0, terapkan: false, mulai: false };
+function p12MSKunciCart() {
+  const cart = (typeof mgmCarts !== 'undefined' && mgmCarts.barangmasuk) || [];
+  const inv = [];
+  cart.forEach(it => { if (it.dariChecklist) String(it.noInvoiceAsal || '').split(/[,;\n]+/).map(x => x.trim()).filter(Boolean).forEach(x => { if (!inv.includes(x)) inv.push(x); }); });
+  return inv.sort().join(', ');
+}
+function p12MSAktif() {
+  const scr = el('screen-memo-gudang');
+  return !!(scr && scr.style.display !== 'none' && typeof mgmTabAktif !== 'undefined' && mgmTabAktif === 'barangmasuk' && p12MSKunciCart());
+}
+function p12MSSnapCart() {
+  const m = new Map();
+  ((mgmCarts && mgmCarts.barangmasuk) || []).forEach(it => { if (it.sku && !it.tanpaSku) m.set(String(it.sku).toUpperCase(), { qty: Number(it.qty) || 0, catatan: String(it.catatan || '') }); });
+  return m;
+}
+function p12MSDeteksiPerubahan() {
+  if (p12MS.terapkan) return;
+  const k = p12MSKunciCart();
+  if (!k) { if (p12MS.kunci) p12MSReset(''); return; }
+  if (k !== p12MS.kunci) { p12MSReset(k); p12MSSinkron(true); return; }
+  const now = p12MSSnapCart();
+  now.forEach((v, sku) => { const l = p12MS.snap.get(sku); if (!l || l.qty !== v.qty || l.catatan !== v.catatan) p12MS.kotor.add(sku); });
+  p12MS.snap.forEach((v, sku) => { if (!now.has(sku)) p12MS.kotor.add(sku); });
+  if (p12MS.kotor.size) { clearTimeout(p12MS.kirimTimer); p12MS.kirimTimer = setTimeout(() => p12MSSinkron(false), 600); }
+}
+function p12MSReset(k) { p12MS.kunci = k; p12MS.rev = 0; p12MS.snap = new Map(); p12MS.kotor = new Set(); p12MS.staf = []; p12MS.selesai = null; p12MS.mulai = true; p12MSBanner(); }
+(function () {
+  if (typeof mgmSimpanDraftLokal !== 'function') return;
+  const asli = mgmSimpanDraftLokal;
+  mgmSimpanDraftLokal = function () { const r = asli.apply(this, arguments); try { if (typeof mgmTabAktif !== 'undefined' && mgmTabAktif === 'barangmasuk') p12MSDeteksiPerubahan(); } catch (e) { } return r; };
+})();
+async function p12MSSinkron(awal) {
+  if (p12MS.jalan || !p12MS.kunci) return;
+  p12MS.jalan = true;
+  try {
+    const cart = mgmCarts.barangmasuk || [], perubahan = [];
+    const kirimSemua = awal && p12MS.rev === 0 && p12MS.mulai;
+    const kirimSku = new Set(p12MS.kotor);
+    if (!awal) cart.forEach(it => { const K = String(it.sku || '').toUpperCase(); if (K && kirimSku.has(K)) perubahan.push({ sku: it.sku, nama: it.nama, qty: Number(it.qty) || 0, catatan: it.catatan || '', qtyTarget: it.qtyTarget, noInvoiceAsal: it.noInvoiceAsal || '', dariChecklist: !!it.dariChecklist }); });
+    if (!awal) kirimSku.forEach(K => { if (!cart.some(it => String(it.sku || '').toUpperCase() === K)) perubahan.push({ sku: K, qty: 0, hapus: true }); });
+    const kunci = p12MS.kunci;
+    const r = await postJson({ aksi: 'memo_sesi_sinkron', kunci, perangkatId: P12_PERANGKAT, sejakRev: awal ? 0 : p12MS.rev, perubahan, email: currentUserEmail() }, 20000, true);
+    if (!r || !r.success || r.sibuk || kunci !== p12MS.kunci) return;
+    perubahan.forEach(p => p12MS.kotor.delete(String(p.sku).toUpperCase()));
+    if (awal && (r.rev || 0) === 0) {
+      // sesi baru: HP ini yang pertama -> kirim seluruh checklist sebagai titik awal bersama
+      p12MS.kotor = new Set(Array.from(p12MSSnapCart().keys()));
+      p12MS.mulai = false; p12MS.jalan = false; return p12MSSinkron(false);
+    }
+    p12MS.mulai = false;
+    p12MSTerapkan(r.items || []);
+    p12MS.rev = Math.max(p12MS.rev, r.rev || 0);
+    p12MS.staf = r.staf || []; p12MS.selesai = r.selesai || null; p12MS.terakhir = Date.now();
+    p12MSBanner();
+  } catch (e) { /* jaringan putus: dicoba lagi di putaran berikutnya */ }
+  finally { p12MS.jalan = false; }
+}
+function p12MSTerapkan(items) {
+  if (!items.length) { p12MS.snap = p12MSSnapCart(); return; }
+  const cart = mgmCarts.barangmasuk; let ubah = false;
+  items.forEach(it => {
+    const K = String(it.sku || '').toUpperCase();
+    if (!K || p12MS.kotor.has(K)) return; // sedang diubah di HP ini - jangan ditimpa
+    const i = cart.findIndex(x => String(x.sku || '').toUpperCase() === K);
+    if (it.hapus) { if (i !== -1) { cart.splice(i, 1); ubah = true; } return; }
+    if (i === -1) { cart.push({ sku: it.sku, nama: it.nama || it.sku, qty: Number(it.qty) || 0, catatan: it.catatan || '', qtyTarget: it.qtyTarget, dariChecklist: !!it.dariChecklist, noInvoiceAsal: it.noInvoiceAsal || '', p12Oleh: it.oleh }); ubah = true; return; }
+    const c = cart[i];
+    if ((Number(c.qty) || 0) !== (Number(it.qty) || 0) || String(c.catatan || '') !== String(it.catatan || '')) { c.qty = Number(it.qty) || 0; c.catatan = it.catatan || ''; ubah = true; }
+    if (it.perangkat !== P12_PERANGKAT) c.p12Oleh = it.oleh;
+  });
+  if (ubah) {
+    p12MS.terapkan = true;
+    try { mgmSimpanDraftLokal(); } finally { p12MS.terapkan = false; }
+    try { mgmRenderCartAman_(); } catch (e) { try { mgmRenderCart(); } catch (e2) { } }
+  }
+  p12MS.snap = p12MSSnapCart();
+}
+function p12MSBanner() {
+  let b = el('p12-memo-bersama');
+  const list = el('mgm-cart-list');
+  if (!p12MS.kunci || !list) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'p12-memo-bersama'; b.className = 'p12-memo-bersama'; list.parentNode.insertBefore(b, list); }
+  const jam = p12MS.terakhir ? new Date(p12MS.terakhir).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '…';
+  b.classList.toggle('selesai', !!p12MS.selesai);
+  b.textContent = p12MS.selesai
+    ? `⚠ Memo checklist ini SUDAH DIKIRIM oleh ${p12MS.selesai.oleh}${p12MS.selesai.noMemo ? ' (' + p12MS.selesai.noMemo + ')' : ''} - jangan dikirim dobel.`
+    : `👥 Checklist bersama · ${p12MS.staf.length ? 'juga dikerjakan: ' + p12MS.staf.join(', ') : 'hanya HP ini'} · tersinkron ${jam}`;
+}
+setInterval(() => { try { if (!document.hidden && p12MSAktif()) { if (p12MSKunciCart() !== p12MS.kunci) p12MSDeteksiPerubahan(); else p12MSSinkron(false); } } catch (e) { } }, 4000);
+(function () {
+  if (typeof mgmSubmit !== 'function') return;
+  const asli = mgmSubmit;
+  mgmSubmit = async function () {
+    const tab = typeof mgmTabAktif !== 'undefined' ? mgmTabAktif : '';
+    const kunci = tab === 'barangmasuk' ? p12MS.kunci : '';
+    if (kunci) {
+      await p12MSSinkron(false);
+      if (p12MS.selesai && p12MS.selesai.perangkat !== P12_PERANGKAT) {
+        const lanjut = await omniKonfirmasi({ ikon: '⚠', judul: 'Sudah dikirim staf lain', pesan: `Memo checklist ini sudah dikirim oleh ${p12MS.selesai.oleh}. Kirim lagi akan membuat memo dobel. Tetap kirim?`, ya: 'Tetap kirim', tidak: 'Batal' });
+        if (!lanjut) return;
+      }
+    }
+    const r = await asli.apply(this, arguments);
+    try {
+      if (kunci && !(mgmCarts.barangmasuk || []).length) {
+        await postJson({ aksi: 'memo_sesi_sinkron', kunci, perangkatId: P12_PERANGKAT, selesai: { noMemo: '' }, email: currentUserEmail() }, 20000, true);
+        p12MSReset(''); p12MSBanner();
+      }
+    } catch (e) { }
+    return r;
+  };
+})();
+
+/* ---------------- Tata letak Beranda: "Perlu Perhatian" di sebelah KPI (DN-261019-095025-626) ---------------- */
+(function () {
+  const ac = el('omxac'), kpi = el('ov-kpi-grid-utama'), strip = el('ov-kanal-strip');
+  if (!ac || !kpi || !strip || ac.parentNode.classList.contains('p12-ov-atas')) return;
+  const atas = document.createElement('div'); atas.className = 'p12-ov-atas';
+  const kiri = document.createElement('div'); kiri.className = 'p12-ov-kiri';
+  ac.parentNode.insertBefore(atas, ac);
+  kiri.appendChild(kpi); kiri.appendChild(strip);
+  atas.appendChild(kiri); atas.appendChild(ac);
+})();
+if (typeof OMXAC_TUJUAN !== 'undefined') OMXAC_TUJUAN.katalogharga = () => { try { katalogBukaSub('harga'); } catch (e) { gantiTabWeb('katalog'); } };
+</script>
+
 </body>
 </html>
