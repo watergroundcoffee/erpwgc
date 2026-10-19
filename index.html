@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.25';
+  var VERSI = 'v2026.10.26';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -10719,8 +10719,8 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <button class="web-btn-primary" onclick="wdocBuka(wdocDariOrder(wpCurrentDetailOrder, wpCurrentDetailRow))"><span class="oi oi-file" aria-hidden="true"></span> Invoice &amp; Label (Cetak · Simpan · Copy)</button>
             <span id="wp-btn-cetak-invoice" hidden></span>
             <button class="web-btn-secondary" id="wp-btn-kirim-toggle" onclick="wpToggleInputResi()" style="display:none;"><span class="oi oi-truck" aria-hidden="true"></span> Input No Resi</button>
-            <button class="web-btn-primary" id="wp-btn-kurir-toko" type="button" onclick="kftBukaDariWeb()" style="display:none;"><span class="oi oi-camera" aria-hidden="true"></span> Foto Kurir Toko</button>
-            <button class="web-btn-secondary" id="wp-btn-bayar" type="button" onclick="byrBukaDariWeb()" style="display:none;"><span class="oi oi-check" aria-hidden="true"></span> Pembayaran Diterima</button>
+            <button class="web-btn-primary" id="wp-btn-kurir-toko" type="button" onclick="kftBukaDariWeb()" style="display:none;"><span class="oi oi-check" aria-hidden="true"></span> Konfirmasi Diterima</button>
+            <button class="web-btn-secondary" id="wp-btn-bayar" type="button" onclick="byrBukaDariWeb()" style="display:none;" title="Konfirmasi bahwa uang dari pembeli sudah masuk"><span class="oi oi-check" aria-hidden="true"></span> Tandai Lunas</button>
             <span id="wp-bayar-chip" class="omx-chip-ok" hidden></span>
             <button class="web-btn-danger" id="wp-btn-batal" onclick="wpToggleKonfirmasiBatal()" style="display:none;"><span class="oi oi-x" aria-hidden="true"></span> Batalkan</button>
           </div>
@@ -22877,7 +22877,7 @@ function rt2KecilkanFoto(file) {
     img.src = url;
   });
 }
-const RT2_MAKS_VIDEO_MB = 35; // batas aman 1 kali kirim ke Apps Script (payload ± 50 MB setelah base64)
+const RT2_MAKS_VIDEO_MB = 30; // v2026.10.26 (DN-873): maks 30 MB per video - batas upload bukti di Shopee (dulu 35)
 // Dipertahankan untuk kompatibilitas: input file lama -> jalur upload latar yang baru
 function rt2Unggah(noResi, jenis, input) {
   const files = Array.from((input && input.files) || []);
@@ -24591,7 +24591,7 @@ function wpRenderListRows() {
 // Tombol ✕: alasan dipilih di modal -> pembatalan berjalan lewat Action Log
 function wpBolehBatal(it) {
   const izin = currentUser ? (currentUser.izin || {}) : {};
-  return !!(izin.batalPesanan || (currentUser && currentUser.isOwner)) && it.status !== 'Dibatalkan' && it.status !== 'Selesai';
+  return !!(izin.batalPesanan || (currentUser && currentUser.isOwner)) && it.status !== 'Dibatalkan' && it.status !== 'Selesai' && !it.bayarDiterima; // v2026.10.26: lunas -> tidak bisa batal
 }
 function wpBatalCepat(row) {
   const it = (wpListCache || []).find(x => x.row === row);
@@ -51651,7 +51651,8 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
   // No Resi (Pesanan Manual) ditaruh di ruang kosong KIRI baris "Ongkir"; kalau tanpa ongkir -> kiri baris Sub-Total.
   // Kurir Toko tidak punya resi asli (resi = No Invoice) -> tidak ditampilkan dobel.
   const adaResiAsli = !!noResi && String(noResi).trim() !== String(order.noInvoice).trim() && kurir !== 'Kurir Toko';
-  const selResi = adaResiAsli ? `<td colspan="2" class="inv-resi"><span>No Resi</span> <b>${escapeHtml(noResi)}</b></td>` : '<td colspan="2"></td>';
+  // v2026.10.26 (DN-261019-115016-141): No Resi TIDAK lagi ditampilkan di Invoice (tetap ada di Label Pengiriman)
+  const selResi = adaResiAsli && false ? `<td colspan="2" class="inv-resi"><span>No Resi</span> <b>${escapeHtml(noResi)}</b></td>` : '<td colspan="2"></td>';
   let ringkasanHtml = `<tr class="ringkasan-row">${ongkir > 0 ? '<td colspan="2"></td>' : selResi}<td>SUB-TOTAL</td><td class="num-col">Rp ${subtotalProduk.toLocaleString('id-ID')}</td></tr>`;
   if (ongkir > 0) ringkasanHtml += `<tr class="ringkasan-row">${selResi}<td>ONGKIR (${escapeHtml(kurir)})</td><td class="num-col">Rp ${ongkir.toLocaleString('id-ID')}</td></tr>`;
   if (biayaLain > 0) ringkasanHtml += `<tr class="ringkasan-row"><td colspan="2"></td><td>BIAYA LAIN</td><td class="num-col">Rp ${biayaLain.toLocaleString('id-ID')}</td></tr>`;
@@ -52006,7 +52007,7 @@ function renderDaftarPesanan(items) {
   const izin = currentUser ? (currentUser.izin || {}) : {};
   const bolehBatal = !!izin.batalPesanan;
   wrap.innerHTML = items.map(item => {
-    const bisaGeser = bolehBatal && item.status !== 'Dibatalkan';
+    const bisaGeser = bolehBatal && item.status !== 'Dibatalkan' && !item.bayarDiterima; // v2026.10.26: lunas -> tidak bisa batal
     return `
       <div class="pm-geser${item.status === 'Dibatalkan' ? ' pm-dibatalkan' : ''}" data-row="${item.row}" data-invoice="${pgrAttr(item.noInvoice)}" data-geser="${bisaGeser ? '1' : ''}">
         ${bisaGeser ? `<div class="pm-geser-aksi pm-aksi-batal"><button type="button" data-pm-aksi="batal" aria-label="Batalkan transaksi ${pgrAttr(item.noInvoice)}">
@@ -60349,7 +60350,7 @@ function omxKompres(sumber, maks, mutu) {
    yang punya idPermintaan dikirim ulang OTOMATIS setelah halaman dibuka lagi (server anti dobel per id). */
 const OMXLOG_KUNCI = 'omx_action_log_v1';
 const OMXLOG_LABEL = {
-  kirim_pesanan: 'Kirim pesanan (No Resi)', kirim_kurir_toko: 'Konfirmasi foto Kurir Toko', konfirmasi_pembayaran: 'Pembayaran Diterima',
+  kirim_pesanan: 'Kirim pesanan (No Resi)', kirim_kurir_toko: 'Konfirmasi diterima (Kurir Toko)', konfirmasi_pembayaran: 'Tandai Lunas',
   batal_pesanan: 'Batalkan pesanan', update_pesanan: 'Ubah pesanan', simpan_memo_barang_masuk: 'Memo Barang Masuk', simpan_memo_hilang_rusak: 'Memo Hilang/Rusak',
   simpan_memo_stock_opname: 'Memo Stock Opname', simpan_memo_minta_stock: 'Memo Minta Stock', stok_mp_kirim: 'Kirim stok ke marketplace', buat_invoice: 'Buat invoice'
 };
@@ -60453,7 +60454,7 @@ async function omxacMuat(paksa) {
 }
 
 /* ======================== DETAIL PESANAN: tombol baru ======================== */
-function omxBayarChipHtml_(b, menyimpan) { return `✓ Dibayar · ${omxEsc(b.waktu || '')} · ${omxEsc(b.oleh || '')}${b.bukti ? ` · <a href="${omxEsc(b.bukti)}" target="_blank" rel="noopener">bukti</a>` : ''}${menyimpan ? ' (menyimpan…)' : ''}`; }
+function omxBayarChipHtml_(b, menyimpan) { return `✓ Lunas · ${omxEsc(b.waktu || '')} · ${omxEsc(b.oleh || '')}${b.bukti ? ` · <a href="${omxEsc(b.bukti)}" target="_blank" rel="noopener">bukti</a>` : ''}${menyimpan ? ' (menyimpan…)' : ''}`; }
 function omxDetailAksiWeb_(o, izin, belumSelesai, siap) {
   const kurirToko = o.kurir === 'Kurir Toko';
   const bk = el('wp-btn-kurir-toko'), bt = el('wp-btn-kirim-toggle'), bb = el('wp-btn-bayar'), chip = el('wp-bayar-chip');
@@ -60474,7 +60475,7 @@ function omxDetailAksiMobile_(order) {
   const izin = (currentUser && currentUser.izin) || {};
   let h = '';
   if (order.bayarDiterima) h += `<span class="omx-chip-ok ${order.bayarDiterima._menyimpan ? 'menyimpan' : ''}">${omxBayarChipHtml_(order.bayarDiterima, order.bayarDiterima._menyimpan)}</span>`;
-  else if (order.status !== 'Dibatalkan' && (izin.buatInvoice || currentUser.isOwner)) h += `<button type="button" class="omxm-btn utama" style="padding:7px 12px; font-size:12.5px;" onclick="byrBukaMobile()">✓ Pembayaran Diterima</button>`;
+  else if (order.status !== 'Dibatalkan' && (izin.buatInvoice || currentUser.isOwner)) h += `<button type="button" class="omxm-btn utama" style="padding:7px 12px; font-size:12.5px;" onclick="byrBukaMobile()">✓ Tandai Lunas</button>`;
   if (order.kurirToko) h += `<span class="omx-chip-ok">📷 Diantar ${omxEsc(order.kurirToko.oleh || '')} · ${omxEsc(order.kurirToko.waktu || '')}</span>`;
   w.innerHTML = h;
 }
@@ -60485,14 +60486,14 @@ let byr = null;
 function byrBuka(k) {
   byr = Object.assign({ fotoData: '', mime: '' }, k);
   const o = k.order;
-  omxmModal(`<div class="omxm-kepala">Pembayaran Diterima<small>${omxEsc(o.noInvoice)} · ${omxEsc(o.namaPembeli || o.namaPenerima || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+  omxmModal(`<div class="omxm-kepala">Tandai Lunas (pembayaran sudah masuk)<small>${omxEsc(o.noInvoice)} · ${omxEsc(o.namaPembeli || o.namaPenerima || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
     <div class="omxm-isi">
       <div class="byr-ringkas"><span>Total tagihan</span><b>${o.total !== undefined ? omxRp(o.total) : '-'}</b><span>Dikonfirmasi oleh</span><b>${omxEsc(omxNamaStaff())}</b></div>
-      <label class="byr-file" for="byr-file"><span id="byr-file-pratinjau">📎</span><span><b>Bukti transfer (opsional)</b><br><small style="opacity:.7;">Foto / screenshot / PDF. Boleh dikosongkan.</small></span></label>
+      <label class="byr-file" for="byr-file" data-p13-drop="byr" tabindex="0"><span id="byr-file-pratinjau">📎</span><span><b>Bukti transfer (opsional)</b><br><small style="opacity:.7;">Foto / screenshot / PDF. Klik, tarik dari WhatsApp ke sini, atau Ctrl+V.</small></span></label>
       <input type="file" id="byr-file" accept="image/*,application/pdf" hidden onchange="byrPilihFile(this)" />
       <div style="font-size:11.5px; opacity:.7; margin-top:10px;">Waktu konfirmasi dicatat otomatis saat tombol ditekan.</div>
     </div>
-    <div class="omxm-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Batal</button><button type="button" class="omxm-btn utama" id="byr-ok" onclick="byrKonfirmasi()">✓ Pembayaran Diterima</button></div>`);
+    <div class="omxm-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Batal</button><button type="button" class="omxm-btn utama" id="byr-ok" onclick="byrKonfirmasi()">✓ Ya, sudah lunas</button></div>`);
 }
 async function byrPilihFile(inp) {
   const f = inp.files && inp.files[0]; if (!f) return;
@@ -60512,7 +60513,7 @@ function byrKonfirmasi() {
   const k = byr, o = k.order, waktuKlikMs = Date.now();
   omxModalTutup();
   omxSimpanInstan({ aksi: 'konfirmasi_pembayaran', row: k.row, noInvoice: o.noInvoice, waktuKlikMs, base64: k.fotoData || '', mime: k.mime || '' }, {
-    label: 'Pembayaran Diterima · ' + o.noInvoice,
+    label: 'Tandai Lunas · ' + o.noInvoice,
     optimis: () => { o.bayarDiterima = { waktu: omxJam(waktuKlikMs), oleh: omxNamaStaff(), bukti: '', _menyimpan: true }; k.render(); },
     berhasil: d => { o.bayarDiterima = d.bayarDiterima || Object.assign({}, o.bayarDiterima, { _menyimpan: false }); k.render(); if (k.onSelesai) k.onSelesai(); try { playBeep(); } catch (e) { } },
     gagal: () => { delete o.bayarDiterima; k.render(); }
@@ -61911,7 +61912,10 @@ function p10KompresVideo(file) {
         const c = document.createElement('canvas'); c.width = Math.round(w0 * skala / 2) * 2; c.height = Math.round(h0 * skala / 2) * 2;
         const g = c.getContext('2d'), stream = c.captureStream(24);
         try { const sa = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null); if (sa) sa.getAudioTracks().forEach(t => stream.addTrack(t)); } catch (e) { }
-        const rec = new MediaRecorder(stream, { mimeType: tipe, videoBitsPerSecond: 700000, audioBitsPerSecond: 48000 });
+        // v2026.10.26 (DN-873): bitrate menyesuaikan durasi supaya hasil <= ±28 MB (aman di bawah 30 MB Shopee)
+        const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
+        const vbps = dur ? Math.max(200000, Math.min(700000, Math.floor(28 * 1048576 * 8 / dur) - 56000)) : 700000;
+        const rec = new MediaRecorder(stream, { mimeType: tipe, videoBitsPerSecond: vbps, audioBitsPerSecond: 48000 });
         const potong = [];
         rec.ondataavailable = e => { if (e.data && e.data.size) potong.push(e.data); };
         rec.onstop = () => {
@@ -62707,6 +62711,404 @@ setInterval(() => { try { if (!document.hidden && p12MSAktif()) { if (p12MSKunci
   atas.appendChild(kiri); atas.appendChild(ac);
 })();
 if (typeof OMXAC_TUJUAN !== 'undefined') OMXAC_TUJUAN.katalogharga = () => { try { katalogBukaSub('harga'); } catch (e) { gantiTabWeb('katalog'); } };
+</script>
+
+<!-- ===================================================================================
+     PAKET 13 (v2026.10.26) - Pesanan Manual (Lunas -> Selesai, konfirmasi diterima tanpa wajib foto,
+     daftar ikut berubah), cetak thermal tegas, Beranda saat layar sempit, webcam & bukti banding retur
+     =================================================================================== -->
+<style>
+  /* ---- DN-485: cetak thermal - teks hitam pekat, tanpa latar abu-abu ---- */
+  @media print {
+    body.cetak-thermal .print-sheet { box-shadow: none !important; font-weight: 600; font-size: 11.5px; }
+    body.cetak-thermal .print-sheet :is(div, span, td, th, tr, b, p, table, small, i, strong) { color: #000 !important; background: #fff !important; text-shadow: none !important; }
+    body.cetak-thermal .print-sheet th { border-bottom: 1.5px solid #000 !important; font-weight: 800 !important; font-size: 10px !important; }
+    body.cetak-thermal .print-sheet td { border-bottom: 1px solid #000 !important; }
+    body.cetak-thermal .print-sheet .ringkasan-row td { border-bottom: 0 !important; font-weight: 800 !important; }
+    body.cetak-thermal .print-sheet .total-row td { border-top: 2px solid #000 !important; border-bottom: 2px solid #000 !important; font-weight: 900 !important; font-size: 12.5px !important; }
+    body.cetak-thermal .print-sheet :is(.prod-sku, .addr-line, .doc-meta, .resi-label-small, .pay-title, .pay-value, .val-line, .page-indicator) { font-size: 9.5px !important; font-weight: 600 !important; }
+    body.cetak-thermal .print-sheet :is(.prod-name, .addr-nama, .val-bold, .kurir-label) { font-weight: 800 !important; }
+    body.cetak-thermal .print-sheet .kurir-info-box { border-color: #000 !important; }
+    body.cetak-thermal .print-sheet .addr-title { font-size: 10px !important; font-weight: 900 !important; }
+  }
+  /* ---- DN-168: Beranda saat layar dipersempit ---- */
+  .p12-ov-atas > .p12-ov-kiri #ov-kpi-grid-utama { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .p12-ov-kiri #ov-kpi-grid-utama .web-kpi-card { min-width: 0; padding: clamp(10px, 1.1vw, 16px); }
+  .p12-ov-kiri #ov-kpi-grid-utama .web-kpi-value { font-size: clamp(15px, 1.55vw, 24px); overflow-wrap: anywhere; }
+  .p12-ov-kiri #ov-kpi-grid-utama .web-kpi-label { overflow-wrap: anywhere; }
+  @media (max-width: 1100px) { .p12-ov-atas { flex-direction: row !important; } .p12-ov-atas > .omxac { flex: 0 0 250px !important; width: 250px !important; } }
+  .p12-ov-atas > .omxac.p13-ciut { flex: 0 0 50px !important; width: 50px !important; padding: 10px 4px; cursor: pointer; }
+  .omxac.p13-ciut .omxac-daftar, .omxac.p13-ciut .omxac-kosong, .omxac.p13-ciut .omxac-kepala small, .omxac.p13-ciut .omxac-kepala > button:not(.p13-ac-tgl) { display: none !important; }
+  .omxac.p13-ciut .omxac-kepala { flex-direction: column; gap: 8px; margin: 0; }
+  .omxac.p13-ciut .p13-ac-judul { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+  .p13-ac-tgl { margin-left: 0 !important; border: 1px solid var(--web-border, #e2e8f0) !important; background: transparent; border-radius: 8px !important; width: 26px; height: 24px; padding: 0 !important; cursor: pointer; color: var(--web-text-dim, #64748b); font-size: 12px; flex: none; }
+  .p13-ac-n { display: none; min-width: 22px; padding: 2px 5px; border-radius: 999px; background: #4f46e5; color: #fff; font-size: 11px; text-align: center; }
+  .omxac.p13-ciut .p13-ac-n { display: inline-block; }
+  @media (max-width: 640px) { .p12-ov-atas { flex-direction: column !important; } .p12-ov-atas > .omxac { flex: none !important; width: 100% !important; } .p12-ov-kiri #ov-kpi-grid-utama { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* ---- Kurir Toko: konfirmasi diterima ---- */
+  .p13-kt label.p13-l { display: block; font-size: 12px; font-weight: 600; margin: 10px 0 4px; }
+  .p13-kt input.p13-in { width: 100%; box-sizing: border-box; border: 1px solid rgba(127,127,127,.4); border-radius: 10px; padding: 9px 11px; font: inherit; background: transparent; color: inherit; }
+  .p13-kt .p13-alt { margin-top: 12px; font-size: 12px; }
+  .p13-kt .p13-alt button { border: 0; background: transparent; color: #4f46e5; font: inherit; font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; }
+  [data-p13-drop].p13-drop-aktif { border-color: #6366f1 !important; background: rgba(99,102,241,.08); }
+  .p13-undo { color: inherit; opacity: .75; font-weight: 500; }
+  /* ---- Retur: webcam & bukti banding ---- */
+  .p13-wc-layar { position: relative; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; }
+  .p13-wc-layar video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .p13-wc-info { position: absolute; left: 10px; top: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 4px 9px; border-radius: 999px; }
+  .p13-wc-info.rekam::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-right: 6px; animation: omxDenyut 1s infinite; }
+  .p13-wc-catat { font-size: 12px; opacity: .8; margin-top: 8px; }
+  .p13-tarik { margin: 8px 0 4px; padding: 8px 10px; border: 1px dashed var(--web-border, #cbd5e1); border-radius: 10px; font-size: 12px; }
+  .p13-tarik-kepala { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .p13-tarik-kepala button { margin-left: auto; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 8px; padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+  .p13-tarik-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .p13-tarik-list img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; cursor: grab; border: 1px solid var(--web-border, #e2e8f0); }
+  .p13-tarik-list a { display: inline-flex; align-items: center; gap: 4px; height: 64px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--web-border, #e2e8f0); text-decoration: none; color: inherit; cursor: grab; max-width: 180px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+</style>
+<script>
+/* ---------------- Pesanan Manual: daftar ikut berubah seketika (DN-261019-115116-537) ---------------- */
+function p13PatchList(noInvoice, ubah) {
+  if (!noInvoice || !ubah) return;
+  try {
+    let ada = false;
+    (wpListCache || []).forEach(it => { if (it.noInvoice === noInvoice) { Object.keys(ubah).forEach(k => { if (ubah[k] === null) delete it[k]; else it[k] = ubah[k]; }); ada = true; } });
+    if (ada) { try { simpanCacheLokal('pesanan_manual_semua', wpListCache.filter(x => !x._antre).slice(0, 1500)); } catch (e) { } try { wpRenderListRows(); } catch (e) { } }
+  } catch (e) { }
+  try {
+    if (ubah.status !== undefined && typeof wpGabunganCache !== 'undefined') {
+      let ada2 = false;
+      wpGabunganCache.forEach(o => { if (o.sumber === 'PO Sales' && String(o.noReferensi) === String(noInvoice)) { o.status = ubah.status || 'Belum Dikirim'; if (ubah.noResi) o.noResi = ubah.noResi; ada2 = true; } });
+      if (ada2 && typeof wpGabunganRenderHalaman === 'function' && el('wp-gabungan-body')) wpGabunganRenderHalaman();
+    }
+  } catch (e) { }
+  try { hapusCacheTTL('pesanan_manual'); } catch (e) { }
+}
+function p13StatusSetelahKirim(o) { return (o && o.bayarDiterima) ? 'Selesai' : 'Dikirim'; }
+
+wpKirimResiWeb = async function () {
+  const noResi = el('wp-input-resi-value').value.trim();
+  if (!noResi) return;
+  const statusEl = el('wp-detail-status');
+  const o = wpCurrentDetailOrder, row = wpCurrentDetailRow;
+  setLoadingDots(statusEl, 'Mengirim');
+  try {
+    const data = await postJson({ aksi: 'kirim_pesanan', row, noResi, noInvoice: o ? o.noInvoice : '', email: currentUserEmail() });
+    stopLoadingDots(statusEl);
+    if (data.success) {
+      playBeep(); el('wp-input-resi-wrap').style.display = 'none';
+      if (o) p13PatchList(o.noInvoice, { status: data.status || p13StatusSetelahKirim(o), noResi });
+      wpDetailCache.delete(row); wpBukaDetail(row);
+    } else { statusEl.textContent = '✗ Gagal: ' + (data.error || ''); statusEl.className = 'status-text err'; }
+  } catch (err) {
+    stopLoadingDots(statusEl);
+    statusEl.textContent = '✗ Gagal terhubung: ' + err.message;
+    statusEl.className = 'status-text err';
+  }
+};
+
+/* ---------------- Tandai Lunas: daftar ikut berubah, Dikirim + Lunas = Selesai (DN-703, DN-704) ---------------- */
+const p13ByrBukaAsli = byrBuka;
+byrBuka = function (k) {
+  const o = k.order, selesaiAsli = k.onSelesai;
+  k.onSelesai = () => {
+    try { if (selesaiAsli) selesaiAsli(); } catch (e) { }
+    if (o.status === 'Dikirim' && o.bayarDiterima) { o.status = 'Selesai'; try { k.render(); } catch (e) { } }
+    p13PatchList(o.noInvoice, { bayarDiterima: o.bayarDiterima || null, status: o.status || '' });
+  };
+  return p13ByrBukaAsli(k);
+};
+async function p13BatalLunas() {
+  const o = (omxPerangkat_() === 'hp') ? currentDetailOrder : wpCurrentDetailOrder;
+  const row = (omxPerangkat_() === 'hp') ? currentDetailRow : wpCurrentDetailRow;
+  if (!o || !o.bayarDiterima) return;
+  const ok = await omniKonfirmasi({ judul: 'Batalkan tanda lunas?', html: `Tanda lunas <b>${omxEsc(o.noInvoice)}</b> dibatalkan (jejak tetap tersimpan). Pesanan yang Selesai karena lunas kembali menjadi Dikirim.`, ya: 'Ya, batalkan tanda lunas', tidak: 'Tidak' });
+  if (!ok) return;
+  try {
+    const d = await postJsonTulis({ aksi: 'batal_konfirmasi_pembayaran', noInvoice: o.noInvoice, row, email: currentUserEmail() }, 60000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    delete o.bayarDiterima; if (d.status) o.status = d.status;
+    p13PatchList(o.noInvoice, { bayarDiterima: null, status: o.status || '' });
+    omxToast('Tanda lunas ' + o.noInvoice + ' dibatalkan.');
+    if (omxPerangkat_() === 'hp') { try { delete pmDetailCache[row]; } catch (e) { } try { bukaDetailPesanan(row); } catch (e) { } }
+    else { try { wpDetailCache.delete(row); } catch (e) { } wpBukaDetail(row); }
+  } catch (e) { omxToast('Gagal: ' + String(e.message || e), 'error'); }
+}
+function p13KurirChipHtml(kt) {
+  if (!kt) return '';
+  if (kt.diterimaOleh) return `📦 Diterima <b>${omxEsc(kt.diterimaOleh)}</b> · ${omxEsc(kt.waktuDiterima || kt.waktu || '')} · dicatat ${omxEsc(kt.oleh || '')}${kt.bukti ? ` · <a href="${omxEsc(kt.bukti)}" target="_blank" rel="noopener">foto</a>` : ''}`;
+  return `📷 Diantar ${omxEsc(kt.oleh || '')} · ${omxEsc(kt.waktu || '')}${kt.bukti ? ` · <a href="${omxEsc(kt.bukti)}" target="_blank" rel="noopener">foto</a>` : ''}`;
+}
+const p13AksiWebAsli = omxDetailAksiWeb_;
+omxDetailAksiWeb_ = function (o, izin, belumSelesai, siap) {
+  p13AksiWebAsli(o, izin, belumSelesai, siap);
+  const chip = el('wp-bayar-chip'), bb = el('wp-btn-batal');
+  if (o.bayarDiterima && bb) bb.style.display = 'none';
+  const bagian = [];
+  if (o.bayarDiterima) bagian.push(omxBayarChipHtml_(o.bayarDiterima, o.bayarDiterima._menyimpan) + ((currentUser && currentUser.isOwner && !o.bayarDiterima._menyimpan) ? ` · <a href="#" class="p13-undo" onclick="p13BatalLunas(); return false;" title="Hanya Owner - bila salah klik">batalkan</a>` : ''));
+  if (o.kurirToko) bagian.push(p13KurirChipHtml(o.kurirToko));
+  if (chip && bagian.length) { chip.hidden = false; chip.innerHTML = bagian.join(' &nbsp;|&nbsp; '); }
+};
+const p13AksiMobileAsli = omxDetailAksiMobile_;
+omxDetailAksiMobile_ = function (order) {
+  p13AksiMobileAsli(order);
+  if (order && order.bayarDiterima) { const b = el('btn-batal-detail'); if (b) b.style.display = 'none'; }
+  const w = el('omx-m-aksi');
+  if (w && order && order.kurirToko) { const s = Array.from(w.querySelectorAll('.omx-chip-ok')).pop(); if (s && /Diantar/.test(s.textContent)) s.innerHTML = p13KurirChipHtml(order.kurirToko); }
+  if (w && order && order.bayarDiterima && currentUser && currentUser.isOwner && !order.bayarDiterima._menyimpan) {
+    const s = w.querySelector('.omx-chip-ok'); if (s && !s.querySelector('.p13-undo')) s.insertAdjacentHTML('beforeend', ` · <a href="#" class="p13-undo" onclick="p13BatalLunas(); return false;">batalkan</a>`);
+  }
+};
+
+/* ---------------- Kurir Toko: "Diterima oleh" + waktu, foto opsional (DN-261019-115446-823) ---------------- */
+const p13KftKamera = kftBuka;
+let p13kt = null;
+function p13WaktuLokal(ms) { const d = new Date(ms || Date.now()), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+kftBuka = function (k) {
+  const selesaiAsli = k.onSelesai;
+  const k2 = Object.assign({}, k, { onSelesai: st => {
+    const it = (wpListCache || []).find(x => x.noInvoice === k.noInvoice);
+    p13PatchList(k.noInvoice, { status: st || p13StatusSetelahKirim(it), noResi: k.noInvoice });
+    try { if (selesaiAsli) selesaiAsli(); } catch (e) { }
+  } });
+  p13kt = Object.assign({ fotoData: '', mime: '' }, k2);
+  omxmModal(`<div class="omxm-kepala">Konfirmasi Diterima (Kurir Toko)<small>${omxEsc(k.noInvoice)} · ${omxEsc(k.nama || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+    <div class="omxm-isi p13-kt">
+      <label class="p13-l" for="p13kt-nama">Diterima oleh *</label>
+      <input class="p13-in" id="p13kt-nama" value="${omxEsc(k.nama || '')}" placeholder="Nama orang yang menerima paket" autocomplete="off" />
+      <label class="p13-l" for="p13kt-waktu">Waktu diterima</label>
+      <input class="p13-in" id="p13kt-waktu" type="datetime-local" value="${p13WaktuLokal()}" max="${p13WaktuLokal(Date.now() + 60000)}" />
+      <label class="p13-l">Foto bukti penerimaan (opsional)</label>
+      <label class="byr-file" for="p13kt-file" data-p13-drop="kt" tabindex="0"><span id="p13kt-pratinjau">📎</span><span><b>Pilih / ambil foto</b><br><small style="opacity:.7;">Bisa juga ditarik dari WhatsApp ke sini atau Ctrl+V.</small></span></label>
+      <input type="file" id="p13kt-file" accept="image/*" hidden onchange="p13KtFile(this.files && this.files[0]); this.value='';" />
+      <div class="p13-alt">Mau pakai foto kamera (paket + wajah staff, ada watermark)? <button type="button" onclick="p13KtKeKamera()">📷 Foto 2 kamera</button></div>
+      <div style="font-size:11.5px; opacity:.7; margin-top:10px;">Status langsung Dikirim & stok keluar. Bila sudah ditandai Lunas, pesanan otomatis Selesai.</div>
+    </div>
+    <div class="omxm-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Batal</button><button type="button" class="omxm-btn utama" onclick="p13KtKirim()">✓ Konfirmasi diterima</button></div>`);
+  setTimeout(() => { const i = el('p13kt-nama'); if (i) { i.focus(); i.select(); } }, 60);
+};
+kftUlangi = function () { const k = { row: kft.row, noInvoice: kft.noInvoice, nama: kft.nama, onSelesai: kft.onSelesai }; p13KftKamera(k); };
+function p13KtKeKamera() { const k = p13kt; omxModalTutup(); if (k) p13KftKamera(k); }
+async function p13KtFile(f) {
+  if (!f || !p13kt) return;
+  if (!/^image\//.test(f.type || '')) { omxToast('Pilih file foto (JPG/PNG).', 'error'); return; }
+  try { p13kt.fotoData = await omxKompres(f, 1400, 0.8); p13kt.mime = 'image/jpeg'; const pr = el('p13kt-pratinjau'); if (pr) pr.innerHTML = `<img src="${p13kt.fotoData}" alt="Foto bukti" />`; }
+  catch (e) { omxToast(e.message, 'error'); }
+}
+function p13KtKirim() {
+  const k = p13kt; if (!k) return;
+  const nama = String((el('p13kt-nama') || {}).value || '').trim();
+  if (!nama && !k.fotoData) { omxToast('Isi nama penerima atau tambahkan foto bukti.', 'error'); const i = el('p13kt-nama'); if (i) i.focus(); return; }
+  let wMs = Date.parse(String((el('p13kt-waktu') || {}).value || ''));
+  if (!(wMs > 0) || wMs > Date.now() + 120000) wMs = Date.now();
+  omxModalTutup();
+  omxToast('Konfirmasi diterima ' + k.noInvoice + ' sedang disimpan…');
+  omxSimpanInstan({ aksi: 'kirim_kurir_toko', row: k.row, noInvoice: k.noInvoice, diterimaOleh: nama, waktuDiterimaMs: wMs, base64: k.fotoData || '', mime: k.mime || '' }, {
+    label: 'Konfirmasi diterima · ' + k.noInvoice, timeout: 150000,
+    berhasil: d => {
+      omxToast('✓ ' + k.noInvoice + ' tercatat ' + (d.status === 'Selesai' ? 'Selesai (sudah lunas)' : 'Dikirim') + ' - diterima ' + (nama || '(lihat foto)') + '.');
+      try { playBeep(); } catch (e) { }
+      if (k.onSelesai) k.onSelesai(d.status);
+      p13PatchList(k.noInvoice, { kurirToko: d.kurirToko || null });
+    }
+  });
+}
+
+/* ---------------- Tarik-lepas / tempel file ke kotak bukti (bayar & diterima) ---------------- */
+async function p13AmbilFile_(dt) {
+  const langsung = Array.from((dt && dt.files) || []).filter(f => /^image\/|pdf/.test(f.type || ''));
+  if (langsung.length) return langsung[0];
+  try { const l = await rt2AmbilSumber(dt); const x = l.find(s => s.file); if (x) return x.file; if (l.length) omxToast('Gambar belum bisa dibaca langsung - simpan dulu gambarnya lalu tarik dari folder, atau salin gambar lalu Ctrl+V.'); } catch (e) { }
+  return null;
+}
+async function p13TerimaFile_(jenis, f) {
+  if (!f) return;
+  if (jenis === 'byr' && typeof byr !== 'undefined' && byr) await byrPilihFile({ files: [f] });
+  if (jenis === 'kt') await p13KtFile(f);
+}
+document.addEventListener('dragover', e => { const z = e.target && e.target.closest ? e.target.closest('[data-p13-drop]') : null; if (!z) return; e.preventDefault(); try { e.dataTransfer.dropEffect = 'copy'; } catch (er) { } z.classList.add('p13-drop-aktif'); });
+document.addEventListener('dragleave', e => { const z = e.target && e.target.closest ? e.target.closest('[data-p13-drop]') : null; if (z && !z.contains(e.relatedTarget)) z.classList.remove('p13-drop-aktif'); });
+document.addEventListener('drop', async e => {
+  const z = e.target && e.target.closest ? e.target.closest('[data-p13-drop]') : null; if (!z) return;
+  e.preventDefault(); z.classList.remove('p13-drop-aktif');
+  const f = await p13AmbilFile_(e.dataTransfer);
+  if (!f) { omxToast('Tidak ada foto / PDF yang bisa dibaca dari yang ditarik.'); return; }
+  p13TerimaFile_(z.dataset.p13Drop, f);
+});
+document.addEventListener('paste', async e => {
+  const latar = el('omxm-latar'); if (!latar || latar.hidden) return;
+  const z = el('omxm') && el('omxm').querySelector('[data-p13-drop]'); if (!z) return;
+  const akt = document.activeElement; if (akt && /^(INPUT|TEXTAREA)$/.test(akt.tagName) && akt.type !== 'file') return;
+  const f = await p13AmbilFile_(e.clipboardData || window.clipboardData);
+  if (!f) return;
+  e.preventDefault(); p13TerimaFile_(z.dataset.p13Drop, f);
+});
+
+/* ---------------- Beranda: Perlu Perhatian bisa diciutkan (DN-261019-132106-168) ---------------- */
+function p13AcCiut_() { let v = null; try { v = localStorage.getItem('p13_ac_ciut'); } catch (e) { } return v === null ? window.innerWidth < 1000 : v === '1'; }
+function p13AcTerapkan_() {
+  const w = el('omxac'); if (!w || !w.parentNode || !w.parentNode.classList.contains('p12-ov-atas')) return;
+  const ciut = p13AcCiut_();
+  w.classList.toggle('p13-ciut', ciut);
+  const kp = w.querySelector('.omxac-kepala'); if (!kp) return;
+  if (!kp.querySelector('.p13-ac-tgl')) {
+    const t = Array.from(kp.childNodes).find(n => n.nodeType === 3 && /Perlu Perhatian/.test(n.textContent));
+    if (t) { const sp = document.createElement('span'); sp.className = 'p13-ac-judul'; sp.textContent = t.textContent.trim(); kp.replaceChild(sp, t); }
+    const n = ((omxacData && omxacData.data && omxacData.data.butir) || []).length;
+    kp.insertAdjacentHTML('afterbegin', `<button type="button" class="p13-ac-tgl" onclick="event.stopPropagation(); p13AcToggle()" aria-label="Ciutkan / buka Perlu Perhatian"></button>`);
+    kp.insertAdjacentHTML('beforeend', `<span class="p13-ac-n" title="${n} hal perlu perhatian">${n}</span>`);
+  }
+  const b = kp.querySelector('.p13-ac-tgl'); if (b) { b.textContent = ciut ? '‹' : '›'; b.title = ciut ? 'Buka Perlu Perhatian' : 'Ciutkan'; b.setAttribute('aria-expanded', String(!ciut)); }
+  w.onclick = ciut ? (() => p13AcToggle()) : null;
+}
+function p13AcToggle() { const ciut = !p13AcCiut_(); try { localStorage.setItem('p13_ac_ciut', ciut ? '1' : '0'); } catch (e) { } p13AcTerapkan_(); }
+const p13AcRenderAsli = omxacRender;
+omxacRender = function () { p13AcRenderAsli(); try { p13AcTerapkan_(); } catch (e) { } };
+window.addEventListener('resize', () => { let v = null; try { v = localStorage.getItem('p13_ac_ciut'); } catch (e) { } if (v === null) p13AcTerapkan_(); });
+setTimeout(() => { try { p13AcTerapkan_(); } catch (e) { } }, 500);
+
+/* ---------------- Resi Masuk: webcam di laptop + rekaman <= 30 MB (DN-261019-144350-873) ---------------- */
+const P13_VIDEO_MAKS_BYTE = 28.5 * 1048576; // berhenti otomatis di ±28,5 MB (batas Shopee 30 MB)
+let p13wc = null;
+function p13Laptop_() { return omxPerangkat_() !== 'hp'; }
+function p13WcMatikan() {
+  if (!p13wc) return;
+  try { if (p13wc.rec && p13wc.rec.state !== 'inactive') { p13wc.batal = true; p13wc.rec.stop(); } } catch (e) { }
+  try { if (p13wc.stream) p13wc.stream.getTracks().forEach(t => t.stop()); } catch (e) { }
+  clearInterval(p13wc.jam); p13wc = null;
+}
+const p13ModalTutupAsli = omxModalTutup;
+omxModalTutup = function () { try { p13WcMatikan(); } catch (e) { } return p13ModalTutupAsli(); };
+function p13TipeRekam_() { return ['video/mp4;codecs=avc1,mp4a', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || ''; }
+async function p13Webcam(noResi, jenis) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { omxToast('Browser ini tidak bisa membuka webcam - pakai "Pilih file".', 'error'); return; }
+  if (jenis === 'video' && typeof MediaRecorder === 'undefined') { omxToast('Browser ini belum bisa merekam video - pakai Chrome terbaru.', 'error'); return; }
+  p13WcMatikan();
+  p13wc = { noResi, jenis, stream: null, rec: null, potong: [], byte: 0, mulai: 0, jumlah: 0 };
+  const vbps = 1200000;
+  const maksDetik = Math.floor(P13_VIDEO_MAKS_BYTE * 8 / (vbps + 64000));
+  omxmModal(`<div class="omxm-kepala">${jenis === 'foto' ? '📷 Ambil foto (webcam)' : '🎥 Rekam video (webcam)'}<small>${omxEsc(noResi)}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+    <div class="omxm-isi"><div class="p13-wc-layar"><video id="p13wc-video" playsinline autoplay muted></video><span class="p13-wc-info" id="p13wc-info">Membuka kamera…</span></div>
+      <div class="p13-wc-catat" id="p13wc-catat">${jenis === 'foto' ? 'Tekan Jepret untuk setiap foto - foto langsung diunggah di latar (boleh beberapa kali).' : `Rekaman berhenti otomatis sebelum 30 MB (±${Math.floor(maksDetik / 60)} menit ${maksDetik % 60} detik) supaya bisa diunggah ke Shopee.`}</div></div>
+    <div class="omxm-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Selesai</button>${jenis === 'foto' ? '<button type="button" class="omxm-btn utama" id="p13wc-btn" onclick="p13WcJepret()" disabled>📸 Jepret</button>' : '<button type="button" class="omxm-btn utama" id="p13wc-btn" onclick="p13WcRekam()" disabled>⏺ Mulai rekam</button>'}</div>`, true);
+  try {
+    const s = p13wc;
+    s.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: jenis === 'video' });
+    if (p13wc !== s) { s.stream.getTracks().forEach(t => t.stop()); return; }
+    const v = el('p13wc-video'); v.srcObject = s.stream; await v.play().catch(() => { });
+    el('p13wc-info').textContent = jenis === 'foto' ? 'Siap' : 'Siap merekam';
+    el('p13wc-btn').disabled = false;
+  } catch (e) {
+    const i = el('p13wc-info'); if (i) i.textContent = 'Kamera tidak bisa dibuka';
+    const c = el('p13wc-catat'); if (c) c.textContent = 'Izinkan akses kamera' + (jenis === 'video' ? ' & mikrofon' : '') + ' di browser (ikon kamera di kolom alamat), lalu coba lagi. ' + (e && e.name ? '(' + e.name + ')' : '');
+  }
+}
+function p13WcJepret() {
+  const s = p13wc, v = el('p13wc-video'); if (!s || !v || !v.videoWidth) return;
+  const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+  c.toBlob(b => {
+    if (!b) return;
+    s.jumlah++;
+    const f = new File([b], 'unboxing-' + s.noResi + '-' + Date.now() + '.jpg', { type: 'image/jpeg' });
+    rt2UnggahSumber(s.noResi, [{ file: f }]);
+    try { playBeep(); } catch (e) { }
+    const i = el('p13wc-info'); if (i) i.textContent = s.jumlah + ' foto diunggah';
+  }, 'image/jpeg', 0.9);
+}
+function p13WcRekam() {
+  const s = p13wc, btn = el('p13wc-btn'); if (!s || !s.stream) return;
+  if (s.rec && s.rec.state === 'recording') { s.rec.stop(); btn.disabled = true; btn.textContent = 'Menyimpan…'; return; }
+  const tipe = p13TipeRekam_();
+  try { s.rec = new MediaRecorder(s.stream, tipe ? { mimeType: tipe, videoBitsPerSecond: 1200000, audioBitsPerSecond: 64000 } : { videoBitsPerSecond: 1200000 }); }
+  catch (e) { omxToast('Perekam video tidak didukung: ' + e.message, 'error'); return; }
+  s.potong = []; s.byte = 0; s.mulai = Date.now(); s.batal = false;
+  s.rec.ondataavailable = ev => {
+    if (!ev.data || !ev.data.size) return;
+    s.potong.push(ev.data); s.byte += ev.data.size;
+    if (s.byte >= P13_VIDEO_MAKS_BYTE && s.rec.state === 'recording') { s.rec.stop(); omxToast('Rekaman dihentikan otomatis - hampir 30 MB.'); }
+  };
+  s.rec.onstop = () => {
+    clearInterval(s.jam);
+    if (s.batal || !s.potong.length) return;
+    const mime = (s.rec.mimeType || tipe || 'video/webm').split(';')[0];
+    const b = new Blob(s.potong, { type: mime });
+    const f = new File([b], 'unboxing-' + s.noResi + '-' + Date.now() + (/mp4/.test(mime) ? '.mp4' : '.webm'), { type: mime });
+    rt2UnggahSumber(s.noResi, [{ file: f, sudahKompres: true }]);
+    omxToast('🎬 Video ' + (Math.round(b.size / 104857.6) / 10) + ' MB sedang diunggah di latar.' + (/webm/.test(mime) ? ' (format WEBM - bila Shopee menolak, pakai Chrome terbaru yang merekam MP4)' : ''));
+    if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = '⏺ Rekam lagi'; }
+    const i = el('p13wc-info'); if (i) { i.classList.remove('rekam'); i.textContent = 'Tersimpan · siap merekam lagi'; }
+  };
+  s.rec.start(1000);
+  btn.textContent = '⏹ Berhenti';
+  const i = el('p13wc-info'); if (i) i.classList.add('rekam');
+  s.jam = setInterval(() => {
+    const d = Math.floor((Date.now() - s.mulai) / 1000), info = el('p13wc-info');
+    if (info) info.textContent = `${Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')} · ${(s.byte / 1048576).toFixed(1).replace('.', ',')} / 30 MB`;
+  }, 500);
+}
+const p13MediaAlatAsli = p10MediaAlatHtml;
+p10MediaAlatHtml = function (noResi, det) {
+  let h = p13MediaAlatAsli(noResi, det);
+  if (!p13Laptop_()) return h;
+  const k = pgrAttr(noResi);
+  h = h.replace(/<label title="Buka kamera HP untuk memotret">[\s\S]*?<\/label>\s*<label title="Rekam video[^"]*">[\s\S]*?<\/label>/,
+    `<button type="button" onclick="p13Webcam('${k}', 'foto')" title="Buka webcam laptop untuk memotret">📷 Ambil foto</button>
+    <button type="button" onclick="p13Webcam('${k}', 'video')" title="Rekam dari webcam - berhenti otomatis sebelum 30 MB">🎥 Rekam video</button>`);
+  return h;
+};
+
+/* ---------------- Resi Masuk: bukti untuk banding - tarik ke Shopee / unduh (DN-261019-073736-298) ---------------- */
+function p13MediaDaftar_(det) {
+  const out = [];
+  (det.foto || []).forEach((m, i) => { const u = p10UrlFoto(m, 1600); if (u) out.push({ jenis: 'foto', url: u, nama: (m.nama || ('foto-' + (i + 1))).replace(/\.[^.]+$/, '') + '.jpg', mime: 'image/jpeg' }); });
+  (det.video || []).forEach((m, i) => {
+    const u = p10DiStorage(m) ? m.url : (m.url || (m.id ? 'https://drive.google.com/file/d/' + encodeURIComponent(m.id) + '/view' : ''));
+    if (u) { const mp4 = !/webm/i.test(String(m.mimeType || m.nama || '')); out.push({ jenis: 'video', url: u, nama: m.nama || ('video-' + (i + 1) + (mp4 ? '.mp4' : '.webm')), mime: mp4 ? 'video/mp4' : 'video/webm', storage: p10DiStorage(m) }); }
+  });
+  return out;
+}
+function p13DragMulai(e, a) {
+  try {
+    const u = a.dataset.url, nm = (a.dataset.nama || 'bukti').replace(/[:\\/]/g, '-');
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('DownloadURL', (a.dataset.mime || 'application/octet-stream') + ':' + nm + ':' + u);
+    e.dataTransfer.setData('text/uri-list', u);
+  } catch (er) { }
+}
+async function p13UnduhSatu_(x) {
+  try {
+    const r = await fetch(x.url); if (!r.ok) throw new Error('HTTP ' + r.status);
+    const b = await r.blob(), u = URL.createObjectURL(b), a = document.createElement('a');
+    a.href = u; a.download = x.nama; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 30000);
+    return true;
+  } catch (e) { window.open(x.url, '_blank', 'noopener'); return false; }
+}
+async function p13UnduhSemua(noResi) {
+  const det = rt2.detail[noResi]; if (!det) return;
+  const daftar = p13MediaDaftar_(det);
+  if (!daftar.length) { pgrToast('Belum ada foto / video'); return; }
+  pgrToast('Mengunduh ' + daftar.length + ' file bukti…');
+  let ok = 0;
+  for (const x of daftar) { if (await p13UnduhSatu_(x)) ok++; await new Promise(r => setTimeout(r, 400)); }
+  pgrToast(ok === daftar.length ? `✓ ${ok} file tersimpan di folder Unduhan - tinggal tarik ke Shopee` : `${ok} file terunduh, ${daftar.length - ok} dibuka di tab baru (simpan manual)`);
+}
+const p13RenderDetailAsli = rt2RenderDetail;
+rt2RenderDetail = function (noResi) {
+  p13RenderDetailAsli(noResi);
+  try {
+    const det = rt2.detail[noResi], box = el('rt2-detail-' + noResi); if (!det || !box) return;
+    const kartu = box.querySelector('.rt2-kartu-media'); if (!kartu) return;
+    const daftar = p13MediaDaftar_(det); if (!daftar.length) return;
+    const k = pgrAttr(noResi);
+    const isi = daftar.map(x => x.jenis === 'foto'
+      ? `<img src="${pgrAttr(x.url)}" alt="${pgrAttr(x.nama)}" draggable="true" data-url="${pgrAttr(x.url)}" data-nama="${pgrAttr(x.nama)}" data-mime="${x.mime}" ondragstart="p13DragMulai(event, this)" loading="lazy" onerror="this.style.display='none'" title="Tarik ke kotak upload Shopee / folder" />`
+      : `<a href="${pgrAttr(x.url)}" target="_blank" rel="noopener" draggable="true" data-url="${pgrAttr(x.url)}" data-nama="${pgrAttr(x.nama)}" data-mime="${x.mime}" ondragstart="p13DragMulai(event, this)" title="Tarik ke folder (desktop) lalu ke Shopee, atau Unduh semua">🎬 ${escapeHtml(x.nama)}</a>`).join('');
+    const blok = document.createElement('div'); blok.className = 'p13-tarik';
+    blok.innerHTML = `<div class="p13-tarik-kepala"><b>🖐 Bukti untuk banding</b><span style="opacity:.75;">tarik foto ke kotak upload Shopee · video: tarik ke folder / desktop dulu, atau unduh</span><button type="button" onclick="p13UnduhSemua('${k}')">⬇ Unduh semua bukti</button></div><div class="p13-tarik-list">${isi}</div>`;
+    const alat = kartu.querySelector('.p10-alat');
+    if (alat) kartu.insertBefore(blok, alat); else kartu.appendChild(blok);
+  } catch (e) { console.warn(e); }
+};
 </script>
 
 </body>
