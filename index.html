@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.26';
+  var VERSI = 'v2026.10.27';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -615,12 +615,17 @@
   };
 })();
 </script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OmniAI">
 <title>OmniAI - Waterground Coffee</title>
 <meta name="author" content="HERMAWAN" />
 <link rel="icon" type="image/png" href="https://i.ibb.co.com/cd2KqYx/Waterground3.png">
 <link rel="shortcut icon" type="image/png" href="https://i.ibb.co.com/cd2KqYx/Waterground3.png">
-<link rel="apple-touch-icon" href="https://i.ibb.co.com/cd2KqYx/Waterground3.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -62944,7 +62949,7 @@ document.addEventListener('paste', async e => {
 });
 
 /* ---------------- Beranda: Perlu Perhatian bisa diciutkan (DN-261019-132106-168) ---------------- */
-function p13AcCiut_() { let v = null; try { v = localStorage.getItem('p13_ac_ciut'); } catch (e) { } return v === null ? window.innerWidth < 1000 : v === '1'; }
+function p13AcCiut_() { if (document.documentElement.classList.contains('m2')) return false; let v = null; try { v = localStorage.getItem('p13_ac_ciut'); } catch (e) { } return v === null ? window.innerWidth < 1000 : v === '1'; }
 function p13AcTerapkan_() {
   const w = el('omxac'); if (!w || !w.parentNode || !w.parentNode.classList.contains('p12-ov-atas')) return;
   const ciut = p13AcCiut_();
@@ -62969,7 +62974,7 @@ setTimeout(() => { try { p13AcTerapkan_(); } catch (e) { } }, 500);
 /* ---------------- Resi Masuk: webcam di laptop + rekaman <= 30 MB (DN-261019-144350-873) ---------------- */
 const P13_VIDEO_MAKS_BYTE = 28.5 * 1048576; // berhenti otomatis di ±28,5 MB (batas Shopee 30 MB)
 let p13wc = null;
-function p13Laptop_() { return omxPerangkat_() !== 'hp'; }
+function p13Laptop_() { return omxPerangkat_() !== 'hp' && !document.documentElement.classList.contains('m2'); }
 function p13WcMatikan() {
   if (!p13wc) return;
   try { if (p13wc.rec && p13wc.rec.state !== 'inactive') { p13wc.batal = true; p13wc.rec.stop(); } } catch (e) { }
@@ -63109,6 +63114,403 @@ rt2RenderDetail = function (noResi) {
     if (alat) kartu.insertBefore(blok, alat); else kartu.appendChild(blok);
   } catch (e) { console.warn(e); }
 };
+</script>
+
+<!-- ===================================================================================
+     PAKET 13b (v2026.10.27) - OMNIAI MOBILE (tampilan HP baru seperti aplikasi):
+     5 tab bawah (Beranda · Pesanan · Scan · Stok · Lainnya), semua modul web dalam versi ringkas HP,
+     layar scan/memo HP lama tetap dipakai, menu mengikuti izin, Beranda tanpa omzet/margin untuk yang
+     tidak berizin Penjualan (mis. Admin Gudang), pasang sebagai aplikasi (PWA), tombol "Tampilan lama".
+     =================================================================================== -->
+<style>
+  html.m2 { --m2-nav: 64px; }
+  html.m2 body { overscroll-behavior-y: contain; }
+  html.m2 .web-shell { display: block !important; zoom: 1 !important; min-height: 100vh; }
+  html.m2 .web-sidebar, html.m2 .web-sidebar-toggle, html.m2 .web-topbar-breadcrumb, html.m2 .web-topbar-tanggal { display: none !important; }
+  html.m2 .web-shell.web-menu-top .web-sidebar { display: none !important; }
+  html.m2 .web-main { padding: 0 12px calc(var(--m2-nav) + 18px + env(safe-area-inset-bottom)) !important; min-height: 100vh; }
+  html.m2 .web-topbar { position: sticky; top: 0; z-index: 60; margin: 0 -12px 10px !important; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; background: var(--web-bg); border-bottom: 1px solid var(--web-border); gap: 8px; width: auto; }
+  html.m2 .web-topbar-judul { min-width: 0; flex: 1; }
+  html.m2 .web-topbar-judul h1, html.m2 .web-topbar-judul .web-topbar-title, html.m2 .web-topbar-judul > :not(.web-topbar-breadcrumb) { font-size: 17px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.m2 .omtb-nama-wrap { display: none !important; }
+  html.m2 .web-panel-row, html.m2 .web-toolbar-row { flex-wrap: wrap; }
+  html.m2 .web-panel-row { flex-direction: column; }
+  html.m2 .web-panel { padding: 12px; border-radius: 14px; overflow-x: auto; }
+  html.m2 .web-kpi-grid, html.m2 #ov-kpi-grid-utama { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-auto-flow: row !important; gap: 8px !important; }
+  html.m2 .web-kpi-value { font-size: 16px !important; overflow-wrap: anywhere; }
+  html.m2 .p12-ov-atas { flex-direction: column !important; }
+  html.m2 .p12-ov-atas > .omxac { flex: none !important; width: 100% !important; }
+  html.m2 .p13-ac-tgl, html.m2 .p13-ac-n { display: none !important; }
+  html.m2 .omxac.p13-ciut .omxac-daftar { display: flex !important; }
+  html.m2 table.web-table, html.m2 .web-panel > table, html.m2 .web-tab-content table:not(.print-sheet table) { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  html.m2 input:not([type=checkbox]):not([type=radio]):not([type=range]), html.m2 select, html.m2 textarea { font-size: 16px !important; }
+  html.m2 .omxm-latar { align-items: flex-end !important; padding: 0 !important; }
+  html.m2 .omxm { width: 100% !important; max-height: 92vh !important; border-radius: 18px 18px 0 0 !important; padding-bottom: env(safe-area-inset-bottom); }
+  html.m2 #omxlog-pill { bottom: calc(var(--m2-nav) + 14px + env(safe-area-inset-bottom)) !important; }
+  html.m2 #omxlog-panel { bottom: calc(var(--m2-nav) + 56px + env(safe-area-inset-bottom)) !important; }
+  html.m2 .dvn-fab { bottom: calc(var(--m2-nav) + 56px + env(safe-area-inset-bottom)) !important; }
+  html.m2 .oc-fab { bottom: calc(var(--m2-nav) + 14px + env(safe-area-inset-bottom)) !important; right: 14px !important; }
+  html.m2 .log-tindakan, html.m2 #pgr-toast, html.m2 .kat-toast, html.m2 .per-bulk-bar, html.m2 .aif-chip { bottom: calc(var(--m2-nav) + 14px + env(safe-area-inset-bottom)) !important; }
+  html.m2-native #m2-nav, html.m2-native #m2-lembar-latar, html.m2-native #user-badge { display: none !important; }
+  /* ---- tab bawah ---- */
+  #m2-nav { display: none; }
+  html.m2 #m2-nav { display: grid; position: fixed; left: 0; right: 0; bottom: 0; z-index: 8500; height: calc(var(--m2-nav) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--web-panel, #fff); border-top: 1px solid var(--web-border, #e2e8f0); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: stretch; font-family: inherit; }
+  #m2-nav button { border: 0; background: transparent; color: var(--web-text-dim, #64748b); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font: 600 11px/1.1 inherit; font-family: inherit; cursor: pointer; padding: 6px 2px; -webkit-tap-highlight-color: transparent; }
+  #m2-nav button svg { width: 23px; height: 23px; }
+  #m2-nav button.aktif { color: var(--web-accent, #4f46e5); }
+  #m2-nav button[hidden] { display: none; }
+  #m2-nav .m2-scan i { width: 54px; height: 54px; margin-top: -24px; border-radius: 50%; background: var(--web-accent, #4f46e5); color: #fff; display: grid; place-items: center; border: 4px solid var(--web-panel, #fff); box-sizing: border-box; }
+  #m2-nav .m2-scan i svg { width: 25px; height: 25px; }
+  #m2-nav b.m2-badge { position: absolute; margin: -24px 0 0 22px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 10px; line-height: 16px; }
+  /* ---- lembar bawah (Scan / Lainnya) ---- */
+  #m2-lembar-latar { position: fixed; inset: 0; z-index: 9400; background: rgba(15,23,42,.45); display: flex; align-items: flex-end; }
+  #m2-lembar-latar[hidden] { display: none; }
+  #m2-lembar { width: 100%; max-height: 88vh; overflow: auto; background: var(--web-bg, #f8fafc); color: var(--web-text, #0f172a); border-radius: 20px 20px 0 0; padding: 8px 14px calc(18px + env(safe-area-inset-bottom)); box-sizing: border-box; font-family: inherit; animation: m2Naik .18s ease-out; }
+  @keyframes m2Naik { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+  .m2-pegangan { width: 40px; height: 4px; border-radius: 4px; background: var(--web-border, #cbd5e1); margin: 4px auto 10px; }
+  .m2-lj { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .m2-lj h3 { margin: 0; font-size: 17px; flex: 1; }
+  .m2-lj button { border: 0; background: transparent; font-size: 20px; color: inherit; cursor: pointer; }
+  .m2-cari { width: 100%; box-sizing: border-box; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 12px; padding: 11px 14px; font: inherit; font-size: 16px; margin-bottom: 12px; }
+  .m2-grup { margin-bottom: 14px; }
+  .m2-grup-judul { font-size: 12px; font-weight: 700; color: var(--web-text-dim, #64748b); margin: 0 2px 6px; text-transform: none; }
+  .m2-kisi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .m2-ubin { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 14px; padding: 12px 6px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; font: 600 12px/1.25 inherit; font-family: inherit; text-align: center; cursor: pointer; min-height: 84px; }
+  .m2-ubin span.m2-ik { font-size: 24px; line-height: 1; }
+  .m2-ubin small { font-weight: 500; color: var(--web-text-dim, #64748b); font-size: 11px; }
+  .m2-baris { display: flex; align-items: center; gap: 12px; width: 100%; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 14px; padding: 14px; margin-bottom: 8px; font: inherit; text-align: left; cursor: pointer; }
+  .m2-baris .m2-ik { font-size: 26px; width: 34px; text-align: center; }
+  .m2-baris b { display: block; font-size: 15px; }
+  .m2-baris small { color: var(--web-text-dim, #64748b); font-size: 12px; }
+  .m2-baris .m2-panah { margin-left: auto; opacity: .45; font-size: 18px; }
+  .m2-kosong { color: var(--web-text-dim, #64748b); font-size: 13px; padding: 10px 2px; }
+  /* ---- Beranda tanpa omzet (izin Penjualan tidak ada) ---- */
+  html.omx-tanpa-jual #ov-view-dashboard { display: none !important; }
+  #m2-gudang { display: none; }
+  html.omx-tanpa-jual #m2-gudang { display: block; }
+  .m2g-halo { font-size: 18px; font-weight: 800; margin: 6px 2px 2px; }
+  .m2g-sub { font-size: 12.5px; color: var(--web-text-dim, #64748b); margin: 0 2px 12px; }
+  .m2g-angka { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .m2g-angka div { background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; padding: 12px; }
+  .m2g-angka small { display: block; font-size: 12px; color: var(--web-text-dim, #64748b); }
+  .m2g-angka b { font-size: 22px; }
+  .m2g-aksi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  @media (max-width: 600px) { .m2g-aksi { grid-template-columns: 1fr; } }
+  .m2g-tugas button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 12px; padding: 11px 12px; margin-bottom: 6px; font: inherit; font-size: 13.5px; cursor: pointer; }
+  .m2g-tugas button b { min-width: 34px; text-align: right; font-size: 15px; color: var(--web-accent, #4f46e5); }
+</style>
+
+<nav id="m2-nav" aria-label="Menu utama">
+  <button type="button" data-m2="beranda" onclick="m2Tab('beranda')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Beranda</button>
+  <button type="button" data-m2="pesanan" onclick="m2Tab('pesanan')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Pesanan</button>
+  <button type="button" data-m2="scan" class="m2-scan" onclick="m2Tab('scan')" aria-label="Scan"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg></i>Scan</button>
+  <button type="button" data-m2="stok" onclick="m2Tab('stok')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>Stok</button>
+  <button type="button" data-m2="lainnya" onclick="m2Tab('lainnya')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg>Lainnya</button>
+</nav>
+<div id="m2-lembar-latar" hidden onclick="if (event.target === this) m2TutupLembar()"><div id="m2-lembar" role="dialog" aria-modal="true" aria-labelledby="m2-lembar-judul"></div></div>
+
+<script>
+/* ======================== izin modul (berlaku di web & HP) ========================
+   Menu yang tidak bisa diakses role ini TIDAK ditampilkan. Owner selalu melihat semua. */
+const M2_IZIN_TAB = {
+  katalog: i => i.buatInvoice,
+  persediaan: i => i.mintaStock || i.adminPembelian,
+  pesanan: i => i.buatInvoice,
+  pengiriman: i => i.scanResiKeluar || i.scanResiMasuk || i.buatInvoice || i.kirimResi,
+  pembelian: i => i.adminPembelian || i.buatInvoice,
+  staff: () => false,
+  produksi: i => i.buatInvoice,
+  finance: i => i.buatInvoice,
+  promosi: i => i.buatInvoice
+};
+function m2Izin_() { return (currentUser && currentUser.izin) || {}; }
+function m2Owner_() { return !!(currentUser && currentUser.isOwner); }
+function m2BolehJual_() { return m2Owner_() || !!m2Izin_().buatInvoice; }
+function m2BolehTab_(tab) { if (m2Owner_()) return true; const f = M2_IZIN_TAB[tab]; return f ? !!f(m2Izin_()) : true; }
+function m2TerapkanIzinModul() {
+  if (!currentUser) return;
+  document.querySelectorAll('#app-web .web-nav .web-nav-group').forEach(g => {
+    const induk = g.querySelector(':scope > .web-nav-item[data-tab]'); if (!induk) return;
+    const tab = induk.dataset.tab;
+    if (!(tab in M2_IZIN_TAB)) return;
+    if (!m2BolehTab_(tab)) { g.style.display = 'none'; g.dataset.m2Izin = '0'; }
+    else if (g.dataset.m2Izin === '0') { g.style.display = ''; delete g.dataset.m2Izin; }
+  });
+  document.documentElement.classList.toggle('omx-tanpa-jual', !m2BolehJual_());
+}
+const m2SwitchWebAsli = switchKeTampilanWeb;
+switchKeTampilanWeb = function () { const r = m2SwitchWebAsli.apply(this, arguments); try { m2TerapkanIzinModul(); m2SisipGudang(); } catch (e) { } return r; };
+const m2BukaLokasiAsli = bukaLokasiWeb;
+bukaLokasiWeb = function (lokasi) {
+  if (lokasi && lokasi.tab && currentUser && !m2BolehTab_(lokasi.tab)) { try { m2BukaLokasiAsli({ tab: 'overview' }); } catch (e) { } return; }
+  return m2BukaLokasiAsli.apply(this, arguments);
+};
+
+/* ======================== aktif / tidaknya tampilan HP baru ======================== */
+const M2 = { aktif: false, native: false, tNative: 0, tab: 'beranda', pasang: null };
+function m2Diizinkan_() {
+  let v = null; try { v = localStorage.getItem('omni_m2'); } catch (e) { }
+  if (v === '0') return false;
+  return !!(paksaModeMobile || (typeof perangkatAdalahHP === 'function' && perangkatAdalahHP())) && window.innerWidth < 900;
+}
+function m2Mulai() {
+  if (M2.aktif || !currentUser) return;
+  M2.aktif = true;
+  document.documentElement.classList.add('m2');
+  try { el('user-menu-dropdown').style.display = 'none'; } catch (e) { }
+  paksaModeMobile = false; // pakai modul web (versi ringkas); pilihan "mobile" di perangkat tetap tersimpan
+  el('app').style.display = 'none';
+  switchKeTampilanWeb();
+  m2SusunNav();
+  m2SisipGudang();
+  try { m2Tandai(tabWebAktif === 'overview' ? 'beranda' : ''); } catch (e) { }
+}
+const m2LoginAsli = terapkanTampilanLogin;
+terapkanTampilanLogin = function () {
+  const r = m2LoginAsli.apply(this, arguments);
+  try { if (paksaModeMobile && m2Diizinkan_()) m2Mulai(); } catch (e) { console.warn(e); }
+  return r;
+};
+// Aplikasi bisa sudah login sebelum skrip ini dimuat
+setTimeout(() => { try { if (!M2.aktif && currentUser && el('app').style.display !== 'none' && paksaModeMobile && m2Diizinkan_()) m2Mulai(); } catch (e) { } }, 0);
+function m2TampilanLama() {
+  try { localStorage.setItem('omni_m2', '0'); } catch (e) { }
+  m2TutupLembar();
+  document.documentElement.classList.remove('m2', 'm2-native');
+  M2.aktif = false;
+  bukaMobileDariWeb();
+  omniToast('Tampilan lama aktif. Kembali ke tampilan baru: menu akun (kanan atas) → "Tampilan HP baru".');
+}
+function m2TampilanBaru() {
+  try { localStorage.removeItem('omni_m2'); } catch (e) { }
+  try { el('user-menu-dropdown').style.display = 'none'; } catch (e) { }
+  if (window.innerWidth >= 900) { omniToast('Tampilan HP baru hanya untuk layar HP.'); return; }
+  paksaModeMobile = true; m2Mulai();
+}
+
+/* ======================== tab bawah ======================== */
+function m2SusunNav() {
+  const i = m2Izin_(), o = m2Owner_();
+  const tampil = {
+    beranda: true,
+    pesanan: o || i.buatInvoice || i.printLabel,
+    scan: o || i.scanResiKeluar || i.scanResiMasuk || i.mintaStock || i.buatInvoice || i.printLabel,
+    stok: o || i.mintaStock || i.adminPembelian,
+    lainnya: true
+  };
+  document.querySelectorAll('#m2-nav [data-m2]').forEach(b => { b.hidden = !tampil[b.dataset.m2]; });
+}
+function m2Tandai(tab) { M2.tab = tab; document.querySelectorAll('#m2-nav [data-m2]').forEach(b => b.classList.toggle('aktif', b.dataset.m2 === tab)); }
+function m2Tab(tab) {
+  if (M2.native) m2KembaliWeb();
+  m2TutupLembar();
+  const i = m2Izin_(), o = m2Owner_();
+  if (tab === 'beranda') { gantiTabWeb('overview'); m2Tandai('beranda'); window.scrollTo(0, 0); return; }
+  if (tab === 'pesanan') {
+    if (o || i.buatInvoice) { bukaLokasiWeb({ tab: 'pesanan', sub: 'semua' }); m2Tandai('pesanan'); }
+    else m2Native(() => openPesananManual());
+    return;
+  }
+  if (tab === 'stok') { bukaLokasiWeb({ tab: 'persediaan', sub: 'monitor' }); m2Tandai('stok'); return; }
+  if (tab === 'scan') return m2LembarScan();
+  if (tab === 'lainnya') return m2LembarLainnya();
+}
+const m2GantiTabAsli = gantiTabWeb;
+gantiTabWeb = function (tab) {
+  const r = m2GantiTabAsli.apply(this, arguments);
+  try {
+    if (M2.aktif) m2Tandai(tab === 'overview' ? 'beranda' : tab === 'pesanan' ? 'pesanan' : tab === 'persediaan' ? 'stok' : '');
+    if (tab === 'overview' && !m2BolehJual_()) m2RenderGudang(true);
+  } catch (e) { }
+  return r;
+};
+
+/* ======================== lembar bawah ======================== */
+function m2BukaLembar(judul, isi) {
+  const l = el('m2-lembar');
+  l.innerHTML = `<div class="m2-pegangan" aria-hidden="true"></div><div class="m2-lj"><h3 id="m2-lembar-judul">${omxEsc(judul)}</h3><button type="button" onclick="m2TutupLembar()" aria-label="Tutup">✕</button></div>${isi}`;
+  el('m2-lembar-latar').hidden = false;
+  return l;
+}
+function m2TutupLembar() { const x = el('m2-lembar-latar'); if (x) x.hidden = true; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('m2-lembar-latar') && !el('m2-lembar-latar').hidden) m2TutupLembar(); });
+function m2Baris_(ik, judul, ket, aksi) { return `<button type="button" class="m2-baris" onclick="${aksi}"><span class="m2-ik" aria-hidden="true">${ik}</span><span><b>${omxEsc(judul)}</b><small>${omxEsc(ket)}</small></span><span class="m2-panah" aria-hidden="true">›</span></button>`; }
+function m2DaftarScan_() {
+  const i = m2Izin_(), o = m2Owner_(), d = [];
+  if (o || i.scanResiKeluar) d.push(['📦', 'Scan resi keluar', 'Paket yang diserahkan ke kurir', "m2Native(() => startScan('keluar'))"]);
+  if (o || i.scanResiMasuk) d.push(['📥', 'Scan resi masuk', 'Retur pembeli atau barang pembelian datang', 'm2Native(() => showSubmenu())']);
+  if (o || i.mintaStock) d.push(['📝', 'Memo gudang', 'Minta stok, barang masuk, rusak/hilang, opname', 'm2Native(() => bukaMemoGudangMobile())']);
+  if (o || i.buatInvoice || i.printLabel) d.push(['🧾', i.buatInvoice || o ? 'Pesanan manual (HP)' : 'Cetak resi pesanan manual', i.buatInvoice || o ? 'Buat invoice, kirim, cetak label' : 'Cetak label pesanan manual', 'm2Native(() => openPesananManual())']);
+  if (o || i.buatInvoice) d.push(['💸', 'Input biaya operasional', 'Catat pengeluaran + foto nota', 'm2Native(() => fbmBuka())']);
+  return d;
+}
+function m2LembarScan() {
+  const d = m2DaftarScan_();
+  m2BukaLembar('Mau scan / catat apa?', d.length ? d.map(x => m2Baris_(x[0], x[1], x[2], x[3])).join('') : '<div class="m2-kosong">Akun ini belum punya izin scan. Minta Owner menambahkan izin di Kelola Staff.</div>');
+}
+const M2_IKON = { overview: '🏠', katalog: '🏷️', persediaan: '📦', pesanan: '🧾', pengiriman: '🚚', pembelian: '🛒', staff: '👥', produksi: '🔥', finance: '💰', promosi: '📣', conner: '🔧', aiagent: '🤖', pengaturan: '⚙️', tagihan: '💳', pesandev: '💬' };
+function m2Terlihat_(x) { for (let n = x; n && n.id !== 'app-web'; n = n.parentElement) { if (n.style && n.style.display === 'none') return false; if (n.hidden) return false; } return true; }
+function m2KumpulMenu_() {
+  const grup = [];
+  const nav = document.querySelector('#app-web .web-nav'); if (!nav) return grup;
+  const utama = [];
+  nav.querySelectorAll(':scope > .web-nav-item').forEach(a => { if (m2Terlihat_(a)) utama.push({ el: a, label: a.textContent.trim(), ik: a.id === 'agp-nav' ? '📈' : (M2_IKON[a.dataset.tab] || '•') }); });
+  if (utama.length) grup.push({ judul: 'Utama', item: utama });
+  nav.querySelectorAll(':scope > .web-nav-group').forEach(g => {
+    if (!m2Terlihat_(g)) return;
+    const induk = g.querySelector(':scope > .web-nav-item'); if (!induk) return;
+    const tab = induk.dataset.tab || '';
+    if (tab && !m2BolehTab_(tab)) return;
+    const sub = Array.from(g.querySelectorAll('.web-nav-sub')).filter(m2Terlihat_).map(a => ({ el: a, label: a.textContent.replace(/\s+/g, ' ').trim(), ik: M2_IKON[tab] || '•' }));
+    if (tab === 'pengiriman') {
+      sub.push({ el: { tagName: 'X', click: () => pengirimanBukaSub('resi-masuk') }, label: 'Resi Masuk & Retur', ik: '↩️' });
+      sub.push({ el: { tagName: 'X', click: () => pengirimanBukaSub('transfer-gudang') }, label: 'Pengiriman Kilat', ik: '⚡' });
+      sub.push({ el: { tagName: 'X', click: () => pengirimanBukaSub('belum-selesai') }, label: 'Belum Selesai', ik: '⏳' });
+    }
+    grup.push({ judul: induk.textContent.trim(), item: sub.length ? sub : [{ el: induk, label: induk.textContent.trim(), ik: M2_IKON[tab] || '•' }] });
+  });
+  const akun = [];
+  ['btn-nav-pengaturan', 'btn-nav-tagihan', 'btn-nav-pesandev', 'btn-nav-devnote', 'btn-nav-statistik'].forEach(id => { const a = el(id); if (a && a.style.display !== 'none') akun.push({ el: a, label: a.textContent.trim(), ik: { 'btn-nav-pengaturan': '⚙️', 'btn-nav-tagihan': '💳', 'btn-nav-pesandev': '💬', 'btn-nav-devnote': '📝', 'btn-nav-statistik': '📊' }[id] }); });
+  if (akun.length) grup.push({ judul: 'Sistem', item: akun });
+  return grup;
+}
+let m2MenuIndeks = [];
+function m2LembarLainnya() {
+  const grup = m2KumpulMenu_();
+  m2MenuIndeks = [];
+  const html = grup.map(g => `<div class="m2-grup" data-m2-grup><div class="m2-grup-judul">${omxEsc(g.judul)}</div><div class="m2-kisi">${g.item.map(x => { const n = m2MenuIndeks.push(x.el) - 1; return `<button type="button" class="m2-ubin" data-cari="${pgrAttr((g.judul + ' ' + x.label).toLowerCase())}" onclick="m2BukaMenu(${n})"><span class="m2-ik" aria-hidden="true">${x.ik}</span>${omxEsc(x.label)}</button>`; }).join('')}</div></div>`).join('');
+  const scan = m2DaftarScan_();
+  const layarHp = scan.length ? `<div class="m2-grup" data-m2-grup><div class="m2-grup-judul">Layar HP (scan & catat)</div><div class="m2-kisi">${scan.map(x => `<button type="button" class="m2-ubin" data-cari="${pgrAttr((x[1] + ' ' + x[2]).toLowerCase())}" onclick="m2TutupLembar(); ${x[3].replace(/"/g, '&quot;')}"><span class="m2-ik" aria-hidden="true">${x[0]}</span>${omxEsc(x[1])}</button>`).join('')}</div></div>` : '';
+  const pasang = m2BisaPasang_();
+  const akun = `<div class="m2-grup" data-m2-grup><div class="m2-grup-judul">Akun & aplikasi</div>
+    ${pasang ? m2Baris_('📲', 'Pasang sebagai aplikasi', pasang, 'm2Pasang()') : ''}
+    ${m2Owner_() ? m2Baris_('🖨️', 'Tes printer Bluetooth', 'Cek sambungan printer label', 'm2Native(() => bukaTesBluetooth())') : ''}
+    ${m2Baris_('↩️', 'Tampilan lama', 'Kembali ke tampilan HP sebelumnya', 'm2TampilanLama()')}
+    ${m2Baris_('🚪', 'Keluar', omxEsc((currentUser && (currentUser.nama + ' · ' + (currentUser.role || ''))) || ''), 'm2TutupLembar(); logout()')}</div>`;
+  m2BukaLembar('Semua fitur', `<input type="search" class="m2-cari" id="m2-cari" placeholder="Cari fitur: retur, harga, laba, opname…" oninput="m2CariMenu(this.value)" autocomplete="off" />` + layarHp + html + akun);
+  m2Tandai('lainnya');
+}
+function m2CariMenu(q) {
+  q = String(q || '').toLowerCase().trim();
+  document.querySelectorAll('#m2-lembar .m2-ubin[data-cari]').forEach(b => { b.style.display = !q || b.dataset.cari.includes(q) ? '' : 'none'; });
+  document.querySelectorAll('#m2-lembar [data-m2-grup]').forEach(g => { const ada = Array.from(g.querySelectorAll('.m2-ubin, .m2-baris')).some(b => b.style.display !== 'none' && (!q || !b.classList.contains('m2-baris'))); g.style.display = ada ? '' : 'none'; });
+}
+function m2BukaMenu(n) {
+  const a = m2MenuIndeks[n]; if (!a) return;
+  m2TutupLembar();
+  if (a.tagName === 'A' && a.target === '_blank') { window.open(a.href, '_blank', 'noopener'); return; }
+  try { a.click(); } catch (e) { console.warn(e); }
+  setTimeout(() => { window.scrollTo(0, 0); m2Tandai(tabWebAktif === 'overview' ? 'beranda' : tabWebAktif === 'pesanan' ? 'pesanan' : tabWebAktif === 'persediaan' ? 'stok' : 'lainnya'); }, 50);
+}
+
+/* ======================== layar HP lama (scan, memo, pesanan manual) ======================== */
+function m2Native(fn) {
+  m2TutupLembar();
+  M2.native = true; M2.tNative = Date.now();
+  document.documentElement.classList.add('m2-native');
+  paksaModeMobile = true;
+  try { omniTemaSinkron('mobile'); } catch (e) { }
+  el('app-web').style.display = 'none';
+  el('app').style.display = 'block';
+  try { terapkanKunciTemaMobile(); } catch (e) { }
+  try { hideAllScreens(); el('screen-menu').style.display = 'flex'; fn(); } catch (e) { console.warn(e); omniToast('Gagal membuka layar: ' + e.message, 'error'); m2KembaliWeb(); }
+}
+function m2KembaliWeb() {
+  if (!M2.native) return;
+  M2.native = false;
+  document.documentElement.classList.remove('m2-native');
+  try { stopKirimCamera(); } catch (e) { }
+  paksaModeMobile = false;
+  try { hideAllScreens(); } catch (e) { }
+  el('app').style.display = 'none';
+  el('app-web').style.display = 'block';
+  try { omniTemaSinkron('web'); } catch (e) { }
+  m2Tandai(tabWebAktif === 'overview' ? 'beranda' : tabWebAktif === 'pesanan' ? 'pesanan' : tabWebAktif === 'persediaan' ? 'stok' : '');
+  if (tabWebAktif === 'overview' && !m2BolehJual_()) m2RenderGudang(true);
+}
+// Tombol "Kembali" di layar HP lama membuka menu HP lama -> di tampilan baru langsung kembali ke aplikasi
+(function () {
+  const menu = el('screen-menu'); if (!menu || !window.MutationObserver) return;
+  new MutationObserver(() => {
+    if (!M2.native || Date.now() - M2.tNative < 700) return;
+    if (menu.style.display !== 'none' && getComputedStyle(menu).display !== 'none') m2KembaliWeb();
+  }).observe(menu, { attributes: true, attributeFilter: ['style'] });
+})();
+
+/* ======================== Beranda tanpa omzet / margin ========================
+   Akun tanpa izin Penjualan (mis. Admin Gudang): Beranda hanya berisi jalan pintas kerja + jumlah resi + tugas.
+   Server sudah tidak mengirim angka penjualan ke akun ini; tampilan Beranda keuangan juga disembunyikan. */
+function m2SisipGudang() {
+  const tab = el('web-tab-overview'); if (!tab || el('m2-gudang')) return;
+  const w = document.createElement('div'); w.id = 'm2-gudang';
+  tab.insertBefore(w, tab.firstChild);
+  m2TerapkanIzinModul();
+  if (!m2BolehJual_()) m2RenderGudang(true);
+}
+let m2GudangT = 0, m2GudangAngka = null;
+const M2_TUGAS_SEMBUNYI = { belum_bayar: 1, promo_gagal: 1, promo_jadwal: 1, promo_tayang: 1, sku_tanpa_master: 1 };
+function m2RenderGudang(muat) {
+  const w = el('m2-gudang'); if (!w || m2BolehJual_()) return;
+  const nama = String((currentUser && currentUser.nama) || '').split(' ')[0];
+  const jam = new Date().getHours(), salam = jam < 11 ? 'Selamat pagi' : jam < 15 ? 'Selamat siang' : jam < 18 ? 'Selamat sore' : 'Selamat malam';
+  const a = m2GudangAngka || {};
+  const fmt = v => v === null || v === undefined ? '…' : Number(v).toLocaleString('id-ID');
+  const i = m2Izin_();
+  const kotak = [];
+  if (i.scanResiKeluar) kotak.push(`<div><small>Resi keluar hari ini</small><b>${fmt(a.keluar)}</b></div>`);
+  if (i.scanResiMasuk) kotak.push(`<div><small>Resi masuk hari ini</small><b>${fmt(a.retur)}</b></div>`);
+  const butir = ((omxacData && omxacData.data && omxacData.data.butir) || []).filter(b => !M2_TUGAS_SEMBUNYI[b.kunci]);
+  const tugas = butir.length ? butir.map((b, n) => `<button type="button" onclick="m2KlikTugas('${pgrAttr(b.kunci)}', '${pgrAttr(b.tujuan || '')}')"><b>${Number(b.jumlah).toLocaleString('id-ID')}</b><span>${omxEsc(b.label)}</span></button>`).join('') : '<div class="m2-kosong">Belum ada yang perlu dikerjakan. Mulai dengan tombol Scan di bawah.</div>';
+  w.innerHTML = `<div class="m2g-halo">${salam}${nama ? ', ' + omxEsc(nama) : ''} 👋</div>
+    <div class="m2g-sub">${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+    ${kotak.length ? `<div class="m2g-angka">${kotak.join('')}</div>` : ''}
+    <div class="m2g-aksi">${m2DaftarScan_().map(x => m2Baris_(x[0], x[1], x[2], x[3])).join('')}</div>
+    <div class="m2-grup-judul">Perlu dikerjakan</div><div class="m2g-tugas">${tugas}</div>`;
+  if (muat && Date.now() - m2GudangT > 60000) { m2GudangT = Date.now(); m2MuatAngkaGudang(); try { omxacMuat(false); } catch (e) { } }
+}
+async function m2MuatAngkaGudang() {
+  try {
+    const d = await postJson({ aksi: 'hitung_menu', email: currentUserEmail() }, 20000, true);
+    if (d && d.success) { m2GudangAngka = d.jumlah || {}; m2RenderGudang(false); }
+  } catch (e) { }
+}
+function m2KlikTugas(kunci, tujuan) {
+  const i = m2Izin_();
+  if (kunci === 'pesanan_siap' && !m2BolehTab_('pesanan')) { if (i.scanResiKeluar) m2Native(() => startScan('keluar')); return; }
+  if ((tujuan === 'persediaan' || tujuan === 'validasi' || tujuan === 'memogudang') && !m2BolehTab_('persediaan')) { if (i.mintaStock) m2Native(() => bukaMemoGudangMobile()); return; }
+  if (tujuan === 'pengiriman' && !m2BolehTab_('pengiriman')) return;
+  try { if (OMXAC_TUJUAN[tujuan]) OMXAC_TUJUAN[tujuan](); } catch (e) { }
+}
+const m2AcRenderAsli = omxacRender;
+omxacRender = function () { m2AcRenderAsli(); try { if (!m2BolehJual_()) m2RenderGudang(false); } catch (e) { } };
+
+/* ======================== pasang sebagai aplikasi (PWA) ======================== */
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); M2.pasang = e; });
+window.addEventListener('appinstalled', () => { M2.pasang = null; omniToast('OmniAI terpasang di layar HP.'); });
+function m2Standalone_() { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+function m2BisaPasang_() {
+  if (m2Standalone_()) return '';
+  if (M2.pasang) return 'Ikon OmniAI di layar HP, terbuka layar penuh';
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) return 'iPhone: tombol Bagikan (kotak panah) → Tambahkan ke Layar Utama';
+  return 'Menu browser (⋮) → Instal aplikasi / Tambahkan ke layar utama';
+}
+async function m2Pasang() {
+  if (M2.pasang) { M2.pasang.prompt(); try { await M2.pasang.userChoice; } catch (e) { } M2.pasang = null; m2TutupLembar(); return; }
+  omniKonfirmasi({ judul: 'Pasang OmniAI di HP', ikon: '📲', html: /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'Di Safari: ketuk tombol <b>Bagikan</b> (kotak dengan panah ke atas) → <b>Tambahkan ke Layar Utama</b> → <b>Tambah</b>.' : 'Di Chrome: ketuk <b>⋮</b> (kanan atas) → <b>Instal aplikasi</b> atau <b>Tambahkan ke layar utama</b> → <b>Instal</b>.', ya: 'Mengerti', tidak: 'Tutup' });
+}
+if ('serviceWorker' in navigator && /^https:/.test(location.protocol)) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => { }); });
+}
+
+/* ======================== tombol "Tampilan HP baru" di menu akun tampilan lama ======================== */
+(function () {
+  const dd = el('user-menu-dropdown'); if (!dd || el('m2-tombol-baru')) return;
+  const b = document.createElement('button'); b.type = 'button'; b.id = 'm2-tombol-baru'; b.textContent = '✨ Tampilan HP baru';
+  const contoh = dd.querySelector('button'); if (contoh) b.className = contoh.className;
+  b.onclick = m2TampilanBaru;
+  dd.insertBefore(b, dd.firstChild);
+})();
+window.addEventListener('resize', () => { if (M2.aktif && window.innerWidth >= 900 && !M2.native) { /* layar jadi lebar (mis. tablet diputar) */ document.documentElement.classList.remove('m2'); M2.aktif = false; } });
 </script>
 
 </body>
