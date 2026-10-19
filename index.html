@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.27';
+  var VERSI = 'v2026.10.28';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -8676,6 +8676,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
     </div>
 
     <div id="screen-menu" style="display:none;">
+      <a href="app.html" class="menu-btn" style="text-decoration:none;background:#0f766e;color:#fff;justify-content:center;"><span class="label">📱 BUKA APLIKASI OMNIAI (BARU)</span></a>
       <button class="menu-btn keluar" onclick="startScan('keluar')">
         <span class="icon"><span class="oi oi-upload" aria-hidden="true"></span></span>
         <span class="label">SCAN RESI KELUAR</span>
@@ -63248,9 +63249,13 @@ bukaLokasiWeb = function (lokasi) {
 
 /* ======================== aktif / tidaknya tampilan HP baru ======================== */
 const M2 = { aktif: false, native: false, tNative: 0, tab: 'beranda', pasang: null };
+// v2026.10.28: aplikasi HP baru ada di app.html. Di sini tampilan ringkas hanya dipakai bila dibuka dari aplikasi
+// (?tampilan=ringkas) atau dipilih sendiri (omni_m2 = '1'); default HP = tampilan lama (scan resi).
+const M2_URL = new URLSearchParams(location.search);
 function m2Diizinkan_() {
   let v = null; try { v = localStorage.getItem('omni_m2'); } catch (e) { }
-  if (v === '0') return false;
+  if (v === '0' && M2_URL.get('tampilan') !== 'ringkas') return false;
+  if (v !== '1' && M2_URL.get('tampilan') !== 'ringkas') return false;
   return !!(paksaModeMobile || (typeof perangkatAdalahHP === 'function' && perangkatAdalahHP())) && window.innerWidth < 900;
 }
 function m2Mulai() {
@@ -63263,16 +63268,36 @@ function m2Mulai() {
   switchKeTampilanWeb();
   m2SusunNav();
   m2SisipGudang();
+  if (M2_URL.get('dari') === 'app') m2ModeDariApp_();
   try { m2Tandai(tabWebAktif === 'overview' ? 'beranda' : ''); } catch (e) { }
 }
 const m2LoginAsli = terapkanTampilanLogin;
 terapkanTampilanLogin = function () {
   const r = m2LoginAsli.apply(this, arguments);
-  try { if (paksaModeMobile && m2Diizinkan_()) m2Mulai(); } catch (e) { console.warn(e); }
+  try { if (paksaModeMobile && m2Diizinkan_()) m2Mulai(); else m2BukaDariLink_(); } catch (e) { console.warn(e); }
   return r;
 };
 // Aplikasi bisa sudah login sebelum skrip ini dimuat
-setTimeout(() => { try { if (!M2.aktif && currentUser && el('app').style.display !== 'none' && paksaModeMobile && m2Diizinkan_()) m2Mulai(); } catch (e) { } }, 0);
+setTimeout(() => { try { if (!M2.aktif && currentUser && el('app').style.display !== 'none' && paksaModeMobile) { if (m2Diizinkan_()) m2Mulai(); else m2BukaDariLink_(); } } catch (e) { } }, 0);
+/* v2026.10.28: tautan dari aplikasi HP baru (app.html) ke layar kerja lama: ?buka=memo-gudang | pesanan-manual | biaya | scan-keluar | scan-retur | scan-stock */
+const M2_BUKA = { 'memo-gudang': () => bukaMemoGudangMobile(), 'pesanan-manual': () => openPesananManual(), 'biaya': () => fbmBuka(), 'scan-keluar': () => startScan('keluar'), 'scan-retur': () => startScan('retur'), 'scan-stock': () => startScan('stock') };
+let m2BukaSudah = false;
+function m2BukaDariLink_() {
+  const k = M2_URL.get('buka'); if (!k || m2BukaSudah || !M2_BUKA[k] || !currentUser || !paksaModeMobile) return;
+  m2BukaSudah = true;
+  setTimeout(() => { try { M2_BUKA[k](); } catch (e) { console.warn(e); } m2TombolKembaliApp_(); }, 350);
+}
+function m2TombolKembaliApp_() {
+  if (el('m2-ke-app')) return;
+  const a = document.createElement('a'); a.id = 'm2-ke-app'; a.href = 'app.html'; a.textContent = '‹ Aplikasi';
+  a.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:8px;z-index:9600;background:#0f766e;color:#fff;font:700 13px/1 system-ui,sans-serif;padding:9px 12px;border-radius:999px;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,.25);';
+  document.body.appendChild(a);
+}
+function m2ModeDariApp_() {
+  const n = el('m2-nav'); if (n) n.style.display = 'none';
+  document.documentElement.style.setProperty('--m2-nav', '0px');
+  m2TombolKembaliApp_();
+}
 function m2TampilanLama() {
   try { localStorage.setItem('omni_m2', '0'); } catch (e) { }
   m2TutupLembar();
@@ -63282,7 +63307,7 @@ function m2TampilanLama() {
   omniToast('Tampilan lama aktif. Kembali ke tampilan baru: menu akun (kanan atas) → "Tampilan HP baru".');
 }
 function m2TampilanBaru() {
-  try { localStorage.removeItem('omni_m2'); } catch (e) { }
+  try { localStorage.setItem('omni_m2', '1'); } catch (e) { }
   try { el('user-menu-dropdown').style.display = 'none'; } catch (e) { }
   if (window.innerWidth >= 900) { omniToast('Tampilan HP baru hanya untuk layar HP.'); return; }
   paksaModeMobile = true; m2Mulai();
