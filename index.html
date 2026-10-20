@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.32';
+  var VERSI = 'v2026.10.33';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -11806,6 +11806,13 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           </div>
           <button type="button" class="ksh-banner" id="ksh-banner" hidden onclick="kstBukaSubMenu('hutang')"></button>
           <!-- CARD VIEW (dulu tabel) - dirender kstRenderKartuStaff() -->
+          <div class="stf-alat" role="search">
+            <input type="search" id="kst-cari" class="web-search-input" placeholder="Cari nama, email, No HP…" aria-label="Cari staff" oninput="kstRenderKartuStaff()" style="min-width:220px;" />
+            <select id="kst-saring-role" class="web-form-input" aria-label="Saring role" onchange="kstRenderKartuStaff()"><option value="">Semua role</option></select>
+            <select id="kst-urut" class="web-form-input" aria-label="Urutkan" onchange="kstRenderKartuStaff()">
+              <option value="nama">Nama A-Z</option><option value="login">Login terakhir</option><option value="resi">Resi discan terbanyak</option><option value="gabung">Bergabung terbaru</option>
+            </select>
+          </div>
           <div class="kst-grid" id="kst-staff-body"></div>
           <div class="web-placeholder" id="kst-staff-empty" style="display:none;">Belum ada staff terdaftar.</div>
 
@@ -26121,14 +26128,31 @@ function kstRenderKartuStaff() {
     ? `<div class="kst-info-baris"><span>${ikon}</span><span>${escapeHtml(nilai)}</span></div>`
     : `<div class="kst-info-baris kosong"><span>${ikon}</span><span>${labelKosong}</span></div>`;
 
-  el('kst-staff-body').innerHTML = kstDaftarStaffCache.map(s => {
+  // v2026.10.33: cari / saring role / urutkan + foto akun Google
+  const cari = String((el('kst-cari') && el('kst-cari').value) || '').trim().toLowerCase();
+  const selRole = el('kst-saring-role'), roleSar = selRole ? selRole.value : '';
+  if (selRole) {
+    const roles = [...new Set(kstDaftarStaffCache.map(s => s.role || 'Tanpa Role'))].sort();
+    const opsi = '<option value="">Semua role</option>' + roles.map(r => `<option value="${pgrAttr(r)}">${escapeHtml(r)}</option>`).join('');
+    if (selRole.dataset.opsi !== opsi) { selRole.innerHTML = opsi; selRole.dataset.opsi = opsi; selRole.value = roleSar; }
+  }
+  const urut = (el('kst-urut') && el('kst-urut').value) || 'nama';
+  const tglMs = t => { const d = Date.parse(String(t || '').replace(',', '')); return isNaN(d) ? 0 : d; };
+  let tampil = kstDaftarStaffCache.filter(s => (!roleSar || (s.role || 'Tanpa Role') === roleSar)
+    && (!cari || [s.nama, s.email, s.noHp, s.role, s.alamat].join(' ').toLowerCase().indexOf(cari) >= 0));
+  tampil = tampil.slice().sort((a, b) => urut === 'login' ? tglMs(b.terakhirLogin) - tglMs(a.terakhirLogin)
+    : urut === 'resi' ? (Number(b.jumlahResiScan) || 0) - (Number(a.jumlahResiScan) || 0)
+    : urut === 'gabung' ? tglMs(b.tanggalBergabung) - tglMs(a.tanggalBergabung)
+    : String(a.nama || a.email).localeCompare(String(b.nama || b.email), 'id'));
+  if (kstDaftarStaffCache.length && !tampil.length) { el('kst-staff-body').innerHTML = '<div class="kst-grid-pesan">Tidak ada staff yang cocok dengan pencarian.</div>'; return; }
+  el('kst-staff-body').innerHTML = tampil.map(s => {
     const isOwner = String(s.role || '').toLowerCase() === 'owner';
     const diriSendiri = String(s.email || '').toLowerCase() === String(currentUserEmail() || '').toLowerCase();
     const bisaNonaktif = !isOwner && !diriSendiri;
     return `
     <div class="kst-kartu" id="kst-kartu-${s.row}">
       <div class="kst-kartu-isi">
-        <div class="kst-avatar" aria-hidden="true">${escapeHtml(kstInisial(s.nama || s.email))}</div>
+        <div class="kst-avatar" aria-hidden="true">${s.foto ? `<img src="${pgrAttr(s.foto)}" alt="" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;display:block;" onerror="this.replaceWith(document.createTextNode(${pgrAttr(JSON.stringify(kstInisial(s.nama || s.email)))}))">` : escapeHtml(kstInisial(s.nama || s.email))}</div>
         <div class="kst-nama">${escapeHtml(s.nama || s.email)}</div>
         <div class="kst-badge-baris">
           <span class="kst-badge ${kstKelasBadgeRole(s.role)}">${escapeHtml(s.role || 'Tanpa Role')}</span>
@@ -31222,9 +31246,10 @@ function tpRenderBarisMarketplace() {
         <option value="Shopee" ${r.platform === 'Shopee' ? 'selected' : ''}>Shopee</option>
         <option value="Website" ${r.platform === 'Website' ? 'selected' : ''}>Website</option>
       </select>
-      <input class="web-form-input kat-input-sku" style="margin:0; flex:1; min-width:0; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU" oninput="tpBarisMarketplace[${idx}].sku = this.value" />
+      <input class="web-form-input kat-input-sku" style="margin:0; flex:1; min-width:0; font-size:14px;" value="${escapeHtml(r.sku)}" placeholder="Kode SKU" oninput="tpBarisMarketplace[${idx}].sku = this.value; tpBarisMarketplace[${idx}].cek = null" onchange="tpCekSkuMp(${idx})" />
+      ${typeof tpCekIkon_ === 'function' ? tpCekIkon_(r, idx) : ''}
       <button type="button" class="mg-hapus-btn" style="flex:none;" title="Hapus baris" onclick="tpHapusBarisMarketplace(${idx})">❌</button>
-    </div>
+    </div>${r.cek && r.cek.pesan && r.cek.status !== 'ada' && r.cek.status !== 'cek' ? `<div class="tp-cek-pesan ${r.cek.status}" role="status">${escapeHtml(r.cek.pesan)}</div>` : ''}
   `).join('') || '<div style="font-size:11.5px; color:var(--web-text-dim); text-align:center; padding:6px 0;">Belum ada SKU Marketplace.</div>';
   skuUrutPasang(wrap, () => tpBarisMarketplace, tpRenderBarisMarketplace);
 }
@@ -31240,7 +31265,9 @@ function tpHapusBarisMarketplace(idx) {
 }
 function tpUbahPlatformMarketplace(idx, platformBaru) {
   tpBarisMarketplace[idx].platform = platformBaru;
+  tpBarisMarketplace[idx].cek = null;
   tpRenderBarisMarketplace();
+  if (tpBarisMarketplace[idx].sku) tpCekSkuMp(idx);
 }
 
 async function katalogBukaModalTambahProduk() {
@@ -57656,6 +57683,7 @@ async function omniCetakInline(idSumber, judul) {
   if (!wadah) { wadah = document.createElement('div'); wadah.id = 'omni-cetak-inline'; wadah.setAttribute('aria-hidden', 'true'); document.body.appendChild(wadah); }
   wadah.innerHTML = '<div class="print-sheet-wrapper">' + html + '</div>';
   omniCetakRapikanLembar_(wadah);
+  try { if (typeof lblSiapkanCetak_ === 'function') await lblSiapkanCetak_(wadah); } catch (e) { console.warn('Paginasi label', e); }
   const thermalLama = document.body.classList.contains('cetak-thermal');
   const judulLama = document.title;
   document.body.classList.toggle('cetak-thermal', modeCetakAktif_() === 'thermal');
@@ -63694,5 +63722,182 @@ window.addEventListener('resize', () => { if (M2.aktif && window.innerWidth >= 9
     body.cetak-thermal .print-sheet .prod-sku { font-size: 9.5px !important; font-weight: 600 !important; }
   }
 </style>
+<!-- ===================================================================================
+     PAKET 17 (v2026.10.33) - Cetak label: halaman dihitung sesuai kertas, urutan terakhir dulu,
+     rangkuman kecil di kaki tiap halaman (DN-261020-114430-924) · Kartu staf + foto (DN-261015-171925-399)
+     =================================================================================== -->
+<style>
+  /* Pengukur halaman label (di luar layar) - ukuran huruf sama dengan saat dicetak mode thermal */
+  .lbl-ukur { position: fixed; left: -20000px; top: 0; visibility: hidden; pointer-events: none; background: #fff; }
+  .lbl-ukur .print-sheet { transform: none !important; min-height: 0 !important; height: auto !important; width: 100% !important; max-width: none !important;
+    margin: 0 !important; padding: 2.5mm 3mm !important; box-shadow: none !important; border-radius: 0 !important; box-sizing: border-box; }
+  .lbl-ukur.thermal .print-sheet { font-size: 12px !important; font-weight: 700 !important; }
+  .lbl-ukur.thermal .print-sheet th { font-size: 10px !important; font-weight: 800 !important; }
+  .lbl-ukur.thermal .print-sheet :is(.prod-sku, .addr-line, .doc-meta, .resi-label-small, .pay-title, .pay-value, .val-line, .page-indicator) { font-size: 10.5px !important; font-weight: 700 !important; }
+  .lbl-ukur.thermal .print-sheet :is(.prod-name, .addr-nama, .val-bold, .kurir-label, .doc-title) { font-weight: 900 !important; }
+  .lbl-ukur.thermal .print-sheet .prod-name { font-size: 11px !important; line-height: 1.25 !important; }
+  .lbl-ukur.thermal .print-sheet .prod-sku { font-size: 9.5px !important; font-weight: 600 !important; }
+  .lbl-lanjut { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-weight: 900; font-size: 12px; padding-bottom: 4px; border-bottom: 1.5px solid #000; margin-bottom: 4px; }
+  .lbl-lanjut small { font-weight: 700; font-size: 10px; }
+  .lbl-kaki { margin-top: 6px; padding-top: 4px; border-top: 1.5px dashed #000; display: flex; justify-content: space-between; gap: 6px; font-size: 10px; font-weight: 800; color: #000; }
+  .lbl-kaki b { font-weight: 900; }
+  @media print { .lbl-kaki, .lbl-lanjut { color: #000 !important; border-color: #000 !important; } }
+  /* Pilihan kertas & urutan di jendela Invoice & Label */
+  .lbl-opsi { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 12px; color: var(--web-text-dim, #475569); margin: 2px 0 8px; }
+  .lbl-opsi select { width: auto; margin: 0; padding: 5px 8px; font-size: 12px; }
+  .lbl-opsi label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  /* ---- Kartu staf (DN-261015-171925-399) ---- */
+  .stf-alat { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+  .stf-alat input, .stf-alat select { width: auto; margin: 0; }
+</style>
+<script>
+/* ======================== Cetak label: paginasi sesuai kertas + urutan terbalik + rangkuman ======================== */
+const LBL_KERTAS = { a6: { w: 105, h: 148, nama: 'A6 (105×148 mm)' }, '100x150': { w: 100, h: 150, nama: '100×150 mm' }, a5: { w: 148, h: 210, nama: 'A5' }, a4: { w: 210, h: 297, nama: 'A4' } };
+function lblCetakOpsi_() {
+  let kertas = 'a6', terbalik = true;
+  try { kertas = localStorage.getItem('omni_lbl_kertas') || 'a6'; terbalik = localStorage.getItem('omni_lbl_terbalik') !== '0'; } catch (e) { }
+  if (!LBL_KERTAS[kertas]) kertas = 'a6';
+  return { kertas, terbalik };
+}
+function lblSimpanOpsi(kunci, nilai) { try { localStorage.setItem(kunci, nilai); } catch (e) { } lblSinkronOpsiUi_(); }
+function lblSinkronOpsiUi_() {
+  const o = lblCetakOpsi_();
+  document.querySelectorAll('.lbl-opsi-kertas').forEach(s => { s.value = o.kertas; });
+  document.querySelectorAll('.lbl-opsi-terbalik').forEach(c => { c.checked = o.terbalik; });
+}
+function lblOpsiHtml_() {
+  return `<div class="lbl-opsi"><span>Kertas label</span>
+    <select class="web-form-input lbl-opsi-kertas" aria-label="Ukuran kertas label" onchange="lblSimpanOpsi('omni_lbl_kertas', this.value)">${Object.keys(LBL_KERTAS).map(k => `<option value="${k}">${LBL_KERTAS[k].nama}</option>`).join('')}</select>
+    <label><input type="checkbox" class="lbl-opsi-terbalik" onchange="lblSimpanOpsi('omni_lbl_terbalik', this.checked ? '1' : '0')"> Cetak dari halaman terakhir</label></div>`;
+}
+function lblAngka_(t) { const n = parseInt(String(t || '').replace(/[^\d]/g, ''), 10); return isNaN(n) ? 0 : n; }
+// Satu lembar label panjang -> beberapa halaman pas kertas. Judul kolom diulang, kaki halaman berisi rangkuman.
+async function lblPecahLembar_(sheet, ukur, tinggiMaks) {
+  const tabel = sheet.querySelector('table.label-isi-table'); if (!tabel) return null;
+  const thead = tabel.querySelector('thead');
+  const baris = [...tabel.querySelectorAll('tbody > tr')].length ? [...tabel.querySelectorAll('tbody > tr')] : [...tabel.querySelectorAll('tr')].filter(r => !r.querySelector('th'));
+  const kepala = []; let lewat = false;
+  [...sheet.children].forEach(c => { if (c === tabel) lewat = true; else if (!lewat && !c.classList.contains('page-indicator')) kepala.push(c); });
+  const noDok = ((sheet.querySelector('.doc-barcode-teks') || {}).textContent || '').trim();
+  const jenis = baris.length, qty = baris.reduce((t, r) => t + lblAngka_((r.querySelector('.num-col') || {}).textContent), 0);
+  const buatHalaman = (pertama) => {
+    const h = sheet.cloneNode(false); h.classList.remove('lembar-akhir');
+    if (pertama) kepala.forEach(c => h.appendChild(c.cloneNode(true)));
+    else { const l = document.createElement('div'); l.className = 'lbl-lanjut'; l.innerHTML = `<span>LABEL PENGIRIMAN · lanjutan</span><small>${escapeHtml(noDok)}</small>`; h.appendChild(l); }
+    const t = tabel.cloneNode(false);
+    if (thead) t.appendChild(thead.cloneNode(true)); else { const th = tabel.querySelector('tr'); if (th && th.querySelector('th')) t.appendChild(th.cloneNode(true)); }
+    const tb = document.createElement('tbody'); t.appendChild(tb); h.appendChild(t);
+    const kaki = document.createElement('div'); kaki.className = 'lbl-kaki'; kaki.innerHTML = '<span>Halaman 00/00</span><span>000 jenis · 0000 pcs</span>'; h.appendChild(kaki);
+    ukur.appendChild(h);
+    return { h, tb };
+  };
+  const halaman = []; let cur = buatHalaman(true); halaman.push(cur);
+  try { await omniTungguGambar_(ukur, 4000); } catch (e) { } // logo harus sudah punya tinggi sebelum diukur
+  baris.forEach(r => {
+    const salin = r.cloneNode(true); cur.tb.appendChild(salin);
+    if (cur.h.offsetHeight > tinggiMaks && cur.tb.children.length > 1) {
+      salin.remove(); cur = buatHalaman(false); halaman.push(cur); cur.tb.appendChild(salin);
+    }
+  });
+  const n = halaman.length;
+  halaman.forEach((p, i) => {
+    p.h.querySelector('.lbl-kaki').innerHTML = `<span>Halaman <b>${i + 1}/${n}</b>${noDok ? ' · ' + escapeHtml(noDok) : ''}</span><span>Total <b>${jenis}</b> jenis · <b>${qty.toLocaleString('id-ID')}</b> pcs</span>`;
+    p.h.remove();
+  });
+  return halaman.map(p => p.h);
+}
+async function lblSiapkanCetak_(wadah) {
+  if (!wadah) return;
+  const asli = [...wadah.querySelectorAll('.print-sheet')].filter(s => s.querySelector('table.label-isi-table'));
+  if (!asli.length) return;
+  const o = lblCetakOpsi_(), k = LBL_KERTAS[o.kertas], MM = 96 / 25.4;
+  const ukur = document.createElement('div');
+  ukur.className = 'lbl-ukur' + (modeCetakAktif_() === 'thermal' ? ' thermal' : '');
+  ukur.style.width = (Math.min(k.w - 5, 105)) + 'mm';
+  document.body.appendChild(ukur);
+  const tinggiMaks = (k.h - 5) * MM * 0.985; // tinggi kertas - margin halaman 2.5 mm atas & bawah, sisakan 1,5% pengaman
+  try {
+    for (const s of asli) {
+      const hal = await lblPecahLembar_(s, ukur, tinggiMaks);
+      if (!hal || !hal.length) continue;
+      hal.forEach(h => s.parentNode.insertBefore(h, s));
+      s.remove();
+    }
+  } finally { ukur.remove(); }
+  if (o.terbalik) {
+    const wr = wadah.querySelector('.print-sheet-wrapper') || wadah;
+    const semua = [...wadah.querySelectorAll('.print-sheet')];
+    semua.reverse().forEach(s => wr.appendChild(s));
+  }
+  omniCetakRapikanLembar_(wadah);
+}
+// Jendela Invoice & Label (web): pilihan kertas + urutan di kartu Label
+(function () {
+  const pasang = () => {
+    const kartu = el('wdoc-kartu-label'); if (!kartu || kartu.querySelector('.lbl-opsi')) return;
+    const aksi = kartu.querySelector('.wdoc-aksi'); if (!aksi) return;
+    aksi.insertAdjacentHTML('beforebegin', lblOpsiHtml_()); lblSinkronOpsiUi_();
+  };
+  const domAsli = wdocDom;
+  wdocDom = function () { const m = domAsli.apply(this, arguments); try { pasang(); } catch (e) { } return m; };
+  setTimeout(pasang, 0);
+})();
+// Label di HP juga lewat jalur cetak yang sama (supaya ikut dipaginasi & dibalik)
+const lblPrintElementAsli = printElement;
+printElement = async function (elementId) {
+  if (elementId === 'print-label-pages') return omniCetakInline(elementId, 'Label');
+  return lblPrintElementAsli.apply(this, arguments);
+};
+</script>
+<style>
+  /* Cek SKU Marketplace ke marketplace (DN-261015-153546-121) */
+  .tp-cek-ikon { flex: none; width: 26px; height: 26px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; border: 1px solid transparent; cursor: pointer; background: transparent; }
+  .tp-cek-ikon.ada { background: rgba(22,163,74,.12); color: #15803d; }
+  .tp-cek-ikon.tidak_ada { background: rgba(220,38,38,.12); color: #b91c1c; }
+  .tp-cek-ikon.gagal { background: rgba(217,119,6,.14); color: #b45309; }
+  .tp-cek-ikon.cek { color: var(--web-text-dim); }
+  .tp-cek-ikon.belum { color: var(--web-text-dim); border-color: var(--web-border); font-size: 11px; }
+  .tp-cek-ikon.ada::before { content: '\2713'; } .tp-cek-ikon.tidak_ada::before { content: '\2717'; }
+  .tp-cek-ikon.gagal::before { content: '!'; } .tp-cek-ikon.cek::before { content: '\2026'; }
+  .tp-cek-pesan { font-size: 11.5px; margin: -2px 0 2px 34px; line-height: 1.35; }
+  .tp-cek-pesan.tidak_ada { color: #b91c1c; } .tp-cek-pesan.gagal { color: #b45309; }
+</style>
+<script>
+/* ======================== Cek SKU Marketplace ke marketplace ======================== */
+function tpCekIkon_(r, idx) {
+  if (!r.sku || r.platform === 'Website') return '';
+  const c = r.cek;
+  if (!c) return `<button type="button" class="tp-cek-ikon belum" title="Cek SKU ini ke ${pgrAttr(r.platform)}" aria-label="Cek SKU ke marketplace" onclick="tpCekSkuMp(${idx}, true)">Cek</button>`;
+  // simbol lewat CSS ::before (teks simbol di dalam tombol dibersihkan oleh pengganti ikon global)
+  return `<button type="button" class="tp-cek-ikon ${pgrAttr(c.status)}" title="${pgrAttr(c.pesan || '')} (klik untuk cek ulang)" aria-label="${pgrAttr(c.pesan || 'Status cek SKU')}" onclick="tpCekSkuMp(${idx}, true)"></button>`;
+}
+async function tpCekSkuMp(idx, segar) {
+  const r = tpBarisMarketplace[idx]; if (!r) return;
+  const sku = String(r.sku || '').trim();
+  if (!sku || r.platform === 'Website') { r.cek = null; tpRenderBarisMarketplace(); return; }
+  const tanda = r.platform + '|' + sku;
+  r.cek = { status: 'cek', pesan: 'Memeriksa ke ' + r.platform + '…', tanda };
+  tpRenderBarisMarketplace();
+  let hasil;
+  try {
+    const d = await postJson({ aksi: 'cek_sku_marketplace', platform: r.platform, sku, segar: !!segar, email: currentUserEmail() }, 60000, true);
+    hasil = d && d.success ? { status: d.status, pesan: d.pesan || '' } : { status: 'gagal', pesan: 'Belum bisa dicek: ' + ((d && d.error) || 'tidak ada jawaban') };
+  } catch (e) { hasil = { status: 'gagal', pesan: 'Belum bisa dicek: ' + (e.message || e) }; }
+  const kini = tpBarisMarketplace.find(x => x === r);
+  if (!kini || (kini.platform + '|' + String(kini.sku || '').trim()) !== tanda) return; // baris sudah diubah / dihapus
+  kini.cek = hasil.status === 'lewati' ? null : Object.assign(hasil, { tanda });
+  tpRenderBarisMarketplace();
+}
+// Sebelum menyimpan: SKU marketplace yang dipastikan TIDAK ADA -> minta konfirmasi
+const tpSimpanAsli = katalogSimpanProdukBaru;
+katalogSimpanProdukBaru = async function () {
+  const tidak = (tpBarisMarketplace || []).filter(r => r.cek && r.cek.status === 'tidak_ada' && r.sku);
+  if (tidak.length) {
+    const ok = await omniKonfirm_(`SKU marketplace berikut TIDAK ditemukan di marketplace:\n\n${tidak.map(r => '• ' + r.platform + ': ' + r.sku).join('\n')}\n\nTetap simpan? (Misalnya listing-nya memang belum dibuat.)`);
+    if (!ok) return;
+  }
+  return tpSimpanAsli.apply(this, arguments);
+};
+</script>
 </body>
 </html>
