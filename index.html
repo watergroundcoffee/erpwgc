@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.34';
+  var VERSI = 'v2026.10.35';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -21726,7 +21726,12 @@ function tgsBadgeHtml(statusTransfer, d) {
   const kode = d && (d.kodeAkhirKilat || d.kodeAkhir);
   const umur = d ? (d.umurHariKilat !== undefined && d.umurHariKilat !== null ? d.umurHariKilat : d.umurHari) : null;
   if (akhir) {
-    label = `${TGS_IKON_AKHIR[kode] || ''} ${akhir}${tgsTeksUmur(umur) ? ' · ' + tgsTeksUmur(umur) : ''}`;
+    // v2026.10.35: "laku dalam X hari" (dari dikirim ke Gudang Shopee sampai ada pembeli) untuk semua reservasi yang sudah ada pembeli
+    const laku = d ? (d.hariLakuKilat !== undefined && d.hariLakuKilat !== null ? d.hariLakuKilat : d.hariLaku) : null;
+    const adaPembeli = /^(terjual|terjual-proses|batal-pembeli|retur)$/.test(kode || '');
+    const teksUmur = adaPembeli && laku !== null && laku !== undefined ? (laku === 0 ? 'laku di hari yang sama' : 'laku dalam ' + laku + ' hari')
+      : (kode === 'menunggu-pembeli' && tgsTeksUmur(umur) ? 'sudah ' + tgsTeksUmur(umur) + ' di Gudang Shopee' : tgsTeksUmur(umur));
+    label = `${TGS_IKON_AKHIR[kode] || ''} ${akhir}${teksUmur ? ' · ' + teksUmur : ''}`;
     warna = TGS_WARNA_AKHIR[kode] || '';
     if (kode === 'menunggu-pembeli' && umur >= 30) warna = '#b91c1c';
   }
@@ -63990,5 +63995,123 @@ async function jdwPasang(handler) {
   jdwBuka();
 }
 </script>
+<!-- ===================================================================================
+     PAKET 19 (v2026.10.35) - Transaksi berhasil setelah komplain batal, tanda "keluar gudang" di Penjualan,
+     label cetak lebih rapat (ukur sesuai skala layar)
+     =================================================================================== -->
+<style>
+  .p19-berhasil { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+  .p19-berhasil::before { content: '\2713'; }
+  .p19-sub { display: block; font-size: 10.5px; color: var(--web-text-dim, #64748b); margin-top: 2px; }
+  .p19-keluar { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 0 6px; border-radius: 999px; font: 700 10px/16px inherit; font-family: inherit;
+    background: rgba(22,163,74,.1); color: #15803d; border: 1px solid rgba(22,163,74,.28); white-space: nowrap; vertical-align: middle; cursor: default; }
+  .p19-keluar::before { content: '\2713'; }
+</style>
+<script>
+/* ---------- DN-261020-131720-829: pernah dikomplain lalu pesanan selesai -> "Transaksi berhasil" ---------- */
+const p19SudahTutup = new Set();
+(function () {
+  if (typeof ccBarisHtml !== 'function') return;
+  const asli = ccBarisHtml;
+  ccBarisHtml = function (d) {
+    let html = asli(d);
+    try {
+      if (d.jenis === 'transfer' || !d._cc || d._cc.h !== 'sukses' || d.statusPesanan !== 'Pesanan Selesai') return html;
+      const s = typeof p12SiklusResi === 'function' ? p12SiklusResi(d) : null;
+      const pernahKomplain = !!(s && s.tahap && s.tahap !== 'Perlu tindakan');
+      const pill = pgrPillStatus('Pesanan Selesai');
+      const ganti = `<span class="p19-berhasil" title="Pesanan selesai di marketplace - dana penjualan dilepas ke saldo toko">Transaksi berhasil</span><span class="p19-sub">${pernahKomplain ? 'Pernah dikomplain - tidak dilanjutkan, pesanan selesai' : 'Pesanan selesai · dana dilepas marketplace'}</span>`;
+      if (html.indexOf(pill) !== -1) html = html.replace(pill, ganti);
+      // Tahap komplain yang masih terbuka ditutup otomatis sebagai "Ternyata sampai (berhasil)"
+      if (pernahKomplain && !s.akhir) p19TutupKomplain_(d, s);
+    } catch (e) { }
+    return html;
+  };
+})();
+async function p19TutupKomplain_(d, s) {
+  const resi = String(d.noResiScan || ''); if (!resi || p19SudahTutup.has(resi)) return;
+  if (!currentUser || !(currentUser.isOwner || (currentUser.izin && currentUser.izin.buatInvoice))) return;
+  p19SudahTutup.add(resi);
+  try {
+    const r = await postJsonTulis({ aksi: 'siklus_resi_simpan', noResi: resi, noPesanan: d.noInvoice || '', sumber: d.sumber || '', tahap: 'Ternyata sampai (berhasil)',
+      catatan: ((s.catatan ? s.catatan + ' · ' : '') + 'Otomatis: pesanan selesai di marketplace (komplain tidak dilanjutkan, dana dilepas)').slice(0, 480), email: currentUserEmail() }, 30000);
+    if (r && r.success && typeof p12MuatSiklus === 'function') p12MuatSiklus(true);
+  } catch (e) { p19SudahTutup.delete(resi); }
+}
+
+/* ---------- DN-261020-130746-776: tanda kecil "Keluar gudang" di kolom No Resi Penjualan ---------- */
+let p19Keluar = { peta: null, t: 0, jalan: false };
+async function p19MuatKeluar(paksa) {
+  if (p19Keluar.jalan || (!paksa && p19Keluar.peta && Date.now() - p19Keluar.t < 3 * 60000)) return;
+  p19Keluar.jalan = true;
+  try {
+    const r = await postJson({ aksi: 'lihat_resi_sudah_keluar', email: currentUserEmail() }, 45000, true);
+    if (r && r.success) { p19Keluar.peta = r.peta || {}; p19Keluar.t = Date.now(); p19TandaiKeluar_(); }
+  } catch (e) { } finally { p19Keluar.jalan = false; }
+}
+function p19KunciResi_(v) { return typeof kunciResi === 'function' ? kunciResi(v) : String(v || '').trim().replace(/^'+/, '').replace(/\s+/g, '').toUpperCase().replace(/^0+/, ''); }
+function p19WaktuKeluar_(o) {
+  if (!p19Keluar.peta || !o) return '';
+  const kode = [].concat(String(o.noResi || '').split(/[\s,;\/|]+/), [o.noReferensi]).filter(Boolean);
+  for (const k of kode) { const w = p19Keluar.peta[p19KunciResi_(k)]; if (w) return w; }
+  return '';
+}
+function p19TandaiKeluar_() {
+  const body = el('wp-gabungan-body'); if (!body || !p19Keluar.peta || typeof wpGabunganCache === 'undefined') return;
+  body.querySelectorAll('tr[data-kunci]').forEach(tr => {
+    const td = tr.querySelector('td.wp-mono'); if (!td || td.querySelector('.p19-keluar')) return;
+    const o = (wpGabunganCache || []).find(x => wpGabunganKunciUnik(x) === tr.dataset.kunci); if (!o) return;
+    const w = p19WaktuKeluar_(o);
+    if (w) td.insertAdjacentHTML('beforeend', `<span class="p19-keluar" title="Sudah discan keluar dari gudang${w !== '1' ? ' · ' + pgrAttr(w) : ''}">Keluar gudang</span>`);
+  });
+}
+(function () {
+  const body = el('wp-gabungan-body'); if (!body) return;
+  let jadwal = 0;
+  new MutationObserver(() => {
+    if (jadwal) return;
+    jadwal = requestAnimationFrame(() => { jadwal = 0; if (p19Keluar.peta) p19TandaiKeluar_(); if (!p19Keluar.peta || Date.now() - p19Keluar.t > 3 * 60000) p19MuatKeluar(false); });
+  }).observe(body, { childList: true });
+})();
+
+/* ---------- DN-261020-125102-826: halaman label lebih rapat ----------
+   Tinggi halaman kini diukur dengan penggaris 100 mm di wadah pengukur yang sama (mengikuti skala layar / zoom
+   peramban), pengaman diperkecil, jarak isi tabel sedikit dirapatkan saat dicetak. */
+(function () {
+  if (typeof lblSiapkanCetak_ !== 'function') return;
+  lblSiapkanCetak_ = async function (wadah) {
+    if (!wadah) return;
+    const asli = [...wadah.querySelectorAll('.print-sheet')].filter(s => s.querySelector('table.label-isi-table'));
+    if (!asli.length) return;
+    const o = lblCetakOpsi_(), k = LBL_KERTAS[o.kertas];
+    const ukur = document.createElement('div');
+    ukur.className = 'lbl-ukur' + (modeCetakAktif_() === 'thermal' ? ' thermal' : '');
+    ukur.style.width = (Math.min(k.w - 5, 105)) + 'mm';
+    document.documentElement.appendChild(ukur);
+    // penggaris 100 mm di wadah yang sama -> px per mm dalam satuan offsetHeight wadah ini (ikut zoom / skala bila ada)
+    const penggaris = document.createElement('div'); penggaris.style.cssText = 'height:100mm;width:1px;'; ukur.appendChild(penggaris);
+    const pxPerMm = (penggaris.offsetHeight / 100) || (96 / 25.4); penggaris.remove();
+    const tinggiMaks = (k.h - 5) * pxPerMm * 0.995;
+    try {
+      for (const s of asli) {
+        const hal = await lblPecahLembar_(s, ukur, tinggiMaks);
+        if (!hal || !hal.length) continue;
+        hal.forEach(h => s.parentNode.insertBefore(h, s));
+        s.remove();
+      }
+    } finally { ukur.remove(); }
+    if (o.terbalik) {
+      const wr = wadah.querySelector('.print-sheet-wrapper') || wadah;
+      [...wadah.querySelectorAll('.print-sheet')].reverse().forEach(s => wr.appendChild(s));
+    }
+    omniCetakRapikanLembar_(wadah);
+  };
+})();
+</script>
+<style>
+  /* label dicetak sedikit lebih rapat (diukur dengan aturan yang sama) */
+  .lbl-ukur .label-isi-table td, .lbl-ukur .label-isi-table th { padding: 3px 4px !important; }
+  @media print { .label-isi-table td, .label-isi-table th { padding: 3px 4px !important; } }
+</style>
 </body>
 </html>
