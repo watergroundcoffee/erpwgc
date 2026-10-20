@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.27';
+  var VERSI = 'v2026.10.29';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -63119,8 +63119,8 @@ rt2RenderDetail = function (noResi) {
 <!-- ===================================================================================
      PAKET 13b (v2026.10.27) - OMNIAI MOBILE (tampilan HP baru seperti aplikasi):
      5 tab bawah (Beranda · Pesanan · Scan · Stok · Lainnya), semua modul web dalam versi ringkas HP,
-     layar scan/memo HP lama tetap dipakai, menu mengikuti izin, Beranda tanpa omzet/margin untuk yang
-     tidak berizin Penjualan (mis. Admin Gudang), pasang sebagai aplikasi (PWA), tombol "Tampilan lama".
+     layar scan/memo HP lama tetap dipakai, menu mengikuti izin, Beranda sesuai jenis pekerjaan
+     (Paket 15: Beranda Gudang & tampilan per role), pasang sebagai aplikasi (PWA), tombol "Tampilan lama".
      =================================================================================== -->
 <style>
   html.m2 { --m2-nav: 64px; }
@@ -63184,20 +63184,67 @@ rt2RenderDetail = function (noResi) {
   .m2-baris small { color: var(--web-text-dim, #64748b); font-size: 12px; }
   .m2-baris .m2-panah { margin-left: auto; opacity: .45; font-size: 18px; }
   .m2-kosong { color: var(--web-text-dim, #64748b); font-size: 13px; padding: 10px 2px; }
-  /* ---- Beranda tanpa omzet (izin Penjualan tidak ada) ---- */
-  html.omx-tanpa-jual #ov-view-dashboard { display: none !important; }
+  /* ---- Beranda Gudang (dasbor kerja harian tim gudang) ---- */
+  html.omx-bk #ov-view-dashboard { display: none !important; }
   #m2-gudang { display: none; }
-  html.omx-tanpa-jual #m2-gudang { display: block; }
-  .m2g-halo { font-size: 18px; font-weight: 800; margin: 6px 2px 2px; }
-  .m2g-sub { font-size: 12.5px; color: var(--web-text-dim, #64748b); margin: 0 2px 12px; }
-  .m2g-angka { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 14px; }
-  .m2g-angka div { background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 14px; padding: 12px; }
-  .m2g-angka small { display: block; font-size: 12px; color: var(--web-text-dim, #64748b); }
-  .m2g-angka b { font-size: 22px; }
-  .m2g-aksi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
-  @media (max-width: 600px) { .m2g-aksi { grid-template-columns: 1fr; } }
-  .m2g-tugas button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 12px; padding: 11px 12px; margin-bottom: 6px; font: inherit; font-size: 13.5px; cursor: pointer; }
-  .m2g-tugas button b { min-width: 34px; text-align: right; font-size: 15px; color: var(--web-accent, #4f46e5); }
+  html.omx-bk #m2-gudang { display: block; }
+  .bkg { max-width: 1180px; margin: 0 auto; padding: 4px 0 18px; color: var(--web-text, #0f172a); }
+  .bkg-kepala { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 4px 2px 14px; }
+  .bkg-kepala .t { flex: 1; min-width: 200px; }
+  .bkg-halo { font-size: 22px; font-weight: 800; letter-spacing: -.01em; margin: 0; }
+  .bkg-sub { font-size: 13px; color: var(--web-text-dim, #64748b); margin-top: 3px; }
+  .bkg-segar { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .bkg-segar:focus-visible, .bkg-btn:focus-visible, .bkg-tugas button:focus-visible { outline: 3px solid var(--web-accent, #4f46e5); outline-offset: 2px; }
+  .bkg-kisi { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
+  .bkg-kotak { background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 16px; padding: 16px; min-width: 0; }
+  .bkg-kotak h3 { margin: 0 0 12px; font-size: 14.5px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
+  .bkg-kotak h3 small { font-weight: 500; color: var(--web-text-dim, #64748b); font-size: 12px; margin-left: auto; }
+  /* hero: progres paket hari ini */
+  .bkg-hero { position: relative; overflow: hidden; }
+  .bkg-hero-angka { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .bkg-hero-angka b { font-size: 54px; line-height: 1; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .bkg-hero-angka span { font-size: 15px; color: var(--web-text-dim, #64748b); }
+  .bkg-jalur { margin: 16px 0 8px; height: 14px; border-radius: 999px; background: var(--web-border, #e2e8f0); overflow: hidden; display: flex; }
+  .bkg-jalur i { display: block; height: 100%; background: var(--web-accent, #4f46e5); transition: width .5s ease; }
+  .bkg-jalur-ket { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--web-text-dim, #64748b); flex-wrap: wrap; }
+  .bkg-jalur-ket b { color: var(--web-text, #0f172a); }
+  .bkg-banding { margin-top: 12px; font-size: 13px; }
+  .bkg-naik { color: #15803d; font-weight: 700; } .bkg-turun { color: #b45309; font-weight: 700; }
+  .bkg-mini { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .bkg-mini button { text-align: left; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-bg, #f8fafc); color: inherit; border-radius: 12px; padding: 12px; font: inherit; cursor: pointer; }
+  .bkg-mini button small { display: block; font-size: 12px; color: var(--web-text-dim, #64748b); }
+  .bkg-mini button b { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .bkg-mini button.penting b { color: var(--web-accent, #4f46e5); }
+  .bkg-aksi { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 0 0 12px; }
+  .bkg-aksi .m2-baris { margin: 0; }
+  .bkg-jam svg { width: 100%; height: 150px; display: block; }
+  .bkg-jam .bt { fill: var(--web-accent, #4f46e5); }
+  .bkg-jam .bt.kini { fill: #f59e0b; }
+  .bkg-jam text { fill: var(--web-text-dim, #64748b); font-size: 10px; font-family: inherit; }
+  .bkg-jam .ang { fill: var(--web-text, #0f172a); font-weight: 700; }
+  .bkg-kurir { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+  .bkg-kurir li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: 13px; }
+  .bkg-kurir li b { font-variant-numeric: tabular-nums; }
+  .bkg-kurir li i { grid-column: 1 / -1; height: 6px; border-radius: 6px; background: var(--web-border, #e2e8f0); overflow: hidden; }
+  .bkg-kurir li i em { display: block; height: 100%; background: var(--web-accent, #4f46e5); opacity: .75; }
+  .bkg-tugas button { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--web-border, #e2e8f0); background: transparent; color: inherit; padding: 11px 2px; font: inherit; font-size: 13.5px; cursor: pointer; }
+  .bkg-tugas button:last-child { border-bottom: 0; }
+  .bkg-tugas button b { min-width: 40px; text-align: right; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .bkg-tugas button.utama b { color: #dc2626; } .bkg-tugas button.sedang b { color: #b45309; } .bkg-tugas button.ringan b { color: var(--web-accent, #4f46e5); }
+  .bkg-tugas button span.p { margin-left: auto; opacity: .4; }
+  .bkg-scan { width: 100%; border-collapse: collapse; font-size: 13px; display: table !important; }
+  .bkg-scan td { padding: 8px 4px; border-bottom: 1px solid var(--web-border, #e2e8f0); vertical-align: middle; }
+  .bkg-scan tr:last-child td { border-bottom: 0; }
+  .bkg-scan td.j { color: var(--web-text-dim, #64748b); white-space: nowrap; font-variant-numeric: tabular-nums; width: 1%; }
+  .bkg-scan td.r { font-weight: 600; word-break: break-all; }
+  .bkg-scan td.k { color: var(--web-text-dim, #64748b); text-align: right; white-space: nowrap; }
+  .bkg-scan .kanal-logo img { width: 18px; height: 18px; vertical-align: middle; }
+  .bkg-kosong { color: var(--web-text-dim, #64748b); font-size: 13px; padding: 6px 0; }
+  .bkg-skel { display: inline-block; min-width: 2ch; border-radius: 6px; background: var(--web-border, #e2e8f0); color: transparent !important; animation: bkgDenyut 1.2s ease-in-out infinite; }
+  @keyframes bkgDenyut { 50% { opacity: .45; } }
+  @media (prefers-reduced-motion: reduce) { .bkg-skel { animation: none; } .bkg-jalur i { transition: none; } }
+  @media (max-width: 900px) { .bkg-kisi { grid-template-columns: 1fr; } .bkg-hero-angka b { font-size: 46px; } }
+  @media (max-width: 600px) { .bkg-aksi { grid-template-columns: 1fr; } .bkg-halo { font-size: 19px; } .bkg-kotak { padding: 14px; } }
 </style>
 
 <nav id="m2-nav" aria-label="Menu utama">
@@ -63236,7 +63283,7 @@ function m2TerapkanIzinModul() {
     if (!m2BolehTab_(tab)) { g.style.display = 'none'; g.dataset.m2Izin = '0'; }
     else if (g.dataset.m2Izin === '0') { g.style.display = ''; delete g.dataset.m2Izin; }
   });
-  document.documentElement.classList.toggle('omx-tanpa-jual', !m2BolehJual_());
+  document.documentElement.classList.toggle('omx-bk', !m2BolehJual_());
 }
 const m2SwitchWebAsli = switchKeTampilanWeb;
 switchKeTampilanWeb = function () { const r = m2SwitchWebAsli.apply(this, arguments); try { m2TerapkanIzinModul(); m2SisipGudang(); } catch (e) { } return r; };
@@ -63437,9 +63484,9 @@ function m2KembaliWeb() {
   }).observe(menu, { attributes: true, attributeFilter: ['style'] });
 })();
 
-/* ======================== Beranda tanpa omzet / margin ========================
-   Akun tanpa izin Penjualan (mis. Admin Gudang): Beranda hanya berisi jalan pintas kerja + jumlah resi + tugas.
-   Server sudah tidak mengirim angka penjualan ke akun ini; tampilan Beranda keuangan juga disembunyikan. */
+/* ======================== Beranda Gudang ========================
+   Dasbor kerja harian untuk tim gudang: progres paket hari ini, per jam, per kurir, scan terakhir,
+   pekerjaan yang menunggu, dan jalan pintas scan. Dipakai akun yang tugasnya operasional gudang. */
 function m2SisipGudang() {
   const tab = el('web-tab-overview'); if (!tab || el('m2-gudang')) return;
   const w = document.createElement('div'); w.id = 'm2-gudang';
@@ -63447,33 +63494,130 @@ function m2SisipGudang() {
   m2TerapkanIzinModul();
   if (!m2BolehJual_()) m2RenderGudang(true);
 }
-let m2GudangT = 0, m2GudangAngka = null;
+let m2GudangT = 0, m2GudangAngka = null, m2GudangMuat = false;
+const BKG = { keluar: null, kemarin: {}, waktu: '' };
 const M2_TUGAS_SEMBUNYI = { belum_bayar: 1, promo_gagal: 1, promo_jadwal: 1, promo_tayang: 1, sku_tanpa_master: 1 };
+function bkgTgl_(geserHari) {
+  const d = new Date(Date.now() + (geserHari || 0) * 86400000);
+  try { return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }); } catch (e) { return d.toISOString().slice(0, 10); }
+}
+function bkgJamKini_() { try { return parseInt(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', hour12: false }), 10); } catch (e) { return new Date().getHours(); } }
+function bkgN_(v) { return v === null || v === undefined ? '<span class="bkg-skel">00</span>' : Number(v).toLocaleString('id-ID'); }
+function bkgGrafikJam_(items) {
+  const per = new Array(24).fill(0);
+  items.forEach(it => { const h = parseInt(String(it.jam || '').slice(0, 2), 10); if (h >= 0 && h < 24) per[h]++; });
+  const kini = bkgJamKini_();
+  let a = 7, b = Math.max(kini, 18);
+  per.forEach((n, h) => { if (n) { a = Math.min(a, h); b = Math.max(b, h); } });
+  b = Math.min(23, b);
+  const jam = []; for (let h = a; h <= b; h++) jam.push(h);
+  const maks = Math.max(1, ...jam.map(h => per[h]));
+  const W = 600, H = 150, kaki = 18, atas = 16, lebar = W / jam.length, bar = Math.max(6, lebar * 0.62);
+  const g = jam.map((h, i) => {
+    const n = per[h], tinggi = n ? Math.max(3, (H - kaki - atas) * n / maks) : 0;
+    const x = i * lebar + (lebar - bar) / 2, y = H - kaki - tinggi;
+    return `<g><title>${String(h).padStart(2, '0')}.00: ${n} paket</title>` +
+      (tinggi ? `<rect class="bt${h === kini ? ' kini' : ''}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bar.toFixed(1)}" height="${tinggi.toFixed(1)}" rx="3"></rect>` : `<rect x="${x.toFixed(1)}" y="${(H - kaki - 2).toFixed(1)}" width="${bar.toFixed(1)}" height="2" rx="1" fill="var(--web-border, #e2e8f0)"></rect>`) +
+      (n ? `<text class="ang" x="${(x + bar / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle">${n}</text>` : '') +
+      ((i % (jam.length > 12 ? 2 : 1) === 0 || h === kini) ? `<text x="${(x + bar / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${String(h).padStart(2, '0')}</text>` : '') + '</g>';
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Paket keluar per jam hari ini">${g}</svg>`;
+}
+function bkgKurir_(items) {
+  const peta = {};
+  items.forEach(it => { const k = String(it.kurir || '').trim() || 'Lainnya'; const kk = /tidak diketahui/i.test(k) ? 'Lainnya' : k; peta[kk] = (peta[kk] || 0) + 1; });
+  const urut = Object.keys(peta).sort((x, y) => peta[y] - peta[x]);
+  if (!urut.length) return '<div class="bkg-kosong">Belum ada paket yang diserahkan ke kurir hari ini.</div>';
+  const atas = urut.slice(0, 6), sisa = urut.slice(6).reduce((t, k) => t + peta[k], 0), maks = peta[urut[0]];
+  const baris = atas.map(k => [k, peta[k]]); if (sisa) baris.push(['Kurir lain', sisa]);
+  return `<ul class="bkg-kurir">${baris.map(([k, n]) => `<li><span>${omxEsc(k)}</span><b>${n.toLocaleString('id-ID')}</b><i><em style="width:${Math.round(n / maks * 100)}%"></em></i></li>`).join('')}</ul>`;
+}
+function bkgScanTerakhir_(items) {
+  const d = items.slice(0, 6);
+  if (!d.length) return '<div class="bkg-kosong">Scan pertama hari ini akan muncul di sini.</div>';
+  return `<table class="bkg-scan"><tbody>${d.map(it => `<tr><td class="j">${omxEsc(String(it.jam || '').slice(0, 5))}</td><td>${it.sumber && typeof kanalLogoHtml === 'function' ? kanalLogoHtml(it.sumber) : ''}</td><td class="r">${omxEsc(it.resiAsli || it.noResi || '')}</td><td class="k">${omxEsc(/tidak diketahui/i.test(it.kurir || '') ? '' : (it.kurir || ''))}</td></tr>`).join('')}</tbody></table>`;
+}
 function m2RenderGudang(muat) {
   const w = el('m2-gudang'); if (!w || m2BolehJual_()) return;
   const nama = String((currentUser && currentUser.nama) || '').split(' ')[0];
-  const jam = new Date().getHours(), salam = jam < 11 ? 'Selamat pagi' : jam < 15 ? 'Selamat siang' : jam < 18 ? 'Selamat sore' : 'Selamat malam';
-  const a = m2GudangAngka || {};
-  const fmt = v => v === null || v === undefined ? '…' : Number(v).toLocaleString('id-ID');
+  const jam = bkgJamKini_(), salam = jam < 11 ? 'Selamat pagi' : jam < 15 ? 'Selamat siang' : jam < 18 ? 'Selamat sore' : 'Selamat malam';
+  const a = m2GudangAngka || {}, i = m2Izin_();
+  const butirSemua = ((omxacData && omxacData.data && omxacData.data.butir) || []);
+  const butir = butirSemua.filter(b => !M2_TUGAS_SEMBUNYI[b.kunci]);
+  const siapB = butirSemua.find(b => b.kunci === 'pesanan_siap');
+  const menunggu = omxacData && omxacData.data ? (siapB ? siapB.jumlah : 0) : null;
+  const items = (BKG.keluar || []).filter(it => !it.dihapus);
+  const keluar = a.keluar !== undefined && a.keluar !== null ? a.keluar : (BKG.keluar ? items.length : null);
+  const total = keluar !== null && menunggu !== null ? keluar + menunggu : null;
+  const pct = total ? Math.round(keluar / total * 100) : (keluar ? 100 : 0);
+  const kemarin = BKG.kemarin[bkgTgl_(-1)];
+  let banding = '';
+  if (keluar !== null && typeof kemarin === 'number') {
+    const s = keluar - kemarin;
+    banding = kemarin === 0 && keluar === 0 ? 'Kemarin juga belum ada paket keluar.' : `Kemarin ${kemarin.toLocaleString('id-ID')} paket · ${s === 0 ? 'sama dengan kemarin' : s > 0 ? `<span class="bkg-naik">${s.toLocaleString('id-ID')} lebih banyak</span>` : `<span class="bkg-turun">${(-s).toLocaleString('id-ID')} lagi untuk menyamai kemarin</span>`}`;
+  }
+  const hero = i.scanResiKeluar ? `<div class="bkg-kotak bkg-hero">
+      <h3>Paket keluar hari ini<small>${BKG.waktu ? 'diperbarui ' + omxEsc(BKG.waktu) : ''}</small></h3>
+      <div class="bkg-hero-angka"><b>${bkgN_(keluar)}</b><span>paket sudah diserahkan ke kurir</span></div>
+      <div class="bkg-jalur" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Progres pengiriman hari ini"><i style="width:${pct}%"></i></div>
+      <div class="bkg-jalur-ket"><span>${menunggu === null ? 'Menghitung pesanan yang menunggu…' : menunggu ? `<b>${menunggu.toLocaleString('id-ID')}</b> pesanan menunggu dikemas & discan` : '<b>Semua pesanan sudah dikirim</b>'}</span><span>${total ? pct + '% selesai' : ''}</span></div>
+      ${banding ? `<div class="bkg-banding">${banding}</div>` : ''}
+    </div>` : '';
+  const mini = [];
+  if (i.scanResiKeluar) mini.push(`<button type="button" class="penting" onclick="m2Native(() => startScan('keluar'))"><small>Menunggu discan</small><b>${bkgN_(menunggu)}</b></button>`);
+  if (i.scanResiMasuk) mini.push(`<button type="button" onclick="m2BkBuka('retur')"><small>Retur diterima hari ini</small><b>${bkgN_(a.retur)}</b></button>`);
+  if (i.scanResiMasuk) mini.push(`<button type="button" onclick="m2BkBuka('stock')"><small>Barang masuk hari ini</small><b>${bkgN_(a.stock)}</b></button>`);
+  const stokB = butirSemua.filter(b => b.kunci === 'stok_minus' || b.kunci === 'stok_menipis');
+  if (i.mintaStock || i.adminPembelian) mini.push(`<button type="button" onclick="m2BkBuka('stok')"><small>Stok perlu dicek</small><b>${omxacData && omxacData.data ? stokB.reduce((t, b) => t + (b.jumlah || 0), 0).toLocaleString('id-ID') : bkgN_(null)}</b></button>`);
+  const tugas = butir.length ? butir.map(b => `<button type="button" class="${pgrAttr(b.tingkat || '')}" onclick="m2KlikTugas('${pgrAttr(b.kunci)}', '${pgrAttr(b.tujuan || '')}')"><b>${Number(b.jumlah).toLocaleString('id-ID')}</b><span>${omxEsc(b.label)}</span><span class="p" aria-hidden="true">›</span></button>`).join('')
+    : (omxacData && omxacData.data ? '<div class="bkg-kosong">Tidak ada pekerjaan yang tertunda. Lanjutkan scan paket berikutnya.</div>' : '<div class="bkg-kosong">Menyiapkan daftar pekerjaan…</div>');
+  const aksi = m2DaftarScan_();
+  w.innerHTML = `<div class="bkg">
+    <div class="bkg-kepala"><div class="t"><h2 class="bkg-halo">${salam}${nama ? ', ' + omxEsc(nama) : ''}</h2>
+      <div class="bkg-sub">${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
+      <button type="button" class="bkg-segar" onclick="m2BkSegarkan()">${m2GudangMuat ? 'Memperbarui…' : 'Perbarui'}</button></div>
+    <div class="bkg-kisi">${hero}<div class="bkg-kotak"><h3>Ringkasan gudang</h3><div class="bkg-mini">${mini.join('')}</div></div></div>
+    ${aksi.length ? `<div class="bkg-aksi">${aksi.map(x => m2Baris_(x[0], x[1], x[2], x[3])).join('')}</div>` : ''}
+    ${i.scanResiKeluar ? `<div class="bkg-kisi"><div class="bkg-kotak bkg-jam"><h3>Paket keluar per jam<small>jam sekarang ditandai oranye</small></h3>${BKG.keluar ? bkgGrafikJam_(items) : '<div class="bkg-kosong">Memuat…</div>'}</div>
+      <div class="bkg-kotak"><h3>Per kurir hari ini</h3>${BKG.keluar ? bkgKurir_(items) : '<div class="bkg-kosong">Memuat…</div>'}</div></div>` : ''}
+    <div class="bkg-kisi"><div class="bkg-kotak"><h3>Perlu dikerjakan<small>${omxacData && omxacData.data && omxacData.data.dihitungPada ? omxEsc(omxacData.data.dihitungPada) : ''}</small></h3><div class="bkg-tugas">${tugas}</div></div>
+      ${i.scanResiKeluar ? `<div class="bkg-kotak"><h3>Scan terakhir</h3>${BKG.keluar ? bkgScanTerakhir_(items) : '<div class="bkg-kosong">Memuat…</div>'}</div>` : ''}</div>
+  </div>`;
+  if (muat && Date.now() - m2GudangT > 60000) m2MuatAngkaGudang();
+}
+function m2BkSegarkan() { m2GudangT = 0; m2MuatAngkaGudang(true); }
+function m2BkBuka(apa) {
   const i = m2Izin_();
-  const kotak = [];
-  if (i.scanResiKeluar) kotak.push(`<div><small>Resi keluar hari ini</small><b>${fmt(a.keluar)}</b></div>`);
-  if (i.scanResiMasuk) kotak.push(`<div><small>Resi masuk hari ini</small><b>${fmt(a.retur)}</b></div>`);
-  const butir = ((omxacData && omxacData.data && omxacData.data.butir) || []).filter(b => !M2_TUGAS_SEMBUNYI[b.kunci]);
-  const tugas = butir.length ? butir.map((b, n) => `<button type="button" onclick="m2KlikTugas('${pgrAttr(b.kunci)}', '${pgrAttr(b.tujuan || '')}')"><b>${Number(b.jumlah).toLocaleString('id-ID')}</b><span>${omxEsc(b.label)}</span></button>`).join('') : '<div class="m2-kosong">Belum ada yang perlu dikerjakan. Mulai dengan tombol Scan di bawah.</div>';
-  w.innerHTML = `<div class="m2g-halo">${salam}${nama ? ', ' + omxEsc(nama) : ''} 👋</div>
-    <div class="m2g-sub">${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-    ${kotak.length ? `<div class="m2g-angka">${kotak.join('')}</div>` : ''}
-    <div class="m2g-aksi">${m2DaftarScan_().map(x => m2Baris_(x[0], x[1], x[2], x[3])).join('')}</div>
-    <div class="m2-grup-judul">Perlu dikerjakan</div><div class="m2g-tugas">${tugas}</div>`;
-  if (muat && Date.now() - m2GudangT > 60000) { m2GudangT = Date.now(); m2MuatAngkaGudang(); try { omxacMuat(false); } catch (e) { } }
+  if (apa === 'stok') { if (m2BolehTab_('persediaan')) bukaLokasiWeb({ tab: 'persediaan', sub: 'monitor' }); else if (i.mintaStock) m2Native(() => bukaMemoGudangMobile()); return; }
+  if (apa === 'retur' || apa === 'stock') { if (m2BolehTab_('pengiriman')) { try { gantiTabWeb('pengiriman'); pengirimanBukaSub('resi-masuk'); } catch (e) { } } else m2Native(() => showSubmenu()); }
 }
-async function m2MuatAngkaGudang() {
+async function m2MuatAngkaGudang(paksa) {
+  if (m2GudangMuat) return;
+  m2GudangMuat = true; m2GudangT = Date.now();
+  const i = m2Izin_(), email = currentUserEmail(), tugas = [];
+  tugas.push(postJson({ aksi: 'hitung_menu', email: email, segar: true }, 20000, true).then(d => { if (d && d.success) m2GudangAngka = d.jumlah || {}; }).catch(() => { }));
+  if (i.scanResiKeluar) {
+    tugas.push(postJson({ aksi: 'lihat_resi_harian', tipe: 'keluar', tanggal: bkgTgl_(0), email: email, segar: true }, 25000, true).then(d => { if (d && d.success) BKG.keluar = d.items || []; }).catch(() => { }));
+    const kmr = bkgTgl_(-1);
+    if (typeof BKG.kemarin[kmr] !== 'number') tugas.push(postJson({ aksi: 'lihat_resi_harian', tipe: 'keluar', tanggal: kmr, hanyaHitung: true, email: email }, 20000, true).then(d => { if (d && d.success) BKG.kemarin[kmr] = Number(d.jumlah) || 0; }).catch(() => { }));
+  }
+  try { omxacMuat(!!paksa); } catch (e) { }
+  m2RenderGudang(false);
+  try { await Promise.all(tugas); } finally {
+    m2GudangMuat = false;
+    try { BKG.waktu = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }); } catch (e) { BKG.waktu = ''; }
+    m2RenderGudang(false);
+  }
+}
+// Perbarui otomatis tiap 2 menit selama Beranda Gudang terbuka & aplikasi terlihat
+setInterval(() => {
   try {
-    const d = await postJson({ aksi: 'hitung_menu', email: currentUserEmail() }, 20000, true);
-    if (d && d.success) { m2GudangAngka = d.jumlah || {}; m2RenderGudang(false); }
+    if (document.hidden || !currentUser || m2BolehJual_() || M2.native) return;
+    if (typeof tabWebAktif !== 'undefined' && tabWebAktif !== 'overview') return;
+    if (el('app-web') && el('app-web').style.display === 'none') return;
+    if (Date.now() - m2GudangT > 120000) m2MuatAngkaGudang();
   } catch (e) { }
-}
+}, 30000);
 function m2KlikTugas(kunci, tujuan) {
   const i = m2Izin_();
   if (kunci === 'pesanan_siap' && !m2BolehTab_('pesanan')) { if (i.scanResiKeluar) m2Native(() => startScan('keluar')); return; }
@@ -63482,7 +63626,114 @@ function m2KlikTugas(kunci, tujuan) {
   try { if (OMXAC_TUJUAN[tujuan]) OMXAC_TUJUAN[tujuan](); } catch (e) { }
 }
 const m2AcRenderAsli = omxacRender;
-omxacRender = function () { m2AcRenderAsli(); try { if (!m2BolehJual_()) m2RenderGudang(false); } catch (e) { } };
+omxacRender = function () {
+  m2AcRenderAsli();
+  try { if (!m2BolehJual_()) m2RenderGudang(false); else rpSaringPerluPerhatian_(); } catch (e) { }
+};
+
+/* ======================== Tampilan per role ========================
+   owner   : semua menu & Beranda lengkap.
+   gudang  : akun tanpa izin Buat Invoice -> Beranda Gudang; Persediaan tanpa tab Nilai Inventory.
+   finance : nama role berisi finance / keuangan / akunting -> Beranda lengkap, Perlu Perhatian fokus uang,
+             menu kerja keuangan (tab bawah HP "Stok" -> "Keuangan").
+   umum    : role lain -> mengikuti centang izin seperti biasa. */
+function rpProfil_() {
+  if (!currentUser) return 'umum';
+  if (m2Owner_()) return 'owner';
+  if (!m2Izin_().buatInvoice) return 'gudang';
+  if (/financ|keuangan|akunt|accounting/i.test(String(currentUser.role || ''))) return 'finance';
+  return 'umum';
+}
+const RP_SEMBUNYI = {
+  gudang: { sub: [] },
+  finance: { tab: ['katalog', 'produksi'], sub: ['#agp-nav', '[data-persub="memogudang"]', '[data-persub="opname"]', '[data-promosub="kode"]', '[data-promosub="bundling"]', '[data-promosub="kalender"]', '[data-promosub="broadcast"]', '[data-promosub="affiliate"]'] }
+};
+const RP_FINANCE_TANPA = { stok_menipis: 1, pesanan_siap: 1, promo_gagal: 1, promo_jadwal: 1, promo_tayang: 1 };
+function rpTerapkan_() {
+  const p = rpProfil_(), cfg = RP_SEMBUNYI[p] || {};
+  document.querySelectorAll('[data-rp-sembunyi]').forEach(x => { x.style.display = ''; delete x.dataset.rpSembunyi; });
+  const sembunyi = x => { if (x && x.style.display !== 'none') { x.style.display = 'none'; x.dataset.rpSembunyi = '1'; } };
+  (cfg.tab || []).forEach(t => { const a = document.querySelector(`#app-web .web-nav .web-nav-group > .web-nav-item[data-tab="${t}"]`); if (a) sembunyi(a.parentElement); });
+  (cfg.sub || []).forEach(sel => document.querySelectorAll('#app-web .web-nav ' + sel).forEach(sembunyi));
+  // Promosi untuk finance dibuka langsung di Iklan & Saldo
+  const promo = document.querySelector('#app-web .web-nav .web-nav-item[data-tab="promosi"]');
+  if (promo) {
+    if (!promo.dataset.rpAsli) promo.dataset.rpAsli = promo.getAttribute('onclick') || '';
+    promo.setAttribute('onclick', p === 'finance' ? "toggleNavGroup(this); promoBukaSubMenu('iklan')" : promo.dataset.rpAsli);
+  }
+  // Monitor Stok: tab Nilai Inventory hanya untuk yang mengurus keuangan / penjualan
+  const nilai = el('per-mon-tab-nilai');
+  if (nilai) { if (p === 'gudang') { sembunyi(nilai); if (typeof perMonTabAktif !== 'undefined' && perMonTabAktif === 'nilai') { try { perMonGantiTab('pilar'); } catch (e) { } } } }
+}
+function rpSaringPerluPerhatian_() {
+  if (rpProfil_() !== 'finance') return;
+  const w = el('omxac'); if (!w) return;
+  const butir = (omxacData && omxacData.data && omxacData.data.butir) || [];
+  const tombol = w.querySelectorAll('.omxac-butir'); let tampil = 0;
+  tombol.forEach((b, n) => { const k = butir[n] && butir[n].kunci; const s = !!RP_FINANCE_TANPA[k]; b.style.display = s ? 'none' : ''; if (!s) tampil++; });
+  if (tombol.length && !tampil) { const d = w.querySelector('.omxac-daftar'); if (d) d.outerHTML = '<div class="omxac-kosong">Semua aman - tidak ada yang perlu segera ditindaklanjuti.</div>'; }
+}
+const rpIzinModulAsli = m2TerapkanIzinModul;
+m2TerapkanIzinModul = function () { const r = rpIzinModulAsli.apply(this, arguments); try { rpTerapkan_(); } catch (e) { } return r; };
+const rpPerMonAsli = typeof perMonGantiTab === 'function' ? perMonGantiTab : null;
+if (rpPerMonAsli) perMonGantiTab = function (tab) { if (tab === 'nilai' && rpProfil_() === 'gudang') tab = 'pilar'; return rpPerMonAsli.call(this, tab); };
+// HP: untuk finance tab bawah "Stok" menjadi "Keuangan"
+const rpSusunNavAsli = m2SusunNav;
+m2SusunNav = function () {
+  rpSusunNavAsli.apply(this, arguments);
+  const b = document.querySelector('#m2-nav [data-m2="stok"]'); if (!b) return;
+  if (!b.dataset.rpAsli) b.dataset.rpAsli = b.innerHTML;
+  if (rpProfil_() === 'finance') { b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>Keuangan'; b.hidden = false; }
+  else b.innerHTML = b.dataset.rpAsli;
+};
+const rpTabAsli = m2Tab;
+m2Tab = function (tab) {
+  if (tab === 'stok' && rpProfil_() === 'finance') {
+    if (M2.native) m2KembaliWeb();
+    m2TutupLembar();
+    const a = document.querySelector('#app-web .web-nav .web-nav-item[data-tab="finance"]');
+    try { if (a) a.click(); else gantiTabWeb('finance'); } catch (e) { }
+    m2Tandai('stok'); window.scrollTo(0, 0); return;
+  }
+  return rpTabAsli.apply(this, arguments);
+};
+const rpTandaiAsli = m2Tandai;
+m2Tandai = function (tab) { if (tab === '' && rpProfil_() === 'finance' && typeof tabWebAktif !== 'undefined' && tabWebAktif === 'finance') tab = 'stok'; return rpTandaiAsli.call(this, tab); };
+
+// Beranda penjualan tidak dimuat untuk akun yang memakai Beranda Gudang (tidak ada permintaan yang sia-sia)
+const rpRekapAsli = ovAmbilRekap;
+ovAmbilRekap = function () { if (currentUser && !m2BolehJual_()) return Promise.resolve(null); return rpRekapAsli.apply(this, arguments); };
+// Catatan Action Log: permintaan latar yang memang bukan bagian pekerjaan akun ini tidak perlu tampil sebagai "perlu dikirim ulang"
+const rpLogSelesaiAsli = omxLogSelesai;
+omxLogSelesai = function (id, data, err) {
+  const r = rpLogSelesaiAsli.apply(this, arguments);
+  try {
+    if (rpProfil_() !== 'gudang') return r;
+    const n = omxLog.findIndex(e => e.id === id);
+    if (n >= 0 && omxLog[n].status === 'gagal' && /izin/i.test(omxLog[n].pesan || '')) { omxLog.splice(n, 1); omxLogSimpan_(); omxLogRender_(); }
+  } catch (e) { }
+  return r;
+};
+// Tampilan per role diterapkan juga saat aplikasi sudah login sebelum skrip ini dimuat (laptop / tablet)
+const rpLoginAsli = terapkanTampilanLogin;
+terapkanTampilanLogin = function () { const r = rpLoginAsli.apply(this, arguments); try { m2TerapkanIzinModul(); m2SisipGudang(); if (!m2BolehJual_() && typeof tabWebAktif !== 'undefined' && tabWebAktif === 'overview') m2RenderGudang(true); } catch (e) { } return r; };
+setTimeout(() => {
+  try {
+    if (!currentUser) return;
+    m2TerapkanIzinModul(); m2SisipGudang();
+    if (!m2BolehJual_()) {
+      if (typeof tabWebAktif !== 'undefined' && tabWebAktif && tabWebAktif !== 'overview' && !m2BolehTab_(tabWebAktif)) gantiTabWeb('overview');
+      m2RenderGudang(true);
+      // Action Log lama yang berisi permintaan latar tadi dibersihkan
+      const sblm = omxLog.length;
+      for (let k = omxLog.length - 1; k >= 0; k--) if (omxLog[k].status === 'gagal' && /izin/i.test(omxLog[k].pesan || '')) omxLog.splice(k, 1);
+      if (omxLog.length !== sblm) { omxLogSimpan_(); omxLogRender_(); }
+    }
+  } catch (e) { console.warn(e); }
+}, 0);
+// Izin bisa berubah saat status akun dicek ulang di latar -> tampilan ikut menyesuaikan
+const rpCekStatusAsli = ceklagiStatusAkses;
+ceklagiStatusAkses = async function () { const r = await rpCekStatusAsli.apply(this, arguments); try { if (currentUser) { m2TerapkanIzinModul(); if (M2.aktif) m2SusunNav(); } } catch (e) { } return r; };
 
 /* ======================== pasang sebagai aplikasi (PWA) ======================== */
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); M2.pasang = e; });
