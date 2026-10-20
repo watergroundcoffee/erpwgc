@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.37';
+  var VERSI = 'v2026.10.38';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -64925,6 +64925,130 @@ async function rstBiayaSimpan() {
   };
   // initApp berjalan sebelum skrip ini: buka ulang bila alamat menunjuk ke Roastery
   try { if (/^#produksi\/rst\b/.test(window.location.hash || '')) setTimeout(() => produksiBukaSub('rst'), 0); } catch (e) { }
+})();
+</script>
+<!-- ===================================================================================
+     PAKET 22 (v2026.10.38) - SYNC ROASTERY DARI 1 FILE EXCEL (tab KOPI + catatan roasting)
+     =================================================================================== -->
+<style>
+  #prod-view-rst .rst-sync-drop { border: 2px dashed var(--web-border); border-radius: 12px; padding: 18px; text-align: center; cursor: pointer; background: var(--web-bg); }
+  #prod-view-rst .rst-sync-drop:hover, #prod-view-rst .rst-sync-drop.rst-seret { border-color: var(--web-accent); }
+  #prod-view-rst .rst-sync-drop b { display: block; font-size: 14px; margin-bottom: 4px; }
+  #prod-view-rst .rst-pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--web-border); white-space: nowrap; }
+  #prod-view-rst .rst-pill-baru { border-color: rgba(22,163,74,.5); color: #16a34a; }
+  #prod-view-rst .rst-pill-ada { color: var(--web-text-dim); }
+  #prod-view-rst .rst-pill-cek { border-color: rgba(217,119,6,.5); color: var(--web-warning); }
+  #prod-view-rst .rst-sync-masalah { max-height: 260px; overflow: auto; font-size: 12px; }
+  #prod-view-rst .rst-sync-masalah div { padding: 3px 0; border-bottom: 1px solid var(--web-border); }
+</style>
+<script>
+rst.sync = null;
+function rstSyncKartuHtml() {
+  const s = rst.sync;
+  if (!s || !s.rencana) return `<div class="rst-kartu" id="rst-sync"><h3>Sync dari Excel (1 file)</h3>
+    <div class="rst-sub" style="margin-bottom:8px;">Upload file Excel SKU internal (tab <b>KOPI</b>) dan/atau catatan roasting (kolom Varietas, Drum Input, Drum Output). Boleh 1 file berisi keduanya.
+      Sistem membuat green bean & roasted per varian, menghubungkan produk 100 g / 150 g / 250 g ... ke roasted-nya, mengimpor riwayat roasting, lalu menghubungkan riwayat itu ke varian yang sama.
+      Anda meninjau dulu sebelum disimpan. Stok & Produk Master tidak berubah.</div>
+    <div class="rst-sync-drop" id="rst-sync-drop" onclick="el('rst-sync-file').click()" ondragover="event.preventDefault(); this.classList.add('rst-seret');" ondragleave="this.classList.remove('rst-seret')" ondrop="event.preventDefault(); this.classList.remove('rst-seret'); rstSyncBaca(event.dataTransfer.files[0]);">
+      <b><span class="oi oi-upload" aria-hidden="true"></span> Pilih / tarik file Excel ke sini</b><span class="rst-sub">.xlsx · dibaca di browser, tidak diunggah utuh</span></div>
+    <input type="file" id="rst-sync-file" accept=".xlsx,.xls,.xlsm" style="display:none;" onchange="rstSyncBaca(this.files[0]); this.value='';" />
+    <div class="status-text" id="rst-sync-status" style="text-align:left; margin-top:6px;">${s && s.pesan ? s.pesan : ''}</div></div>`;
+  const R = s.rencana, varian = R.varian, opsi = varian.map(v => `<option value="${pgrAttr(v.kunci)}">${escapeHtml(v.nama)}</option>`).join('');
+  const baru = varian.reduce((t, v) => t + (s.pakai.has(v.kunci) ? v.jumlah.baru : 0), 0), sudah = varian.reduce((t, v) => t + v.jumlah.sudah, 0);
+  const lewat = varian.reduce((t, v) => t + v.jumlah.lewat, 0);
+  const belum = R.namaLog.reduce((t, x) => t + x.belum, 0), akanTerhubung = R.namaLog.reduce((t, x) => t + ((s.peta[x.kunci] !== undefined ? s.peta[x.kunci] : x.pilih) ? x.belum : 0), 0);
+  const pill = (ada, tBaru, tAda) => ada ? `<span class="rst-pill rst-pill-ada">${tAda}</span>` : `<span class="rst-pill rst-pill-baru">${tBaru}</span>`;
+  return `<div class="rst-kartu" id="rst-sync"><h3>Sync dari Excel · ${escapeHtml(s.nama)}</h3>
+    <div class="rst-ringkas"><div><span>Varian kopi</span><b>${varian.length}</b></div><div><span>Produk akan dihubungkan</span><b>${baru}</b></div>
+      <div><span>Sudah terhubung</span><b>${sudah}</b></div><div><span>Dilewati (lihat catatan)</span><b>${lewat}</b></div>
+      <div><span>Catatan roasting di file</span><b>${R.jumlahRoasting}</b></div><div><span>Batch akan terhubung</span><b>${akanTerhubung} / ${belum}</b></div></div>
+    ${R.namaLog.length ? `<h3 style="margin-top:10px;">1. Hubungkan nama di catatan roasting ke varian</h3>
+      <div class="rst-sub" style="margin-bottom:6px;">Yang mirip sudah dipilih otomatis. Nama umum seperti "Robusta Beans" perlu Anda pilih sendiri (sekali saja - pilihan diingat untuk sync berikutnya). Biarkan "tidak dihubungkan" bila kopinya sudah tidak dijual.</div>
+      <div class="rst-tbl-wrap"><table class="web-table"><thead><tr><th>Nama di catatan roasting</th><th style="text-align:right;">Batch</th><th>Hubungkan ke varian</th><th></th></tr></thead><tbody>
+      ${R.namaLog.map(x => { const nilai = s.peta[x.kunci] !== undefined ? s.peta[x.kunci] : x.pilih; const vs = varian.find(v => v.kunci === x.saran);
+        return `<tr><td><b>${escapeHtml(x.nama)}</b></td><td style="text-align:right;">${x.batch}${x.belum < x.batch ? `<div class="rst-sub">${x.batch - x.belum} sudah terhubung</div>` : ''}</td>
+        <td><select class="web-form-input" style="margin:0;" data-rst-sync-nama="${pgrAttr(x.kunci)}" onchange="rst.sync.peta[this.dataset.rstSyncNama]=this.value; rstRender();"><option value="">- tidak dihubungkan -</option>${opsi.replace(`value="${pgrAttr(nilai)}"`, `value="${pgrAttr(nilai)}" selected`)}</select></td>
+        <td>${s.peta[x.kunci] !== undefined ? '<span class="rst-pill rst-pill-ada">pilihan Anda</span>' : (x.sumberPilih === 'tersimpan' ? '<span class="rst-pill rst-pill-ada">pilihan tersimpan</span>' : (x.pilih ? '<span class="rst-pill rst-pill-baru">otomatis</span>' : (vs ? `<span class="rst-pill rst-pill-cek">mungkin: ${escapeHtml(vs.nama)}</span>` : '<span class="rst-pill rst-pill-cek">perlu dipilih</span>')))}</td></tr>`; }).join('')}
+      </tbody></table></div>` : ''}
+    <h3 style="margin-top:10px;">${R.namaLog.length ? '2' : '1'}. Varian & produk</h3>
+    <div class="rst-tbl-wrap"><table class="web-table"><thead><tr><th></th><th>Varian</th><th>Green bean</th><th>Roasted</th><th style="text-align:right;">Produk</th></tr></thead><tbody>
+      ${varian.map(v => `<tr><td><input type="checkbox" ${s.pakai.has(v.kunci) ? 'checked' : ''} onchange="rst.sync.pakai[this.checked ? 'add' : 'delete']('${pgrAttr(v.kunci)}'); rstRender();" /></td>
+        <td><b>${escapeHtml(v.nama)}</b><div class="rst-sub">${v.produk.map(p => (p.gram >= 1000 ? (p.gram / 1000) + ' kg' : p.gram + ' g')).join(' · ')}</div></td>
+        <td>${pill(v.green.ada, 'baru', 'sudah ada')} ${escapeHtml(v.green.nama)}<div class="rst-sub">${v.hargaGreen ? 'Excel ' + rstRp(v.hargaGreen) + '/kg' : 'harga tidak ada di Excel'}${v.green.ada && v.green.harga > 0 ? ' · sistem ' + rstRp(v.green.harga) + '/kg (tetap)' : ''}</div></td>
+        <td>${pill(v.roasted.ada, 'baru', 'sudah ada')} ${escapeHtml(v.roasted.nama)}</td>
+        <td style="text-align:right; white-space:nowrap;">${v.jumlah.baru ? `<span class="rst-pill rst-pill-baru">+${v.jumlah.baru} baru</span> ` : ''}${v.jumlah.sudah ? `<span class="rst-pill rst-pill-ada">${v.jumlah.sudah} sudah</span> ` : ''}${v.jumlah.lewat ? `<span class="rst-pill rst-pill-cek">${v.jumlah.lewat} dilewati</span>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${R.masalah.length ? `<details style="margin-top:8px;"><summary class="rst-kuning" style="cursor:pointer;">${R.masalah.length} catatan untuk merapikan Excel (tidak menghalangi sync)</summary>
+      <div class="rst-sync-masalah">${R.masalah.map(m => `<div><b>${escapeHtml(m.jenis)}</b> · baris ${m.baris}: ${escapeHtml(m.teks)}</div>`).join('')}</div></details>` : ''}
+    ${R.biayaKosong && (R.asumsi.ongkosRoasting || R.asumsi.packaging) ? `<label class="p2-cek" style="margin-top:8px;"><input type="checkbox" ${s.isiBiaya ? 'checked' : ''} onchange="rst.sync.isiBiaya=this.checked" /> Isi biaya awal dari asumsi Excel${R.asumsi.ongkosRoasting ? ': ongkos roasting ' + rstRp(R.asumsi.ongkosRoasting) + '/kg' : ''}${R.asumsi.packaging ? ', packaging ' + rstRp(R.asumsi.packaging) + '/pcs (hanya bila pouch & label belum diatur)' : ''} - bisa diganti di Biaya proses</label>` : ''}
+    <div class="rst-aksi"><button type="button" class="web-btn-primary rst-btn-besar" id="rst-sync-btn" onclick="rstSyncSimpan()"><span class="oi oi-refresh" aria-hidden="true"></span> Sync sekarang</button>
+      <button type="button" class="web-btn-secondary" onclick="rst.sync=null; rstRender();">Batal</button><span class="status-text" id="rst-sync-status"></span></div>
+    <div id="rst-sync-hasil"></div></div>`;
+}
+async function rstSyncBaca(f) {
+  if (!f) return;
+  const st = el('rst-sync-status');
+  try {
+    setLoadingDots(st, 'Membaca ' + f.name);
+    await impMuatXlsx();
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: false });
+    let kopi = [], roasting = [], asumsiPackaging = 0, tabKopi = '', tabRoasting = '';
+    wb.SheetNames.forEach(nama => {
+      const ws = wb.Sheets[nama]; if (!ws || !ws['!ref']) return;
+      const awal = XLSX.utils.decode_range(ws['!ref']).s.r;
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: true });
+      const teks = rows.slice(0, 6).map(r => r.join('|').toLowerCase()).join('\n');
+      if (!roasting.length && rows.some(r => r.some(v => String(v).trim().toLowerCase() === 'varietas')) && /drum input/.test(rows.map(r => r.join('|').toLowerCase()).join('\n'))) {
+        roasting = rstImporUrai(rows); tabRoasting = nama;
+      } else if (!kopi.length && (/^kopi$/i.test(nama.trim()) || (/nama produk/.test(teks) && /arabica|robusta/i.test(rows.slice(0, 40).map(r => r.join(' ')).join(' '))))) {
+        tabKopi = nama;
+        rows.forEach((r, i) => {
+          if (!r.some(v => v !== '' && v !== null)) return;
+          kopi.push({ baris: awal + i + 1, a: r[0], b: r[1], c: r[2], d: r[3], h: r[7], i: r[8], j: r[9] });
+          if (/asumsi biaya packaging/i.test(String(r[7] || ''))) asumsiPackaging = r[8];
+        });
+      }
+    });
+    if (!kopi.length && !roasting.length) throw new Error('Tab KOPI maupun catatan roasting (kolom Varietas / Drum Input) tidak ditemukan di file ini.');
+    const payload = { kopi, roasting, asumsiPackaging };
+    const r = await postJson({ aksi: 'rst_sync_analisa', ...payload, email: currentUserEmail() }, 90000);
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menganalisa');
+    const pakai = new Set(r.varian.filter(v => v.jumlah.baru || r.namaLog.some(x => x.pilih === v.kunci)).map(v => v.kunci));
+    rst.sync = { nama: f.name + (tabKopi || tabRoasting ? ' (' + [tabKopi && 'tab ' + tabKopi, tabRoasting && 'tab ' + tabRoasting].filter(Boolean).join(' + ') + ')' : ''), payload, rencana: r, peta: {}, pakai, isiBiaya: true };
+    rstRender();
+    const k = el('rst-sync'); if (k) k.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } catch (err) { stopLoadingDots(st); rst.sync = { pesan: '<span class="rst-merah">' + escapeHtml(String(err.message || err).replace(/^Error:\s*/, '')) + '</span>' }; rstRender(); }
+}
+async function rstSyncSimpan() {
+  const s = rst.sync, st = el('rst-sync-status'), btn = el('rst-sync-btn');
+  if (!(await omniKonfirm_('Jalankan sync?\n\nProduk Master & stok tidak berubah. Pengaturan produk kemasan yang sudah ada tidak ditimpa.'))) return;
+  btn.disabled = true; setLoadingDots(st, 'Menyinkronkan');
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_sync_simpan', ...s.payload, peta: s.peta, varianDipakai: [...s.pakai], isiBiaya: !!s.isiBiaya, email: currentUserEmail() }, 120000);
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    playBeep();
+    const h = r.hasil;
+    const ringkas = `<div class="rst-hasil"><b>Sync selesai.</b>
+      <div>Green bean baru: ${h.greenBaru} · roasted baru: ${h.roastedBaru} · produk kemasan baru: ${h.kemasanBaru} (sudah ada: ${h.kemasanSudah}, dilewati: ${h.produkDilewati})</div>
+      <div>Riwayat roasting diimpor: ${h.logDiimpor}${h.logDilewati ? ' (dilewati ' + h.logDilewati + ' - sudah ada / tidak wajar)' : ''} · batch terhubung ke varian: ${h.logTerhubung}${h.logBelum ? ' · belum terhubung: ' + h.logBelum : ''}</div>
+      ${h.biayaAwal ? `<div>Biaya awal dari asumsi Excel: ${h.biayaAwal} baris (cek di Biaya proses).</div>` : ''}${h.hargaGreenDiisi ? `<div>Harga green bean yang masih 0 diisi dari Excel: ${h.hargaGreenDiisi}.</div>` : ''}
+      <div class="rst-sub" style="margin-top:4px;">Langkah berikut: isi stok green bean & roasted (Produksi &gt; Bahan Baku &gt; Hitung fisik), atur pouch/label per produk bila perlu, lalu cek Riwayat &gt; Per varian.</div></div>`;
+    rst.sync = null;
+    await rstMuat(); rstRender();
+    const k = el('rst-sync'); if (k) k.insertAdjacentHTML('beforeend', ringkas);
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; playToot(); }
+}
+(function () {
+  const aturAsli = rstViewAtur;
+  rstViewAtur = function (isi) { aturAsli(isi); if (rst.d && rst.d.bolehHarga) isi.insertAdjacentHTML('afterbegin', rstSyncKartuHtml()); };
+  const hariAsli = rstViewHari;
+  rstViewHari = function (isi) {
+    hariAsli(isi);
+    if (rst.d && rst.d.bolehHarga && !(rst.d.kemasan || []).length) isi.insertAdjacentHTML('afterbegin', `<div class="rst-kartu"><b>Punya Excel SKU kopi (tab KOPI) & catatan roasting?</b>
+      <div class="rst-sub">Semua persiapan bisa dibuat sekali jalan dari 1 file. <a href="#" onclick="rstGanti('atur'); return false;">Buka Sync dari Excel</a></div></div>`);
+  };
 })();
 </script>
 </body>
