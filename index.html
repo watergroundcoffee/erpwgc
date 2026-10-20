@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.33';
+  var VERSI = 'v2026.10.34';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -61959,7 +61959,7 @@ function ccxLihatPenyebab() {
   const rinci = belum.slice(0, 200).map(d => {
     const a = ccxAlasan.alasan[d.noResiScan];
     return `<tr><td class="pgr-mono" style="white-space:nowrap;">${escapeHtml(d.noResiScan)}</td><td>${escapeHtml(a.kurir || d.kurir || '-')}</td><td>${escapeHtml(a.teks)}</td>
-      <td><button type="button" class="cc-btn-tautkan" data-r="${pgrAttr(d.noResiScan)}" onclick="const r = this.dataset.r; omxTutupModal(); pgrTautkanManual(r, false);">Tautkan</button></td></tr>`;
+      <td style="white-space:nowrap;"><button type="button" class="cc-btn-tautkan" data-r="${pgrAttr(d.noResiScan)}" onclick="drsBuka(this.dataset.r)">Diagnosa</button> <button type="button" class="cc-btn-tautkan" data-r="${pgrAttr(d.noResiScan)}" onclick="const r = this.dataset.r; omxTutupModal(); pgrTautkanManual(r, false);">Tautkan</button></td></tr>`;
   }).join('');
   const lap = ccxAlasan.laporan ? Object.keys(ccxAlasan.laporan).map(k => `${escapeHtml(k)}: ${escapeHtml(String(ccxAlasan.laporan[k]))}`).join(' · ') : '';
   omxModal('Penyebab resi belum terhubung', `
@@ -61968,6 +61968,7 @@ function ccxLihatPenyebab() {
       <div style="overflow-x:auto;"><table class="krs-tabel"><thead><tr><th>Kurir</th><th>Penyebab</th></tr></thead><tbody>${ringkas || '<tr><td colspan="2">-</td></tr>'}</tbody></table></div>
       <div style="overflow-x:auto; margin-top:10px;"><table class="krs-tabel"><thead><tr><th>Resi discan</th><th>Kurir</th><th>Penjelasan</th><th></th></tr></thead><tbody>${rinci}</tbody></table></div>
       ${lap ? `<p style="margin:8px 0 0; color:var(--web-text-dim); font-size:11.5px;">Pengecekan marketplace: ${lap}</p>` : ''}
+      ${typeof jdwBuka === 'function' && currentUser && currentUser.isOwner ? '<p style="margin:10px 0 0;"><button type="button" class="web-btn-secondary" onclick="jdwBuka()">Status jadwal otomatis</button> <span style="color:var(--web-text-dim); font-size:11.5px;">cek apakah penarikan pesanan, resi & booking berjalan</span></p>' : ''}
     </div>`, { lebar: true });
 }
 </script>
@@ -63898,6 +63899,96 @@ katalogSimpanProdukBaru = async function () {
   }
   return tpSimpanAsli.apply(this, arguments);
 };
+</script>
+<!-- ===================================================================================
+     PAKET 18 (v2026.10.34) - Resi belum terhubung: Diagnosa resi, cari di semua kolom pesanan, status jadwal otomatis
+     =================================================================================== -->
+<style>
+  .drs-langkah { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .drs-langkah li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; font-size: 12.5px; line-height: 1.45; }
+  .drs-langkah li i { width: 18px; height: 18px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 11px; font-weight: 800; margin-top: 1px; }
+  .drs-langkah li.ok i { background: rgba(22,163,74,.14); color: #15803d; } .drs-langkah li.ok i::before { content: '\2713'; }
+  .drs-langkah li.gagal i { background: rgba(220,38,38,.12); color: #b91c1c; } .drs-langkah li.gagal i::before { content: '\2717'; }
+  .drs-langkah li.peringatan i { background: rgba(217,119,6,.14); color: #b45309; } .drs-langkah li.peringatan i::before { content: '!'; }
+  .drs-langkah li.info i { background: rgba(100,116,139,.14); color: #475569; } .drs-langkah li.info i::before { content: 'i'; }
+  .drs-langkah b { display: block; font-size: 12px; }
+  .drs-ringkas { padding: 10px 12px; border-radius: 10px; background: rgba(79,70,229,.07); font-weight: 600; font-size: 13px; margin-bottom: 12px; }
+  .drs-aksi { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .jdw-tabel td.st { white-space: nowrap; font-weight: 700; }
+  .jdw-tabel .ok { color: #15803d; } .jdw-tabel .mati { color: #b91c1c; } .jdw-tabel .opsi { color: var(--web-text-dim); }
+  .jdw-tabel code { font-size: 11px; background: rgba(100,116,139,.12); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
+</style>
+<script>
+/* ======================== Diagnosa 1 resi ======================== */
+let drsData = null;
+async function drsBuka(resi) {
+  omxModal('Diagnosa resi ' + resi, '<div style="font-size:13px; color:var(--web-text-dim);">Memeriksa scan, tautan, semua kolom data pesanan, kemiripan & booking…</div>', { lebar: true });
+  let d;
+  try { d = await postJson({ aksi: 'diagnosa_resi', noResi: resi, email: currentUserEmail() }, 90000, true); }
+  catch (e) { d = { success: false, error: e.message || String(e) }; }
+  if (!el('omx-modal')) return; // ditutup saat menunggu
+  if (!d || !d.success) { omxModal('Diagnosa resi ' + resi, `<div style="color:var(--web-danger);">Gagal: ${escapeHtml((d && d.error) || 'tidak ada jawaban')}</div>`); return; }
+  drsData = d;
+  const kandidat = [];
+  (d.cocokKolom || []).forEach(x => kandidat.push(x));
+  (d.mirip || []).forEach(x => { if (!kandidat.some(k => k.no === x.no && k.sumber === x.sumber)) kandidat.push(x); });
+  const tombol = d.tertaut ? '' : kandidat.slice(0, 4).map((x, i) => `<button type="button" class="web-btn-primary" onclick="drsTautkan(${i})">Tautkan ke ${escapeHtml(x.sumber)} ${escapeHtml(x.no)}</button>`).join('');
+  drsData._kandidat = kandidat;
+  omxModal('Diagnosa resi ' + resi, `
+    <div class="drs-ringkas">${escapeHtml(d.ringkas || '')}</div>
+    <ul class="drs-langkah">${(d.langkah || []).map(l => `<li class="${pgrAttr(l.status)}"><i aria-hidden="true"></i><div><b>${escapeHtml(l.judul)}</b>${escapeHtml(l.isi)}</div></li>`).join('')}</ul>
+    <div class="drs-aksi">${tombol}
+      <button type="button" class="web-btn-secondary" onclick="pgrTautkanManual(${pgrAttr(JSON.stringify(resi))}, false)">Cari & tautkan manual</button>
+      <button type="button" class="web-btn-secondary" onclick="drsSalin(this)">Salin laporan untuk developer</button></div>`, { lebar: true });
+}
+async function drsTautkan(i) {
+  const d = drsData, x = d && d._kandidat && d._kandidat[i]; if (!x) return;
+  if (!(await omniKonfirm_(`Tautkan resi ${d.noResi} ke pesanan ${x.sumber} ${x.no}?`))) return;
+  try {
+    const r = await postJsonTulis({ aksi: 'tautkan_resi_manual', noResi: d.noResi, noInvoice: x.no, sumber: x.sumber, email: currentUserEmail() }, 30000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    pgrToast('✓ Resi ' + d.noResi + ' ditautkan ke ' + x.sumber + ' ' + x.no);
+    omxTutupModal();
+    try { if (typeof ccMuat === 'function') ccMuat(true); } catch (e) { }
+  } catch (e) { pgrToast('✗ ' + String(e.message || e).replace(/^Error:\s*/, '')); }
+}
+async function drsSalin(btn) {
+  const d = drsData; if (!d) return;
+  const teks = ['Diagnosa resi ' + d.noResi + ' (' + new Date().toLocaleString('id-ID') + ', versi ' + (window.omxAnalitik && omxAnalitik.status ? omxAnalitik.status().versi : '') + ')', 'Ringkas: ' + d.ringkas]
+    .concat((d.langkah || []).map(l => '- [' + l.status + '] ' + l.judul + ': ' + l.isi)).join('\n');
+  try { await navigator.clipboard.writeText(teks); btn.textContent = 'Tersalin ✓'; } catch (e) { omxModal('Laporan diagnosa', `<textarea class="web-form-input" style="width:100%; min-height:220px;" readonly>${escapeHtml(teks)}</textarea>`, { lebar: true }); }
+}
+/* ======================== Status jadwal otomatis (Owner) ======================== */
+async function jdwBuka() {
+  omxModal('Status jadwal otomatis', '<div style="font-size:13px; color:var(--web-text-dim);">Memuat…</div>', { lebar: true });
+  let d;
+  try { d = await postJson({ aksi: 'jadwal_otomatis_lihat', email: currentUserEmail() }, 30000, true); } catch (e) { d = { success: false, error: e.message }; }
+  if (!d || !d.success) { omxModal('Status jadwal otomatis', `<div style="color:var(--web-danger);">Gagal: ${escapeHtml((d && d.error) || '')}</div>`); return; }
+  const kurang = d.daftar.filter(x => !x.terpasang && x.wajib).length;
+  const mati = d.daftar.filter(x => x.terpasang && !x.aktif);
+  const baris = d.daftar.map(x => {
+    const st = !x.terpasang ? `<span class="${x.wajib ? 'mati' : 'opsi'}">${x.wajib ? 'Belum terpasang' : 'Tidak dipasang (opsional)'}</span>`
+      : !x.aktif ? '<span class="mati">Terpasang tapi DIMATIKAN</span>' : '<span class="ok">Berjalan</span>';
+    return `<tr><td><b>${escapeHtml(x.label)}</b><br><code>${escapeHtml(x.handler)}</code></td><td class="st">${st}${x.dobel ? '<br><span class="opsi">(terpasang dobel)</span>' : ''}</td>
+      <td>${x.terakhir ? 'Terakhir ' + escapeHtml(x.terakhir) : (x.terpasang ? 'Belum pernah jalan' : '-')}${x.berikut ? '<br>Berikut ' + escapeHtml(x.berikut) : ''}${x.hasil ? `<br><span class="opsi">${escapeHtml(x.hasil.slice(0, 140))}</span>` : ''}</td>
+      <td>${!x.terpasang ? `<button type="button" class="cc-btn-tautkan" onclick="jdwPasang('${pgrAttr(x.handler)}')">Pasang</button>` : ''}</td></tr>`;
+  }).join('');
+  const sql = mati.length ? `update omni.trigger set aktif = true where handler in (${mati.map(x => "'" + x.handler + "'").join(', ')});` : '';
+  omxModal('Status jadwal otomatis', `<div style="font-size:12.5px; line-height:1.5;">
+    <p style="margin:0 0 10px;">Jadwal-jadwal ini yang menarik pesanan, resi, No Reservasi Kilat & biaya iklan secara otomatis. Kalau ada yang belum terpasang / dimatikan, resi bisa tetap "Belum terhubung".</p>
+    <div style="overflow-x:auto;"><table class="krs-tabel jdw-tabel"><thead><tr><th>Jadwal</th><th>Status</th><th>Jalan</th><th></th></tr></thead><tbody>${baris}</tbody></table></div>
+    ${kurang ? `<p style="margin:10px 0 0;"><button type="button" class="web-btn-primary" onclick="jdwPasang('')">Pasang ${kurang} jadwal penting yang belum ada</button></p>` : ''}
+    ${sql ? `<p style="margin:12px 0 4px;"><b>Jadwal yang dimatikan</b> hanya bisa dinyalakan dari Supabase: buka <b>SQL Editor</b> → New query → tempel perintah ini → Run.</p><code style="display:block; padding:8px;">${escapeHtml(sql)}</code>` : ''}
+  </div>`, { lebar: true });
+}
+async function jdwPasang(handler) {
+  try {
+    const r = await postJsonTulis({ aksi: 'jadwal_otomatis_pasang', handler: handler || '', email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    pgrToast(r.dipasang.length ? '✓ Dipasang: ' + r.dipasang.join(', ') : 'Tidak ada jadwal yang perlu dipasang' + (r.gagal.length ? ' · gagal: ' + r.gagal.join('; ') : ''));
+  } catch (e) { pgrToast('✗ ' + String(e.message || e).replace(/^Error:\s*/, '')); }
+  jdwBuka();
+}
 </script>
 </body>
 </html>
