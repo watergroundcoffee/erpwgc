@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.35';
+  var VERSI = 'v2026.10.36';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -64113,5 +64113,67 @@ function p19TandaiKeluar_() {
   .lbl-ukur .label-isi-table td, .lbl-ukur .label-isi-table th { padding: 3px 4px !important; }
   @media print { .label-isi-table td, .label-isi-table th { padding: 3px 4px !important; } }
 </style>
+<!-- ===================================================================================
+     PAKET 20 (v2026.10.36) - Isi dengan AI: tempel URL / SKU supplier -> data produk dari halaman supplier (tanpa AI)
+     =================================================================================== -->
+<script>
+function tpSupTerdeteksi_(teks) {
+  const t = String(teks || '').trim();
+  if (/^https?:\/\/\S+$/i.test(t)) return { url: t };
+  if (/^[A-Za-z0-9]{6,12}$/.test(t) && /\d/.test(t) && /[A-Za-z]/.test(t)) return { sku: t.toUpperCase() };
+  return null;
+}
+const tpIsiAiBacaAsli = tpIsiAiBaca;
+tpIsiAiBaca = async function (paksaAI) {
+  const teks = el('tp-ai-teks') ? el('tp-ai-teks').value.trim() : '';
+  const sup = !paksaAI && tpSupTerdeteksi_(teks);
+  if (!sup) return tpIsiAiBacaAsli.apply(this, arguments);
+  const st = el('tp-ai-status'), btn = el('tp-ai-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  st.textContent = sup.url ? 'Membuka halaman supplier…' : 'Mencari SKU ' + sup.sku + ' di jakartanotebook.com…';
+  try {
+    const r = await postJson(Object.assign({ aksi: 'supplier_tarik_produk', email: currentUserEmail() }, sup), 90000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal membaca halaman supplier');
+    const d = r.data || {};
+    let n = tpIsiAiTerapkan({ nama: d.nama, merk: d.merk, deskripsi: d.deskripsi, material: d.material, warna: d.warna, beratGram: d.beratGram, panjangCm: d.panjangCm, lebarCm: d.lebarCm, tinggiCm: d.tinggiCm });
+    const isiKosong = (id, v) => {
+      const e = el(id); if (!e || !v || String(e.value || '').trim()) return false;
+      tpAiSebelum[id] = e.value; e.value = v; e.classList.remove('tp-ai-sorot'); void e.offsetWidth; e.classList.add('tp-ai-sorot');
+      e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); n++; return true;
+    };
+    // Harga modal, foto utama & URL supplier: diisi bila masih kosong (tidak menimpa isian yang sudah ada)
+    const hargaTerisi = isiKosong('tp-harga-supplier', d.harga ? String(d.harga) : '');
+    const fotoTerisi = isiKosong('tp-url-foto', d.foto || '');
+    isiKosong('tp-url-supplier', d.urlProduk || '');
+    tpIsiAiTutup();
+    const s = el('tp-status');
+    if (s) {
+      const catat = [];
+      if (d.harga && !hargaTerisi) catat.push('harga supplier ' + 'Rp ' + Number(d.harga).toLocaleString('id-ID') + ' (kolom Harga Modal sudah terisi, tidak ditimpa)');
+      if (d.foto && !fotoTerisi) catat.push('foto utama tidak diganti karena sudah ada');
+      s.className = 'status-text ok';
+      s.innerHTML = `✦ ${n} kolom terisi dari halaman supplier${d.skuSupplier ? ' (SKU ' + escapeHtml(d.skuSupplier) + ')' : ''}. Cek kolom yang disorot sebelum menyimpan.`
+        + (catat.length ? ' · ' + escapeHtml(catat.join(' · ')) : '')
+        + ` <a href="#" onclick="tpIsiAiBatalkan(); return false;">Batalkan isian</a>`
+        + (d.urlProduk ? ` · <a href="${pgrAttr(d.urlProduk)}" target="_blank" rel="noopener">Buka halaman supplier</a>` : '');
+    }
+    if (!n) pgrToast('Halaman supplier terbaca, tetapi semua kolom sudah sama / sudah terisi.');
+  } catch (err) {
+    st.textContent = '✗ ' + String(err.message || err).replace(/^Error:\s*/, '');
+  } finally { btn.disabled = false; }
+};
+(function () {
+  const ubahBantu = () => {
+    const w = el('tp-ai-latar'); if (!w || w.dataset.p20) return;
+    w.dataset.p20 = '1';
+    const b = w.querySelector('.tp-ai-bantu');
+    if (b) b.innerHTML = 'Tempel <b>URL halaman produk</b> supplier, atau ketik <b>SKU supplier jakartanotebook</b> (mis. 7RHZWQTP) lalu tekan Isi Otomatis - nama, foto utama, harga modal, merk, deskripsi, berat & dimensi diambil langsung dari halaman supplier. Bisa juga tempel teks halaman (Ctrl+A, Ctrl+C, Ctrl+V) seperti dulu.';
+    const ta = el('tp-ai-teks'); if (ta) ta.placeholder = 'URL produk supplier, SKU supplier, atau teks halaman produk…';
+  };
+  const asli = tpIsiAiBuka;
+  tpIsiAiBuka = function () { const r = asli.apply(this, arguments); try { ubahBantu(); } catch (e) { } return r; };
+})();
+</script>
 </body>
 </html>
