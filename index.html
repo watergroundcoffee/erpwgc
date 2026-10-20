@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.31';
+  var VERSI = 'v2026.10.32';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -51825,9 +51825,9 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
       </div>
     </div>
     <table>
-      <tr><th>DESCRIPTION</th><th>PRICE @</th><th>QTY</th><th>AMOUNT</th></tr>
-      ${rowsHtml}
-      ${ringkasanHtml}
+      <thead><tr><th>DESCRIPTION</th><th>PRICE @</th><th>QTY</th><th>AMOUNT</th></tr></thead>
+      <tbody>${rowsHtml}
+      ${ringkasanHtml}</tbody>
     </table>
     <div class="pay-footer">
       <div class="pay-col">
@@ -51846,7 +51846,8 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
   } // tutup if(!lewatiInvoice)
 
   /* ===================== LABEL PENGIRIMAN (bisa beberapa lembar A6) ===================== */
-  const labelPages = splitBerbeda(order.items, 8, 14); // maks 8 item di lembar 1, 14 item di lembar berikutnya
+  // v2026.10.32: label = SATU daftar utuh. Pembagian halaman diserahkan ke printer / ukuran kertas (judul kolom diulang tiap halaman).
+  const labelPages = [order.items];
   const totalLabelPages = labelPages.length;
 
   const adaResiAsliLabel = !!noResi && String(noResi).trim() !== String(order.noInvoice).trim() && kurir !== 'Kurir Toko';
@@ -51911,8 +51912,8 @@ function renderInvoiceAndLabel(order, lewatiInvoice) {
     return `<div class="print-sheet">
       ${headerBlock}
       <table class="label-isi-table">
-        <tr><th>NAMA PRODUK</th><th>QTY</th></tr>
-        ${itemRowsHtml}
+        <thead><tr><th>NAMA PRODUK</th><th>QTY</th></tr></thead>
+        <tbody>${itemRowsHtml}</tbody>
       </table>
       ${footerBlock}
       ${totalLabelPages > 1 ? `<div class="page-indicator">Lembar ${pageIdx + 1}/${totalLabelPages} &nbsp;&nbsp;&nbsp; No Pesanan . ${escapeHtml(order.noInvoice)}</div>` : ''}
