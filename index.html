@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.30';
+  var VERSI = 'v2026.10.31';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -12208,6 +12208,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
                 </select>
               </div>
               <div class="fin2-b-hasil" id="fin2-b-hasil" hidden></div>
+              <div class="fin2-b-hasil" id="fin2-b-iklan" hidden></div>
               <div id="fin2-b-list" class="fin2-list"></div>
               <div class="fin2-rbs-kartu" id="fin2-rbs">
                 <div class="fin2-kartu-judul"><span class="oi oi-card" aria-hidden="true"></span> Rekap Rembes bulan ini <button type="button" class="fin2-link" onclick="fin2SalinRekapRembes()"><span class="oi oi-clipboard" aria-hidden="true"></span> Salin rekap</button></div>
@@ -28766,6 +28767,17 @@ function fin2SaringBiaya_(daftar, sar) {
   }
   return out;
 }
+async function fin2SinkronIklanSekarang() {
+  if (fin2.iklanJalan) return;
+  fin2.iklanJalan = true; fin2RenderBiayaUlang();
+  try {
+    const r = await postJsonTulis({ aksi: 'fin_sinkron_iklan', hariMundur: 7, email: currentUserEmail() }, 330000);
+    if (r && r.sedangJalan) pgrToast('⏳ ' + r.pesan);
+    else if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    else { pgrToast('✓ Biaya iklan 7 hari terakhir tersinkron: ' + fin2Rp(r.totalBiaya)); playBeep(); fin2.lapKunci = ''; }
+  } catch (err) { pgrToast('✗ Sinkron biaya iklan gagal: ' + String(err.message || err).replace(/^Error:\s*/, '')); }
+  finally { fin2.iklanJalan = false; try { await fin2MuatBiaya(true); } catch (e) { fin2RenderBiayaUlang(); } }
+}
 let fin2SaringTimer = 0;
 function fin2SaringBiayaUbah() {
   fin2.saringKat = (el('fin2-b-skat') && el('fin2-b-skat').value) || '';
@@ -28878,6 +28890,15 @@ function fin2RenderBiaya(r) {
     selKat.value = sar.kat;
   }
   const daftarList = fin2SaringBiaya_(daftar, sar);
+  // v2026.10.30: info sinkron otomatis biaya iklan (Shopee & TikTok, tiap 3 jam)
+  const ik = el('fin2-b-iklan');
+  if (ik) {
+    const m = r.iklanSync, h = (m && m.hasil) || {};
+    const gagal = Object.keys(h).filter(k => h[k] && !h[k].ok);
+    ik.hidden = false;
+    ik.innerHTML = `<span>📣 Biaya iklan Shopee &amp; TikTok masuk otomatis tiap 3 jam${m && m.waktu ? ' · terakhir ' + escapeHtml(m.waktu) : ' · belum pernah tersinkron'}${gagal.length ? ` · <span style="color:var(--fin-merah,#b3261e)" title="${pgrAttr(gagal.map(k => k + ': ' + (h[k].pesan || '')).join(' | '))}">${escapeHtml(gagal.join(', '))} gagal</span>` : ''}</span>`
+      + `<button type="button" class="fin2-link" id="fin2-b-iklan-btn" onclick="fin2SinkronIklanSekarang()">${fin2.iklanJalan ? 'Menarik…' : 'Sinkron sekarang'}</button>`;
+  }
   const hasil = el('fin2-b-hasil');
   if (hasil) {
     const aktif = !!(sar.cari || sar.kat);
@@ -51976,6 +51997,7 @@ async function omxTungguGambar_(wadah) {
 }
 async function printElement(elementId) {
   try { await omxTungguGambar_(el(elementId)); } catch (e) { }
+  try { omniCetakRapikanLembar_(el(elementId)); } catch (e) { }
   const invoiceEl = el('print-invoice-pages');
   const labelEl = el('print-label-pages');
 
@@ -57611,6 +57633,17 @@ function omniTungguGambar_(akar, batasMs) {
   });
 }
 let omniCetakSedang = false;
+// v2026.10.30: pemisah halaman lama (div kosong page-break) dibuang - tiap lembar sudah 1 halaman sendiri;
+// lembar terakhir ditandai supaya tidak ada halaman / label kosong di ujung.
+function omniCetakRapikanLembar_(wadah) {
+  if (!wadah) return;
+  wadah.querySelectorAll('div').forEach(d => {
+    if (!d.children.length && !d.textContent.trim() && /page-break-after/i.test(d.getAttribute('style') || '')) d.remove();
+  });
+  const lembar = wadah.querySelectorAll('.print-sheet');
+  lembar.forEach(x => x.classList.remove('lembar-akhir'));
+  if (lembar.length) lembar[lembar.length - 1].classList.add('lembar-akhir');
+}
 async function omniCetakInline(idSumber, judul) {
   if (omniCetakSedang) return false;
   const sumber = el(idSumber);
@@ -57621,6 +57654,7 @@ async function omniCetakInline(idSumber, judul) {
   let wadah = el('omni-cetak-inline');
   if (!wadah) { wadah = document.createElement('div'); wadah.id = 'omni-cetak-inline'; wadah.setAttribute('aria-hidden', 'true'); document.body.appendChild(wadah); }
   wadah.innerHTML = '<div class="print-sheet-wrapper">' + html + '</div>';
+  omniCetakRapikanLembar_(wadah);
   const thermalLama = document.body.classList.contains('cetak-thermal');
   const judulLama = document.title;
   document.body.classList.toggle('cetak-thermal', modeCetakAktif_() === 'thermal');
@@ -63631,5 +63665,33 @@ if ('serviceWorker' in navigator && /^https:/.test(location.protocol)) {
 window.addEventListener('resize', () => { if (M2.aktif && window.innerWidth >= 900 && !M2.native) { /* layar jadi lebar (mis. tablet diputar) */ document.documentElement.classList.remove('m2'); M2.aktif = false; } });
 </script>
 
+<style>
+  /* ===== v2026.10.30 (Paket 16) - CETAK INVOICE & LABEL PESANAN MANUAL (DN-261020-102610-186) =====
+     - Ukuran kertas TIDAK dipaksa 4x6 lagi: halaman = kertas yang dipilih di jendela cetak / bawaan printer
+       (label thermal A6 105x148, 100x150, A4 ...). Setiap lembar (invoice / label) = tepat 1 halaman,
+       jadi di label thermal otomatis pindah ke label berikutnya; lembar terakhir tidak membuat halaman kosong.
+     - Tidak ada skala 90% / tinggi minimum 148 mm lagi (dulu bikin lembar meluber ke label kedua & mengecil).
+     - Lebar mengikuti kertas, maksimal 105 mm. Semua teks & barcode tetap teks/vektor (tajam). */
+  @media print {
+    @page { size: auto; margin: 2.5mm; }
+    html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; } /* dulu tinggi tetap + scroll -> hanya halaman pertama yang tercetak */
+    .print-sheet, .invoice-sheet {
+      transform: none !important; min-height: 0 !important; height: auto !important;
+      width: 100% !important; max-width: 105mm !important; margin: 0 auto !important;
+      padding: 2.5mm 3mm !important; border-radius: 0 !important; box-shadow: none !important;
+      page-break-after: always; break-after: page;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact; text-rendering: geometricPrecision;
+    }
+    .print-sheet.lembar-akhir { page-break-after: auto !important; break-after: auto !important; }
+    .print-sheet-wrapper, #print-invoice-pages, #print-label-pages { padding: 0 !important; margin: 0 !important; }
+    .print-sheet svg { shape-rendering: crispEdges; }
+    body.cetak-thermal .print-sheet { font-size: 12px !important; font-weight: 700 !important; }
+    body.cetak-thermal .print-sheet :is(.prod-sku, .addr-line, .doc-meta, .resi-label-small, .pay-title, .pay-value, .val-line, .page-indicator) { font-size: 10.5px !important; font-weight: 700 !important; }
+    body.cetak-thermal .print-sheet :is(.prod-name, .addr-nama, .val-bold, .kurir-label, .doc-title) { font-weight: 900 !important; }
+    body.cetak-thermal .print-sheet img.logo-thermal { image-rendering: pixelated; }
+    body.cetak-thermal .print-sheet .prod-name { font-size: 11px !important; line-height: 1.25 !important; }
+    body.cetak-thermal .print-sheet .prod-sku { font-size: 9.5px !important; font-weight: 600 !important; }
+  }
+</style>
 </body>
 </html>
