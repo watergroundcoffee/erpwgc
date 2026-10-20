@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.27-b';
+  var VERSI = 'v2026.10.30';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -5687,6 +5687,17 @@ a.harga-url-toggle.ada { color: #4338ca; }
 
   /* Riwayat biaya */
   .fin2 .fin2-riwayat-kontrol input { margin: 0; padding: 6px 10px; font-size: 12.5px; width: auto; }
+  /* v2026.10.30: cari, saring & urutkan riwayat biaya */
+  .fin2 .fin2-b-saring { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.9fr); gap: 8px; margin-bottom: 10px; }
+  .fin2 .fin2-b-saring input, .fin2 .fin2-b-saring select { margin: 0; padding: 7px 10px; font-size: 12.5px; width: 100%; box-sizing: border-box; }
+  .fin2 .fin2-b-hasil { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12px; color: var(--fin-slate-5); margin: -2px 0 8px; }
+  .fin2 .fin2-b-hasil b { color: var(--web-text); font-variant-numeric: tabular-nums; }
+  .fin2 .fin2-perkat button { font: inherit; font-size: 11.5px; padding: 4px 10px; border-radius: 999px; background: var(--fin-aksen-lembut); color: var(--fin-aksen-teks); font-weight: 500; border: 1px solid transparent; cursor: pointer; }
+  .fin2 .fin2-perkat button.aktif { border-color: var(--fin-aksen); font-weight: 700; }
+  .fin2 .fin2-perkat button:focus-visible { outline: 2px solid var(--fin-aksen); outline-offset: 2px; }
+  @media (max-width: 600px) { .fin2 .fin2-b-saring { grid-template-columns: 1fr 1fr; } .fin2 .fin2-b-saring input { grid-column: 1 / -1; } }
+  /* v2026.10.30: grafik tren Beranda di HP lebih tinggi & ringkas */
+  @media (max-width: 700px) { #ov-tren-wadah { position: relative; height: 250px; } }
   .fin2 .fin2-riwayat-total { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px; border-radius: 12px; background: var(--fin-lembut); margin-bottom: 12px; }
 
   .fin2 .fin2-riwayat-total span { font-size: 12.5px; color: var(--fin-slate-5); }
@@ -10012,7 +10023,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
                   <button class="web-chart-toggle-btn" id="ov-tren-resi" onclick="ovGantiTrenJenis('resi')">Resi</button>
                 </div>
               </div>
-              <canvas id="web-chart-line" height="90"></canvas>
+              <div id="ov-tren-wadah"><canvas id="web-chart-line" height="90"></canvas></div>
             </div>
             <div class="web-panel" style="flex:1;">
               <div class="web-panel-header">
@@ -10191,7 +10202,11 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               <span id="wp-gab-bulk-count" style="font-size:13px; font-weight:600;">0 dipilih</span>
               <button class="web-btn-secondary" onclick="wpGabunganResetPilihan()">Reset</button>
               <div style="flex:1;"></div>
-              <button class="web-btn-primary" onclick="wpCetakLabelResmi()" title="Label resmi Shopee / TikTok Shop, diperkecil 75% di kiri atas kertas 10x15 cm">🖨 Cetak Label Resmi</button>
+              <button class="web-btn-primary" onclick="wpCetakLabelResmi()" title="Label resmi Shopee / TikTok Shop - 1 label per halaman, tulisan tetap tajam (bukan gambar)">🖨 Cetak Label Resmi</button>
+              <select id="lbl-mode" class="web-form-input" style="width:auto; margin:0; padding:6px 8px; font-size:12px;" aria-label="Ukuran label resmi" title="Ukuran label resmi" onchange="lblSimpanMode(this.value)">
+                <option value="penuh">Label penuh · 1 per halaman (A6 / 10×15)</option>
+                <option value="75">Label 75% + ruang stiker (10×15)</option>
+              </select>
               <button class="web-btn-primary" onclick="wpGabunganAksiMassal('invoice')"><span class="oi oi-clipboard" aria-hidden="true"></span> Cetak Invoice</button>
               <button class="web-btn-primary" onclick="wpGabunganAksiMassal('cetak')"><span class="oi oi-file" aria-hidden="true"></span> Cetak Surat Jalan</button>
               <button class="web-btn-primary" onclick="wpGabunganAksiMassal('pembeli')"><span class="oi oi-edit" aria-hidden="true"></span> Input Data Pembeli</button>
@@ -12185,6 +12200,14 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               </div>
               <div class="fin2-riwayat-total"><span>Total bulan ini</span><b id="fin2-b-total">Rp 0</b></div>
               <div id="fin2-b-perkat" class="fin2-perkat"></div>
+              <div class="fin2-b-saring" role="search">
+                <input type="search" id="fin2-b-cari" class="web-form-input" placeholder="Cari keterangan, nota, merchant, jumlah…" aria-label="Cari biaya" oninput="fin2SaringBiayaUbah()" autocomplete="off" />
+                <select id="fin2-b-skat" class="web-form-input" aria-label="Saring jenis biaya" onchange="fin2SaringBiayaUbah()"><option value="">Semua jenis</option></select>
+                <select id="fin2-b-urut" class="web-form-input" aria-label="Urutkan" onchange="fin2SaringBiayaUbah()">
+                  <option value="baru">Terbaru</option><option value="lama">Terlama</option><option value="besar">Terbesar</option><option value="kecil">Terkecil</option>
+                </select>
+              </div>
+              <div class="fin2-b-hasil" id="fin2-b-hasil" hidden></div>
               <div id="fin2-b-list" class="fin2-list"></div>
               <div class="fin2-rbs-kartu" id="fin2-rbs">
                 <div class="fin2-kartu-judul"><span class="oi oi-card" aria-hidden="true"></span> Rekap Rembes bulan ini <button type="button" class="fin2-link" onclick="fin2SalinRekapRembes()"><span class="oi oi-clipboard" aria-hidden="true"></span> Salin rekap</button></div>
@@ -20659,6 +20682,40 @@ async function lblSusun75(daftarPdf) {
   }
   return { bytes: await out.save(), halaman: n };
 }
+/* v2026.10.30: mode "penuh" (bawaan) - halaman label asli disalin APA ADANYA (tulisan & barcode tetap vektor,
+   tidak dikecilkan), 1 label per halaman. Label yang ukurannya bukan A6 / 10x15 disesuaikan ke halaman A6. */
+const LBL_A6_PT = [105 / 25.4 * 72, 148 / 25.4 * 72];
+function lblMode_() { try { return localStorage.getItem('omni_lbl_mode') === '75' ? '75' : 'penuh'; } catch (e) { return 'penuh'; } }
+function lblSimpanMode(v) { try { localStorage.setItem('omni_lbl_mode', v === '75' ? '75' : 'penuh'); } catch (e) { } }
+setTimeout(() => { try { if (el('lbl-mode')) el('lbl-mode').value = lblMode_(); } catch (e) { } }, 0);
+function lblUkuranLabel_(w, h) {
+  const dekat = (a, b) => Math.abs(a - b) / b < 0.06;
+  return (dekat(w, LBL_A6_PT[0]) && dekat(h, LBL_A6_PT[1])) || (dekat(w, LBL_W_PT) && dekat(h, LBL_H_PT));
+}
+async function lblSusunPenuh(daftarPdf) {
+  const { PDFDocument } = await lblMuatPdfLib();
+  const out = await PDFDocument.create();
+  let n = 0;
+  for (const it of daftarPdf) {
+    const src = await PDFDocument.load(lblBase64KeBytes(it.base64), { ignoreEncryption: true });
+    const halSrc = src.getPages();
+    for (let i = 0; i < halSrc.length; i++) {
+      const { width: w, height: h } = halSrc[i].getSize();
+      if (lblUkuranLabel_(w, h)) {
+        const [salin] = await out.copyPages(src, [i]); // salinan persis - tanpa perubahan apa pun
+        out.addPage(salin);
+      } else {
+        const [ep] = await out.embedPages([halSrc[i]]); // tetap vektor, hanya disesuaikan ke A6
+        const pg = out.addPage([LBL_A6_PT[0], LBL_A6_PT[1]]);
+        const sk = Math.min(LBL_A6_PT[0] / ep.width, LBL_A6_PT[1] / ep.height);
+        const lw = ep.width * sk, lh = ep.height * sk;
+        pg.drawPage(ep, { x: (LBL_A6_PT[0] - lw) / 2, y: LBL_A6_PT[1] - lh, width: lw, height: lh });
+      }
+      n++;
+    }
+  }
+  return { bytes: await out.save(), halaman: n };
+}
 async function wpCetakLabelResmi() {
   const pilih = (wpGabunganCache || []).filter(o => wpGabunganTerpilih.has(wpGabunganKunciUnik(o)));
   if (!pilih.length) { omniNotif('Pilih minimal 1 pesanan dulu.'); return; }
@@ -20674,7 +20731,8 @@ async function wpCetakLabelResmi() {
     if (!d || !d.success) throw new Error((d && d.error) || 'Gagal mengambil label');
     const ok = (d.hasil || []).filter(h => h.ok), gagal = (d.hasil || []).filter(h => !h.ok);
     if ((d.pdf || []).length) {
-      const r = await lblSusun75(d.pdf);
+      const mode = lblMode_();
+      const r = mode === '75' ? await lblSusun75(d.pdf) : await lblSusunPenuh(d.pdf);
       const url = URL.createObjectURL(new Blob([r.bytes], { type: 'application/pdf' }));
       if (tab) tab.location.href = url; else window.open(url, '_blank');
       postJsonTulis({ aksi: 'label_tandai_dicetak', daftar: ok.map(h => ({ sumber: h.sumber, no: h.no })), email: currentUserEmail() })
@@ -20684,7 +20742,8 @@ async function wpCetakLabelResmi() {
       omxModal('Sebagian label belum bisa dicetak', `<div style="font-size:12.5px; margin-bottom:8px;">${ok.length} label berhasil, ${gagal.length} belum:</div>
         <ul style="margin:0; padding-left:18px; font-size:12.5px; line-height:1.5;">${gagal.map(h => `<li><b>${escapeHtml(h.sumber)} ${escapeHtml(h.no)}</b> - ${escapeHtml(h.pesan || '')}</li>`).join('')}</ul>
         <div class="omx-aksi"><button type="button" class="web-btn-primary" onclick="omxTutupModal()">OK</button></div>`);
-    } else omniToast(ok.length + ' label siap dicetak (10×15 cm, label 75% di kiri atas)', 'sukses');
+    } else omniToast(lblMode_() === '75' ? ok.length + ' label siap dicetak (10×15 cm, label 75% di kiri atas)'
+      : ok.length + ' label siap - 1 label per halaman. Di jendela cetak pilih ukuran kertas label (A6 / 100×150) dan Skala 100% / Ukuran sebenarnya.', 'sukses');
   } catch (err) {
     if (tab) tab.close();
     omniNotif('Gagal: ' + String(err.message || err).replace(/^Error:\s*/, ''));
@@ -28686,6 +28745,43 @@ async function fin2MuatBiaya(paksa) {
     if (seq === fin2.seqBiaya) { fin2.biayaAnimTunggu = false; fin2BiayaAnimSelesai(); }
   }
 }
+/* v2026.10.30: cari / saring / urutkan riwayat biaya (hanya tampilan; total bulan & rekap rembes tetap dari semua biaya) */
+function fin2SaringBiayaNilai_() {
+  return { cari: String((el('fin2-b-cari') && el('fin2-b-cari').value) || '').trim().toLowerCase(),
+    kat: (el('fin2-b-skat') && el('fin2-b-skat').value) || fin2.saringKat || '', urut: (el('fin2-b-urut') && el('fin2-b-urut').value) || 'baru' };
+}
+function fin2SaringBiaya_(daftar, sar) {
+  const kata = sar.cari ? sar.cari.split(/\s+/).filter(Boolean) : [];
+  let out = daftar.filter(d => {
+    if (sar.kat && d.akun !== sar.kat) return false;
+    if (!kata.length) return true;
+    const jml = Math.round(Number(d.jumlah) || 0);
+    const teks = [d.label, d.keterangan, d.noNota, d.merchant, d.rembesOleh, d.tanggal, d.tanggalLabel || fin2TglLabel(d.tanggal), String(jml), jml.toLocaleString('id-ID')].join(' ').toLowerCase();
+    return kata.every(k => teks.indexOf(k) >= 0 || (/^[\d.,]+$/.test(k) && teks.indexOf(k.replace(/[.,]/g, '')) >= 0));
+  });
+  if (sar.urut !== 'baru') {
+    const tgl = d => String(d.tanggal || '') + String(1e7 + (d.row || 0));
+    out = out.slice().sort((a, b) => sar.urut === 'lama' ? tgl(a).localeCompare(tgl(b))
+      : sar.urut === 'besar' ? (Number(b.jumlah) || 0) - (Number(a.jumlah) || 0) : (Number(a.jumlah) || 0) - (Number(b.jumlah) || 0));
+  }
+  return out;
+}
+let fin2SaringTimer = 0;
+function fin2SaringBiayaUbah() {
+  fin2.saringKat = (el('fin2-b-skat') && el('fin2-b-skat').value) || '';
+  clearTimeout(fin2SaringTimer);
+  fin2SaringTimer = setTimeout(() => { el('fin2-b-list').innerHTML = ''; fin2RenderBiayaUlang(); }, 150);
+}
+function fin2SaringBiayaKat(akun) {
+  const sel = el('fin2-b-skat'); const baru = (fin2.saringKat === akun) ? '' : akun;
+  fin2.saringKat = baru; if (sel) sel.value = baru;
+  el('fin2-b-list').innerHTML = ''; fin2RenderBiayaUlang();
+}
+function fin2SaringBiayaReset() {
+  if (el('fin2-b-cari')) el('fin2-b-cari').value = '';
+  fin2.saringKat = ''; if (el('fin2-b-skat')) el('fin2-b-skat').value = '';
+  el('fin2-b-list').innerHTML = ''; fin2RenderBiayaUlang();
+}
 function fin2RenderBiayaUlang() { fin2RenderBiaya(fin2.biaya || { bulan: el('fin2-b-bulan').value, daftar: [], total: 0, perKategori: [] }); }
 function fin2LencanaRembes(d) {
   if (!d.rembesOleh) return '';
@@ -28769,10 +28865,27 @@ function fin2RenderBiaya(r) {
   daftar.forEach(d => { const p = perKat[d.akun] || (perKat[d.akun] = { ikon: d.ikon, label: d.label, total: 0 }); p.total += Number(d.jumlah) || 0; });
   const total = daftar.reduce((t, d) => t + (Number(d.jumlah) || 0), 0) + antre.filter(x => x.status !== 'tolak').reduce((t, x) => t + x.jumlah, 0);
   el('fin2-b-total').textContent = fin2Rp(total);
-  el('fin2-b-perkat').innerHTML = Object.keys(perKat).sort((a, b) => perKat[b].total - perKat[a].total)
-    .map(k => `<span>${perKat[k].ikon} ${escapeHtml(perKat[k].label)} · ${fin2RpSingkat(perKat[k].total)}</span>`).join('');
+  // v2026.10.30: chip jenis biaya bisa diklik untuk menyaring; kotak cari + urutkan
+  const sar = fin2SaringBiayaNilai_();
+  const urutKat = Object.keys(perKat).sort((a, b) => perKat[b].total - perKat[a].total);
+  el('fin2-b-perkat').innerHTML = urutKat
+    .map(k => `<button type="button" class="${sar.kat === k ? 'aktif' : ''}" aria-pressed="${sar.kat === k}" onclick="fin2SaringBiayaKat('${pgrAttr(k)}')" title="Tampilkan hanya ${pgrAttr(perKat[k].label)}">${perKat[k].ikon} ${escapeHtml(perKat[k].label)} · ${fin2RpSingkat(perKat[k].total)}</button>`).join('');
+  const selKat = el('fin2-b-skat');
+  if (selKat) {
+    const opsi = '<option value="">Semua jenis</option>' + urutKat.map(k => `<option value="${pgrAttr(k)}">${perKat[k].ikon} ${escapeHtml(perKat[k].label)}</option>`).join('')
+      + (sar.kat && !perKat[sar.kat] ? `<option value="${pgrAttr(sar.kat)}">${escapeHtml(sar.kat)}</option>` : '');
+    if (selKat.dataset.opsi !== opsi) { selKat.innerHTML = opsi; selKat.dataset.opsi = opsi; }
+    selKat.value = sar.kat;
+  }
+  const daftarList = fin2SaringBiaya_(daftar, sar);
+  const hasil = el('fin2-b-hasil');
+  if (hasil) {
+    const aktif = !!(sar.cari || sar.kat);
+    hasil.hidden = !aktif;
+    if (aktif) hasil.innerHTML = `<span>${daftarList.length} dari ${daftar.length} biaya · total <b>${fin2Rp(daftarList.reduce((t, d) => t + (Number(d.jumlah) || 0), 0))}</b></span><button type="button" class="fin2-link" onclick="fin2SaringBiayaReset()">Hapus saringan</button>`;
+  }
   const items = [];
-  antre.slice().reverse().forEach(x => {
+  if (!sar.cari && !sar.kat) antre.slice().reverse().forEach(x => {
     const lencana = x.status === 'tolak' ? '⛔ Ditolak (dobel)' : x.status === 'gagal' ? '✗ Gagal' : '<i class="dok-spin"></i> Menyimpan';
     const html = `
       <div class="fin2-item-ikon">${x.ikon}</div>
@@ -28788,13 +28901,14 @@ function fin2RenderBiaya(r) {
     const k = 'a:' + x.tmp;
     items.push({ k, kelas: `fin2-item antre ${x.status === 'tolak' ? 'gagal' : x.status}`, html, h: x.status + '|' + x.teks, anim: fin2.animBaru.delete(k) });
   });
-  daftar.forEach(d => {
+  daftarList.forEach(d => {
     const edit = fin2.editRow === d.row;
     const html = edit ? fin2HtmlEditBiaya(d) : fin2HtmlItemBiaya(d);
     const k = 'r:' + d.row;
     items.push({ k, kelas: 'fin2-item' + (edit ? ' sedang-edit' : '') + (d._menyimpan ? ' antre simpan' : ''), html, h: (edit ? 'E|' : '') + JSON.stringify([d.tanggal, d.akun, d.jumlah, d.keterangan, d.noNota, d.dokumen, d._menyimpan, d.rembesOleh, d.rembesDibayar]), anim: fin2.animBaru.delete(k) });
   });
-  fin2SinkronList(el('fin2-b-list'), items, r.memuat ? '<div class="fin2-kosong" data-k="kosong">Memuat…</div>' : '<div class="fin2-kosong" data-k="kosong">Belum ada biaya di bulan ini.</div>');
+  fin2SinkronList(el('fin2-b-list'), items, r.memuat ? '<div class="fin2-kosong" data-k="kosong">Memuat…</div>'
+    : (sar.cari || sar.kat) && daftar.length ? '<div class="fin2-kosong" data-k="kosong">Tidak ada biaya yang cocok. Ubah kata kunci atau hapus saringan.</div>' : '<div class="fin2-kosong" data-k="kosong">Belum ada biaya di bulan ini.</div>');
   fin2RenderRembes(daftar, antre);
 }
 // Buang 1 baris dengan animasi pudar + menyusut, lalu jalankan lanjut()
@@ -59515,16 +59629,20 @@ function renderWebChartLine() {
   }
   if (el('ov-tren-judul')) el('ov-tren-judul').textContent = 'Tren ' + nmJenis + ' · Semua Channel';
   const fmt = v => rp ? ovxRp(v) : ovxAngka(v);
+  // v2026.10.30: layar sempit (HP) -> grafik setinggi wadah, label sumbu & legenda ringkas
+  const hp = window.matchMedia('(max-width: 700px)').matches;
+  if (hp && labelPrev.indexOf('Periode sebelumnya') === 0) labelPrev = 'Periode sebelumnya';
   ovxChart = new Chart(cv.getContext('2d'), {
     type: 'line',
     data: { labels, datasets: [
-      { label: labelPrev, data: prev, borderColor: 'rgba(100,116,139,.55)', backgroundColor: 'rgba(148,163,184,.16)', fill: 'origin', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, tension: .35, order: 2 },
-      { label: labelCur, data: cur, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.08)', fill: false, borderWidth: 2.4, pointRadius: labels.length > 31 ? 0 : 2.5, pointHoverRadius: 4, tension: .35, spanGaps: false, order: 1 }
+      { label: labelPrev, data: prev, borderColor: 'rgba(100,116,139,.55)', backgroundColor: 'rgba(148,163,184,.16)', fill: 'origin', borderDash: [5, 4], borderWidth: hp ? 2 : 1.5, pointRadius: 0, tension: .35, order: 2 },
+      { label: labelCur, data: cur, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.08)', fill: false, borderWidth: hp ? 3 : 2.4, pointRadius: labels.length > 31 || hp ? 0 : 2.5, pointHoverRadius: hp ? 5 : 4, pointHitRadius: hp ? 12 : 1, tension: .35, spanGaps: false, order: 1 }
     ] },
     options: {
-      responsive: true, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y === null ? '-' : fmt(c.parsed.y)) } } },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => rp ? (v >= 1e6 ? (v / 1e6).toLocaleString('id-ID') + ' jt' : v >= 1e3 ? (v / 1e3).toLocaleString('id-ID') + ' rb' : v) : v } }, x: { ticks: { maxTicksLimit: 12 } } }
+      responsive: true, maintainAspectRatio: !hp, interaction: { mode: 'index', intersect: false },
+      layout: { padding: hp ? { left: 0, right: 4, top: 4, bottom: 0 } : 0 },
+      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: hp ? 10 : 12, padding: hp ? 8 : 10, font: { size: hp ? 10.5 : 11 } } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y === null ? '-' : fmt(c.parsed.y)) } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: v => rp ? (v >= 1e6 ? (v / 1e6).toLocaleString('id-ID') + ' jt' : v >= 1e3 ? (v / 1e3).toLocaleString('id-ID') + ' rb' : v) : v, maxTicksLimit: hp ? 5 : undefined, font: { size: hp ? 10 : 11 } }, grid: hp ? { color: 'rgba(148,163,184,.18)' } : {} }, x: { grid: { display: !hp }, ticks: { maxTicksLimit: hp ? 6 : 12, maxRotation: 0, autoSkipPadding: hp ? 8 : 3, font: { size: hp ? 10 : 11 } } } }
     }
   });
 }
