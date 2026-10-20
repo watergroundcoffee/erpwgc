@@ -30,7 +30,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.36';
+  var VERSI = 'v2026.10.37';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -9825,8 +9825,9 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           </div>
         </div>
         <div class="web-nav-group">
-          <a href="#produksi/wo" class="web-nav-item" data-tab="produksi" onclick="toggleNavGroup(this); produksiBukaSub('wo')">Produksi</a>
+          <a href="#produksi/rst" class="web-nav-item" data-tab="produksi" onclick="toggleNavGroup(this); produksiBukaSub('rst')">Produksi</a>
           <div class="web-submenu-wrap">
+            <a href="#produksi/rst" class="web-nav-item web-nav-sub" data-prodsub="rst" onclick="produksiBukaSub('rst')">Roastery (kerja harian)</a>
             <a href="#produksi/wo" class="web-nav-item web-nav-sub" data-prodsub="wo" onclick="produksiBukaSub('wo')">Perintah Produksi (SPK)</a>
             <a href="#produksi/bom" class="web-nav-item web-nav-sub" data-prodsub="bom" onclick="produksiBukaSub('bom')">Formula / Resep (BoM)</a>
             <a href="#produksi/bb" class="web-nav-item web-nav-sub" data-prodsub="bb" onclick="produksiBukaSub('bb')">Bahan Baku</a>
@@ -11885,6 +11886,8 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
 
       <!-- ================= PRODUKSI (ROASTERY) ================= -->
       <div class="web-tab-content" id="web-tab-produksi" style="display:none;">
+        <!-- ================= ROASTERY (Paket 21) - diisi oleh skrip ROASTERY di akhir file ================= -->
+        <div id="prod-view-rst" style="display:none;"></div>
         <!-- ================= PERINTAH PRODUKSI (WORK ORDER / SPK) ================= -->
         <div id="prod-view-wo" style="display:none;">
           <div class="app-header-hierarki"><div class="app-header-submenu">Perintah Produksi (SPK)</div></div>
@@ -64173,6 +64176,755 @@ tpIsiAiBaca = async function (paksaAI) {
   };
   const asli = tpIsiAiBuka;
   tpIsiAiBuka = function () { const r = asli.apply(this, arguments); try { ubahBantu(); } catch (e) { } return r; };
+})();
+</script>
+<!-- ===================================================================================
+     PAKET 21 (v2026.10.37) - ROASTERY RAPI: Bahan Mentah -> Setengah Jadi 1, 2 ... -> Produk Jadi (kemasan)
+     Bagi otomatis ke kemasan (DN-261016-074205-809) + HPP per kemasan & rekomendasi harga (DN-261016-074237-699)
+     =================================================================================== -->
+<style>
+  #prod-view-rst { --rst-mentah: #65a30d; --rst-sj: #b45309; --rst-jadi: #0e7490; }
+  #prod-view-rst .rst-alur { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; gap: 0; margin: 4px 0 14px; }
+  #prod-view-rst .rst-pos { border: 1px solid var(--web-border); background: var(--web-panel); border-radius: 14px; padding: 12px 14px; text-align: left; cursor: pointer; color: var(--web-text); display: flex; flex-direction: column; gap: 2px; min-width: 0; font: inherit; }
+  #prod-view-rst .rst-pos:hover { border-color: var(--web-accent); }
+  #prod-view-rst .rst-pos .rst-pos-ikon { font-size: 22px; line-height: 1; }
+  #prod-view-rst .rst-pos .rst-pos-judul { font-size: 12px; font-weight: 800; color: var(--web-text-dim); }
+  #prod-view-rst .rst-pos .rst-pos-angka { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  #prod-view-rst .rst-pos .rst-pos-sub { font-size: 11.5px; color: var(--web-text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #prod-view-rst .rst-pos-mentah { border-left: 5px solid var(--rst-mentah); }
+  #prod-view-rst .rst-pos-sj { border-left: 5px solid var(--rst-sj); }
+  #prod-view-rst .rst-pos-jadi { border-left: 5px solid var(--rst-jadi); }
+  #prod-view-rst .rst-panah { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 6px; border: 0; background: none; cursor: pointer; color: var(--web-text); font: inherit; }
+  #prod-view-rst .rst-panah .rst-panah-garis { width: 54px; height: 3px; background: var(--web-accent); position: relative; border-radius: 3px; }
+  #prod-view-rst .rst-panah .rst-panah-garis::after { content: ''; position: absolute; right: -2px; top: -5px; border: 6.5px solid transparent; border-left: 9px solid var(--web-accent); border-right: 0; }
+  #prod-view-rst .rst-panah b { font-size: 12px; margin-top: 6px; background: var(--web-accent); color: #fff; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+  #prod-view-rst .rst-panah:hover b { filter: brightness(1.1); }
+  #prod-view-rst .rst-tab { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  #prod-view-rst .rst-tab button { border: 1px solid var(--web-border); background: var(--web-panel); color: var(--web-text); border-radius: 99px; padding: 7px 14px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+  #prod-view-rst .rst-tab button.aktif { background: var(--web-accent); border-color: var(--web-accent); color: #fff; }
+  #prod-view-rst .rst-kartu { border: 1px solid var(--web-border); background: var(--web-panel); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  #prod-view-rst .rst-kartu h3 { margin: 0 0 8px; font-size: 14px; }
+  #prod-view-rst .rst-sub { font-size: 11.5px; color: var(--web-text-dim); }
+  #prod-view-rst .rst-baris { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+  #prod-view-rst .rst-baris > label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--web-text-dim); flex: 1 1 120px; min-width: 0; }
+  #prod-view-rst .rst-baris > label.rst-lebar { flex: 3 1 240px; }
+  #prod-view-rst .rst-baris .web-form-input { margin: 0; }
+  #prod-view-rst .rst-chip { border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text); border-radius: 99px; padding: 6px 12px; font-weight: 700; font-size: 12px; cursor: pointer; }
+  #prod-view-rst .rst-chip.aktif { border-color: var(--web-accent); background: var(--web-accent); color: #fff; }
+  #prod-view-rst .rst-batch { border: 1px dashed var(--web-border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; position: relative; }
+  #prod-view-rst .rst-batch-no { font-weight: 800; font-size: 13px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #prod-view-rst .rst-susut { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: rgba(20,184,166,.14); }
+  #prod-view-rst .rst-susut.rst-aneh { background: rgba(217,119,6,.18); color: var(--web-warning); }
+  #prod-view-rst .rst-detail summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--web-text-dim); margin-top: 6px; }
+  #prod-view-rst .rst-aksi { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  #prod-view-rst .rst-btn-besar { font-size: 15px; padding: 12px 20px; border-radius: 12px; }
+  #prod-view-rst .rst-sumber { display: flex; gap: 8px; flex-wrap: wrap; }
+  #prod-view-rst .rst-sumber button { text-align: left; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text); border-radius: 12px; padding: 9px 12px; cursor: pointer; min-width: 170px; font: inherit; }
+  #prod-view-rst .rst-sumber button b { display: block; font-size: 13px; }
+  #prod-view-rst .rst-sumber button.aktif { border-color: var(--rst-sj); box-shadow: inset 0 0 0 2px var(--rst-sj); }
+  #prod-view-rst .rst-qty { display: inline-flex; align-items: center; gap: 4px; }
+  #prod-view-rst .rst-qty button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--web-border); background: var(--web-bg); color: var(--web-text); font-size: 18px; font-weight: 800; cursor: pointer; }
+  #prod-view-rst .rst-qty input { width: 72px; text-align: center; font-size: 16px; font-weight: 800; margin: 0; }
+  #prod-view-rst .rst-meter { height: 14px; border-radius: 99px; background: var(--web-bg); border: 1px solid var(--web-border); overflow: hidden; margin: 8px 0 4px; }
+  #prod-view-rst .rst-meter > div { height: 100%; background: var(--rst-sj); transition: width .25s; }
+  #prod-view-rst .rst-meter.rst-lebih > div { background: var(--web-danger); }
+  #prod-view-rst table.web-table td, #prod-view-rst table.web-table th { vertical-align: middle; }
+  #prod-view-rst .rst-merah { color: var(--web-danger); font-weight: 700; }
+  #prod-view-rst .rst-kuning { color: var(--web-warning); font-weight: 700; }
+  #prod-view-rst .rst-hijau { color: #16a34a; font-weight: 700; }
+  #prod-view-rst .rst-langkah { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--web-border); }
+  #prod-view-rst .rst-langkah:last-child { border-bottom: 0; }
+  #prod-view-rst .rst-langkah .rst-tanda { width: 24px; height: 24px; flex: none; border-radius: 50%; border: 2px solid var(--web-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+  #prod-view-rst .rst-langkah.selesai .rst-tanda { background: #16a34a; border-color: #16a34a; color: #fff; }
+  #prod-view-rst .rst-langkah.selesai .rst-tanda::before { content: '\2713'; }
+  #prod-view-rst .rst-hasil { border: 1px solid rgba(22,163,74,.45); background: rgba(22,163,74,.08); border-radius: 12px; padding: 10px 12px; margin-top: 10px; font-size: 13px; }
+  #prod-view-rst .rst-ringkas { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+  #prod-view-rst .rst-ringkas div { border: 1px solid var(--web-border); border-radius: 10px; padding: 8px 10px; }
+  #prod-view-rst .rst-ringkas span { display: block; font-size: 11px; font-weight: 700; color: var(--web-text-dim); }
+  #prod-view-rst .rst-ringkas b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  #prod-view-rst .rst-kejadian td { background: rgba(96,165,250,.08); font-style: italic; }
+  #prod-view-rst .rst-harga-sel { font-size: 12px; line-height: 1.35; white-space: nowrap; }
+  #prod-view-rst .rst-harga-sel i { font-style: normal; color: var(--web-text-dim); }
+  #prod-view-rst .rst-tbl-wrap { overflow-x: auto; }
+  #prod-view-rst .rst-x { border: 0; background: none; color: var(--web-text-dim); cursor: pointer; font-size: 16px; padding: 2px 6px; }
+  #prod-view-rst .rst-x::before { content: '\00D7'; }
+  #prod-view-rst td .web-btn-primary, #prod-view-rst td .web-btn-secondary { white-space: nowrap; }
+  @media (max-width: 760px) {
+    #prod-view-rst .rst-sembunyi-hp { display: none; }
+    #prod-view-rst .rst-alur { grid-template-columns: 1fr; }
+    #prod-view-rst .rst-panah { flex-direction: row; gap: 8px; padding: 6px 0; }
+    #prod-view-rst .rst-panah .rst-panah-garis { width: 3px; height: 22px; }
+    #prod-view-rst .rst-panah .rst-panah-garis::after { right: -5px; top: auto; bottom: -6px; border: 6.5px solid transparent; border-top: 9px solid var(--web-accent); border-bottom: 0; }
+    #prod-view-rst .rst-panah b { margin-top: 0; }
+  }
+</style>
+<script>
+/* ===== ROASTERY (Paket 21) ===== */
+const rst = { d: null, view: 'hari', memuat: null, batch: [], tanggal: '', gantiTabung: false, servis: false, paksa: false,
+  kemas: { sumber: '', qty: {}, kg: '', hasil: null, paksa: false }, olah: { input: [], hasil: '', baru: '', keluar: '', nama: '' },
+  atur: null, biaya: null, riwayat: 'roasting', cari: '', impor: null };
+const RST_JENIS = ['Bahan Mentah', 'Setengah Jadi 1', 'Setengah Jadi 2', 'Setengah Jadi 3', 'Kemasan & Perlengkapan'];
+const rstRp = n => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+const rstAngka = (n, d) => (Math.round((Number(n) || 0) * Math.pow(10, d || 0)) / Math.pow(10, d || 0)).toLocaleString('id-ID', { maximumFractionDigits: d || 0 });
+const rstBerat = g => { g = Number(g) || 0; return Math.abs(g) >= 1000 ? rstAngka(g / 1000, 2) + ' kg' : rstAngka(g, 0) + ' g'; };
+const rstHariIni = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const rstId = () => 'rst-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+
+function rstBahan(level) { return ((rst.d && rst.d.bahan) || []).filter(b => b.aktif && (level === undefined || (level === 'sj' ? b.level >= 1 : b.level === level))); }
+function rstCariBahan(sku) { const k = String(sku || '').toUpperCase(); return ((rst.d && rst.d.bahan) || []).find(b => b.sku.toUpperCase() === k) || null; }
+function rstStat(b) {
+  const s = rst.d && rst.d.statistik && rst.d.statistik.perBahan || {};
+  if (!b) return null;
+  return s['SKU:' + b.sku.toUpperCase()] || s['NAMA:' + String(b.nama || '').toLowerCase().replace(/^green bean\s+/, '').replace(/\s+/g, ' ').trim()] || s['NAMA:' + String(b.nama || '').toLowerCase().replace(/\s+/g, ' ').trim()] || null;
+}
+
+async function rstBuka(view) {
+  if (view) rst.view = view;
+  const wadah = el('prod-view-rst');
+  if (!wadah) return;
+  if (!wadah.dataset.siap) {
+    wadah.dataset.siap = '1';
+    wadah.innerHTML = `<div class="app-header-hierarki"><div class="app-header-submenu">Roastery</div></div>
+      <div id="rst-alur" class="rst-alur"></div>
+      <div id="rst-tab" class="rst-tab"></div>
+      <div id="rst-isi"><div class="rst-kartu rst-sub">Memuat data roastery…</div></div>`;
+    const snap = typeof pmSnapBaca === 'function' ? pmSnapBaca('rst21') : null;
+    if (snap && !rst.d) rst.d = snap;
+  }
+  rstRender();
+  await rstMuat();
+  rstRender();
+}
+async function rstMuat() {
+  if (rst.memuat) return rst.memuat;
+  rst.memuat = (async () => {
+    try {
+      const d = await postJson({ aksi: 'rst_data', email: currentUserEmail() }, 60000);
+      if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat');
+      rst.d = d;
+      try { pmSnapSimpan('rst21', d); } catch (e) { }
+    } catch (err) { if (typeof pgrToast === 'function') pgrToast('Roastery: ' + err.message); }
+    finally { rst.memuat = null; }
+  })();
+  return rst.memuat;
+}
+function rstGanti(view) { rst.view = view; rstRender(); try { el('prod-view-rst').scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { } }
+
+function rstRender() {
+  const d = rst.d;
+  const alur = el('rst-alur'), tab = el('rst-tab'), isi = el('rst-isi');
+  if (!alur) return;
+  const mentah = rstBahan(0), sj = rstBahan('sj'), jadi = (d && d.kemasan || []).filter(k => k.aktif);
+  const gramMentah = mentah.reduce((s, b) => s + (b.stokGram || 0), 0), gramSj = sj.reduce((s, b) => s + (b.stokGram || 0), 0);
+  const pcsJadi = jadi.reduce((s, k) => s + Math.max(0, k.stok || 0), 0);
+  const lv = {}; sj.forEach(b => { lv[b.level] = (lv[b.level] || 0) + 1; });
+  alur.innerHTML = `
+    <button type="button" class="rst-pos rst-pos-mentah" onclick="rstGanti('atur')"><span class="rst-pos-ikon"><span class="oi oi-leaf" aria-hidden="true"></span></span><span class="rst-pos-judul">Bahan mentah (green bean)</span>
+      <span class="rst-pos-angka">${rstBerat(gramMentah)}</span><span class="rst-pos-sub">${mentah.length} jenis green bean</span></button>
+    <button type="button" class="rst-panah" onclick="rstGanti('roasting')"><span class="rst-panah-garis"></span><b><span class="oi oi-flame" aria-hidden="true"></span> Roasting</b></button>
+    <button type="button" class="rst-pos rst-pos-sj" onclick="rstGanti('hari')"><span class="rst-pos-ikon"><span class="oi oi-coffee" aria-hidden="true"></span></span><span class="rst-pos-judul">Setengah jadi (roasted / blend)</span>
+      <span class="rst-pos-angka">${rstBerat(gramSj)}</span><span class="rst-pos-sub">${Object.keys(lv).sort().map(l => 'Tingkat ' + l + ': ' + lv[l] + ' jenis').join(' · ') || 'belum ada'}</span></button>
+    <button type="button" class="rst-panah" onclick="rstGanti('kemas')"><span class="rst-panah-garis"></span><b><span class="oi oi-box" aria-hidden="true"></span> Kemas</b></button>
+    <button type="button" class="rst-pos rst-pos-jadi" onclick="rstGanti('riwayat')"><span class="rst-pos-ikon"><span class="oi oi-bag" aria-hidden="true"></span></span><span class="rst-pos-judul">Produk jadi (dalam kemasan)</span>
+      <span class="rst-pos-angka">${rstAngka(pcsJadi)} pcs</span><span class="rst-pos-sub">${jadi.length} ukuran kemasan diatur</span></button>`;
+  const daftar = [['hari', '<span class="oi oi-store" aria-hidden="true"></span> Hari ini'], ['roasting', '<span class="oi oi-flame" aria-hidden="true"></span> Catat Roasting'], ['kemas', '<span class="oi oi-box" aria-hidden="true"></span> Bagi ke Kemasan'], ['olah', '<span class="oi oi-flask" aria-hidden="true"></span> Campur / Olah']];
+  if (d && d.bolehHarga) daftar.push(['hpp', '<span class="oi oi-wallet" aria-hidden="true"></span> HPP & Harga']);
+  daftar.push(['riwayat', '<span class="oi oi-clipboard" aria-hidden="true"></span> Riwayat'], ['atur', '<span class="oi oi-settings" aria-hidden="true"></span> Pengaturan']);
+  if (rst.view === 'hpp' && !(d && d.bolehHarga)) rst.view = 'hari';
+  tab.innerHTML = daftar.map(([k, t]) => `<button type="button" class="${rst.view === k ? 'aktif' : ''}" onclick="rstGanti('${k}')">${t}</button>`).join('');
+  if (!d) { isi.innerHTML = '<div class="rst-kartu rst-sub">Memuat data roastery…</div>'; return; }
+  const fn = { hari: rstViewHari, roasting: rstViewRoasting, kemas: rstViewKemas, olah: rstViewOlah, hpp: rstViewHpp, riwayat: rstViewRiwayat, atur: rstViewAtur }[rst.view] || rstViewHari;
+  try { fn(isi); } catch (e) { console.error(e); isi.innerHTML = `<div class="rst-kartu rst-merah">Tampilan gagal dibuat: ${escapeHtml(e.message)}</div>`; }
+}
+
+/* ---------- HARI INI ---------- */
+function rstViewHari(isi) {
+  const d = rst.d, mentah = rstBahan(0), sj = rstBahan('sj'), kem = rstBahan(-1);
+  const langkah = [
+    { ok: mentah.length > 0, t: 'Daftarkan green bean sebagai <b>Bahan Mentah</b> (satuan kg / gram)', aksi: `<a href="#" onclick="rstGanti('atur'); return false;">Atur jenis barang</a>` },
+    { ok: kem.length > 0, t: 'Daftarkan pouch, valve, stiker / label sebagai <b>Kemasan & Perlengkapan</b>', aksi: `<a href="#" onclick="rstGanti('atur'); return false;">Atur jenis barang</a>` },
+    { ok: (d.kemasan || []).length > 0, t: 'Hubungkan produk jual (100 g / 150 g / 250 g …) ke kopi roasted-nya', aksi: `<a href="#" onclick="rstGanti('atur'); return false;">Atur produk kemasan</a>` }
+  ];
+  if (d.bolehHarga) langkah.push({ ok: (d.biaya || []).some(b => b.aktif && b.nilai > 0), t: 'Isi biaya proses (gas, listrik, tenaga, label printer …)', aksi: `<a href="#" onclick="rstGanti('atur'); return false;">Isi biaya</a>` });
+  const belum = langkah.filter(l => !l.ok).length;
+  const kurangMin = rstBahan().filter(b => b.stokMin > 0 && b.stok <= b.stokMin);
+  isi.innerHTML = `
+    ${belum ? `<div class="rst-kartu"><h3>Persiapan (sekali saja) · ${langkah.length - belum}/${langkah.length} selesai</h3>
+      ${langkah.map((l, i) => `<div class="rst-langkah ${l.ok ? 'selesai' : ''}"><span class="rst-tanda">${l.ok ? '' : i + 1}</span><div>${l.t}<div class="rst-sub">${l.ok ? 'Sudah' : l.aksi}</div></div></div>`).join('')}</div>` : ''}
+    <div class="rst-kartu"><h3>Kopi siap dikemas</h3>
+      ${sj.length ? `<div class="rst-tbl-wrap"><table class="web-table"><thead><tr><th>Kopi</th><th class="rst-sembunyi-hp">Tingkat</th><th style="text-align:right;">Stok</th>${d.bolehHarga ? '<th style="text-align:right;">Harga / kg</th>' : ''}<th></th></tr></thead><tbody>
+        ${sj.map(b => `<tr><td><b>${escapeHtml(b.nama)}</b><div class="rst-sub">${escapeHtml(b.sku)}</div></td><td class="rst-sembunyi-hp">Setengah jadi ${b.level}</td>
+          <td style="text-align:right;"><b>${rstBerat(b.stokGram)}</b></td>${d.bolehHarga ? `<td style="text-align:right;">${b.hargaGram ? rstRp(b.hargaGram * 1000) : '-'}</td>` : ''}
+          <td><button type="button" class="web-btn-primary" onclick="rstKemasPilih('${pgrAttr(b.sku)}')"><span class="oi oi-box" aria-hidden="true"></span> Bagi ke kemasan</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="rst-sub">Belum ada kopi roasted. Mulai dari <a href="#" onclick="rstGanti(\'roasting\'); return false;">Catat Roasting</a>.</div>'}
+    </div>
+    <div class="rst-kartu"><h3>Green bean</h3>
+      ${mentah.length ? mentah.map(b => { const s = rstStat(b); return `<div class="rst-langkah"><span class="rst-tanda"><span class="oi oi-leaf" aria-hidden="true"></span></span><div><b>${escapeHtml(b.nama)}</b> · stok <b>${rstBerat(b.stokGram)}</b>
+        <div class="rst-sub">${s ? 'Rata-rata susut ' + rstAngka(s.susutRata, 1) + '% dari ' + s.batch + ' batch' + (s.chaffRata ? ' · kulit ari ±' + s.chaffRata + ' g/batch' : '') + (s.suhuKeluarRata ? ' · suhu keluar ±' + s.suhuKeluarRata + '°' : '') : 'Belum ada catatan roasting'}</div></div></div>`; }).join('')
+        : '<div class="rst-sub">Belum ada green bean. Tambahkan lewat Produksi &gt; Bahan Baku, lalu pilih jenisnya di Pengaturan.</div>'}
+    </div>
+    ${kurangMin.length ? `<div class="rst-kartu"><h3>Stok di bawah minimum</h3>${kurangMin.map(b => `<div class="rst-merah">${escapeHtml(b.nama)}: ${rstAngka(b.stok, 2)} ${escapeHtml(b.satuan)} (minimum ${rstAngka(b.stokMin, 2)})</div>`).join('')}</div>` : ''}
+    ${d.statistik && d.statistik.gas && d.statistik.gas.batchSejakGanti !== null ? `<div class="rst-kartu rst-sub"><span class="oi oi-flame" aria-hidden="true"></span> Sudah <b>${d.statistik.gas.batchSejakGanti}</b> batch sejak tabung gas terakhir diganti${d.statistik.gas.rataBatchPerTabung ? ' · biasanya 1 tabung = ' + rstAngka(d.statistik.gas.rataBatchPerTabung, 1) + ' batch' : ''}.</div>` : ''}`;
+}
+
+/* ---------- CATAT ROASTING ---------- */
+function rstBatchBaru(dari) {
+  const mentah = rstBahan(0);
+  const b = dari ? Object.assign({}, dari, { keluar: '', chaff: '', suhuKeluar: '', jam: '', catatan: '' }) : { skuMentah: mentah[0] ? mentah[0].sku : '', profil: '', masuk: '', keluar: '', chaff: '', suhuMasuk: '', suhuKeluar: '', jam: '', catatan: '', skuHasil: '' };
+  if (!dari && b.skuMentah) rstBatchIsiBawaan(b);
+  return b;
+}
+function rstBatchIsiBawaan(b) {
+  const m = rstCariBahan(b.skuMentah), s = rstStat(m);
+  if (s) { if (!b.masuk) b.masuk = s.masukUmum || ''; if (!b.profil) b.profil = s.profilUmum || ''; }
+  const terakhir = (rst.d.log || []).slice().reverse().find(x => x.jenis === 'Batch' && x.tahap === 'Roasting' && x.skuBahan === b.skuMentah && x.skuHasil);
+  b.skuHasil = terakhir && rstCariBahan(terakhir.skuHasil) ? terakhir.skuHasil : (rstBahan('sj').find(x => x.nama.toLowerCase() === ('roasted ' + (m ? m.nama : '')).toLowerCase()) || {}).sku || '';
+}
+function rstViewRoasting(isi) {
+  const mentah = rstBahan(0), sj = rstBahan('sj');
+  if (!rst.batch.length) rst.batch = [rstBatchBaru()];
+  if (!rst.tanggal) rst.tanggal = rstHariIni();
+  if (!mentah.length) { isi.innerHTML = `<div class="rst-kartu">Belum ada <b>Bahan Mentah</b>. Daftarkan green bean di Produksi &gt; Bahan Baku, lalu tandai jenisnya di <a href="#" onclick="rstGanti('atur'); return false;">Pengaturan</a>.</div>`; return; }
+  const opsiMentah = sku => mentah.map(b => `<option value="${pgrAttr(b.sku)}" ${b.sku === sku ? 'selected' : ''}>${escapeHtml(b.nama)} · stok ${rstBerat(b.stokGram)}</option>`).join('');
+  const opsiHasil = (bt) => { const m = rstCariBahan(bt.skuMentah); return `<option value="">Baru: Roasted ${escapeHtml(m ? m.nama : '')}</option>` + sj.map(b => `<option value="${pgrAttr(b.sku)}" ${b.sku === bt.skuHasil ? 'selected' : ''}>${escapeHtml(b.nama)}</option>`).join(''); };
+  isi.innerHTML = `<div class="rst-kartu">
+    <div class="rst-baris"><label>Tanggal roasting<input type="date" class="web-form-input" value="${rst.tanggal}" onchange="rst.tanggal=this.value" /></label>
+      <label class="rst-lebar"><span>&nbsp;</span><span class="rst-sub" style="font-weight:400;">Isi seperti catatan roasting biasa. Berat dalam <b>gram</b>. Kolom lain opsional.</span></label></div>
+    <div id="rst-batch-daftar" style="margin-top:10px;">${rst.batch.map((bt, i) => `
+      <div class="rst-batch" data-i="${i}">
+        <div class="rst-batch-no"><span>Batch ${i + 1}</span><span class="rst-susut" id="rst-susut-${i}"></span>${rst.batch.length > 1 ? `<button type="button" class="rst-x" title="Hapus batch" aria-label="Hapus batch" onclick="rst.batch.splice(${i},1); rstRender();"></button>` : ''}</div>
+        <div class="rst-baris">
+          <label class="rst-lebar">Green bean<select class="web-form-input" onchange="rst.batch[${i}].skuMentah=this.value; rst.batch[${i}].masuk=''; rst.batch[${i}].profil=''; rstBatchIsiBawaan(rst.batch[${i}]); rstRender();">${opsiMentah(bt.skuMentah)}</select></label>
+          <label>Profil<span class="rst-baris" style="gap:4px;">${['LIGHT', 'MEDIUM', 'DARK'].map(p => `<button type="button" class="rst-chip ${bt.profil === p ? 'aktif' : ''}" onclick="rst.batch[${i}].profil='${p}'; rstRender();">${p[0] + p.slice(1).toLowerCase()}</button>`).join('')}</span></label>
+        </div>
+        <div class="rst-baris" style="margin-top:6px;">
+          <label>Berat masuk (g)<input type="number" inputmode="decimal" class="web-form-input" value="${bt.masuk}" placeholder="2500" oninput="rst.batch[${i}].masuk=this.value; rstBatchHitung(${i});" /></label>
+          <label>Berat keluar (g)<input type="number" inputmode="decimal" class="web-form-input" value="${bt.keluar}" placeholder="2000" oninput="rst.batch[${i}].keluar=this.value; rstBatchHitung(${i});" /></label>
+          <label>Kulit ari / chaff (g)<input type="number" inputmode="decimal" class="web-form-input" value="${bt.chaff}" placeholder="opsional" oninput="rst.batch[${i}].chaff=this.value" /></label>
+        </div>
+        <details class="rst-detail" ${bt.suhuMasuk || bt.suhuKeluar || bt.jam || bt.catatan ? 'open' : ''}><summary>Suhu, jam selesai, catatan, simpan hasil ke…</summary>
+          <div class="rst-baris" style="margin-top:6px;">
+            <label>Suhu masuk (°)<input type="number" class="web-form-input" value="${bt.suhuMasuk}" placeholder="180" oninput="rst.batch[${i}].suhuMasuk=this.value" /></label>
+            <label>Suhu keluar (°)<input type="number" class="web-form-input" value="${bt.suhuKeluar}" placeholder="207" oninput="rst.batch[${i}].suhuKeluar=this.value" /></label>
+            <label>Jam selesai<input type="time" class="web-form-input" value="${bt.jam}" oninput="rst.batch[${i}].jam=this.value" /></label>
+            <label class="rst-lebar">Hasil masuk ke<select class="web-form-input" onchange="rst.batch[${i}].skuHasil=this.value">${opsiHasil(bt)}</select></label>
+            <label class="rst-lebar">Catatan<input class="web-form-input" value="${pgrAttr(bt.catatan)}" placeholder="mis. gas hampir habis" oninput="rst.batch[${i}].catatan=this.value" /></label>
+          </div></details>
+      </div>`).join('')}</div>
+    <div class="rst-aksi">
+      <button type="button" class="web-btn-secondary" onclick="rst.batch.push(rstBatchBaru(rst.batch[rst.batch.length-1])); rstRender();">+ Batch berikutnya (salin isian)</button>
+      <label class="p2-cek"><input type="checkbox" ${rst.gantiTabung ? 'checked' : ''} onchange="rst.gantiTabung=this.checked" /> Tabung gas baru dipasang hari ini</label>
+      <label class="p2-cek"><input type="checkbox" ${rst.servis ? 'checked' : ''} onchange="rst.servis=this.checked" /> Mesin diservis hari ini</label>
+    </div>
+    <div class="rst-ringkas" id="rst-roast-ringkas"></div>
+    <label class="p2-cek" id="rst-roast-paksa-wrap" style="display:${rst.paksa ? 'flex' : 'none'};"><input type="checkbox" id="rst-roast-paksa" ${rst.paksa ? 'checked' : ''} /> Tetap simpan walau stok green bean tercatat kurang</label>
+    <div class="rst-aksi"><button type="button" class="web-btn-primary rst-btn-besar" id="rst-roast-btn" onclick="rstRoastSimpan()"><span class="oi oi-flame" aria-hidden="true"></span> Simpan roasting</button>
+      <span class="status-text" id="rst-roast-status" style="text-align:left;"></span></div>
+    <div id="rst-roast-hasil"></div></div>`;
+  rst.batch.forEach((_, i) => rstBatchHitung(i, true));
+  rstRoastRingkas();
+}
+function rstBatchHitung(i, tanpaRingkas) {
+  const bt = rst.batch[i], badge = el('rst-susut-' + i);
+  if (!badge) return;
+  const m = parseFloat(bt.masuk), k = parseFloat(bt.keluar);
+  if (m > 0 && k > 0) {
+    const s = (1 - k / m) * 100, st = rstStat(rstCariBahan(bt.skuMentah));
+    const aneh = k > m || (st && Math.abs(s - st.susutRata) > 3);
+    badge.className = 'rst-susut' + (aneh ? ' rst-aneh' : '');
+    badge.textContent = k > m ? 'Berat keluar lebih besar - cek timbangan' : 'Susut ' + rstAngka(s, 1) + '%' + (st ? (aneh ? ' · beda jauh dari biasanya ' + rstAngka(st.susutRata, 1) + '%, cek timbangan' : ' · normal (±' + rstAngka(st.susutRata, 1) + '%)') : '');
+  } else { badge.className = 'rst-susut'; badge.textContent = m > 0 ? 'isi berat keluar' : ''; }
+  if (!tanpaRingkas) rstRoastRingkas();
+}
+function rstRoastRingkas() {
+  const w = el('rst-roast-ringkas'); if (!w) return;
+  const ok = rst.batch.filter(b => parseFloat(b.masuk) > 0 && parseFloat(b.keluar) > 0);
+  const masuk = ok.reduce((s, b) => s + parseFloat(b.masuk), 0), keluar = ok.reduce((s, b) => s + parseFloat(b.keluar), 0);
+  w.innerHTML = `<div><span>Batch terisi</span><b>${ok.length} / ${rst.batch.length}</b></div><div><span>Green bean dipakai</span><b>${rstBerat(masuk)}</b></div>
+    <div><span>Kopi roasted jadi</span><b>${rstBerat(keluar)}</b></div><div><span>Susut rata-rata</span><b>${masuk ? rstAngka((1 - keluar / masuk) * 100, 1) + '%' : '-'}</b></div>`;
+}
+async function rstRoastSimpan() {
+  const st = el('rst-roast-status'), btn = el('rst-roast-btn');
+  const isi = rst.batch.filter(b => b.masuk !== '' || b.keluar !== '');
+  if (!isi.length && !rst.gantiTabung && !rst.servis) { st.textContent = 'Isi berat masuk & keluar minimal 1 batch.'; st.className = 'status-text err'; return; }
+  const salah = isi.find(b => !(parseFloat(b.masuk) > 0) || !(parseFloat(b.keluar) > 0));
+  if (salah) { st.textContent = 'Batch ' + (rst.batch.indexOf(salah) + 1) + ': isi berat masuk DAN berat keluar.'; st.className = 'status-text err'; return; }
+  const paksa = el('rst-roast-paksa') && el('rst-roast-paksa').checked;
+  const masuk = isi.reduce((s, b) => s + parseFloat(b.masuk), 0), keluar = isi.reduce((s, b) => s + parseFloat(b.keluar), 0);
+  if (isi.length && !(await omniKonfirm_(`Simpan ${isi.length} batch roasting?\n\nGreen bean berkurang ${rstBerat(masuk)}\nKopi roasted bertambah ${rstBerat(keluar)}`))) return;
+  btn.disabled = true; setLoadingDots(st, 'Menyimpan');
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_proses', tanggal: rst.tanggal, gantiTabung: rst.gantiTabung, servisMesin: rst.servis, izinkanMinus: paksa, idPermintaan: rstId(),
+      batch: isi.map(b => ({ skuMentah: b.skuMentah, skuHasil: b.skuHasil, profil: b.profil, masuk: b.masuk, keluar: b.keluar, chaff: b.chaff, suhuMasuk: b.suhuMasuk, suhuKeluar: b.suhuKeluar, jam: b.jam, catatan: b.catatan })),
+      email: currentUserEmail() }, 90000);
+    stopLoadingDots(st);
+    if (!r || !r.success) { if (r && /Stok kurang/.test(r.error || '')) rst.paksa = true; throw new Error((r && r.error) || 'Gagal'); }
+    playBeep();
+    const hasil = (r.ringkas || []).map(x => `<div>${escapeHtml(x.no)} · ${escapeHtml(x.varian)}: ${rstBerat(x.masuk)} → <b>${rstBerat(x.keluar)}</b> (susut ${rstAngka(x.susut, 1)}%)${x.hppKg ? ' · HPP ' + rstRp(x.hppKg) + '/kg' : ''}</div>`).join('');
+    rst.batch = []; rst.gantiTabung = false; rst.servis = false; rst.paksa = false;
+    await rstMuat(); rstRender();
+    const h = el('rst-roast-hasil');
+    if (h) h.innerHTML = `<div class="rst-hasil"><b>Tersimpan.</b> Stok green bean berkurang & kopi roasted bertambah.${hasil}
+      <div class="rst-aksi"><button type="button" class="web-btn-primary" onclick="rstGanti('kemas')"><span class="oi oi-box" aria-hidden="true"></span> Lanjut bagi ke kemasan</button></div></div>`;
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; playToot(); if (rst.paksa && el('rst-roast-paksa-wrap')) el('rst-roast-paksa-wrap').style.display = 'flex'; }
+}
+
+/* ---------- BAGI KE KEMASAN ---------- */
+function rstKemasPilih(sku) { rst.kemas.sumber = sku; rst.kemas.qty = {}; rst.kemas.kg = ''; rst.kemas.hasil = null; rstGanti('kemas'); }
+function rstKemasProduk(sku) { return (rst.d.kemasan || []).filter(k => k.aktif && String(k.skuSumber).toUpperCase() === String(sku).toUpperCase()).sort((a, b) => a.gram - b.gram); }
+function rstViewKemas(isi) {
+  const d = rst.d, sumberList = rstBahan('sj').filter(b => (b.stokGram || 0) > 0 || rstKemasProduk(b.sku).length);
+  if (!rst.kemas.sumber || !rstCariBahan(rst.kemas.sumber)) rst.kemas.sumber = (sumberList.find(b => (b.stokGram || 0) > 0 && rstKemasProduk(b.sku).length) || sumberList[0] || {}).sku || '';
+  const src = rstCariBahan(rst.kemas.sumber), produk = src ? rstKemasProduk(src.sku) : [];
+  const kemasanSkus = {};
+  produk.forEach(p => (p.bahanKemasan || []).forEach(x => { kemasanSkus[x.sku.toUpperCase()] = 1; }));
+  isi.innerHTML = `<div class="rst-kartu"><h3>1. Pilih kopi yang mau dikemas</h3>
+      ${sumberList.length ? `<div class="rst-sumber">${sumberList.map(b => `<button type="button" class="${src && b.sku === src.sku ? 'aktif' : ''}" onclick="rst.kemas.sumber='${pgrAttr(b.sku)}'; rst.kemas.qty={}; rst.kemas.hasil=null; rstRender();">
+        <b>${escapeHtml(b.nama)}</b><span class="rst-sub">stok ${rstBerat(b.stokGram)} · ${rstKemasProduk(b.sku).length} ukuran</span></button>`).join('')}</div>`
+        : '<div class="rst-sub">Belum ada kopi roasted. Catat roasting dulu.</div>'}
+    </div>
+    ${src ? (produk.length ? `<div class="rst-kartu"><h3>2. Isi jumlah per ukuran</h3>
+      <div class="rst-baris"><label>Kopi yang mau dikemas (kg)<input type="number" inputmode="decimal" step="any" class="web-form-input" id="rst-km-kg" value="${rst.kemas.kg}" placeholder="${rstAngka((src.stokGram || 0) / 1000, 2)} (semua)" oninput="rst.kemas.kg=this.value" /></label>
+        <label><span>&nbsp;</span><button type="button" class="web-btn-primary" onclick="rstKemasOtomatis()"><span class="oi oi-zap" aria-hidden="true"></span> Bagi otomatis</button></label>
+        <label><span>&nbsp;</span><button type="button" class="web-btn-secondary" onclick="rst.kemas.qty={}; rstRender();">Kosongkan</button></label>
+        <label class="rst-lebar"><span>&nbsp;</span><span class="rst-sub" style="font-weight:400;">Bagi otomatis memakai porsi tiap ukuran (atur di Pengaturan). Angka tetap bisa diubah dengan tombol − / +.</span></label></div>
+      <div class="rst-tbl-wrap" style="margin-top:8px;"><table class="web-table"><thead><tr><th>Produk</th><th style="text-align:right;">Isi</th><th style="text-align:right;">Stok sekarang</th><th style="text-align:center;">Dibuat (pcs)</th><th style="text-align:right;">Kopi dipakai</th></tr></thead><tbody>
+        ${produk.map(p => { const q = rst.kemas.qty[p.sku] || 0; return `<tr><td><b>${escapeHtml(p.nama)}</b><div class="rst-sub">${escapeHtml(p.sku)}${p.porsi ? ' · porsi ' + p.porsi + '%' : ''}</div></td>
+          <td style="text-align:right;">${rstAngka(p.gram)} g${p.lebih ? '<div class="rst-sub">+' + rstAngka(p.lebih, 1) + ' g lebih isi</div>' : ''}</td><td style="text-align:right;">${rstAngka(p.stok)} pcs</td>
+          <td style="text-align:center;"><span class="rst-qty"><button type="button" aria-label="Kurangi" onclick="rstKemasUbah('${pgrAttr(p.sku)}', -1)">−</button><input type="number" inputmode="numeric" min="0" class="web-form-input" value="${q || ''}" placeholder="0" data-rst-km="${pgrAttr(p.sku)}" oninput="rst.kemas.qty['${pgrAttr(p.sku)}']=Math.max(0, parseInt(this.value,10)||0); rstKemasRingkas();" /><button type="button" aria-label="Tambah" onclick="rstKemasUbah('${pgrAttr(p.sku)}', 1)">+</button></span></td>
+          <td style="text-align:right;" id="rst-km-g-${pgrAttr(p.sku)}">${rstBerat(q * (p.gram + p.lebih))}</td></tr>`; }).join('')}
+      </tbody></table></div>
+      <div class="rst-meter" id="rst-km-meter"><div style="width:0%"></div></div><div class="rst-sub" id="rst-km-meter-teks"></div>
+      <div id="rst-km-kebutuhan" style="margin-top:8px;"></div>
+      <label class="p2-cek" style="margin-top:6px;"><input type="checkbox" id="rst-km-paksa" ${rst.kemas.paksa ? 'checked' : ''} onchange="rst.kemas.paksa=this.checked" /> Tetap kemas walau stok tercatat kurang</label>
+      <div class="rst-aksi"><button type="button" class="web-btn-primary rst-btn-besar" id="rst-km-btn" onclick="rstKemasSimpan()"><span class="oi oi-box" aria-hidden="true"></span> Kemas sekarang</button><span class="status-text" id="rst-km-status" style="text-align:left;"></span></div>
+      <div id="rst-km-hasil">${rst.kemas.hasil || ''}</div></div>`
+      : `<div class="rst-kartu">Belum ada produk kemasan untuk <b>${escapeHtml(src.nama)}</b>. <a href="#" onclick="rstAturBaru('${pgrAttr(src.sku)}'); return false;">Hubungkan produk 100 g / 150 g / 250 g sekarang</a>.</div>`) : ''}`;
+  if (src && produk.length) rstKemasRingkas();
+}
+function rstKemasUbah(sku, n) { rst.kemas.qty[sku] = Math.max(0, (rst.kemas.qty[sku] || 0) + n); const i = document.querySelector(`[data-rst-km="${CSS.escape(sku)}"]`); if (i) i.value = rst.kemas.qty[sku] || ''; rstKemasRingkas(); }
+// Bagi otomatis: porsi (%) per ukuran -> jumlah pcs (dibulatkan ke bawah), sisa kopi diisi ke ukuran berporsi terbesar lalu ukuran terkecil
+function rstKemasOtomatis() {
+  const src = rstCariBahan(rst.kemas.sumber), produk = rstKemasProduk(rst.kemas.sumber);
+  if (!src || !produk.length) return;
+  const kg = parseFloat(String(rst.kemas.kg).replace(',', '.'));
+  let total = kg > 0 ? kg * 1000 : (src.stokGram || 0);
+  if (total > (src.stokGram || 0) + 1e-6) { pgrToast('Stok ' + src.nama + ' hanya ' + rstBerat(src.stokGram) + '.'); total = src.stokGram || 0; }
+  let porsi = produk.map(p => Math.max(0, p.porsi || 0)), jml = porsi.reduce((a, b) => a + b, 0);
+  if (!jml) { porsi = produk.map(() => 1); jml = produk.length; }
+  const qty = {};
+  let pakai = 0;
+  produk.forEach((p, i) => { const isi = p.gram + p.lebih; const q = Math.floor(total * porsi[i] / jml / isi); qty[p.sku] = q; pakai += q * isi; });
+  const urut = produk.map((p, i) => ({ p, w: porsi[i] })).sort((a, b) => b.w - a.w || b.p.gram - a.p.gram).map(x => x.p).concat(produk.slice().sort((a, b) => a.gram - b.gram));
+  let maju = true;
+  while (maju) { maju = false; for (const p of urut) { const isi = p.gram + p.lebih; if (pakai + isi <= total + 1e-6) { qty[p.sku]++; pakai += isi; maju = true; break; } } }
+  rst.kemas.qty = qty;
+  rstRender();
+  pgrToast('Dibagi otomatis: ' + produk.filter(p => qty[p.sku]).map(p => qty[p.sku] + ' x ' + p.gram + ' g').join(', ') + ' · sisa ' + rstBerat(total - pakai));
+}
+function rstKemasRingkas() {
+  const src = rstCariBahan(rst.kemas.sumber), produk = rstKemasProduk(rst.kemas.sumber);
+  if (!src || !el('rst-km-meter')) return;
+  let pakai = 0, pcs = 0;
+  const butuh = {};
+  produk.forEach(p => {
+    const q = rst.kemas.qty[p.sku] || 0; pakai += q * (p.gram + p.lebih); pcs += q;
+    const g = el('rst-km-g-' + p.sku); if (g) g.textContent = rstBerat(q * (p.gram + p.lebih));
+    (p.bahanKemasan || []).forEach(x => { butuh[x.sku] = (butuh[x.sku] || 0) + x.qty * q; });
+  });
+  const ada = src.stokGram || 0, pct = ada ? Math.min(100, pakai / ada * 100) : (pakai ? 100 : 0);
+  el('rst-km-meter').className = 'rst-meter' + (pakai > ada + 1e-6 ? ' rst-lebih' : '');
+  el('rst-km-meter').firstElementChild.style.width = pct + '%';
+  el('rst-km-meter-teks').innerHTML = `Dipakai <b>${rstBerat(pakai)}</b> dari ${rstBerat(ada)} · sisa <b class="${pakai > ada ? 'rst-merah' : ''}">${rstBerat(ada - pakai)}</b> · total <b>${pcs} pcs</b>`;
+  const kb = Object.keys(butuh).filter(k => butuh[k] > 0).map(k => { const b = rstCariBahan(k); const kurang = !b || b.stok < butuh[k];
+    return `<span class="p2-chip ${kurang ? 'rst-merah' : ''}">${escapeHtml(b ? b.nama : k)}: ${rstAngka(butuh[k], 2)}${b ? ' / stok ' + rstAngka(b.stok, 2) + ' ' + escapeHtml(b.satuan) : ''}</span>`; });
+  el('rst-km-kebutuhan').innerHTML = kb.length ? '<div class="rst-sub" style="margin-bottom:3px;">Bahan kemasan yang ikut terpotong:</div>' + kb.join(' ') : '';
+  const btn = el('rst-km-btn'); if (btn) btn.innerHTML = pcs ? '<span class="oi oi-box" aria-hidden="true"></span> Kemas sekarang (' + pcs + ' pcs)' : '<span class="oi oi-box" aria-hidden="true"></span> Kemas sekarang';
+}
+async function rstKemasSimpan() {
+  const st = el('rst-km-status'), btn = el('rst-km-btn'), src = rstCariBahan(rst.kemas.sumber), produk = rstKemasProduk(rst.kemas.sumber);
+  const baris = produk.map(p => ({ sku: p.sku, qty: rst.kemas.qty[p.sku] || 0, p })).filter(x => x.qty > 0);
+  if (!baris.length) { st.textContent = 'Isi jumlah kemasan minimal 1 pcs (atau tekan Bagi otomatis).'; st.className = 'status-text err'; return; }
+  const kopi = baris.reduce((s, x) => s + x.qty * (x.p.gram + x.p.lebih), 0);
+  if (!(await omniKonfirm_(`Kemas ${src.nama}?\n\n${baris.map(x => '+' + x.qty + ' pcs ' + x.p.nama).join('\n')}\n\nKopi roasted berkurang ${rstBerat(kopi)} (sisa ${rstBerat((src.stokGram || 0) - kopi)})`))) return;
+  btn.disabled = true; setLoadingDots(st, 'Mengemas');
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_kemas', skuSumber: src.sku, baris: baris.map(x => ({ sku: x.sku, qty: x.qty })), izinkanMinus: !!rst.kemas.paksa, idPermintaan: rstId(), email: currentUserEmail() }, 90000);
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    playBeep();
+    const boleh = rst.d.bolehHarga;
+    rst.kemas.hasil = `<div class="rst-hasil"><b>${escapeHtml(r.noKemas || '')} selesai.</b> ${rstAngka(r.pcsTotal)} pcs masuk stok produk jadi · kopi terpakai ${rstBerat(r.kopiTotal)} · sisa ${escapeHtml(r.sumber || '')} ${rstBerat(r.sisaGram)}
+      <div class="rst-tbl-wrap"><table class="web-table" style="margin-top:6px;"><thead><tr><th>Produk</th><th style="text-align:right;">+Stok</th>${boleh ? '<th style="text-align:right;">HPP / pcs</th>' : ''}</tr></thead><tbody>
+      ${(r.hasil || []).map(h => `<tr><td>${escapeHtml(h.nama)}</td><td style="text-align:right;">+${h.qty}</td>${boleh ? `<td style="text-align:right;" title="Kopi ${rstRp(h.hppKopi)} + kemasan ${rstRp(h.hppKemasan)} + proses ${rstRp(h.hppProses)}">${rstRp(h.hpp)}</td>` : ''}</tr>`).join('')}</tbody></table></div>
+      ${boleh && r.hppDiperbarui && r.hppDiperbarui.length ? `<div class="rst-sub">HPP di Produk Master sudah diperbarui untuk ${r.hppDiperbarui.length} produk (dipakai Katalog &gt; Harga & Laba Rugi).</div>` : ''}
+      ${boleh && r.hppDitolak && r.hppDitolak.length ? `<div class="rst-kuning">HPP belum disimpan: ${r.hppDitolak.map(x => escapeHtml(x.sku + ' - ' + x.alasan)).join(' · ')}</div>` : ''}
+      ${boleh ? `<div class="rst-aksi"><button type="button" class="web-btn-secondary" onclick="rstGanti('hpp')"><span class="oi oi-wallet" aria-hidden="true"></span> Lihat HPP & rekomendasi harga</button></div>` : ''}</div>`;
+    rst.kemas.qty = {}; rst.kemas.kg = ''; rst.kemas.paksa = false;
+    await rstMuat(); rstRender();
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; playToot(); }
+}
+
+/* ---------- CAMPUR / OLAH (setengah jadi 2, 3 ...) ---------- */
+function rstViewOlah(isi) {
+  const sj = rstBahan('sj').concat(rstBahan(0)), o = rst.olah;
+  if (!o.input.length) o.input = [{ sku: '', gram: '' }];
+  const total = o.input.reduce((s, x) => s + (parseFloat(x.gram) || 0), 0);
+  const lvl = 1 + Math.max(0, ...o.input.map(x => { const b = rstCariBahan(x.sku); return b ? Math.max(0, b.level) : 0; }));
+  isi.innerHTML = `<div class="rst-kartu"><h3>Campur / olah jadi barang setengah jadi berikutnya</h3>
+    <div class="rst-sub" style="margin-bottom:8px;">Contoh: Roasted Robusta + Roasted Arabika → <b>House Blend</b> (setengah jadi ${lvl}). HPP-nya ikut membawa harga semua bahan.</div>
+    ${o.input.map((x, i) => `<div class="rst-baris" style="margin-bottom:6px;">
+      <label class="rst-lebar">Bahan ${i + 1}<select class="web-form-input" onchange="rst.olah.input[${i}].sku=this.value; rstRender();"><option value="">- pilih -</option>${sj.map(b => `<option value="${pgrAttr(b.sku)}" ${b.sku === x.sku ? 'selected' : ''}>${escapeHtml(b.nama)} · ${rstBerat(b.stokGram)}</option>`).join('')}</select></label>
+      <label>Berat (g)<input type="number" inputmode="decimal" class="web-form-input" value="${x.gram}" oninput="rst.olah.input[${i}].gram=this.value" onchange="rstRender()" /></label>
+      ${o.input.length > 1 ? `<button type="button" class="rst-x" aria-label="Hapus bahan" onclick="rst.olah.input.splice(${i},1); rstRender();"></button>` : ''}</div>`).join('')}
+    <button type="button" class="web-btn-secondary" onclick="rst.olah.input.push({sku:'', gram:''}); rstRender();">+ Tambah bahan</button>
+    <div class="rst-baris" style="margin-top:10px;">
+      <label class="rst-lebar">Hasil disimpan ke<select class="web-form-input" onchange="rst.olah.hasil=this.value; rstRender();"><option value="">Barang baru…</option>${rstBahan('sj').map(b => `<option value="${pgrAttr(b.sku)}" ${b.sku === o.hasil ? 'selected' : ''}>${escapeHtml(b.nama)}</option>`).join('')}</select></label>
+      ${o.hasil ? '' : `<label class="rst-lebar">Nama barang baru<input class="web-form-input" value="${pgrAttr(o.baru)}" placeholder="mis. House Blend" oninput="rst.olah.baru=this.value" /></label>`}
+      <label>Berat hasil (g)<input type="number" inputmode="decimal" class="web-form-input" value="${o.keluar}" placeholder="${rstAngka(total)}" oninput="rst.olah.keluar=this.value" /></label>
+    </div>
+    <div class="rst-aksi"><button type="button" class="web-btn-primary rst-btn-besar" id="rst-olah-btn" onclick="rstOlahSimpan()"><span class="oi oi-flask" aria-hidden="true"></span> Simpan hasil olah</button><span class="status-text" id="rst-olah-status"></span></div>
+    <div id="rst-olah-hasil"></div></div>`;
+}
+async function rstOlahSimpan() {
+  const o = rst.olah, st = el('rst-olah-status'), btn = el('rst-olah-btn');
+  const input = o.input.filter(x => x.sku && parseFloat(x.gram) > 0);
+  if (!input.length) { st.textContent = 'Pilih bahan & isi beratnya.'; st.className = 'status-text err'; return; }
+  if (!o.hasil && !String(o.baru || '').trim()) { st.textContent = 'Isi nama barang hasil.'; st.className = 'status-text err'; return; }
+  btn.disabled = true; setLoadingDots(st, 'Menyimpan');
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_proses', idPermintaan: rstId(), email: currentUserEmail(),
+      olah: { input, skuHasil: o.hasil, namaHasilBaru: o.baru, keluar: o.keluar, nama: o.hasil ? (rstCariBahan(o.hasil) || {}).nama : o.baru } }, 90000);
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    playBeep();
+    const x = (r.ringkas || [])[0] || {};
+    rst.olah = { input: [], hasil: '', baru: '', keluar: '', nama: '' };
+    await rstMuat(); rstRender();
+    const h = el('rst-olah-hasil');
+    if (h) h.innerHTML = `<div class="rst-hasil"><b>${escapeHtml(x.no || '')}</b> ${escapeHtml(x.hasil || '')}: +${rstBerat(x.keluar)}${x.hppKg ? ' · HPP ' + rstRp(x.hppKg) + '/kg' : ''}</div>`;
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; playToot(); }
+}
+
+/* ---------- HPP & HARGA (Owner / izin Buat Invoice) ---------- */
+function rstRekom(p) {
+  const d = rst.d, hpp = (p.perkiraan && p.perkiraan.hpp) || (p.terakhir && p.terakhir.hpp) || 0;
+  const margin = p.marginCustom !== null && p.marginCustom !== undefined ? p.marginCustom : (d.marginGlobal || 0);
+  const out = { hpp, margin, ch: {} };
+  if (!(hpp > 0) || typeof hargaRekomendasiChannel !== 'function') return out;
+  let param;
+  try { param = hargaSalinParam(d.paramBiaya || {}); } catch (e) { param = undefined; }
+  ['default', 'shopee', 'tiktok'].forEach(ch => {
+    let r = null, m = null;
+    try { r = hargaRekomendasiChannel(ch, hpp, margin, param); m = hargaRekomendasiChannel(ch, hpp, 0, param); } catch (e) { }
+    out.ch[ch] = { rek: r && r.status === 'ok' ? r.harga : 0, min: m && m.status === 'ok' ? m.harga : 0, simulasi: !!(r && r.simulasiFee), sekarang: (p.harga || {})[ch] || 0 };
+  });
+  return out;
+}
+function rstViewHpp(isi) {
+  const d = rst.d, produk = (d.kemasan || []).filter(k => k.aktif);
+  if (!produk.length) { isi.innerHTML = `<div class="rst-kartu">Belum ada produk kemasan. <a href="#" onclick="rstGanti('atur'); return false;">Atur produk kemasan</a> dulu.</div>`; return; }
+  const sel = (c) => {
+    if (!c) return '-';
+    const kls = !c.sekarang ? '' : (c.min && c.sekarang < c.min ? 'rst-merah' : (c.rek && c.sekarang < c.rek ? 'rst-kuning' : 'rst-hijau'));
+    return `<div class="rst-harga-sel"><span class="${kls}">${c.sekarang ? rstRp(c.sekarang) : '<i>belum ada</i>'}</span><br><i>saran</i> <b>${c.rek ? rstRp(c.rek) : '-'}</b>${c.simulasi ? ' <i title="Komisi channel belum diisi di Katalog > Harga > Parameter - dipakai simulasi">(simulasi)</i>' : ''}<br><i>min. aman ${c.min ? rstRp(c.min) : '-'}</i></div>`;
+  };
+  isi.innerHTML = `<div class="rst-kartu"><h3>HPP per kemasan & rekomendasi harga jual</h3>
+    <div class="rst-sub">HPP = kopi (green bean + susut roasting + biaya roasting) + kemasan & label + biaya kemas. Saran harga memakai target margin ${rstAngka(d.marginGlobal, 1)}% (atau margin khusus produk) dan komisi marketplace dari Katalog &gt; Harga &gt; Parameter.
+      <b>Min. aman</b> = HPP + komisi (di bawahnya rugi). Warna harga sekarang: <span class="rst-hijau">sesuai saran</span> · <span class="rst-kuning">di bawah saran</span> · <span class="rst-merah">di bawah minimum (rugi)</span>.</div>
+    <div class="rst-tbl-wrap" style="margin-top:8px;"><table class="web-table"><thead><tr><th>Produk</th><th style="text-align:right;">HPP sekarang</th><th style="text-align:right;">HPP terakhir kemas</th><th style="text-align:right;">HPP di Produk Master</th><th>Offline</th><th>Shopee</th><th>TikTok / Tokopedia</th><th></th></tr></thead><tbody>
+    ${produk.map(p => { const r = rstRekom(p), pk = p.perkiraan || {}, beda = r.hpp > 0 && Math.abs((p.hppMaster || 0) - r.hpp) > Math.max(50, r.hpp * 0.01);
+      return `<tr><td><b>${escapeHtml(p.nama)}</b><div class="rst-sub">${escapeHtml(p.sku)} · ${rstAngka(p.gram)} g</div>${pk.kurangHarga && pk.kurangHarga.length ? `<div class="rst-kuning" style="font-size:11px;">Harga belum diisi: ${escapeHtml(pk.kurangHarga.join(', '))}</div>` : ''}</td>
+        <td style="text-align:right;" title="Kopi ${rstRp(pk.kopi)} (${rstRp(pk.hargaKgSumber)}/kg) + kemasan ${rstRp(pk.kemasan)} + proses ${rstRp(pk.proses)}"><b>${pk.hpp ? rstRp(pk.hpp) : '-'}</b><div class="rst-sub">kopi ${rstRp(pk.kopi)} · kemasan ${rstRp(pk.kemasan)} · proses ${rstRp(pk.proses)}</div></td>
+        <td style="text-align:right;">${p.terakhir ? rstRp(p.terakhir.hpp) + '<div class="rst-sub">' + escapeHtml(p.terakhir.tanggal) + '</div>' : '-'}</td>
+        <td style="text-align:right;" class="${beda ? 'rst-kuning' : ''}">${p.hppMaster ? rstRp(p.hppMaster) : '-'}${p.skuUtama ? '<div class="rst-sub">ikut SKU supplier ' + escapeHtml(p.skuUtama) + '</div>' : ''}</td>
+        <td>${sel(r.ch.default)}</td><td>${sel(r.ch.shopee)}</td><td>${sel(r.ch.tiktok)}</td>
+        <td style="white-space:nowrap;">${beda ? `<button type="button" class="web-btn-primary" onclick="rstHppSimpan('${pgrAttr(p.sku)}', ${Math.round(r.hpp)})">Simpan HPP ${rstRp(r.hpp)}</button><br>` : ''}<button type="button" class="web-btn-secondary" style="margin-top:4px;" onclick="rstKeHarga('${pgrAttr(p.sku)}')">Buka Katalog &gt; Harga</button></td></tr>`; }).join('')}
+    </tbody></table></div><div class="status-text" id="rst-hpp-status" style="text-align:left;"></div></div>
+    <div class="rst-kartu"><h3>Harga per kg barang setengah jadi</h3>${rstBahan('sj').map(b => `<div style="font-size:13px;">${escapeHtml(b.nama)}: <b>${b.hargaGram ? rstRp(b.hargaGram * 1000) : '-'}</b> / kg · stok ${rstBerat(b.stokGram)}</div>`).join('') || '<div class="rst-sub">Belum ada.</div>'}
+      <div class="rst-sub" style="margin-top:6px;">Harga rata-rata tertimbang: tiap roasting baru dicampur dengan stok lama sesuai beratnya.</div></div>`;
+}
+async function rstHppSimpan(sku, hpp) {
+  const st = el('rst-hpp-status');
+  if (!(await omniKonfirm_('Simpan HPP ' + rstRp(hpp) + ' ke Produk Master ' + sku + '?\nHPP ini dipakai Katalog > Harga & Laba Rugi.'))) return;
+  setLoadingDots(st, 'Menyimpan');
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_terapkan_hpp', sku, hpp, email: currentUserEmail() });
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    st.textContent = 'HPP ' + sku + ' tersimpan.'; st.className = 'status-text ok'; playBeep();
+    try { katalogHargaCache = []; } catch (e) { }
+    await rstMuat(); rstRender();
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; playToot(); }
+}
+function rstKeHarga(sku) {
+  try { katalogHargaCache = []; } catch (e) { }
+  katalogBukaSub('harga');
+  setTimeout(() => { const i = el('harga-cari-input'); if (i) { i.value = sku; try { hargaCariBerubah(); } catch (e) { } } }, 400);
+}
+
+/* ---------- RIWAYAT ---------- */
+function rstViewRiwayat(isi) {
+  const d = rst.d, q = rst.cari.toLowerCase();
+  const log = (d.log || []).slice().reverse().filter(x => !q || [x.varian, x.namaHasil, x.profil, x.catatan, x.no, x.tanggal, x.jenis].join(' ').toLowerCase().includes(q));
+  const klog = (d.kemasLog || []).slice().reverse().filter(x => !q || [x.nama, x.sku, x.namaSumber, x.no, x.tanggal].join(' ').toLowerCase().includes(q));
+  const stat = d.statistik && d.statistik.perBahan || {};
+  const ringkas = Object.keys(stat).filter(k => k.indexOf('NAMA:') === 0).map(k => Object.assign({ nama: k.slice(5) }, stat[k])).sort((a, b) => b.batch - a.batch);
+  isi.innerHTML = `<div class="rst-kartu">
+    <div class="rst-baris"><label class="rst-lebar">Cari<input type="search" class="web-search-input" style="margin:0;" value="${pgrAttr(rst.cari)}" placeholder="varian, profil, catatan…" oninput="rst.cari=this.value; clearTimeout(rst._t); rst._t=setTimeout(rstRender, 250);" /></label>
+      <label><span>&nbsp;</span><span class="rst-baris" style="gap:4px;"><button type="button" class="rst-chip ${rst.riwayat === 'roasting' ? 'aktif' : ''}" onclick="rst.riwayat='roasting'; rstRender();">Roasting</button><button type="button" class="rst-chip ${rst.riwayat === 'kemas' ? 'aktif' : ''}" onclick="rst.riwayat='kemas'; rstRender();">Kemas</button><button type="button" class="rst-chip ${rst.riwayat === 'varian' ? 'aktif' : ''}" onclick="rst.riwayat='varian'; rstRender();">Per varian</button></span></label>
+      <label><span>&nbsp;</span><button type="button" class="web-btn-secondary" onclick="el('rst-impor-file').click()"><span class="oi oi-upload" aria-hidden="true"></span> Impor catatan Excel lama</button></label></div>
+    <input type="file" id="rst-impor-file" accept=".xlsx,.xls,.xlsm" style="display:none;" onchange="rstImporFile(this)" />
+    <div id="rst-impor-status" class="status-text" style="text-align:left;"></div>
+    ${rst.riwayat === 'roasting' ? `<div class="rst-tbl-wrap" style="margin-top:8px;"><table class="web-table"><thead><tr><th>Tanggal</th><th>Varian</th><th>Profil</th><th style="text-align:right;">Masuk</th><th style="text-align:right;">Keluar</th><th style="text-align:right;">Susut</th><th style="text-align:right;">Kulit ari</th><th>Suhu</th><th>Jam</th>${d.bolehHarga ? '<th style="text-align:right;">HPP / kg</th>' : ''}<th>Catatan</th></tr></thead><tbody>
+      ${log.slice(0, 300).map(x => x.jenis !== 'Batch' ? `<tr class="rst-kejadian"><td>${escapeHtml(x.tanggal)}</td><td colspan="${d.bolehHarga ? 10 : 9}">${x.jenis === 'Ganti Tabung Gas' ? '<span class="oi oi-flame" aria-hidden="true"></span>' : '<span class="oi oi-wrench" aria-hidden="true"></span>'} ${escapeHtml(x.jenis)} ${escapeHtml(x.catatan)}</td></tr>`
+        : `<tr><td>${escapeHtml(x.tanggal)}<div class="rst-sub">${escapeHtml(x.sumber === 'Impor Excel' ? 'impor Excel' : x.no)}</div></td><td>${escapeHtml(x.varian)}${x.tahap === 'Olah' ? ' <span class="p2-chip">olah</span>' : ''}<div class="rst-sub">${escapeHtml(x.namaHasil)}</div></td><td>${escapeHtml(x.profil)}</td>
+          <td style="text-align:right;">${rstAngka(x.masuk)} g</td><td style="text-align:right;">${rstAngka(x.keluar)} g</td><td style="text-align:right;">${x.susut != null ? rstAngka(x.susut, 1) + '%' : '-'}</td><td style="text-align:right;">${x.chaff ? rstAngka(x.chaff, 1) + ' g' : '-'}</td>
+          <td>${x.suhuMasuk || x.suhuKeluar ? (x.suhuMasuk || '-') + '° → ' + (x.suhuKeluar || '-') + '°' : '-'}</td><td>${escapeHtml(x.jam || '-')}</td>${d.bolehHarga ? `<td style="text-align:right;">${x.hppKg ? rstRp(x.hppKg) : '-'}</td>` : ''}<td>${escapeHtml(x.catatan)}</td></tr>`).join('') || '<tr><td colspan="11" class="p2-kosong">Belum ada catatan.</td></tr>'}</tbody></table></div>` : ''}
+    ${rst.riwayat === 'kemas' ? `<div class="rst-tbl-wrap" style="margin-top:8px;"><table class="web-table"><thead><tr><th>No</th><th>Tanggal</th><th>Dari</th><th>Produk</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Kopi</th>${d.bolehHarga ? '<th style="text-align:right;">HPP / pcs</th>' : ''}<th>Oleh</th></tr></thead><tbody>
+      ${klog.slice(0, 300).map(x => `<tr><td>${escapeHtml(x.no)}</td><td>${escapeHtml(x.tanggal)}</td><td>${escapeHtml(x.namaSumber)}</td><td>${escapeHtml(x.nama)}</td><td style="text-align:right;">${x.qty}</td><td style="text-align:right;">${rstBerat(x.kopiGram)}</td>${d.bolehHarga ? `<td style="text-align:right;">${rstRp(x.hpp)}</td>` : ''}<td>${escapeHtml(x.oleh)}</td></tr>`).join('') || '<tr><td colspan="8" class="p2-kosong">Belum ada.</td></tr>'}</tbody></table></div>` : ''}
+    ${rst.riwayat === 'varian' ? `<div class="rst-tbl-wrap" style="margin-top:8px;"><table class="web-table"><thead><tr><th>Varian</th><th style="text-align:right;">Batch</th><th style="text-align:right;">Susut rata-rata*</th><th style="text-align:right;">Kulit ari / batch</th><th style="text-align:right;">Suhu keluar</th><th>Profil</th></tr></thead><tbody>
+      ${ringkas.map(x => `<tr><td style="text-transform:capitalize;">${escapeHtml(x.nama)}</td><td style="text-align:right;">${x.batch}</td><td style="text-align:right;">${rstAngka(x.susutRata, 1)}%</td><td style="text-align:right;">${x.chaffRata ? x.chaffRata + ' g' : '-'}</td><td style="text-align:right;">${x.suhuKeluarRata ? x.suhuKeluarRata + '°' : '-'}</td><td>${escapeHtml(x.profilUmum)}</td></tr>`).join('') || '<tr><td colspan="6" class="p2-kosong">Belum ada.</td></tr>'}</tbody></table></div>
+      <div class="rst-sub">*20 batch terakhir. Angka ini dipakai untuk memberi tanda bila susut batch baru beda jauh (lebih dari 3 poin) - biasanya salah timbang / salah ketik.</div>` : ''}
+  </div>`;
+}
+// Impor Excel "Roasting Data" (kolom: Tanggal, (tanggal 2), Varietas, Drum Input, Roast Profile, Drum Output, ..., Actual Waste, ..., Finish Time, Input Temp, Output Temp, catatan)
+async function rstImporFile(input) {
+  const f = input.files && input.files[0], st = el('rst-impor-status');
+  input.value = '';
+  if (!f) return;
+  try {
+    setLoadingDots(st, 'Membaca Excel');
+    await impMuatXlsx();
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: false });
+    const baris = rstImporUrai(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' }));
+    stopLoadingDots(st);
+    const batch = baris.filter(b => b.jenis === 'Batch').length;
+    if (!baris.length) throw new Error('Kolom "Varietas", "Drum Input" & "Drum Output" tidak ditemukan.');
+    if (!(await omniKonfirm_(`Impor ${batch} batch + ${baris.length - batch} kejadian (ganti tabung / servis) dari ${f.name}?\n\nHanya riwayat - stok TIDAK berubah. Data yang sudah pernah diimpor dilewati.`))) { st.textContent = ''; return; }
+    setLoadingDots(st, 'Mengimpor');
+    const r = await postJsonTulis({ aksi: 'rst_impor_log', baris, email: currentUserEmail() }, 90000);
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    st.textContent = r.ditambah + ' baris masuk riwayat, ' + r.dilewati + ' dilewati (sudah ada / tidak wajar).'; st.className = 'status-text ok';
+    await rstMuat(); rstRender();
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; }
+}
+function rstImporUrai(rows) {
+  const norm = v => String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim();
+  const hi = rows.findIndex(r => r.some(v => norm(v) === 'varietas') && r.some(v => /drum input/.test(norm(v))));
+  if (hi < 0) return [];
+  const H = rows[hi].map(norm), kol = n => H.findIndex(h => h.indexOf(n) === 0);
+  const cT = kol('tanggal'), cV = kol('varietas'), cI = kol('drum input'), cP = kol('roast profile'), cO = kol('drum output'), cW = kol('actual waste'), cJ = kol('fin'), cTi = kol('input temp'), cTo = kol('output temp');
+  const tgl = v => { if (typeof v === 'number' && v > 20000) { const d = new Date(Math.round((v - 25569) * 864e5)); return d.toISOString().slice(0, 10); } const m = /(\d{4})-(\d{2})-(\d{2})/.exec(String(v)); return m ? m[0] : ''; };
+  const jam = v => { if (typeof v === 'number' && v > 0 && v < 1) { const mnt = Math.round(v * 1440); return String(Math.floor(mnt / 60)).padStart(2, '0') + ':' + String(mnt % 60).padStart(2, '0'); } const m = /(\d{1,2})[:.](\d{2})/.exec(String(v)); return m ? m[1].padStart(2, '0') + ':' + m[2] : ''; };
+  const num = v => { const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : ''; };
+  const out = [];
+  let tglTerakhir = '';
+  rows.slice(hi + 1).forEach((r, i) => {
+    if (r.some(v => norm(v) === 'varietas')) return; // judul berulang
+    // Tanggal roasting = kolom kedua bila terisi (kolom pertama = roasting sebelumnya), selain itu kolom pertama
+    const t = tgl(r[cT + 1]) || tgl(r[cT]);
+    const varian = String(r[cV] || '').trim();
+    if (!t || !varian) return;
+    tglTerakhir = t;
+    const catatan = r.slice(Math.max(cTo, 0) + 1).filter(v => typeof v === 'string' && v.trim() && !/^=/.test(v) && !/gram\s*\/\s*day/i.test(v)).join(' ').slice(0, 400);
+    if (/tabung\s*gas/i.test(varian)) { out.push({ tanggal: t, jenis: 'Ganti Tabung Gas', varian: '', catatan, urutan: i }); return; }
+    if (/service|servis/i.test(varian)) { out.push({ tanggal: t, jenis: 'Servis Mesin', varian: '', catatan: varian + (catatan ? ' ' + catatan : ''), urutan: i }); return; }
+    const masuk = num(r[cI]), keluar = num(r[cO]);
+    if (!(masuk > 0) || !(keluar > 0)) return;
+    out.push({ tanggal: t, jenis: 'Batch', varian, profil: String(r[cP] || '').trim(), masuk, keluar, chaff: cW >= 0 ? (num(r[cW]) === '' ? '' : Math.round(num(r[cW]) * 10) / 10) : '',
+      suhuMasuk: cTi >= 0 ? num(r[cTi]) : '', suhuKeluar: cTo >= 0 ? num(r[cTo]) : '', jam: cJ >= 0 ? jam(r[cJ]) : '', catatan, urutan: i });
+  });
+  return out;
+}
+
+/* ---------- PENGATURAN ---------- */
+function rstAturBaru(skuSumber) { rst.atur = { sku: '', nama: '', skuSumber: skuSumber || '', gram: '', lebih: '', porsi: '', bahanKemasan: rstKemasanBawaan() }; rstGanti('atur'); }
+function rstKemasanBawaan() {
+  const k = (rst.d.kemasan || []).find(x => (x.bahanKemasan || []).length);
+  return k ? k.bahanKemasan.map(x => ({ sku: x.sku, qty: x.qty })) : [];
+}
+function rstGramDariNama(nama) { const m = /(\d{2,4})\s*(g|gr|gram)\b/i.exec(String(nama || '')); if (m) return parseInt(m[1], 10); const k = /(\d+(?:[.,]\d+)?)\s*kg\b/i.exec(String(nama || '')); return k ? Math.round(parseFloat(k[1].replace(',', '.')) * 1000) : ''; }
+function rstViewAtur(isi) {
+  const d = rst.d, semua = rstBahan(), sj = rstBahan('sj'), kem = rstBahan(-1);
+  const a = rst.atur;
+  if (d.bolehHarga && !rst.biaya) rst.biaya = (d.biaya || []).map(b => Object.assign({}, b));
+  const gas = d.statistik && d.statistik.gas || {};
+  isi.innerHTML = `
+  <div class="rst-kartu"><h3>1. Jenis barang produksi</h3>
+    <div class="rst-sub" style="margin-bottom:6px;">Barang diambil dari Produksi &gt; Bahan Baku. Pilih jenisnya supaya muncul di tempat yang benar. Tambah barang baru: <a href="#produksi/bb" onclick="produksiBukaSub('bb'); return false;">Produksi &gt; Bahan Baku</a>.</div>
+    <div class="rst-tbl-wrap"><table class="web-table"><thead><tr><th>Barang</th><th style="text-align:right;">Stok</th><th>Jenis</th></tr></thead><tbody>
+      ${semua.map(b => `<tr><td><b>${escapeHtml(b.nama)}</b><div class="rst-sub">${escapeHtml(b.sku)} · ${escapeHtml(b.satuan)}</div></td><td style="text-align:right;">${rstAngka(b.stok, 2)} ${escapeHtml(b.satuan)}</td>
+        <td><select class="web-form-input" style="margin:0;" onchange="rstUbahJenis('${pgrAttr(b.sku)}', this.value)">${RST_JENIS.map(j => `<option ${rstJenisDari(b) === j ? 'selected' : ''}>${j}</option>`).join('')}</select></td></tr>`).join('') || '<tr><td colspan="3" class="p2-kosong">Belum ada barang.</td></tr>'}
+    </tbody></table></div></div>
+  <div class="rst-kartu"><h3>2. Produk kemasan (produk jadi)</h3>
+    <div class="rst-sub" style="margin-bottom:6px;">Hubungkan produk jual di Produk Master ke kopi roasted-nya. Cukup sekali - setelah itu pembagian ke kemasan tinggal 1 klik.</div>
+    <div class="rst-tbl-wrap"><table class="web-table"><thead><tr><th>Produk</th><th>Dari kopi</th><th style="text-align:right;">Isi</th><th>Bahan kemasan / pcs</th><th style="text-align:right;">Porsi bagi</th><th></th></tr></thead><tbody>
+      ${(d.kemasan || []).map(k => { const s = rstCariBahan(k.skuSumber); return `<tr class="${k.aktif ? '' : 'p2-nonaktif'}"><td><b>${escapeHtml(k.nama)}</b><div class="rst-sub">${escapeHtml(k.sku)}${k.diMaster ? '' : ' · tidak ada di Produk Master'}</div></td><td>${escapeHtml(s ? s.nama : k.skuSumber)}</td>
+        <td style="text-align:right;">${rstAngka(k.gram)} g${k.lebih ? ' +' + rstAngka(k.lebih, 1) : ''}</td><td>${(k.bahanKemasan || []).map(x => { const b = rstCariBahan(x.sku); return `<span class="p2-chip">${rstAngka(x.qty, 2)} ${escapeHtml(b ? b.nama : x.sku)}</span>`; }).join('') || '-'}</td>
+        <td style="text-align:right;">${k.porsi ? k.porsi + '%' : '-'}</td><td><button type="button" class="web-btn-secondary" onclick="rstAturUbah('${pgrAttr(k.sku)}')">Ubah</button></td></tr>`; }).join('') || '<tr><td colspan="6" class="p2-kosong">Belum ada.</td></tr>'}
+    </tbody></table></div>
+    <div class="rst-aksi"><button type="button" class="web-btn-primary" onclick="rstAturBaru('')">+ Hubungkan produk</button></div>
+    ${a ? `<div class="rst-batch" style="margin-top:10px;"><div class="rst-batch-no"><span>${a.ada ? 'Ubah' : 'Hubungkan'} produk kemasan</span><button type="button" class="rst-x" aria-label="Tutup" onclick="rst.atur=null; rstRender();"></button></div>
+      <div class="rst-baris">
+        <label class="rst-lebar">Kopi sumber (setengah jadi)<select class="web-form-input" onchange="rst.atur.skuSumber=this.value; rstRender();"><option value="">- pilih -</option>${sj.map(b => `<option value="${pgrAttr(b.sku)}" ${b.sku === a.skuSumber ? 'selected' : ''}>${escapeHtml(b.nama)}</option>`).join('')}</select></label>
+        <label class="rst-lebar">Produk jual (Produk Master)<span class="p2-picker"><input class="web-form-input" id="rst-atur-cari" autocomplete="off" value="${pgrAttr(a.sku ? a.sku + ' · ' + a.nama : '')}" placeholder="ketik nama / SKU…" ${a.ada ? 'disabled' : ''} oninput="rstAturCari()" onfocus="rstAturCari()" onblur="setTimeout(()=>{const b=el('rst-atur-picker'); if(b) b.style.display='none';},180)" /><div class="p2-picker-hasil" id="rst-atur-picker"></div></span></label>
+      </div>
+      ${!a.ada && a.skuSumber ? rstSaranHtml(a.skuSumber) : ''}
+      <div class="rst-baris" style="margin-top:6px;">
+        <label>Isi per kemasan (g)<input type="number" class="web-form-input" value="${a.gram}" oninput="rst.atur.gram=this.value" /></label>
+        <label>Lebih isi / toleransi (g)<input type="number" step="any" class="web-form-input" value="${a.lebih}" placeholder="0" oninput="rst.atur.lebih=this.value" /></label>
+        <label>Porsi bagi otomatis (%)<input type="number" class="web-form-input" value="${a.porsi}" placeholder="mis. 50" oninput="rst.atur.porsi=this.value" /></label>
+      </div>
+      <div class="rst-sub" style="margin:8px 0 4px;">Bahan kemasan yang dipakai per 1 pcs:</div>
+      ${(a.bahanKemasan || []).map((x, i) => `<div class="rst-baris" style="margin-bottom:4px;"><label class="rst-lebar"><select class="web-form-input" onchange="rst.atur.bahanKemasan[${i}].sku=this.value">${kem.map(b => `<option value="${pgrAttr(b.sku)}" ${b.sku === x.sku ? 'selected' : ''}>${escapeHtml(b.nama)}</option>`).join('')}</select></label>
+        <label><input type="number" step="any" class="web-form-input" value="${x.qty}" oninput="rst.atur.bahanKemasan[${i}].qty=this.value" /></label><button type="button" class="rst-x" aria-label="Hapus" onclick="rst.atur.bahanKemasan.splice(${i},1); rstRender();"></button></div>`).join('')}
+      ${kem.length ? `<button type="button" class="web-btn-secondary" onclick="rst.atur.bahanKemasan.push({sku:'${pgrAttr(kem[0].sku)}', qty:1}); rstRender();">+ Bahan kemasan</button>` : '<div class="rst-kuning">Belum ada barang berjenis Kemasan & Perlengkapan (lihat bagian 1).</div>'}
+      <div class="rst-aksi"><label class="p2-cek"><input type="checkbox" ${a.aktif === false ? '' : 'checked'} onchange="rst.atur.aktif=this.checked" /> Aktif</label>
+        <button type="button" class="web-btn-primary" id="rst-atur-btn" onclick="rstAturSimpan()">Simpan</button><span class="status-text" id="rst-atur-status"></span></div></div>` : ''}
+  </div>
+  ${d.bolehHarga ? `<div class="rst-kartu"><h3>3. Biaya proses (masuk ke HPP)</h3>
+    <div class="rst-sub">Pouch, valve, stiker = <b>bahan kemasan</b> (stoknya dipotong) - tidak perlu diisi di sini. Di sini biaya yang tidak punya stok:
+      <b>per batch</b> = setiap 1x roasting / 1x sesi kemas · <b>per kg</b> = setiap 1 kg kopi · <b>per pcs</b> = setiap 1 bungkus · <b>per tabung</b> = harga 1 tabung dibagi berapa batch · <b>per bulan</b> = biaya bulanan dibagi perkiraan kg per bulan.</div>
+    ${gas.rataBatchPerTabung ? `<div class="rst-hijau" style="margin-top:6px;">Data asli Anda: 1 tabung gas rata-rata ${rstAngka(gas.rataBatchPerTabung, 1)} batch (dari ${gas.siklusTercatat} tabung). <a href="#" onclick="rstPakaiGas(); return false;">Pakai angka ini</a></div>` : '<div class="rst-sub" style="margin-top:6px;">Centang "Tabung gas baru dipasang" saat roasting - sistem akan menghitung sendiri berapa batch per tabung.</div>'}
+    <div class="rst-tbl-wrap" style="margin-top:8px;"><table class="web-table"><thead><tr><th>Nama biaya</th><th>Tahap</th><th>Dasar</th><th style="text-align:right;">Nilai (Rp)</th><th style="text-align:right;">Pembagi</th><th>Aktif</th><th></th></tr></thead><tbody>
+      ${rst.biaya.map((b, i) => `<tr><td><input class="web-form-input" style="margin:0;" value="${pgrAttr(b.nama)}" oninput="rst.biaya[${i}].nama=this.value" /></td>
+        <td><select class="web-form-input" style="margin:0;" onchange="rst.biaya[${i}].tahap=this.value">${['Roasting', 'Olah', 'Kemas'].map(t => `<option ${b.tahap === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+        <td><select class="web-form-input" style="margin:0;" onchange="rst.biaya[${i}].dasar=this.value; rstRender();">${[['batch', 'per batch'], ['kg', 'per kg'], ['pcs', 'per pcs'], ['tabung', 'per tabung'], ['bulan', 'per bulan']].map(([v, t]) => `<option value="${v}" ${b.dasar === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+        <td><input type="number" class="web-form-input" style="margin:0; text-align:right;" value="${b.nilai || ''}" oninput="rst.biaya[${i}].nilai=this.value" /></td>
+        <td>${b.dasar === 'tabung' || b.dasar === 'bulan' ? `<input type="number" class="web-form-input" style="margin:0; text-align:right;" value="${b.pembagi || ''}" placeholder="${b.dasar === 'tabung' ? 'batch/tabung' : 'kg/bulan'}" oninput="rst.biaya[${i}].pembagi=this.value" />` : '<span class="rst-sub">-</span>'}</td>
+        <td><input type="checkbox" ${b.aktif === false ? '' : 'checked'} onchange="rst.biaya[${i}].aktif=this.checked" /></td><td><button type="button" class="rst-x" aria-label="Hapus biaya" onclick="rst.biaya.splice(${i},1); rstRender();"></button></td></tr>`).join('') || '<tr><td colspan="7" class="p2-kosong">Belum ada biaya.</td></tr>'}
+    </tbody></table></div>
+    <div class="rst-aksi"><button type="button" class="web-btn-secondary" onclick="rst.biaya.push({nama:'', tahap:'Roasting', dasar:'batch', nilai:'', pembagi:'', aktif:true}); rstRender();">+ Tambah biaya</button>
+      ${rst.biaya.length ? '' : '<button type="button" class="web-btn-secondary" onclick="rstBiayaContoh()">Isi contoh biaya umum</button>'}
+      <button type="button" class="web-btn-primary" id="rst-biaya-btn" onclick="rstBiayaSimpan()">Simpan biaya</button><span class="status-text" id="rst-biaya-status"></span></div></div>` : ''}`;
+}
+function rstJenisDari(b) { if (b.level >= 1) return 'Setengah Jadi ' + Math.min(3, b.level); if (b.level === 0) return 'Bahan Mentah'; return 'Kemasan & Perlengkapan'; }
+async function rstUbahJenis(sku, kategori) {
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_ubah_jenis', sku, kategori, email: currentUserEmail() });
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    pgrToast(sku + ' → ' + kategori); await rstMuat(); rstRender();
+  } catch (err) { pgrToast(String(err.message || err)); }
+}
+function rstAturUbah(sku) {
+  const k = (rst.d.kemasan || []).find(x => x.sku === sku); if (!k) return;
+  rst.atur = { ada: true, sku: k.sku, nama: k.nama, skuSumber: k.skuSumber, gram: k.gram, lebih: k.lebih || '', porsi: k.porsi || '', aktif: k.aktif, bahanKemasan: (k.bahanKemasan || []).map(x => ({ sku: x.sku, qty: x.qty })) };
+  rstRender();
+}
+function rstProdukMaster() { return (typeof katalogProdukCache !== 'undefined' && katalogProdukCache) || []; }
+function rstAturCari() {
+  const inp = el('rst-atur-cari'), box = el('rst-atur-picker'); if (!inp || !box) return;
+  const q = inp.value.trim().toLowerCase(), list = rstProdukMaster();
+  if (!list.length) { box.innerHTML = '<div class="p2-picker-kosong">Memuat Produk Master…</div>'; box.style.display = 'block'; mgmPastikanKatalog().then(() => { if (document.activeElement === inp) rstAturCari(); }); return; }
+  const sudah = new Set((rst.d.kemasan || []).map(k => k.sku.toUpperCase()));
+  const hasil = list.filter(p => !q || String(p.sku).toLowerCase().includes(q) || String(p.nama || '').toLowerCase().includes(q)).slice(0, 12);
+  rst._picker = hasil;
+  box.innerHTML = hasil.map((p, i) => `<div class="p2-picker-item" onmousedown="event.preventDefault(); rstAturPilih(${i})"><b>${escapeHtml(p.sku)}</b><span class="p2-sub">${escapeHtml(p.nama || '')}${sudah.has(String(p.sku).toUpperCase()) ? ' · sudah terhubung' : ''}</span></div>`).join('') || '<div class="p2-picker-kosong">Tidak ditemukan.</div>';
+  box.style.display = 'block';
+}
+function rstAturPilih(i) {
+  const p = (rst._picker || [])[i]; if (!p) return;
+  rst.atur.sku = p.sku; rst.atur.nama = p.nama || '';
+  if (!rst.atur.gram) rst.atur.gram = rstGramDariNama(p.nama);
+  rstRender();
+}
+// Saran: produk master yang namanya memuat kata kunci kopi sumber + berat (g)
+function rstSaranProduk(skuSumber) {
+  const s = rstCariBahan(skuSumber); if (!s) return [];
+  const buang = new Set(['roasted', 'green', 'bean', 'beans', 'kopi', 'coffee', 'biji', 'arabica', 'arabika', 'robusta']);
+  const kata = String(s.nama).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !buang.has(w));
+  if (!kata.length) return [];
+  const sudah = new Set((rst.d.kemasan || []).map(k => k.sku.toUpperCase()));
+  return rstProdukMaster().filter(p => { const n = String(p.nama || '').toLowerCase(); return !sudah.has(String(p.sku).toUpperCase()) && rstGramDariNama(p.nama) && kata.every(w => n.includes(w)); }).slice(0, 12);
+}
+function rstSaranHtml(skuSumber) {
+  const list = rstSaranProduk(skuSumber);
+  if (!rstProdukMaster().length) { mgmPastikanKatalog().then(() => { if (rst.view === 'atur' && rst.atur && !rst._saranDimuat) { rst._saranDimuat = 1; rstRender(); } }); return ''; }
+  if (!list.length) return '';
+  rst._saran = list;
+  return `<div class="rst-hasil" style="margin-top:6px;"><b>Saran:</b> produk yang sepertinya dari kopi ini - hubungkan sekaligus (isi diambil dari nama, bahan kemasan ikut isian di bawah):
+    <div style="margin:6px 0;">${list.map((p, i) => `<label class="p2-cek" style="display:flex;"><input type="checkbox" data-rst-saran="${i}" checked /> ${escapeHtml(p.nama)} <span class="rst-sub">(${escapeHtml(p.sku)} · ${rstGramDariNama(p.nama)} g)</span></label>`).join('')}</div>
+    <button type="button" class="web-btn-primary" onclick="rstSaranSimpan()">Hubungkan yang dicentang</button></div>`;
+}
+async function rstSaranSimpan() {
+  const a = rst.atur, st = el('rst-atur-status');
+  const pilih = [...document.querySelectorAll('[data-rst-saran]')].filter(c => c.checked).map(c => rst._saran[Number(c.dataset.rstSaran)]).filter(Boolean);
+  if (!pilih.length) return;
+  setLoadingDots(st, 'Menyimpan');
+  let ok = 0, salah = [];
+  for (const p of pilih) {
+    try {
+      const r = await postJsonTulis({ aksi: 'rst_simpan_kemasan', email: currentUserEmail(), item: { sku: p.sku, skuSumber: a.skuSumber, gram: rstGramDariNama(p.nama), lebih: a.lebih, porsi: '', bahanKemasan: a.bahanKemasan } });
+      if (r && r.success) ok++; else salah.push(p.sku + ': ' + ((r && r.error) || 'gagal'));
+    } catch (e) { salah.push(p.sku + ': ' + e.message); }
+  }
+  stopLoadingDots(st);
+  pgrToast(ok + ' produk terhubung' + (salah.length ? ' · gagal: ' + salah.join(' · ') : ''));
+  rst.atur = null; await rstMuat(); rstRender();
+}
+async function rstAturSimpan() {
+  const a = rst.atur, st = el('rst-atur-status');
+  if (!a.sku) { st.textContent = 'Pilih produk jual dulu.'; st.className = 'status-text err'; return; }
+  setLoadingDots(st, 'Menyimpan');
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_simpan_kemasan', email: currentUserEmail(), item: { sku: a.sku, skuSumber: a.skuSumber, gram: a.gram, lebih: a.lebih, porsi: a.porsi, aktif: a.aktif !== false, bahanKemasan: a.bahanKemasan } });
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    playBeep(); rst.atur = null; await rstMuat(); rstRender(); pgrToast('Produk kemasan ' + r.sku + ' tersimpan.');
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; playToot(); }
+}
+function rstBiayaContoh() {
+  rst.biaya = [
+    { nama: 'Gas LPG (per tabung)', tahap: 'Roasting', dasar: 'tabung', nilai: '', pembagi: '', aktif: true },
+    { nama: 'Listrik mesin roasting', tahap: 'Roasting', dasar: 'batch', nilai: '', pembagi: '', aktif: true },
+    { nama: 'Tenaga roaster (gaji bulanan)', tahap: 'Roasting', dasar: 'bulan', nilai: '', pembagi: '', aktif: true },
+    { nama: 'Penyusutan & servis mesin', tahap: 'Roasting', dasar: 'bulan', nilai: '', pembagi: '', aktif: true },
+    { nama: 'Listrik sealer & timbangan', tahap: 'Kemas', dasar: 'batch', nilai: '', pembagi: '', aktif: true },
+    { nama: 'Tinta / pita printer label', tahap: 'Kemas', dasar: 'pcs', nilai: '', pembagi: '', aktif: true },
+    { nama: 'Tenaga packing', tahap: 'Kemas', dasar: 'pcs', nilai: '', pembagi: '', aktif: true }];
+  rstRender();
+  pgrToast('Contoh biaya ditambahkan - isi angkanya, lalu Simpan biaya. Baris yang tidak dipakai bisa dihapus.');
+}
+function rstPakaiGas() {
+  const g = rst.d.statistik.gas.rataBatchPerTabung;
+  let ada = false;
+  rst.biaya.forEach(b => { if (b.dasar === 'tabung') { b.pembagi = g; ada = true; } });
+  if (!ada) rst.biaya.push({ nama: 'Gas LPG (per tabung)', tahap: 'Roasting', dasar: 'tabung', nilai: '', pembagi: g, aktif: true });
+  rstRender(); pgrToast('Pembagi tabung = ' + g + ' batch. Jangan lupa Simpan biaya.');
+}
+async function rstBiayaSimpan() {
+  const st = el('rst-biaya-status');
+  setLoadingDots(st, 'Menyimpan');
+  try {
+    const r = await postJsonTulis({ aksi: 'rst_simpan_biaya', biaya: rst.biaya.filter(b => String(b.nama || '').trim()), email: currentUserEmail() });
+    stopLoadingDots(st);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    st.textContent = 'Biaya tersimpan.'; st.className = 'status-text ok'; playBeep();
+    rst.biaya = null; await rstMuat(); rstRender();
+  } catch (err) { stopLoadingDots(st); st.textContent = String(err.message || err).replace(/^Error:\s*/, ''); st.className = 'status-text err'; playToot(); }
+}
+
+/* ---------- Navigasi: sub-menu "Roastery" di Produksi ---------- */
+(function () {
+  const asli = produksiBukaSub;
+  produksiBukaSub = function (sub) {
+    const wadah = el('prod-view-rst');
+    if (sub === 'rst') {
+      simpanLokasiTerakhir('produksi', 'rst');
+      gantiTabWeb('produksi');
+      ['wo', 'bom', 'bb', 'cetak', 'katalogkopi', 'bahan', 'resep'].forEach(s => { const e = el('prod-view-' + s); if (e) e.style.display = 'none'; });
+      if (wadah) wadah.style.display = 'block';
+      document.querySelectorAll('.web-nav-sub[data-prodsub]').forEach(btn => btn.classList.toggle('active', btn.dataset.prodsub === 'rst'));
+      rstBuka();
+      return;
+    }
+    if (wadah) wadah.style.display = 'none';
+    return asli.apply(this, arguments);
+  };
+  // initApp berjalan sebelum skrip ini: buka ulang bila alamat menunjuk ke Roastery
+  try { if (/^#produksi\/rst\b/.test(window.location.hash || '')) setTimeout(() => produksiBukaSub('rst'), 0); } catch (e) { }
 })();
 </script>
 </body>
