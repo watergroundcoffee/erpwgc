@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.43';
+  var VERSI = 'v2026.10.44';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -49293,10 +49293,43 @@ function mgmTambahTanpaSku(nama) {
   }
 }
 
+// v2026.10.44 (DN-261021-103844-530): scan PERTAMA untuk item checklist (qty masih 0):
+// target 1 -> langsung 1; target > 1 -> tanya "isi sesuai invoice (N)?" (Ya = N, Tidak = 1). Scan berikutnya +1 seperti biasa.
+// Selama pertanyaan terbuka, scan SKU yang sama diabaikan (bunyi peringatan) supaya tidak dobel.
+const mgmChecklistTanya = new Set();
+async function mgmChecklistScanPertama_(item) {
+  const target = Number(item.qtyTarget) || 0;
+  if (target <= 1) return 1;
+  const kunci = String(item.sku || '');
+  mgmChecklistTanya.add(kunci);
+  try {
+    const r = await omniDialog({
+      judul: 'Isi sesuai invoice?',
+      isiHtml: `<div style="font-size:13.5px; line-height:1.5;"><b>${escapeHtml(item.nama || item.sku)}</b><br>Di invoice dipesan <b>${target}</b>. Barang yang datang sudah sesuai jumlah itu?</div>`,
+      tombol: [{ label: 'Tidak, isi 1 dulu', nilai: 'satu', kelas: 'web-btn-secondary' }, { label: `Ya, isi ${target}`, nilai: 'penuh', kelas: 'web-btn-primary' }]
+    });
+    return r && r.nilai === 'penuh' ? target : 1;
+  } catch (e) { return 1; }
+  finally { mgmChecklistTanya.delete(kunci); }
+}
 function mgmTambahItemKeCart(sku) {
   window.mgmSentuhTerakhir = Date.now();
   const cart = mgmCarts[mgmTabAktif];
   const idxAda = cart.findIndex(it => it.sku === sku);
+  if (idxAda !== -1 && mgmTabAktif === 'barangmasuk' && cart[idxAda].dariChecklist && (parseFloat(cart[idxAda].qty) || 0) <= 0) {
+    const item = cart[idxAda];
+    if (mgmChecklistTanya.has(String(item.sku || ''))) { playToot(); return; }
+    playBeep();
+    mgmChecklistScanPertama_(item).then(q => {
+      if ((parseFloat(item.qty) || 0) <= 0) item.qty = q; else item.qty = (parseFloat(item.qty) || 0) + q;
+      const c = mgmCarts.barangmasuk, i = c.indexOf(item);
+      if (i > 0) { c.splice(i, 1); c.unshift(item); }
+      mgmSimpanDraftLokal();
+      mgmRenderCart(false, true);
+      mgmPastikanKartuAtasTerlihat();
+    });
+    return;
+  }
   if (idxAda !== -1) {
     const item = cart[idxAda];
     item.qty = (parseFloat(item.qty) || 0) + 1;
@@ -50015,8 +50048,9 @@ async function mgmMuatChecklistTerpilih() {
       omniNotif('Invoice ini nggak ketemu datanya & dilewati:\n' + data.tidakDitemukan.join('\n'));
     }
     // 1 SKU yang muncul di beberapa invoice DIGABUNG jadi 1 kartu (qty target dijumlah)
+    // v2026.10.44 (DN-261021-103844-530): checklist dimuat dari 0 - qty baru terisi setelah QR produk itu discan
     mgmCarts.barangmasuk = daftar.map(it => ({
-      sku: it.sku, nama: it.nama, qty: Number(it.qtyInvoice) || 0, catatan: '', qtyTarget: it.qtyInvoice, dariChecklist: true, qtyOtomatis: true,
+      sku: it.sku, nama: it.nama, qty: 0, catatan: '', qtyTarget: it.qtyInvoice, dariChecklist: true, qtyOtomatis: false,
       noInvoiceAsal: (it.noInvoices || []).join(', ')
     }));
     mgmSimpanDraftLokal();
