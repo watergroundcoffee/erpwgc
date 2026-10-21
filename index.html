@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.44';
+  var VERSI = 'v2026.10.46';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -10210,6 +10210,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
                 </div>
                 <div style="flex:1;"></div>
                 <button type="button" class="web-btn-secondary" id="wpm-btn-bersih" hidden onclick="wpmBersihkanBatal()" style="margin:0;"></button>
+                <button type="button" class="web-btn-secondary" onclick="ipmBuka()" style="margin:0;" title="Khusus Owner: impor penjualan manual lama dari file Excel yang sudah dirapikan">📥 Import Excel</button>
                 <button type="button" class="web-btn-secondary" onclick="exportKeExcel('pesanan', null)" style="margin:0;"><span class="oi oi-download" aria-hidden="true"></span> Export</button>
               </div>
               <div class="bel-f-ringkas" id="wpm-ringkas"></div>
@@ -10765,6 +10766,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           </div>
           <div class="web-toolbar-row" style="margin-top:16px;">
             <button class="web-btn-primary" onclick="wdocBuka(wdocDariOrder(wpCurrentDetailOrder, wpCurrentDetailRow))"><span class="oi oi-file" aria-hidden="true"></span> Invoice &amp; Label (Cetak · Simpan · Copy)</button>
+            <button class="web-btn-secondary" type="button" onclick="sjA4Buka(wpCurrentDetailOrder)" title="Surat jalan A4 portrait - nama produk, SKU, jumlah koli, qty per koli, keterangan, tanda tangan">🚚 Surat Jalan A4</button>
             <span id="wp-btn-cetak-invoice" hidden></span>
             <button class="web-btn-secondary" id="wp-btn-kirim-toggle" onclick="wpToggleInputResi()" style="display:none;"><span class="oi oi-truck" aria-hidden="true"></span> Input No Resi</button>
             <button class="web-btn-primary" id="wp-btn-kurir-toko" type="button" onclick="kftBukaDariWeb()" style="display:none;"><span class="oi oi-check" aria-hidden="true"></span> Konfirmasi Diterima</button>
@@ -21304,8 +21306,8 @@ async function wpGabunganJalankanAksi(aksi, o) {
   } else if (aksi === 'cetak') {
     if (o.sumber === 'PO Sales' && o.rowPoSales) {
       await wpBukaDetail(o.rowPoSales);
-      const orderDetail = wpCurrentDetailOrder;
-      wpCetakSuratJalan({ sumber: 'PO Sales', noReferensi: o.noReferensi, noResi: o.noResi, kurir: orderDetail.kurir, tanggal: o.tanggal, pembeli: o.pembeli, hpManual: orderDetail.noHp, alamatManual: orderDetail.alamat, items: orderDetail.items });
+      // v2026.10.45: Order Manual (PO Sales) -> Surat Jalan A4 (pilih koli dulu)
+      sjA4Buka(wpCurrentDetailOrder);
     } else if (o.rowTiktok || o.sumber === 'Conner Hardware') {
       wpCetakSuratJalan(o);
     }
@@ -26572,6 +26574,8 @@ function spParseShopeePembelian(teks) {
     if (mQty) { if (cur) cur.qty = +mQty[1]; continue; }
     if (/^variasi\s*:/i.test(b)) { if (cur) cur.variasi = b.replace(/^variasi\s*:\s*/i, ''); continue; }
     if (/^-?\s*Rp\s?[\d.,]+$/i.test(b)) { if (cur) cur.harga.push(spAngka(b)); continue; }
+    // v2026.10.45 (DN-261021-111840-655): harga coret + harga jual menempel 1 baris ("Rp550.000Rp470.000")
+    if (/^(-?\s*Rp\s?[\d.,]+\s*){2,}$/i.test(b)) { if (cur) (b.match(/-?\s*Rp\s?[\d.,]+/gi) || []).forEach(x => cur.harga.push(spAngka(x))); continue; }
     if (/^(chat|kunjungi toko|pengembalian|garansi|beli lagi|nilai|lihat|hubungi|dikirim|pesanan selesai)/i.test(b)) continue;
     if (cur && !cur.harga.length) continue; // teks tambahan sebelum harga (label promo dsb)
     tutup();
@@ -26586,8 +26590,19 @@ function spParseShopeePembelian(teks) {
   const sumBaris = items.reduce((t, x) => t + x.harga[x.harga.length - 1], 0);
   const sumSatuan = items.reduce((t, x) => t + x.harga[x.harga.length - 1] * x.qty, 0);
   const satuan = subtotalProduk && Math.abs(sumSatuan - subtotalProduk) < Math.abs(sumBaris - subtotalProduk);
-  const noPesanan = (teks.match(/No\.?\s*Pesanan\s*[:\t ]*\s*([A-Z0-9]{10,20})/i) || [])[1] || '';
-  const tgl = spTanggal((teks.match(/Waktu\s*Pemesanan[^\n]*\n?[^\n]*/i) || [''])[0]) || spTanggal((teks.match(/(Pesanan\s*Dibuat|Waktu\s*Pembayaran)[^\n]*\n?[^\n]*/i) || [''])[0]);
+  const noPesanan = (teks.match(/No\.?\s*Pesanan\s*[.:\t ]*\s*([A-Z0-9]{10,20})/i) || [])[1] || '';
+  let tgl = spTanggal((teks.match(/Waktu\s*Pemesanan[^\n]*\n?[^\n]*/i) || [''])[0]) || spTanggal((teks.match(/(Pesanan\s*Dibuat|Waktu\s*Pembayaran)[^\n]*\n?[^\n]*/i) || [''])[0]);
+  // Halaman pesanan yang masih berjalan (belum ada "Waktu Pemesanan"): riwayat "Hari ini 10:56" / "Kemarin 09:10" -> pakai yang paling awal
+  if (!tgl) {
+    let awal = null;
+    (teks.match(/(Hari\s*ini|Kemarin)\s+(\d{1,2})[:.](\d{2})/gi) || []).forEach(x => {
+      const m = x.match(/(Hari\s*ini|Kemarin)\s+(\d{1,2})[:.](\d{2})/i), d = new Date();
+      if (/kemarin/i.test(m[1])) d.setDate(d.getDate() - 1);
+      d.setHours(+m[2], +m[3], 0, 0);
+      if (!awal || d < awal) awal = d;
+    });
+    if (awal) tgl = { tanggal: awal, adaJam: true };
+  }
   return {
     platform: 'Shopee', supplier, noInvoice: noPesanan, tanggal: tgl,
     items: items.map(x => {
@@ -39346,6 +39361,13 @@ function pmUpdateField(idx, field, value) {
     const adaSebelum = pmItemsAktif[idx]._adaSku, adaSekarang = !!String(value || '').trim();
     if (adaSebelum !== adaSekarang) { pmItemsAktif[idx]._adaSku = adaSekarang; pmxRenderSelPo(idx); }
   }
+  // v2026.10.45 (DN-261021-111931-699): total nilai barang per baris ikut diperbarui saat Qty / Harga diketik
+  if (field === 'qty' || field === 'hargaSatuan') {
+    const tr = el('pm-item-body') && el('pm-item-body').querySelector(`tr[data-idx="${idx}"]`);
+    const td = tr && tr.querySelector('td.pm-sub');
+    const it = pmItemsAktif[idx];
+    if (td && it) td.textContent = 'Rp ' + Math.round((Number(it.qty) || 0) * (Number(it.hargaSatuan) || 0)).toLocaleString('id-ID');
+  }
   pmHitungTotal();
 }
 
@@ -49947,6 +49969,8 @@ async function mgmBukaChecklist() {
     const semuaInvoiceTerkait = [];
     (dataRiwayat.success ? dataRiwayat.daftar : []).forEach(m => { if (m.noInvoiceTerkait && m.noInvoiceTerkait !== '-') semuaInvoiceTerkait.push(...mgmPecahNoInvoice(m.noInvoiceTerkait)); });
     mgmChecklistInvoiceSudahDicek = new Set(semuaInvoiceTerkait);
+    // v2026.10.45 (DN-261021-112659-580): invoice yang sudah dicek (ada memo barang masuknya) tidak ditampilkan lagi di semua HP
+    mgmChecklistDaftarInvoice = mgmChecklistDaftarInvoice.filter(inv => !mgmChecklistInvoiceSudahDicek.has(inv.noInvoice));
     mgmRenderDaftarChecklist();
   } catch (err) { el('mgm-checklist-list').innerHTML = `<div style="color:var(--danger); font-size:12.5px;">Gagal terhubung: ${escapeHtml(err.message)}</div>`; }
 }
@@ -62870,7 +62894,9 @@ function p12MSDeteksiPerubahan() {
   p12MS.snap.forEach((v, sku) => { if (!now.has(sku)) p12MS.kotor.add(sku); });
   if (p12MS.kotor.size) { clearTimeout(p12MS.kirimTimer); p12MS.kirimTimer = setTimeout(() => p12MSSinkron(false), 600); }
 }
-function p12MSReset(k) { p12MS.kunci = k; p12MS.rev = 0; p12MS.snap = new Map(); p12MS.kotor = new Set(); p12MS.staf = []; p12MS.selesai = null; p12MS.mulai = true; p12MSBanner(); }
+// SKU yang berasal dari checklist invoice (dicatat saat checklist dimuat) - dipakai supaya baris checklist tidak terhapus sinkron
+const p12MSChecklistSku_ = new Set();
+function p12MSReset(k) { p12MSChecklistSku_.clear(); ((typeof mgmCarts !== 'undefined' && mgmCarts.barangmasuk) || []).forEach(it => { if (it.dariChecklist && it.sku) p12MSChecklistSku_.add(String(it.sku).toUpperCase()); }); p12MS.kunci = k; p12MS.rev = 0; p12MS.snap = new Map(); p12MS.kotor = new Set(); p12MS.staf = []; p12MS.selesai = null; p12MS.mulai = true; p12MSBanner(); }
 (function () {
   if (typeof mgmSimpanDraftLokal !== 'function') return;
   const asli = mgmSimpanDraftLokal;
@@ -62884,9 +62910,9 @@ async function p12MSSinkron(awal) {
     const kirimSemua = awal && p12MS.rev === 0 && p12MS.mulai;
     const kirimSku = new Set(p12MS.kotor);
     if (!awal) cart.forEach(it => { const K = String(it.sku || '').toUpperCase(); if (K && kirimSku.has(K)) perubahan.push({ sku: it.sku, nama: it.nama, qty: Number(it.qty) || 0, catatan: it.catatan || '', qtyTarget: it.qtyTarget, noInvoiceAsal: it.noInvoiceAsal || '', dariChecklist: !!it.dariChecklist }); });
-    if (!awal) kirimSku.forEach(K => { if (!cart.some(it => String(it.sku || '').toUpperCase() === K)) perubahan.push({ sku: K, qty: 0, hapus: true }); });
+    if (!awal) kirimSku.forEach(K => { if (!cart.some(it => String(it.sku || '').toUpperCase() === K)) perubahan.push({ sku: K, qty: 0, hapus: !p12MSChecklistSku_.has(K) }); });
     const kunci = p12MS.kunci;
-    const r = await postJson({ aksi: 'memo_sesi_sinkron', kunci, perangkatId: P12_PERANGKAT, sejakRev: awal ? 0 : p12MS.rev, perubahan, email: currentUserEmail() }, 20000, true);
+    const r = await postJson({ aksi: 'memo_sesi_sinkron', kunci, perangkatId: P12_PERANGKAT, sejakRev: awal ? 0 : p12MS.rev, perubahan, mulaiBaru: !!(awal && p12MS.mulai), email: currentUserEmail() }, 20000, true);
     if (!r || !r.success || r.sibuk || kunci !== p12MS.kunci) return;
     perubahan.forEach(p => p12MS.kotor.delete(String(p.sku).toUpperCase()));
     if (awal && (r.rev || 0) === 0) {
@@ -62896,6 +62922,12 @@ async function p12MSSinkron(awal) {
     }
     p12MS.mulai = false;
     p12MSTerapkan(r.items || []);
+    // v2026.10.45: SKU checklist yang belum ada di sesi bersama dikirim supaya HP lain ikut melihat SEMUA baris
+    if (awal) {
+      const diServer = new Set((r.items || []).map(x => String(x.sku || '').toUpperCase()));
+      cart.forEach(it => { const K = String(it.sku || '').toUpperCase(); if (K && !diServer.has(K)) p12MS.kotor.add(K); });
+      if (p12MS.kotor.size) { clearTimeout(p12MS.kirimTimer); p12MS.kirimTimer = setTimeout(() => p12MSSinkron(false), 300); }
+    }
     p12MS.rev = Math.max(p12MS.rev, r.rev || 0);
     p12MS.staf = r.staf || []; p12MS.selesai = r.selesai || null; p12MS.terakhir = Date.now();
     p12MSBanner();
@@ -62909,7 +62941,13 @@ function p12MSTerapkan(items) {
     const K = String(it.sku || '').toUpperCase();
     if (!K || p12MS.kotor.has(K)) return; // sedang diubah di HP ini - jangan ditimpa
     const i = cart.findIndex(x => String(x.sku || '').toUpperCase() === K);
-    if (it.hapus) { if (i !== -1) { cart.splice(i, 1); ubah = true; } return; }
+    // v2026.10.45 (DN-261021-112659-580): baris checklist invoice TIDAK PERNAH dihapus oleh HP lain (dulu baris hilang
+    // bergantian -> "hanya muncul 1-2 baris"); cukup qty-nya jadi 0.
+    if (it.hapus) {
+      if (i === -1) return;
+      if (cart[i].dariChecklist || p12MSChecklistSku_.has(K)) { if ((Number(cart[i].qty) || 0) !== 0) { cart[i].qty = 0; ubah = true; } return; }
+      cart.splice(i, 1); ubah = true; return;
+    }
     if (i === -1) { cart.push({ sku: it.sku, nama: it.nama || it.sku, qty: Number(it.qty) || 0, catatan: it.catatan || '', qtyTarget: it.qtyTarget, dariChecklist: !!it.dariChecklist, noInvoiceAsal: it.noInvoiceAsal || '', p12Oleh: it.oleh }); ubah = true; return; }
     const c = cart[i];
     if ((Number(c.qty) || 0) !== (Number(it.qty) || 0) || String(c.catatan || '') !== String(it.catatan || '')) { c.qty = Number(it.qty) || 0; c.catatan = it.catatan || ''; ubah = true; }
@@ -65902,6 +65940,272 @@ function waEditTemplate_() {
   };
 })();
 function normalisasiStatusLokal_(s) { return String(s || ''); }
+</script>
+<script>
+/* =====================================================================================
+   PAKET 27 (v2026.10.45) - SURAT JALAN A4 untuk Order Manual (PO Sales)
+   Format mengikuti contoh Owner: kop toko (nama + alamat) | "SURAT JALAN"; tabel No · Nama Produk · SKU · Jml Koli ·
+   Qty per Koli · Keterangan, dikelompokkan per koli ("TOTAL 1 DUS (KOLI)"); Pengiriman ke (nama, HP, alamat);
+   tanda tangan Kurir · PIC · Penerima. A4 portrait, hitam-putih (printer laser Canon LBP), dicetak lewat iframe.
+   Jendela atur: tiap barang pilih Koli ke-berapa (bisa dipecah: tambah baris), keterangan per barang, sebutan koli
+   (DUS / KARUNG / PALET), nama & alamat pengirim (diingat browser ini).
+   ===================================================================================== */
+const SJ = { order: null, baris: [] };
+function sjPengirimAwal_() {
+  let simpan = {}; try { simpan = JSON.parse(localStorage.getItem('sj_pengirim_v1') || '{}'); } catch (e) { }
+  const conner = SJ.order && /conner/i.test(String(SJ.order.toko || ''));
+  const nama = conner ? 'Conner Hardware' : 'Waterground Coffee & Roastery';
+  const k = conner ? 'conner' : 'wg';
+  return Object.assign({ nama, alamat: (typeof TOKO_INFO !== 'undefined' && TOKO_INFO.alamat) || '', kota: 'Jakarta', pic: 'PIC ' + (conner ? 'Conner' : 'Waterground'), satuan: 'DUS' }, simpan[k] || {});
+}
+function sjSimpanPengirim_(p) {
+  try { const s = JSON.parse(localStorage.getItem('sj_pengirim_v1') || '{}'); s[/conner/i.test(String(SJ.order.toko || '')) ? 'conner' : 'wg'] = p; localStorage.setItem('sj_pengirim_v1', JSON.stringify(s)); } catch (e) { }
+}
+function sjA4Buka(o) {
+  if (!o || !Array.isArray(o.items) || !o.items.length) { omniNotif('Rincian barang pesanan belum termuat - tunggu sebentar lalu coba lagi.'); return; }
+  SJ.order = o;
+  SJ.baris = o.items.filter(it => (Number(it.qty) || 0) > 0).map(it => ({ sku: String(it.sku || ''), nama: String(it.nama || it.sku || ''), qty: Number(it.qty) || 0, koli: 1, ket: '' }));
+  const p = sjPengirimAwal_();
+  omxModal('🚚 Surat Jalan A4 · ' + (o.noInvoice || ''), `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px;">
+      <label>Nama pengirim<input class="web-form-input" id="sj-nama" value="${pgrAttr(p.nama)}" style="width:100%; box-sizing:border-box; margin:2px 0 0;"></label>
+      <label>Kota surat jalan<input class="web-form-input" id="sj-kota" value="${pgrAttr(p.kota)}" style="width:100%; box-sizing:border-box; margin:2px 0 0;"></label>
+      <label style="grid-column:span 2;">Alamat pengirim (boleh 2 baris)<textarea class="web-form-input" id="sj-alamat" rows="2" style="width:100%; box-sizing:border-box; margin:2px 0 0; font-family:inherit;">${escapeHtml(p.alamat)}</textarea></label>
+      <label>Tanda tangan tengah<input class="web-form-input" id="sj-pic" value="${pgrAttr(p.pic)}" style="width:100%; box-sizing:border-box; margin:2px 0 0;"></label>
+      <label>Sebutan koli<input class="web-form-input" id="sj-satuan" value="${pgrAttr(p.satuan)}" placeholder="DUS / KARUNG / PALET" style="width:100%; box-sizing:border-box; margin:2px 0 0;"></label>
+    </div>
+    <div style="font-size:11.5px; color:var(--web-text-dim); margin:10px 0 4px;">Isi <b>Koli ke-</b> tiap barang (barang di koli yang sama dikelompokkan). Barang yang dipecah ke 2 koli: tekan ➗ lalu ubah qty-nya.</div>
+    <div style="overflow-x:auto;"><table class="web-table" style="font-size:12px;"><thead><tr><th>Barang</th><th style="width:70px;">Qty</th><th style="width:70px;">Koli ke-</th><th>Keterangan</th><th></th></tr></thead><tbody id="sj-body"></tbody></table></div>
+    <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+      <button type="button" class="web-btn-secondary" onclick="sjSemuaKoli_(1)">Semua 1 koli</button>
+      <button type="button" class="web-btn-secondary" onclick="sjSemuaKoli_(0)">1 barang = 1 koli</button>
+      <div style="flex:1;"></div>
+      <button type="button" class="web-btn-primary" onclick="sjCetak_()">🖨 Cetak A4</button>
+    </div>
+    <div style="font-size:11px; color:var(--web-text-dim); margin-top:6px;">Di jendela cetak pilih printer Canon LBP, ukuran kertas <b>A4</b>, orientasi <b>Portrait</b>, skala 100%.</div>`, { lebar: true });
+  sjRenderBaris_();
+}
+function sjRenderBaris_() {
+  const b = el('sj-body'); if (!b) return;
+  b.innerHTML = SJ.baris.map((x, i) => `<tr>
+    <td>${escapeHtml(x.nama)}<div style="font-size:10.5px; color:var(--web-text-dim);">${escapeHtml(x.sku)}</div></td>
+    <td><input type="number" min="1" class="web-form-input" value="${x.qty}" style="width:64px; margin:0;" oninput="SJ.baris[${i}].qty=Math.max(0,parseInt(this.value,10)||0)"></td>
+    <td><input type="number" min="1" class="web-form-input" value="${x.koli}" style="width:60px; margin:0;" oninput="SJ.baris[${i}].koli=Math.max(1,parseInt(this.value,10)||1)"></td>
+    <td><input class="web-form-input" value="${pgrAttr(x.ket)}" style="width:100%; min-width:120px; box-sizing:border-box; margin:0;" oninput="SJ.baris[${i}].ket=this.value"></td>
+    <td><button type="button" class="web-btn-secondary" style="font-size:11px; padding:3px 7px;" title="Pecah ke koli lain" onclick="sjPecah_(${i})">➗</button></td></tr>`).join('');
+}
+function sjPecah_(i) {
+  const x = SJ.baris[i]; if (!x) return;
+  const maks = Math.max(...SJ.baris.map(b => b.koli));
+  const separuh = Math.max(1, Math.floor(x.qty / 2));
+  SJ.baris.splice(i + 1, 0, Object.assign({}, x, { qty: Math.max(1, x.qty - separuh), koli: maks + 1 }));
+  x.qty = separuh;
+  sjRenderBaris_();
+}
+function sjSemuaKoli_(mode) { SJ.baris.forEach((x, i) => { x.koli = mode === 1 ? 1 : i + 1; }); sjRenderBaris_(); }
+function sjHtml_(p) {
+  const o = SJ.order, esc = escapeHtml;
+  const grup = new Map();
+  SJ.baris.filter(x => x.qty > 0).forEach(x => { if (!grup.has(x.koli)) grup.set(x.koli, []); grup.get(x.koli).push(x); });
+  const urut = Array.from(grup.keys()).sort((a, b) => a - b);
+  const satuan = (p.satuan || 'DUS').toUpperCase();
+  let no = 0, baris = '';
+  urut.forEach((k, gi) => {
+    const isi = grup.get(k);
+    isi.forEach((x, j) => {
+      no++;
+      baris += `<tr>
+        <td class="c">${no}</td><td>${esc(x.nama)}</td><td>${esc(x.sku)}</td>
+        ${j === 0 ? `<td class="c koli" rowspan="${isi.length}">KOLI ${gi + 1}<br>(1 ${esc(satuan)})</td>` : ''}
+        <td class="c">${x.qty}</td><td>${esc(x.ket)}</td></tr>`;
+    });
+    if (gi < urut.length - 1) baris += '<tr class="sela"><td colspan="6"></td></tr>';
+  });
+  const totalQty = SJ.baris.reduce((t, x) => t + (x.qty || 0), 0);
+  const tgl = o.tanggal ? String(o.tanggal) : new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Surat Jalan ${esc(o.noInvoice || '')}</title><style>
+    @page { size: A4 portrait; margin: 14mm 14mm 16mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #000; font-size: 11pt; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .kop { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 6px; }
+    .kop .toko { font-size: 17pt; font-weight: 700; }
+    .kop .alamat { font-size: 9.5pt; white-space: pre-line; margin-top: 2px; }
+    .kop .judul { font-size: 18pt; font-weight: 700; letter-spacing: .5px; }
+    .info { display: flex; justify-content: space-between; font-size: 10pt; margin: 6px 0 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 10pt; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 5px 4px; }
+    td { font-size: 10pt; padding: 3px 4px; vertical-align: top; }
+    td.c, th.c { text-align: center; }
+    td.koli { vertical-align: middle; font-weight: 700; font-size: 9.5pt; border-left: 1px dashed #777; border-right: 1px dashed #777; }
+    tr.sela td { height: 10px; border-bottom: 1px dashed #999; }
+    tfoot td { border-top: 1px solid #000; font-weight: 700; padding-top: 5px; }
+    .kirim { margin-top: 16px; font-size: 10.5pt; }
+    .kirim b.nama { font-size: 12pt; }
+    .ttd { display: flex; justify-content: space-between; margin-top: 34px; text-align: center; font-size: 10.5pt; page-break-inside: avoid; }
+    .ttd div { width: 30%; }
+    .ttd .garis { margin-top: 64px; }
+    tr { page-break-inside: avoid; }
+  </style></head><body>
+    <div class="kop"><div><div class="toko">${esc(p.nama)}</div><div class="alamat">${esc(p.alamat)}</div></div><div class="judul">SURAT JALAN</div></div>
+    <div class="info"><div>No: <b>SJ-${esc(o.noInvoice || '')}</b>${o.noResi && o.noResi !== '-' ? ' · Resi: ' + esc(o.noResi) : ''}${o.kurir && o.kurir !== '-' ? ' · ' + esc(o.kurir) : ''}</div><div>${esc(p.kota || '')}${p.kota ? ', ' : ''}${esc(tgl)}</div></div>
+    <table><thead><tr><th class="c" style="width:7%;">No</th><th style="width:37%;">Nama Produk</th><th style="width:15%;">SKU</th><th class="c" style="width:12%;">Jml Koli</th><th class="c" style="width:11%;">Qty per Koli</th><th style="width:18%;">Keterangan</th></tr></thead>
+      <tbody>${baris}</tbody>
+      <tfoot><tr><td></td><td colspan="2">TOTAL</td><td class="c">${urut.length} ${esc(satuan)} (KOLI)</td><td class="c">${totalQty}</td><td></td></tr></tfoot></table>
+    <div class="kirim">Pengiriman ke :<br><b class="nama">${esc(o.namaPenerima || '-')}</b><br>${esc(o.noHp || '')}<br>${esc(o.alamat || '')}</div>
+    <div class="ttd"><div>Kurir<div class="garis">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div></div><div>${esc(p.pic)}<div class="garis">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div></div><div>Penerima<div class="garis">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div></div></div>
+  </body></html>`;
+}
+function sjCetak_() {
+  const p = { nama: el('sj-nama').value.trim(), alamat: el('sj-alamat').value.trim(), kota: el('sj-kota').value.trim(), pic: el('sj-pic').value.trim() || 'PIC', satuan: el('sj-satuan').value.trim() || 'DUS' };
+  if (!SJ.baris.some(x => x.qty > 0)) { omniNotif('Belum ada barang dengan qty > 0.'); return; }
+  sjSimpanPengirim_(p);
+  const html = sjHtml_(p);
+  SJ.terakhir = html;
+  let fr = el('sj-iframe');
+  if (fr) fr.remove();
+  fr = document.createElement('iframe');
+  fr.id = 'sj-iframe'; fr.setAttribute('aria-hidden', 'true');
+  fr.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;';
+  document.body.appendChild(fr);
+  const d = fr.contentDocument || fr.contentWindow.document;
+  d.open(); d.write(html); d.close();
+  setTimeout(() => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); w.print(); } } }, 250);
+}
+</script>
+<script>
+/* =====================================================================================
+   PAKET 28 (v2026.10.46) - IMPORT PENJUALAN MANUAL LAMA (DN-261016-090218-462)
+   Penjualan > Manual Order > "📥 Import Excel" (Owner). File = "Import_Penjualan_Manual_rapi.xlsx" sheet "Penjualan"
+   (1 baris = 1 barang). Kolom dibaca berdasarkan JUDUL (urutan boleh berubah): Import?, No Invoice, Tanggal, Nama Pembeli,
+   No HP, Alamat, Kurir, SKU, Nama Produk, Qty, Harga Satuan, Diskon (nota), Ongkir (nota), Biaya Lain (nota).
+   Pratinjau: jumlah nota, omzet, nota tanpa tanggal (bisa diisi 1 tanggal pengganti), SKU di luar katalog, hasil cek server
+   (baru / duplikat / ganti nomor). Disimpan bertahap 40 nota per panggilan (aksi import_pesanan_manual).
+   ===================================================================================== */
+const IPM = { nota: [], namaFile: '' };
+function ipmKolom_(judul) {
+  const n = String(judul || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const peta = [['import', /^import/], ['no', /^no\.? ?invoice|^invoice/], ['tanggal', /^tanggal|^tgl/], ['nama', /^nama pembeli|^nama customer|^pembeli/], ['hp', /^no\.? ?hp|^hp|^telepon/],
+    ['alamat', /^alamat/], ['kurir', /^kurir/], ['sku', /^sku/], ['produk', /^nama produk|^produk|^barang/], ['qty', /^qty|^jumlah barang/], ['harga', /^harga/],
+    ['diskon', /^diskon/], ['ongkir', /^ongkir|^ongkos/], ['biaya', /^biaya/], ['toko', /^toko/]];
+  for (const [k, re] of peta) if (re.test(n)) return k;
+  return '';
+}
+function ipmTanggal_(v) {
+  if (v instanceof Date && !isNaN(v)) { const d = new Date(v.getTime() + 12 * 3600000); return d.toISOString().slice(0, 10); }
+  if (typeof v === 'number' && v > 30000 && v < 80000) { const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000); return d.toISOString().slice(0, 10); }
+  const t = String(v || '').trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return '';
+}
+function ipmAngka_(v) { if (typeof v === 'number') return v; const t = String(v || '').replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'); return parseFloat(t) || 0; }
+function ipmBaca_(baris) {
+  if (!baris.length) throw new Error('Sheet kosong');
+  const iJudul = baris.findIndex(r => r.some(v => ipmKolom_(v) === 'no') && r.some(v => ipmKolom_(v) === 'produk'));
+  if (iJudul < 0) throw new Error('Judul kolom "No Invoice" & "Nama Produk" tidak ditemukan - pakai sheet "Penjualan" dari file hasil rapian.');
+  const kol = {}; baris[iJudul].forEach((v, i) => { const k = ipmKolom_(v); if (k && kol[k] === undefined) kol[k] = i; });
+  const ambil = (r, k) => kol[k] === undefined ? '' : r[kol[k]];
+  const peta = new Map();
+  baris.slice(iJudul + 1).forEach(r => {
+    const no = String(ambil(r, 'no') || '').trim(), produk = String(ambil(r, 'produk') || '').trim();
+    if (!no || !produk) return;
+    if (/^tidak|^no$|^n$/i.test(String(ambil(r, 'import') || '').trim())) return;
+    let n = peta.get(no);
+    if (!n) { n = { noInvoice: no, tanggal: ipmTanggal_(ambil(r, 'tanggal')), nama: String(ambil(r, 'nama') || '').trim(), hp: String(ambil(r, 'hp') || '').trim(), alamat: String(ambil(r, 'alamat') || '').trim(),
+      kurir: String(ambil(r, 'kurir') || '').trim(), diskon: ipmAngka_(ambil(r, 'diskon')), ongkir: ipmAngka_(ambil(r, 'ongkir')), biayaLain: ipmAngka_(ambil(r, 'biaya')), toko: /conner/i.test(String(ambil(r, 'toko') || '')) ? 'Conner' : 'Waterground', items: [] }; peta.set(no, n); }
+    n.items.push({ sku: String(ambil(r, 'sku') || '').trim(), nama: produk, qty: ipmAngka_(ambil(r, 'qty')), harga: ipmAngka_(ambil(r, 'harga')) });
+  });
+  return Array.from(peta.values());
+}
+function ipmTotal_(n) { return n.items.reduce((t, x) => t + (x.qty || 0) * (x.harga || 0), 0) - (n.diskon || 0) + (n.ongkir || 0) + (n.biayaLain || 0); }
+function ipmBuka() {
+  if (!omxApakahOwner_()) { omniNotif('Import penjualan lama khusus Owner.'); return; }
+  IPM.nota = []; IPM.namaFile = '';
+  omxModal('📥 Import penjualan manual lama', `
+    <div style="font-size:12.5px; line-height:1.55;">Pilih file <b>Import_Penjualan_Manual_rapi.xlsx</b> (sheet <b>Penjualan</b>, 1 baris = 1 barang). Baris dengan Import? = <b>Tidak</b> dilewati.
+      Semua nota disimpan sebagai Manual Order berstatus <b>Selesai</b> pada tanggal nota.</div>
+    <input type="file" id="ipm-file" accept=".xlsx,.xls,.xlsm" style="margin:10px 0;" onchange="ipmPilihFile(this)">
+    <div id="ipm-isi"></div>`, { lebar: true });
+}
+async function ipmPilihFile(input) {
+  const f = input.files && input.files[0], isi = el('ipm-isi');
+  if (!f) return;
+  isi.innerHTML = '<div class="status-text">Membaca file…</div>';
+  try {
+    await impMuatXlsx();
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
+    const nama = wb.SheetNames.find(n => /penjualan/i.test(n)) || wb.SheetNames[0];
+    const baris = XLSX.utils.sheet_to_json(wb.Sheets[nama], { header: 1, raw: true, defval: '' });
+    IPM.nota = ipmBaca_(baris); IPM.namaFile = f.name;
+    if (!IPM.nota.length) throw new Error('Tidak ada nota yang bisa diimpor di sheet ' + nama + '.');
+    ipmRenderPratinjau_();
+    ipmCekServer_();
+  } catch (e) { isi.innerHTML = `<div class="status-text err">${escapeHtml(e.message || String(e))}</div>`; }
+}
+function ipmRenderPratinjau_() {
+  const isi = el('ipm-isi'); if (!isi) return;
+  const n = IPM.nota, tanpaTgl = n.filter(x => !x.tanggal).length, omzet = n.reduce((t, x) => t + ipmTotal_(x), 0);
+  let katalog = new Set();
+  try { (typeof mgmDaftarProduk === 'function' ? mgmDaftarProduk() : []).forEach(p => katalog.add(String(p.sku || '').toUpperCase())); } catch (e) { }
+  const skuAsing = new Set(); n.forEach(x => x.items.forEach(it => { if (it.sku && katalog.size && !katalog.has(it.sku.toUpperCase())) skuAsing.add(it.sku); }));
+  const tgl = n.filter(x => x.tanggal).map(x => x.tanggal).sort();
+  isi.innerHTML = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:10px;">
+      ${[['Nota', n.length.toLocaleString('id-ID')], ['Baris barang', n.reduce((t, x) => t + x.items.length, 0).toLocaleString('id-ID')], ['Total penjualan', 'Rp ' + Math.round(omzet).toLocaleString('id-ID')],
+        ['Periode', tgl.length ? tgl[0] + ' s/d ' + tgl[tgl.length - 1] : '-'], ['Tanpa tanggal', tanpaTgl], ['SKU di luar katalog', katalog.size ? skuAsing.size : '?']]
+        .map(([k, v]) => `<div style="border:1px solid var(--web-border); border-radius:10px; padding:8px 10px;"><div style="font-size:11px; color:var(--web-text-dim);">${k}</div><b style="font-size:14px;">${escapeHtml(String(v))}</b></div>`).join('')}
+    </div>
+    ${tanpaTgl ? `<div style="font-size:12px; background:#fff4cc; color:#6b4e00; border-radius:8px; padding:8px 10px; margin-bottom:8px;">${tanpaTgl} nota belum punya tanggal. Isi di Excel lalu pilih file lagi, atau pakai 1 tanggal untuk semuanya:
+      <input type="date" id="ipm-tgl-ganti" max="${new Date().toISOString().slice(0, 10)}" style="margin-left:6px;"> (kosong = nota tsb dilewati)</div>` : ''}
+    ${skuAsing.size ? `<div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:8px;">SKU belum ada di katalog (tetap tercatat, stok tidak dipotong): ${Array.from(skuAsing).slice(0, 30).map(escapeHtml).join(', ')}${skuAsing.size > 30 ? ' …' : ''}</div>` : ''}
+    <label style="font-size:12.5px; display:flex; gap:6px; align-items:flex-start; margin:6px 0;"><input type="checkbox" id="ipm-stok" checked>
+      <span>Catat pengurangan stok pada tanggal nota (seperti penjualan lampau). Stok dihitung dari Smart Opname terakhir + mutasi, jadi nota sebelum opname terakhir tidak mengubah stok sekarang.</span></label>
+    <div id="ipm-cek" style="font-size:12px; margin:6px 0;">Mengecek ke server (No Invoice yang sudah ada)…</div>
+    <div class="web-table-wrap" style="max-height:260px; overflow:auto;"><table class="web-table" style="font-size:11.5px;"><thead><tr><th>No Invoice</th><th>Tanggal</th><th>Pembeli</th><th>Barang</th><th style="text-align:right;">Total</th></tr></thead><tbody>
+      ${n.slice(0, 200).map(x => `<tr${!x.tanggal ? ' style="background:#fde2e2;"' : ''}><td>${escapeHtml(x.noInvoice)}</td><td>${escapeHtml(x.tanggal || '—')}</td><td>${escapeHtml(x.nama)}</td><td>${x.items.length}</td><td style="text-align:right;">${Math.round(ipmTotal_(x)).toLocaleString('id-ID')}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${n.length > 200 ? `<div style="font-size:11px; color:var(--web-text-dim);">Menampilkan 200 dari ${n.length} nota.</div>` : ''}
+    <button type="button" class="web-btn-primary" id="ipm-mulai" style="width:100%; margin-top:10px;" onclick="ipmMulai_()">Import ${n.length} nota</button>
+    <div id="ipm-status" class="status-text" style="margin-top:6px;"></div>`;
+}
+function ipmSiapKirim_() {
+  const ganti = el('ipm-tgl-ganti') ? el('ipm-tgl-ganti').value : '';
+  return IPM.nota.map(x => Object.assign({}, x, { tanggal: x.tanggal || ganti })).filter(x => x.tanggal);
+}
+async function ipmCekServer_() {
+  const cek = el('ipm-cek'); if (!cek) return;
+  const kirim = IPM.nota.filter(x => x.tanggal);
+  const total = { baru: 0, duplikat: 0, ganti: 0, error: [] };
+  try {
+    for (let i = 0; i < kirim.length; i += 60) {
+      const r = await postJson({ aksi: 'import_pesanan_manual', invoices: kirim.slice(i, i + 60), cekSaja: true, email: currentUserEmail() }, 90000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal cek');
+      total.baru += r.laporan.baru; total.duplikat += r.laporan.duplikat.length; total.ganti += r.laporan.gantiNomor.length; total.error.push(...r.laporan.error);
+    }
+    cek.innerHTML = `Hasil cek: <b>${total.baru}</b> nota baru · <b>${total.duplikat}</b> sudah ada (dilewati) · <b>${total.ganti}</b> No Invoice dipakai pesanan lain (diberi akhiran -I2)` +
+      (total.error.length ? `<div style="color:#c53030;">${total.error.length} nota ditolak: ${total.error.slice(0, 8).map(escapeHtml).join(' · ')}${total.error.length > 8 ? ' …' : ''}</div>` : '');
+  } catch (e) { cek.innerHTML = `<span style="color:#c53030;">Cek server gagal: ${escapeHtml(e.message || String(e))}</span>`; }
+}
+async function ipmMulai_() {
+  const btn = el('ipm-mulai'), st = el('ipm-status');
+  const kirim = ipmSiapKirim_();
+  if (!kirim.length) { st.textContent = 'Tidak ada nota bertanggal untuk diimpor.'; st.className = 'status-text err'; return; }
+  if (!(await omniKonfirm_(`Import ${kirim.length} nota penjualan lama?\nNota disimpan sebagai Manual Order Selesai pada tanggal nota${el('ipm-stok').checked ? ' dan stok dicatat berkurang pada tanggal itu' : ''}.`))) return;
+  btn.disabled = true;
+  const hasil = { simpan: 0, duplikat: 0, ganti: 0, stok: 0, pembeli: 0, error: [] };
+  try {
+    for (let i = 0; i < kirim.length; i += 40) {
+      st.textContent = `Menyimpan ${Math.min(i + 40, kirim.length)} / ${kirim.length} nota…`; st.className = 'status-text';
+      const r = await postJsonTulis({ aksi: 'import_pesanan_manual', invoices: kirim.slice(i, i + 40), potongStok: el('ipm-stok').checked, email: currentUserEmail() }, 180000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
+      const l = r.laporan; hasil.simpan += r.disimpan; hasil.duplikat += l.duplikat.length; hasil.ganti += l.gantiNomor.length; hasil.stok += l.stokDipotong || 0; hasil.pembeli += l.pembeliBaru || 0; hasil.error.push(...l.error);
+    }
+    st.innerHTML = `✓ ${hasil.simpan} nota tersimpan · ${hasil.duplikat} sudah ada (dilewati) · ${hasil.ganti} ganti nomor · ${hasil.stok} baris stok · ${hasil.pembeli} pembeli baru` +
+      (hasil.error.length ? `<div style="color:#c53030;">${hasil.error.length} ditolak: ${hasil.error.slice(0, 8).map(escapeHtml).join(' · ')}</div>` : '');
+    st.className = 'status-text ok';
+    try { if (typeof wpFetchList === 'function') wpFetchList(); } catch (e) { }
+  } catch (e) { st.textContent = '✗ ' + (e.message || e) + ` (${hasil.simpan} nota sudah tersimpan - import ulang aman, nota yang sudah ada dilewati)`; st.className = 'status-text err'; btn.disabled = false; }
+}
 </script>
 </body>
 </html>
