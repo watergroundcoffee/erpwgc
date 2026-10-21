@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.50';
+  var VERSI = 'v2026.10.51';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -64,7 +64,9 @@
     sedangKirim: false, terakhirKirim: Date.now(), gagalBeruntun: 0, jedaSampai: 0, n: 0,
     lokasi: 'memuat', halaman: null, ukurMuat: null, klikTerakhir: 0, macet: { n: 0, total: 0, maks: 0 },
     error: {}, nError: 0, offlineSejak: 0, idpDilihat: new Set(), formKotor: new Map(), cariTimer: new WeakMap(), cariAkhir: new WeakMap(),
-    rage: { el: null, n: 0, t: 0 }, siapDicatat: false, sentuh: 0, kirimJalan: 0, inflight: new Set(), baruSelesai: []
+    rage: { el: null, n: 0, t: 0 }, siapDicatat: false, sentuh: 0, kirimJalan: 0, inflight: new Set(), baruSelesai: [],
+    // v2026.10.51 (Paket 33): klik marah per tombol, simpan sukses terakhir (form tidak dianggap ditinggal), macet per lokasi
+    marah: new Map(), tulisOk: 0, gagalTerakhir: {}, macetLok: {}, lokPrev: 'memuat', lokPerfT: 0, menutup: false
   };
   function sekarang() { return Date.now(); }
   function acak(n) {
@@ -292,7 +294,11 @@
   // v2026.10.25 (Paket 12): proses LATAR (pencarian/sinkron otomatis) tidak dihitung sebagai "waktu muat halaman" -
   // statistik 19 Okt: Pengiriman > Control tercatat ±40 dtk karena ikut menunggu cari_resi_mendalam & sinkron_booking_shopee.
   var AKSI_LATAR = { cari_resi_mendalam: 1, sinkron_booking_shopee: 1, cek_resi_instan: 1, kilat_cek_resi: 1, lengkapi_resi_belum_terhubung: 1,
-    retur_media_salin: 1, memo_sesi_sinkron: 1, siklus_resi_daftar: 1, ping: 1, cek_antrian_ai: 1 };
+    retur_media_salin: 1, memo_sesi_sinkron: 1, siklus_resi_daftar: 1, ping: 1, cek_antrian_ai: 1,
+    // v2026.10.51: proses latar lain (antrean OCR, logo, cek status akun) tidak dihitung sebagai waktu muat halaman / menit aktif
+    spb_ocr_antrean: 1, spb_ocr_simpan: 1, spb_status: 1, lihat_logo: 1, cek_status_staff: 1 };
+  // Aksi baca/latar: keberhasilannya BUKAN tanda form sudah disimpan
+  var RE_AKSI_BACA = /^(lihat_|detail_|ringkasan_|riwayat_|cari_|cek_|semua_|hitung_|tanya_|ambil_|analisa_|ping$|spb_ocr_antrean$|spb_status$|memo_sesi_sinkron$|dev_catatan_daftar$|label_dicetak_lihat$|wa_followup_daftar$|bundling_daftar$|rst_data$|dashboard_)/;
   function mulaiPermintaan(aksi, otomatis) {
     var latar = !!(otomatis || AKSI_LATAR[aksi]);
     var tok = { t0: sekarang(), p0: performance.now(), ukur: null, latar: latar };
@@ -311,7 +317,10 @@
       var sv, boot;
       try { if (res && res.headers) { sv = res.headers.get('x-goodang-ms'); boot = res.headers.get('x-goodang-boot-ms'); } } catch (e) { }
       sv = bulat(sv);
-      var pesan = err ? (err.message || String(err)) : (data && data.success === false ? (data.error || 'success=false') : '');
+      // v2026.10.51: alasan gagal juga dibaca dari 'pesan' / 'alasanSingkat' (mis. sync harga) - dulu tercatat "success=false"
+      var pesan = err ? (err.message || String(err)) : (data && data.success === false ? (data.error || data.alasanSingkat || data.pesan || 'success=false') : '');
+      // Request terputus karena halaman ditutup / di-refresh / aplikasi disembunyikan = bukan kegagalan server
+      var dibatalkan = !!(err && /Failed to fetch|Load failed|NetworkError|aborted|network/i.test(pesan) && (A.menutup || document.visibilityState === 'hidden'));
       var x = { kb_kirim: Math.round((info.kirimByte || 0) / 102.4) / 10, kb_terima: Math.round((info.terimaByte || 0) / 102.4) / 10 };
       if (res && res.status) x.http = res.status;
       if (bulat(boot) !== undefined) x.boot_ms = bulat(boot);
@@ -322,11 +331,28 @@
       if (document.hidden) x.latar = true;
       if (tok.latar) x.proses_latar = true;
       if (info.jumlah) x.jumlah = info.jumlah;
-      catat('aksi', info.aksi || '(tanpa aksi)', {
+      if (dibatalkan) x.dibatalkan = true;
+      var ok = !err && !!data && data.success !== false;
+      var idC = catat('aksi', info.aksi || '(tanpa aksi)', {
         t: tok.t0, d: d, sv: sv, jr: sv !== undefined ? Math.max(0, d - sv) : undefined,
-        ok: !err && !!data && data.success !== false, p: pesan, x: x
+        ok: dibatalkan ? undefined : ok, p: pesan, x: x
       });
+      if (!ok && !dibatalkan && idC) A.gagalTerakhir[info.aksi || ''] = idC;
+      if (ok && !tok.latar && !RE_AKSI_BACA.test(info.aksi || '')) A.tulisOk = sekarang();
     } catch (e) { }
+  }
+
+  // v2026.10.51: percobaan yang GAGAL lalu dikirim ulang otomatis tidak dihitung gagal (yang dihitung hasil akhirnya)
+  function tandaiDiulang(aksi) {
+    try {
+      var id = A.gagalTerakhir[aksi || ''];
+      if (!id) return;
+      delete A.gagalTerakhir[aksi || ''];
+      var e = A.antre.get(id);
+      if (!e || e.ok !== false) return;
+      delete e.ok; e.x = Object.assign({}, e.x || {}, { diulang: true });
+      A.tulisBuf.push(e); jadwalTulis();
+    } catch (er) { }
   }
 
   /* ---------- Lokasi (halaman/menu/tab) ---------- */
@@ -407,6 +433,7 @@
     var t0 = (t - A.klikTerakhir < 1500) ? A.klikTerakhir : t;
     tutupHalaman();
     if (!A.siapDicatat && lok !== 'memuat') catatSiap(lok);
+    A.lokPrev = A.lokasi; A.lokPerfT = performance.now();
     A.lokasi = lok;
     mulaiHalaman(lok, t0);
   }
@@ -438,15 +465,25 @@
   }
 
   /* ---------- Klik, cari, filter, form ---------- */
-  var RE_KIRIM = /simpan|kirim|buat|tambah|konfirmasi|setuju|terapkan|upload|unggah|proses|catat|bayar|eksekusi|selesai|ajukan|update|perbarui|\bok\b|\bya\b/i;
+  var RE_KIRIM = /simpan|kirim|buat|tambah|konfirmasi|setuju|terapkan|upload|unggah|proses|catat|bayar|eksekusi|selesai|ajukan|update|perbarui|import|gunakan|muat|cetak|jepret|lanjut|hubungi|terima|tandai|hidupkan|setor|\bok\b|\bya\b/i;
+  function idKonteks(t) { try { var w = t.parentElement && t.parentElement.closest('[id]'); return w ? w.id : ''; } catch (e) { return ''; } }
   function labelEl(t) {
-    var s = t.getAttribute('aria-label') || t.getAttribute('title') || t.innerText || t.textContent || t.value || '';
-    return bersih(s, 50);
+    var s = bersih(t.getAttribute('aria-label') || t.getAttribute('title') || t.innerText || t.textContent || t.value || '', 50);
+    // v2026.10.51: label 1-2 huruf ("+", "a", "2") tidak bermakna -> diberi nama wadahnya
+    if (s.length <= 2 && !t.id) { var k = idKonteks(t); if (k) s = bersih(s + ' · ' + k, 50); }
+    return s;
   }
+  // v2026.10.51: wadah dicari mulai dari INDUK elemen. Dulu elemen itu sendiri ikut dicocokkan -> input ber-id
+  // "wp-shopee-modal-nama" dianggap 1 form sendiri (1 jendela = 4 "form ditinggal", tombol Simpan tidak membersihkannya).
   function wadahForm(t) {
-    try { return t.closest('[id*="modal" i], [id*="form" i], [id*="drawer" i], [id^="screen-"], [role="dialog"], .omxm, dialog, form'); } catch (e) { return null; }
+    try { var p = t.parentElement; return p ? p.closest('[id*="modal" i], [id*="form" i], [id*="drawer" i], [id^="screen-"], [role="dialog"], .omxm, dialog, form') : null; } catch (e) { return null; }
   }
-  function namaField(t) { return bersih(t.id || t.name || t.getAttribute('aria-label') || t.placeholder || t.tagName.toLowerCase(), 60); }
+  function namaField(t) {
+    var n = t.id || t.name || t.getAttribute('aria-label') || t.placeholder || '';
+    if (!n) { try { var lb = (t.labels && t.labels[0]) || t.closest('label'); if (lb) n = lb.textContent; } catch (e) { } }
+    if (!n) { var k = idKonteks(t); n = t.tagName.toLowerCase() + (k ? ' · ' + k : ''); }
+    return bersih(n, 60);
+  }
   function apakahCari(t) {
     if (t.type === 'search') return true;
     var s = (t.id || '') + ' ' + (t.name || '') + ' ' + (t.placeholder || '') + ' ' + (t.getAttribute('aria-label') || '');
@@ -459,10 +496,15 @@
       var t = ev.target && ev.target.closest && ev.target.closest('button, a, [role="button"], .menu-btn, .web-nav-item, .web-nav-sub, input[type="submit"], input[type="button"], summary');
       if (!t) return;
       var label = labelEl(t) || t.id || t.tagName.toLowerCase();
-      var r = A.rage, tt = sekarang();
-      if (r.el === t && tt - r.t < 1200) { r.n++; if (r.n === 3) catat('klik_marah', label, { p: 'Diklik 3x+ dalam 1 detik (tombol terasa tidak merespons?)', x: { id: t.id || undefined } }); }
-      else { r.el = t; r.n = 1; }
-      r.t = tt;
+      // v2026.10.51: klik marah = 3 klik dalam 1 detik pada tombol yang SAMA (dikenali dari id/label, tetap terdeteksi
+      // walau tombol digambar ulang). Tombol penambah/pengurang jumlah & nomor halaman memang wajar diklik cepat.
+      var tt = sekarang(), kunciK = (t.id || '') + '|' + label;
+      if (!/^[+\-\u2212\u2013]( ·|$)|^[0-9]{1,3}( ·|$)/.test(label)) {
+        var riw = (A.marah.get(kunciK) || []).filter(function (x) { return tt - x < 1000; });
+        riw.push(tt); A.marah.set(kunciK, riw);
+        if (riw.length === 3) catat('klik_marah', label, { p: 'Diklik 3x+ dalam 1 detik (tombol terasa tidak merespons?)', x: { id: t.id || undefined } });
+        if (A.marah.size > 200) A.marah.clear();
+      }
       catat('klik', label, { x: { id: t.id || undefined } });
       setTimeout(cekLokasiAman, 0); setTimeout(cekLokasiAman, 150); // perpindahan layar terdeteksi seketika
       if (RE_KIRIM.test(label)) { var w = wadahForm(t); if (w) A.formKotor.delete(w); }
@@ -500,10 +542,16 @@
       catat('filter', namaField(t), { x: { nilai: bersih(nilai, 40), jenis: jenis } });
     } catch (e) { }
   }, true);
+  // v2026.10.51: form yang tertutup baru dianggap DITINGGAL bila dalam 15 detik tidak ada penyimpanan yang berhasil
+  // (jendela sering tertutup dulu, jawaban server Simpan datang sesudahnya).
   function cekFormDitinggal() {
+    var t = sekarang();
     A.formKotor.forEach(function (f, w) {
-      if (document.contains(w) && terlihat(w)) return;
-      catat('form_batal', f.nama, { d: sekarang() - f.mulai, x: { isian: f.field.size } });
+      if (document.contains(w) && terlihat(w)) { f.hilang = 0; return; }
+      if (!f.hilang) f.hilang = t;
+      if (A.tulisOk && A.tulisOk >= Math.max(f.mulai, f.hilang - 3000)) { A.formKotor.delete(w); return; } // tersimpan
+      if (t - f.hilang < 15000) return;
+      catat('form_batal', f.nama, { t: f.hilang, d: f.hilang - f.mulai, x: { isian: f.field.size } });
       A.formKotor.delete(w);
     });
   }
@@ -523,16 +571,42 @@
   window.addEventListener('unhandledrejection', function (ev) {
     try { var r = ev && ev.reason; catatError('Promise: ' + ((r && r.message) || String(r)), '', r && r.stack); } catch (e) { }
   });
-  try {
-    new PerformanceObserver(function (list) {
-      list.getEntries().forEach(function (e) {
-        if (e.duration >= 200) { A.macet.n++; A.macet.total += e.duration; A.macet.maks = Math.max(A.macet.maks, e.duration); }
-      });
-    }).observe({ type: 'longtask', buffered: true });
-  } catch (e) { }
+  // v2026.10.51: macet dicatat di LOKASI SAAT KEJADIAN (dulu lokasi saat laporan dikirim tiap menit) + nama skrip
+  // penyebab bila browser mendukung Long Animation Frame (Chrome/Android) -> penyebab layar beku bisa ditelusuri.
+  function tambahMacet(e, skrip) {
+    if (e.duration < 200) return;
+    var lok = (A.lokPerfT && e.startTime < A.lokPerfT) ? A.lokPrev : A.lokasi;
+    if (!e.startTime || e.startTime < 1) lok = A.lokasi;
+    var m = A.macetLok[lok] || (A.macetLok[lok] = { n: 0, total: 0, maks: 0, skrip: {} });
+    m.n++; m.total += e.duration; m.maks = Math.max(m.maks, e.duration);
+    A.macet.n++; A.macet.total += e.duration; A.macet.maks = Math.max(A.macet.maks, e.duration);
+    if (skrip) m.skrip[skrip] = (m.skrip[skrip] || 0) + Math.round(e.duration);
+  }
+  function namaSkrip(e) {
+    try {
+      var s = (e.scripts || []).slice().sort(function (a, b) { return b.duration - a.duration; })[0];
+      if (!s) return '';
+      var f = s.sourceFunctionName || s.invoker || '';
+      return bersih(f + (s.sourceCharPosition >= 0 ? ' @' + s.sourceCharPosition : ''), 80);
+    } catch (er) { return ''; }
+  }
+  (function () {
+    var loaf = false;
+    try { loaf = (PerformanceObserver.supportedEntryTypes || []).indexOf('long-animation-frame') !== -1; } catch (e) { }
+    try {
+      new PerformanceObserver(function (list) {
+        list.getEntries().forEach(function (e) { tambahMacet(e, loaf ? namaSkrip(e) : ''); });
+      }).observe({ type: loaf ? 'long-animation-frame' : 'longtask', buffered: true });
+    } catch (e) { }
+  })();
   function laporMacet() {
     if (!A.macet.n) return;
-    catat('macet', A.lokasi, { d: A.macet.maks, x: { jumlah: A.macet.n, total_ms: Math.round(A.macet.total) } });
+    Object.keys(A.macetLok).forEach(function (lok) {
+      var m = A.macetLok[lok];
+      var sk = Object.keys(m.skrip).sort(function (a, b) { return m.skrip[b] - m.skrip[a]; }).slice(0, 3).join(' | ');
+      catat('macet', lok, { l: lok, d: m.maks, x: { jumlah: m.n, total_ms: Math.round(m.total), skrip: sk || undefined } });
+    });
+    A.macetLok = {};
     A.macet = { n: 0, total: 0, maks: 0 };
   }
   window.addEventListener('offline', function () { A.offlineSejak = sekarang(); });
@@ -556,7 +630,9 @@
     }
   });
   window.addEventListener('hashchange', function () { setTimeout(cekLokasiAman, 0); });
-  window.addEventListener('pagehide', function () { laporMacet(); tutupHalaman('ditutup'); simpanKonteks(); tulisDb(); kirimBeacon(); });
+  window.addEventListener('beforeunload', function () { A.menutup = true; });
+  window.addEventListener('pageshow', function () { A.menutup = false; });
+  window.addEventListener('pagehide', function () { A.menutup = true; laporMacet(); tutupHalaman('ditutup'); simpanKonteks(); tulisDb(); kirimBeacon(); });
 
   /* ---------- Sambungan ke fungsi aplikasi (setelah semua skrip dimuat) ---------- */
   function pasangKait() {
@@ -632,7 +708,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mulai); else mulai();
 
   window.omxAnalitik = {
-    versi: VERSI, catat: catat, mulaiPermintaan: mulaiPermintaan, selesaiPermintaan: selesaiPermintaan,
+    versi: VERSI, catat: catat, mulaiPermintaan: mulaiPermintaan, selesaiPermintaan: selesaiPermintaan, tandaiDiulang: tandaiDiulang,
     kirimSekarang: function () { A.jedaSampai = 0; return kirim(); },
     status: function () {
       return { versi: VERSI, sesi: sesi, lokasi: A.lokasi, antre: A.antre.size, belum_terkirim: belumTerkirim(), indexedDB: !!A.db,
@@ -752,13 +828,17 @@
   function catatBaca(video, teks, format, mesin, mulai) {
     try {
       if (!window.omxAnalitik || !omxAnalitik.catat) return;
-      var st = video.__omxBaca || (video.__omxBaca = { teks: '', t: 0 });
+      var st = video.__omxBaca || (video.__omxBaca = { teks: '', t: 0, mulai: 0 });
       var now = Date.now();
       if (teks === st.teks && now - st.t < 8000) { st.t = now; return; }
-      var dari = Math.max(mulai || 0, st.t || 0);
-      st.teks = teks; st.t = now;
-      omxAnalitik.catat('ukur', 'kamera_baca', { d: dari ? now - dari : 0, ok: true,
-        x: { mesin: mesin, resolusi: video.videoWidth + 'x' + video.videoHeight, format: String(format || ''), panjang: String(teks || '').length } });
+      // v2026.10.51: bacaan PERTAMA sejak kamera dibuka = "kamera_baca" (lama kamera siap + membaca).
+      // Bacaan berikutnya = "kamera_jeda_paket" (jeda staf ganti paket) - dulu keduanya tercampur di kamera_baca.
+      var pertama = st.mulai !== mulai;
+      var dari = pertama ? (mulai || 0) : (st.t || 0);
+      st.teks = teks; st.t = now; st.mulai = mulai;
+      omxAnalitik.catat('ukur', pertama ? 'kamera_baca' : 'kamera_jeda_paket', { d: dari ? now - dari : 0, ok: true,
+        x: { mesin: mesin, resolusi: video.videoWidth + 'x' + video.videoHeight, format: String(format || ''), panjang: String(teks || '').length,
+          zxing_ms: video.__omxZxMs ? Math.round(video.__omxZxMs) : undefined } });
     } catch (e) { }
   }
 
@@ -839,9 +919,17 @@
         var kv = this.__kanvas || (this.__kanvas = document.createElement('canvas'));
         if (kv.width !== cw || kv.height !== ch) { kv.width = cw; kv.height = ch; this.__ktx = null; }
         var ktx = this.__ktx || (this.__ktx = kv.getContext('2d', { willReadFrequently: true }));
-        ktx.drawImage(el, sx, sy, sw, sh, 0, 0, cw, ch);
-        var bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(kv)));
-        return rd.decodeWithState(bmp);
+        // v2026.10.51: jeda antar-percobaan menyesuaikan kecepatan HP (HP lambat tidak dibuat beku tiap 50 ms)
+        var t0z = performance.now();
+        try {
+          ktx.drawImage(el, sx, sy, sw, sh, 0, 0, cw, ch);
+          var bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(kv)));
+          return rd.decodeWithState(bmp);
+        } finally {
+          var dz = performance.now() - t0z;
+          el.__omxZxMs = el.__omxZxMs ? el.__omxZxMs * 0.8 + dz * 0.2 : dz;
+          try { this.timeBetweenDecodingAttempts = Math.max(50, Math.min(300, Math.round(el.__omxZxMs * 1.5))); } catch (e) { }
+        }
       }
       decodeContinuously(el, cb) {
         var self = this;
@@ -15419,9 +15507,13 @@ function tampilkanMenungguApproval() {
 
 async function ceklagiStatusAkses(silent) {
   if (!currentUser || !currentUser.email) { tampilkanLayarLogin(); return; }
+  // v2026.10.51: pengecekan latar (silent) saat aplikasi dibuka ulang berkali-kali cukup 1x per 2 menit per akun
+  const kunciCek = 'omx_cek_status_t|' + String(currentUser.email).toLowerCase();
+  if (silent === true) { try { if (Date.now() - (+localStorage.getItem(kunciCek) || 0) < 120000) return; } catch (e) { } }
   try {
     const data = await postJson({ aksi: 'cek_status_staff', email: currentUser.email });
     if (!data.success) return;
+    try { localStorage.setItem(kunciCek, String(Date.now())); } catch (e) { }
 
     if (!data.aktif) {
       currentUser.aktif = false;
@@ -15943,7 +16035,8 @@ function gantiTabWeb(tab) {
   document.querySelectorAll('.web-tab-content').forEach(div => { div.style.display = 'none'; });
   el('web-tab-' + tab).style.display = 'block';
 
-  const judul = { overview: 'Beranda', pesanan: 'Penjualan', pengiriman: 'Pengiriman', pembelian: 'Pembelian', stock: 'Stock', invoicesupplier: 'Invoice Supplier', staff: 'Kelola Akses', tagihan: 'Tagihan', finance: 'Finance', aiagent: 'AI Agent', conner: 'Conner Hardware' };
+  const judul = { overview: 'Beranda', pesanan: 'Penjualan', pengiriman: 'Pengiriman', pembelian: 'Pembelian', stock: 'Stock', invoicesupplier: 'Invoice Supplier', staff: 'Kelola Akses', tagihan: 'Tagihan', finance: 'Finance', aiagent: 'AI Agent', conner: 'Conner Hardware',
+    katalog: 'Katalog', persediaan: 'Persediaan', promosi: 'Promosi', produksi: 'Produksi', pengaturan: 'Pengaturan', devnote: 'Catatan Developer' };
   setPageTitle(judul[tab] || tab);
 
   if (tab === 'overview') {
@@ -25243,7 +25336,7 @@ let saranAICache = [];
 async function muatSemuaSaranAI() {
   el('web-insight-list').innerHTML = '<div style="font-size:12px; color:var(--web-text-dim);">Memuat saran...</div>';
   try {
-    const data = await postJson({ aksi: 'semua_saran_ai', email: currentUserEmail() });
+    const data = await postJson({ aksi: 'semua_saran_ai', email: currentUserEmail() }, 45000); // v2026.10.51: 20 dtk sering habis -> server mengerjakan 2x
     if (data.success) {
       saranAICache = data.insight;
       tampilkanSaranAIUntukHalamanIni();
@@ -29164,7 +29257,7 @@ async function pgtUploadLogo() {
       playBeep();
       statusEl.textContent = '✓ Logo tersimpan';
       statusEl.className = 'status-text ok';
-      muatLogoPerusahaan();
+      muatLogoPerusahaan(true);
     } else { statusEl.textContent = '✗ Gagal: ' + (data.error || ''); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
@@ -29196,7 +29289,7 @@ async function pgtUploadLogoConner() {
       playBeep();
       statusEl.textContent = '✓ Logo Conner tersimpan';
       statusEl.className = 'status-text ok';
-      muatLogoPerusahaan();
+      muatLogoPerusahaan(true);
     } else { statusEl.textContent = '✗ Gagal: ' + (data.error || ''); statusEl.className = 'status-text err'; }
   } catch (err) { stopLoadingDots(statusEl); statusEl.textContent = '✗ Gagal terhubung: ' + err.message; statusEl.className = 'status-text err'; }
 }
@@ -29313,9 +29406,26 @@ async function pgtHapusSlideCarousel(row) {
   } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
 }
 
-async function muatLogoPerusahaan() {
+// v2026.10.51 (Paket 33): logo dimuat SEKALI per buka aplikasi & diambil dari simpanan perangkat (6 jam, kunci sama
+// dengan Paket 11). Dulu terpanggil 2x tiap aplikasi dibuka dan yang pertama selalu ke server (simpanan Paket 11
+// baru terpasang setelah panggilan itu) -> statistik 21 Okt: 76 panggilan, 11 gagal. paksa = setelah logo diganti.
+let muatLogoJanji_ = null, muatLogoTerakhir_ = 0;
+function muatLogoPerusahaan(paksa) {
+  if (!paksa && muatLogoJanji_) return muatLogoJanji_;
+  if (!paksa && Date.now() - muatLogoTerakhir_ < 600000) return Promise.resolve();
+  muatLogoJanji_ = muatLogoPerusahaanJalan_(!!paksa).finally(() => { muatLogoJanji_ = null; muatLogoTerakhir_ = Date.now(); });
+  return muatLogoJanji_;
+}
+async function muatLogoPerusahaanJalan_(paksa) {
   try {
-    const data = await postJson({ aksi: 'lihat_logo', email: currentUserEmail() });
+    const kunciSimpan = 'p11c|lihat_logo|' + (typeof currentToko !== 'undefined' ? currentToko : '');
+    let data = null;
+    if (paksa) { try { Object.keys(localStorage).filter(k => k.indexOf('p11c|lihat_logo|') === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { } }
+    else { try { const c = JSON.parse(localStorage.getItem(kunciSimpan) || 'null'); if (c && Date.now() - c.t < 6 * 3600e3 && c.d && c.d.success) data = c.d; } catch (e) { } }
+    if (!data) {
+      data = await postJson(paksa ? { aksi: 'lihat_logo', segar: true, email: currentUserEmail() } : { aksi: 'lihat_logo', email: currentUserEmail() });
+      try { if (data && data.success) localStorage.setItem(kunciSimpan, JSON.stringify({ t: Date.now(), d: data })); } catch (e) { }
+    }
     if (data.success) {
       LOGO_URL_DINAMIS_WATERGROUND = data.url || '';
       LOGO_URL_DINAMIS_CONNER = data.urlConner || '';
@@ -45936,6 +46046,7 @@ async function postJsonTulis(body, timeoutMs, opsi) {
           // Permintaan yang sama masih dikerjakan server -> tunggu hasilnya (tidak dikerjakan ulang).
           // Pertanyaan berikutnya cukup kiriman ringan (tanpa isi file).
           if (ringan) kirimAktif = ringan;
+          try { if (window.omxAnalitik && omxAnalitik.tandaiDiulang) omxAnalitik.tandaiDiulang(kirim.aksi); } catch (e) { }
           if (opsi.onCoba) try { opsi.onCoba(coba, 'Server masih memproses…'); } catch (e) { }
           await new Promise(r => setTimeout(r, 3500));
           continue;
@@ -45943,10 +46054,12 @@ async function postJsonTulis(body, timeoutMs, opsi) {
         if (kirimAktif === ringan && ringan && data && data.success === false && !data.duplikat && (data.perluKirimUlang || !sudahKirimPenuhLagi)) {
           // Kiriman pertama ternyata gagal di server (penanda sudah dihapus) -> kirim ulang LENGKAP sekali
           kirimAktif = kirim; sudahKirimPenuhLagi = true;
+          try { if (window.omxAnalitik && omxAnalitik.tandaiDiulang) omxAnalitik.tandaiDiulang(kirim.aksi); } catch (e) { }
           continue;
         }
         if (data && data.success === false && data.errorDetail) console.error(`[Backend error] aksi=${kirim.aksi}`, data.errorDetail);
         if (data && data.success === false && webAppErrorSementara(data.error) && /Sistem sibuk/i.test(data.error || '') && coba < maksCoba) {
+          try { if (window.omxAnalitik && omxAnalitik.tandaiDiulang) omxAnalitik.tandaiDiulang(kirim.aksi); } catch (e) { }
           if (opsi.onCoba) try { opsi.onCoba(coba, 'Server sibuk, mengulang otomatis…'); } catch (e) { }
           await new Promise(r => setTimeout(r, jeda[coba - 1] || 20000));
           continue;
@@ -45957,6 +46070,7 @@ async function postJsonTulis(body, timeoutMs, opsi) {
       } catch (err) {
         if (coba >= maksCoba || !webAppErrorSementara(err && err.message)) { if (idLogT) omxLogSelesai(idLogT, null, err); throw err; }
         console.warn(`[Kirim ulang otomatis ${coba}/${maksCoba - 1}] aksi=${kirim.aksi}:`, err.message);
+        try { if (window.omxAnalitik && omxAnalitik.tandaiDiulang) omxAnalitik.tandaiDiulang(kirim.aksi); } catch (e) { }
         if (opsi.onCoba) try { opsi.onCoba(coba, 'Gangguan server Google, mengulang otomatis (aman, tidak dobel)…'); } catch (e) { }
         await new Promise(r => setTimeout(r, jeda[coba - 1] || 20000));
       }
@@ -46049,12 +46163,23 @@ async function postJson(body, timeoutMs, silent) {
   return data;
 }
 
+// v2026.10.51 (Paket 33): aksi LATAR yang tidak mengubah data yang ditampilkan menu lain - dulu dianggap aksi tulis
+// sehingga cache menu (di HP/laptop) terbuang tiap 4 detik (memo_sesi_sinkron) / tiap 2 menit (spb_ocr_antrean).
+const WEBAPP_AKSI_TANPA_BUANG = new Set(['memo_sesi_sinkron', 'spb_ocr_antrean', 'spb_status', 'ping', 'dev_catatan_daftar',
+  'label_dicetak_lihat', 'bundling_daftar', 'rst_data', 'dashboard_rekap', 'wa_followup_daftar']);
+// Aksi yang hanya mengubah DATA PEMBELI -> cukup buang cache baca yang berhubungan dengan pembeli (bukan semuanya)
+const WEBAPP_AKSI_BUANG_PEMBELI = new Set(['spb_ocr_simpan']);
+const WEBAPP_RE_CACHE_PEMBELI = /"aksi":"(lihat_pjx_detail_pesanan|lihat_semua_pelanggan|riwayat_pembeli|lihat_pesanan_shopee|wa_followup_daftar|shopee_pembeli_lengkap_lihat)"/;
 function webAppSimpanHasilBaca_(body, kunciCache, bolehCache, data) {
   if (!data || data.success === false) return;
   if (bolehCache) {
     webAppCacheBaca.delete(kunciCache);
     webAppCacheBaca.set(kunciCache, { t: Date.now(), data: webAppSalin(data) });
     while (webAppCacheBaca.size > WEBAPP_CACHE_BACA_MAKS) webAppCacheBaca.delete(webAppCacheBaca.keys().next().value);
+  } else if (WEBAPP_AKSI_TANPA_BUANG.has(body.aksi || '')) {
+    // latar - cache tetap
+  } else if (WEBAPP_AKSI_BUANG_PEMBELI.has(body.aksi || '')) {
+    Array.from(webAppCacheBaca.keys()).forEach(k => { if (WEBAPP_RE_CACHE_PEMBELI.test(k)) webAppCacheBaca.delete(k); });
   } else if (!WEBAPP_AKSI_NETRAL_RE.test(body.aksi || '')) {
     webAppBuangCacheBaca(); // aksi TULIS lewat postJson berhasil -> data baca bisa berubah
   }
@@ -46093,6 +46218,7 @@ async function postJsonKeServer_(body, timeoutMs, silent) {
     // sekali dengan jeda lebih panjang. Gangguan jaringan biasa tetap diulang cepat seperti dulu.
     const timeout = /^Timeout/.test(err.message || '');
     if (timeout && silent) throw err;
+    try { if (window.omxAnalitik && omxAnalitik.tandaiDiulang) omxAnalitik.tandaiDiulang(body.aksi); } catch (e) { }
     await new Promise(r => setTimeout(r, timeout ? 3000 : 700));
     return await coba(timeoutMs + 8000);
   }
@@ -47356,6 +47482,49 @@ let scanDebounceTimer = null;
 // 0,8 dtk sudah cukup untuk menggabungkan scan beruntun dari scanner/kamera ke 1 batch.
 const SCAN_DEBOUNCE_MS = 800;
 const SCAN_BATAS_LANGSUNG_KIRIM = 10;
+/* v2026.10.51 (Paket 33) - ANTREAN SCAN TIDAK PERNAH HILANG
+   - Tiap resi menyimpan MODE saat discan (keluar/retur/stock). Dulu mode dibaca saat dikirim, dan ganti mode /
+     masuk ulang layar scan MEMBUANG resi yang belum terkirim (jeda 0,8 dtk) & yang sedang diupload.
+   - Resi yang belum pasti tersimpan di perangkat (localStorage) -> aplikasi ditutup / HP mati tetap dikirim saat dibuka lagi.
+   - Dobel scan dikenali untuk SEMUA resi di sesi ini (dulu hanya 20 sukses terakhir; duplikat dari server tidak diingat).
+   Tampilan tetap sama: tiap layar scan hanya menampilkan resi mode itu. */
+const SCAN_KUNCI_SIMPAN = 'scan_antrean_v1';
+const scanResiSesi = new Set(); // resi yang sudah pasti (berhasil / sudah pernah) di sesi scan mode ini
+function scanModeItem_(it) { return (it && it.mode) || currentMode; }
+let scanSudahPulih_ = false;
+function scanSimpanLokal_() {
+  try {
+    const email = currentUserEmail();
+    if (!scanSudahPulih_ && email) { scanPulihkanLokal_(); if (scanSudahPulih_) return; } // pulihkan dulu (render ulang -> disimpan)
+    const daftar = scanAntrean.filter(it => it.status === 'antre' || it.status === 'terkirim').map(it => ({ noResi: it.noResi, mode: scanModeItem_(it), email, t: it.t || Date.now() }));
+    // simpanan yang belum dipulihkan (atau milik akun lain di HP ini) jangan tertimpa
+    (JSON.parse(localStorage.getItem(SCAN_KUNCI_SIMPAN) || '[]') || []).forEach(x => {
+      if (!x || !x.noResi || (email && x.email === email)) return;
+      if (!daftar.some(y => resiSama(y.noResi, x.noResi) && y.mode === x.mode)) daftar.push(x);
+    });
+    if (daftar.length) localStorage.setItem(SCAN_KUNCI_SIMPAN, JSON.stringify(daftar)); else localStorage.removeItem(SCAN_KUNCI_SIMPAN);
+  } catch (e) { }
+}
+function scanPulihkanLokal_() {
+  try {
+    const email = currentUserEmail();
+    if (!email) return;
+    scanSudahPulih_ = true;
+    const daftar = JSON.parse(localStorage.getItem(SCAN_KUNCI_SIMPAN) || '[]');
+    let ada = 0;
+    daftar.forEach(x => {
+      if (!x || !x.noResi || !x.mode || x.email !== email) return;
+      if (Date.now() - (x.t || 0) > 3 * 86400000) return; // > 3 hari: abaikan
+      if (scanAntrean.some(it => resiSama(it.noResi, x.noResi) && scanModeItem_(it) === x.mode)) return;
+      scanAntrean.push({ noResi: x.noResi, status: 'antre', mode: x.mode, t: x.t, pulih: true }); ada++;
+    });
+    scanRenderAntrean();
+    if (ada) scanKirimBatch();
+  } catch (e) { }
+}
+setTimeout(scanPulihkanLokal_, 5000); setTimeout(scanPulihkanLokal_, 30000);
+window.addEventListener('online', () => setTimeout(() => { if (scanAntrean.some(it => it.status === 'antre')) scanKirimBatch(); }, 1500));
+window.addEventListener('beforeunload', e => { if (scanAntrean.some(it => it.status === 'antre' || it.status === 'terkirim')) { scanSimpanLokal_(); e.preventDefault(); e.returnValue = ''; } });
 
 // Titik masuk utama tiap kali ada input scan (manual/kamera). Kalau lagi mode "Input Resi
 // Pending", tetap pakai alur lama yang sinkron (fitur beda, sengaja nggak diubah). Selain
@@ -47363,9 +47532,11 @@ const SCAN_BATAS_LANGSUNG_KIRIM = 10;
 // Cek apakah resi ini udah pernah kesentuh sesi scan saat ini (lagi antre/terkirim, udah
 // sukses, atau lagi di daftar gagal) - dipakai buat auto-reject double scan di sisi frontend.
 function scanSudahAdaDiSesi(noResi) {
-  return scanAntrean.some(it => resiSama(it.noResi, noResi))
-    || scanBerhasil.some(it => resiSama(it.noResi, noResi))
-    || scanGagal.some(it => resiSama(it.noResi, noResi));
+  const m = currentMode;
+  if (Array.from(scanResiSesi).some(r => resiSama(r, noResi))) return true;
+  return scanAntrean.some(it => scanModeItem_(it) === m && resiSama(it.noResi, noResi))
+    || scanBerhasil.some(it => scanModeItem_(it) === m && resiSama(it.noResi, noResi))
+    || scanGagal.some(it => scanModeItem_(it) === m && resiSama(it.noResi, noResi));
 }
 
 function scanMasukAntrean(noResi) {
@@ -47384,7 +47555,7 @@ function scanMasukAntrean(noResi) {
   // status: 'antre' (belum dikirim) | 'terkirim' (udah dikirim, nunggu balasan server).
   // PENTING: item TETAP di array & TETAP tampil di Section 1 selama status-nya 'antre' ATAU
   // 'terkirim' - baru DIHAPUS dari sini pas beneran dapat kepastian sukses/gagal dari server.
-  scanAntrean.unshift({ noResi, status: 'antre' }); // prepend - resi terbaru selalu di paling atas
+  scanAntrean.unshift({ noResi, status: 'antre', mode: currentMode, t: Date.now() }); // prepend - resi terbaru selalu di paling atas
   scanRenderAntrean();
   playBeep(); // bunyi "tiit" - HANYA di sini, pas resi beneran baru & berhasil masuk Section 1
 
@@ -47404,8 +47575,12 @@ async function scanKirimBatch() {
   if (scanDebounceTimer) { clearTimeout(scanDebounceTimer); scanDebounceTimer = null; }
   if (scanBatchJalan) return; // dikirim otomatis setelah batch yang sedang berjalan selesai
 
-  const belumDikirim = scanAntrean.filter(it => it.status === 'antre');
-  if (belumDikirim.length === 0) return;
+  const semuaAntre = scanAntrean.filter(it => it.status === 'antre');
+  if (semuaAntre.length === 0) return;
+  // 1 batch = 1 mode (mode layar yang sedang dibuka didahulukan)
+  const modeBatch = semuaAntre.some(it => scanModeItem_(it) === currentMode) ? currentMode : scanModeItem_(semuaAntre[0]);
+  const belumDikirim = semuaAntre.filter(it => scanModeItem_(it) === modeBatch);
+  belumDikirim.forEach(it => { if (!it.mode) it.mode = modeBatch; });
   scanBatchJalan = true;
   belumDikirim.forEach(it => it.status = 'terkirim'); // tandai statusnya, TAPI JANGAN dihapus dari scanAntrean - masih harus tampil
   scanRenderAntrean();
@@ -47417,7 +47592,7 @@ async function scanKirimBatch() {
     const lbl = el('scan-label-upload');
     if (!lbl) return;
     const dtk = Math.floor((Date.now() - mulaiKirim) / 1000);
-    const antre = scanAntrean.filter(it => it.status === 'antre').length;
+    const antre = scanAntrean.filter(it => it.status === 'antre' && scanModeItem_(it) === currentMode).length;
     lbl.textContent = `⏳ Mengupload ${batchDikirim.length} resi… ${dtk} dtk` + (antre ? ` · ${antre} menunggu giliran` : '');
   };
   perbaruiLabel();
@@ -47426,7 +47601,7 @@ async function scanKirimBatch() {
   // Hapus 1 item dari scanAntrean (Section 1) - dipanggil TEPAT pas item itu dapat kepastian
   // hasil (sukses/gagal/duplikat), bukan sebelumnya. Ini kunci dari "Persistent Pending List".
   function keluarkanDariAntrean(noResi) {
-    const idx = scanAntrean.findIndex(it => it.noResi === noResi && it.status === 'terkirim');
+    const idx = scanAntrean.findIndex(it => it.noResi === noResi && it.status === 'terkirim' && scanModeItem_(it) === modeBatch);
     if (idx !== -1) scanAntrean.splice(idx, 1);
   }
 
@@ -47434,11 +47609,13 @@ async function scanKirimBatch() {
   try {
     // postJsonTulis: aksi MENULIS dikirim SEKALI (dulu postJson mengulang otomatis saat 30 dtk habis, padahal
     // server masih memproses batch pertama -> batch kedua ditolak "sibuk memproses scan lain")
-    const data = await postJsonTulis({ aksi: 'scan_batch', tipe: currentMode, daftarNoResi: batchDikirim, email: currentUserEmail() }, 90000);
+    const data = await postJsonTulis({ aksi: 'scan_batch', tipe: modeBatch, daftarNoResi: batchDikirim, email: currentUserEmail() }, 90000);
+    const dilayar = modeBatch === currentMode && el('screen-scan') && el('screen-scan').style.display !== 'none';
+    let gagalLatar = 0;
     // Resi yang belum sempat diproses (batas waktu per batch) / server sedang sibuk -> kembali ke antrean
     const kembalikan = data.sibuk ? batchDikirim : (data.belumDiproses || []);
     kembalikan.forEach(noResi => {
-      const it = scanAntrean.find(x => x.noResi === noResi && x.status === 'terkirim');
+      const it = scanAntrean.find(x => x.noResi === noResi && x.status === 'terkirim' && scanModeItem_(x) === modeBatch);
       if (it) it.status = 'antre';
     });
     if (data.sibuk) { ulangiNanti = 3000; el('last-status').textContent = '⏳ Server sedang sibuk - resi tetap di antrean, dikirim ulang otomatis...'; el('last-status').className = 'status-text dup'; }
@@ -47454,18 +47631,21 @@ async function scanKirimBatch() {
           const jamSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
           // Deteksi otomatis dari backend: jenisPengiriman 'kilat' = Transfer Gudang Shopee (No Reservasi)
           const kilat = h.jenisPengiriman === 'kilat' ? { noReservasi: h.noReservasi, perluProduk: !!h.perluProduk } : null;
-          scanBerhasil.unshift({ noResi: h.noResi, kurir: h.kurir || '-', waktu: jamSekarang, ket, kilat }); // prepend - konsisten sama arah Section 1
+          scanBerhasil.unshift({ noResi: h.noResi, kurir: h.kurir || '-', waktu: jamSekarang, ket, kilat, mode: modeBatch }); // prepend - konsisten sama arah Section 1
+          if (modeBatch === currentMode) scanResiSesi.add(String(h.noResi));
         } else if (h.duplicate) {
           // Duplikat dari BACKEND (udah pernah tersimpan sebelumnya, bukan cuma dobel di sesi
           // ini) - SENGAJA JANGAN masuk Section Gagal, biar tombol "Coba Lagi" nggak ikut
           // ngirim ulang resi yang emang udah beres. Cukup dikasih tau lewat notifikasi.
           duplikatDitemukan.push(h.noResi);
+          if (modeBatch === currentMode) scanResiSesi.add(String(h.noResi));
         } else {
-          scanGagal.unshift({ noResi: h.noResi, error: h.error || 'Gagal upload' }); // prepend juga - konsisten
+          scanGagal.unshift({ noResi: h.noResi, error: h.error || 'Gagal upload', mode: modeBatch, latar: !dilayar }); // prepend juga - konsisten
+          if (!dilayar) gagalLatar++;
         }
       });
-      if (scanBerhasil.length > 20) scanBerhasil = scanBerhasil.slice(0, 20);
-      if (duplikatDitemukan.length > 0) {
+      if (scanBerhasil.length > 40) scanBerhasil = scanBerhasil.slice(0, 40);
+      if (duplikatDitemukan.length > 0 && dilayar) {
         el('last-status').textContent = `⚠ ${duplikatDitemukan.length} resi udah pernah diupload sebelumnya: ${duplikatDitemukan.join(', ')}`;
         el('last-status').className = 'status-text dup';
       }
@@ -47474,13 +47654,16 @@ async function scanKirimBatch() {
       // Batch gagal total (misal error server) - semua item di batch ini masuk Gagal
       batchDikirim.forEach(noResi => {
         keluarkanDariAntrean(noResi);
-        scanGagal.unshift({ noResi, error: data.error || 'Gagal upload' });
+        scanGagal.unshift({ noResi, error: data.error || 'Gagal upload', mode: modeBatch, latar: !dilayar });
+        if (!dilayar) gagalLatar++;
       });
     }
+    if (gagalLatar) { try { omniToast(`⚠ ${gagalLatar} resi ${(modeConfig[modeBatch] && modeConfig[modeBatch].label) || modeBatch} gagal terkirim - buka layar scan itu lalu tekan Coba Lagi.`, 'peringatan'); } catch (e) { } }
   } catch (err) {
+    const dilayarE = modeBatch === currentMode && el('screen-scan') && el('screen-scan').style.display !== 'none';
     batchDikirim.forEach(noResi => {
       keluarkanDariAntrean(noResi);
-      scanGagal.unshift({ noResi, error: /^Timeout|AbortError/.test(err.message || err.name) ? 'Waktu tunggu habis - cek daftar sebelum kirim ulang' : err.message });
+      scanGagal.unshift({ noResi, error: /^Timeout|AbortError/.test(err.message || err.name) ? 'Waktu tunggu habis - cek daftar sebelum kirim ulang' : err.message, mode: modeBatch, latar: !dilayarE });
     });
     el('conn-dot').classList.add('bad');
   } finally {
@@ -47495,37 +47678,51 @@ async function scanKirimBatch() {
 }
 
 function scanRetryGagal() {
-  if (scanGagal.length === 0) return;
-  const daftarRetry = scanGagal.map(it => it.noResi);
-  scanGagal = [];
-  scanAntrean.unshift(...daftarRetry.map(noResi => ({ noResi, status: 'antre' })));
+  const punyaMode = scanGagal.filter(it => scanModeItem_(it) === currentMode);
+  if (punyaMode.length === 0) return;
+  const daftarRetry = punyaMode.map(it => it.noResi);
+  scanGagal = scanGagal.filter(it => scanModeItem_(it) !== currentMode);
+  scanAntrean.unshift(...daftarRetry.map(noResi => ({ noResi, status: 'antre', mode: currentMode, t: Date.now() })));
   scanRenderAntrean();
   scanKirimBatch(); // retry manual - kirim seketika, nggak nunggu debounce
 }
 
 function scanRenderAntrean() {
-  el('scan-section-antrean').style.display = scanAntrean.length > 0 ? 'block' : 'none';
-  el('scan-list-antrean').innerHTML = scanAntrean.map(it =>
+  scanSimpanLokal_();
+  const m = currentMode;
+  const vAntrean = scanAntrean.filter(it => scanModeItem_(it) === m);
+  const vGagal = scanGagal.filter(it => scanModeItem_(it) === m);
+  const vBerhasil = scanBerhasil.filter(it => scanModeItem_(it) === m).slice(0, 20);
+  vGagal.forEach(it => { it.latar = false; }); // sudah tampil di layarnya -> boleh dibersihkan saat layar dibuka ulang
+  el('scan-section-antrean').style.display = vAntrean.length > 0 ? 'block' : 'none';
+  el('scan-list-antrean').innerHTML = vAntrean.map(it =>
     `<div style="color:#e0a030; font-size:13px; font-weight:500; padding:1px 0; word-wrap:break-word; word-break:break-all; ${it.status === 'terkirim' ? 'opacity:0.6;' : ''}">${escapeHtml(it.noResi)}</div>`
   ).join('');
 
-  el('scan-section-gagal').style.display = scanGagal.length > 0 ? 'block' : 'none';
-  el('scan-list-gagal').innerHTML = scanGagal.map(it =>
+  el('scan-section-gagal').style.display = vGagal.length > 0 ? 'block' : 'none';
+  el('scan-list-gagal').innerHTML = vGagal.map(it =>
     `<div style="color:#d9534f; font-size:13px; font-weight:500; padding:1px 0; word-wrap:break-word; word-break:break-all;">${escapeHtml(it.noResi)} <span style="font-size:11px; font-weight:400; opacity:0.75;">- ${escapeHtml(it.error)}</span></div>`
   ).join('');
 
-  el('scan-section-berhasil').style.display = scanBerhasil.length > 0 ? 'block' : 'none';
-  el('scan-list-berhasil').innerHTML = scanBerhasil.map(it =>
+  el('scan-section-berhasil').style.display = vBerhasil.length > 0 ? 'block' : 'none';
+  el('scan-list-berhasil').innerHTML = vBerhasil.map(it =>
     `<div style="color:#3fa66b; font-size:13px; font-weight:500; padding:1px 0; word-wrap:break-word; word-break:break-all;">${escapeHtml(it.noResi)} <span style="opacity:0.85;">- ${escapeHtml(it.kurir)} - ${escapeHtml(it.waktu)}</span>${it.ket ? `<span style="font-size:11px; font-weight:400; opacity:0.8;">${escapeHtml(it.ket)}</span>` : ''}${it.kilat ? ` <span class="tgs-badge" style="font-size:10.5px; padding:2px 8px;">⚡ Pengiriman Kilat</span> <span style="font-size:11px; color:#6d28d9; font-weight:700;">${escapeHtml(it.kilat.noReservasi || '')}${it.kilat.perluProduk ? ' · isi produk dulu' : ''}</span>` : ''}</div>`
   ).join('');
 }
 
 // Reset total antrean - dipanggil pas keluar/ganti mode scan, biar nggak ada resi dari
 // tipe sebelumnya (misal Retur) yang nyangkut terus muncul di tipe baru (misal Keluar).
+// v2026.10.51: resi yang BELUM pasti (antre / sedang diupload) tidak dibuang - tetap dikirim di latar dengan mode aslinya.
+// Yang dibersihkan seperti dulu: daftar berhasil & gagal yang sudah dilihat staf.
 function scanResetAntrean() {
+  const adaAntre = scanAntrean.some(it => it.status === 'antre');
   if (scanDebounceTimer) { clearTimeout(scanDebounceTimer); scanDebounceTimer = null; }
-  scanAntrean = []; scanGagal = []; scanBerhasil = [];
+  scanAntrean = scanAntrean.filter(it => it.status === 'antre' || it.status === 'terkirim');
+  scanGagal = scanGagal.filter(it => it.latar); scanBerhasil = [];
+  scanResiSesi.clear();
+  scanPulihkanLokal_(); // sisa antrean dari sebelum aplikasi ditutup (bila belum terkirim)
   scanRenderAntrean();
+  if (adaAntre) setTimeout(scanKirimBatch, 0);
 }
 
 async function kirimScan(noResi) {
@@ -48267,9 +48464,12 @@ async function refreshMenuCounts() {
     if (d && d.success && d.jumlah) { keluar = d.jumlah.keluar; retur = d.jumlah.retur; stock = d.jumlah.stock; }
     else throw new Error('fallback');
   } catch (e) {
-    [keluar, retur, stock] = await Promise.all([fetchCount('keluar'), fetchCount('retur'), fetchCount('stock')]);
+    // v2026.10.51: dulu gagal -> 3 request lama sekaligus (beban x3 tepat saat server bermasalah). Sekarang angka terakhir hari ini dipakai.
+    if (snapMenu && snapMenu.hari === krTgl(new Date())) { keluar = snapMenu.keluar; retur = snapMenu.retur; stock = snapMenu.stock; }
+    else if (!(e && e.message === 'fallback')) { keluar = retur = stock = null; }
+    else { [keluar, retur, stock] = await Promise.all([fetchCount('keluar'), fetchCount('retur'), fetchCount('stock')]); }
   }
-  try { localStorage.setItem('menu_hitung_v1', JSON.stringify({ hari: krTgl(new Date()), keluar, retur, stock })); } catch (e) {}
+  if (keluar !== null && keluar !== undefined) { try { localStorage.setItem('menu_hitung_v1', JSON.stringify({ hari: krTgl(new Date()), keluar, retur, stock })); } catch (e) {} }
   if (el('screen-menu').style.display === 'none') return; // dicek LAGI - user mungkin udah pindah halaman selama fetch jalan
   el('count-keluar').textContent = (keluar ?? '-') + ' resi hari ini';
   el('count-masuk-gabungan').textContent = ((retur ?? 0) + (stock ?? 0)) + ' resi hari ini';
@@ -51717,6 +51917,7 @@ function buatLogoThermal_(src) {
   });
 }
 async function logoSiapkan_(toko, dataUri) {
+  if (dataUri && LOGO_DATAURI[toko] === dataUri && LOGO_THERMAL[toko]) return; // v2026.10.51: logo sama -> versi thermal tidak digambar ulang
   LOGO_DATAURI[toko] = dataUri || '';
   LOGO_THERMAL[toko] = dataUri ? await buatLogoThermal_(dataUri) : '';
   try { localStorage.setItem('omni_logo_cache', JSON.stringify({ d: LOGO_DATAURI, t: LOGO_THERMAL })); } catch (e) { }
@@ -58267,7 +58468,13 @@ function omxIklanMuatSaatLogin() {
   if (tok && tok === omxIklanSesiToken) return;
   omxIklanSesiToken = tok;
   omxIklanLatarTerakhir = Date.now();
-  iklanMuat(true, true).then(() => { try { omxIklanKartuPerbarui(); } catch (e) { } });
+  // v2026.10.51: data iklan di perangkat masih segar (< 15 menit, mis. aplikasi di-refresh) -> pakai itu, tidak tarik 90 hari lagi
+  let lokal = null;
+  try { lokal = JSON.parse(localStorage.getItem(IKLAN_LOKAL) || 'null'); } catch (e) { }
+  if (lokal && lokal.success && Date.now() - (lokal._t || 0) < 15 * 60000) {
+    if (!iklanData || (iklanData._t || 0) < lokal._t) iklanData = lokal;
+    try { iklanIsiOpsiToko(); iklanRender(); omxIklanKartuPerbarui(); } catch (e) { }
+  } else iklanMuat(true, true).then(() => { try { omxIklanKartuPerbarui(); } catch (e) { } });
   omxIklanJadwalJam_();
 }
 function omxIklanJadwalJam_() {
@@ -59882,7 +60089,8 @@ async function ovxLiveTarik() {
     const d = await postJson({ aksi: 'dashboard_live', email: currentUserEmail() }, 330000, true);
     if (!d || !d.success) throw new Error((d && d.error) || 'Gagal menarik data live');
     d._diambil = Date.now(); ovRekap = d; ovRekapSimpanLokal(d);
-    try { await iklanMuat(true, true); } catch (e) { }
+    // v2026.10.51: biaya iklan dicatat server per jam -> cukup ditarik ulang bila data di layar sudah > 10 menit
+    try { if (!iklanData || Date.now() - (iklanData._t || 0) > 10 * 60000) await iklanMuat(true, true); } catch (e) { }
     if (ovDasborSedangTerlihat()) ovRenderDariRekap();
     const jam = new Date().toTimeString().slice(0, 5);
     const gagal = Object.keys(d.live || {}).filter(k => d.live[k] !== 'ok' && k !== 'Info');
@@ -62932,6 +63140,7 @@ function p12MSReset(k) { p12MSChecklistSku_.clear(); ((typeof mgmCarts !== 'unde
 async function p12MSSinkron(awal) {
   if (p12MS.jalan || !p12MS.kunci) return;
   p12MS.jalan = true;
+  let lanjutKirim = false;
   try {
     const cart = mgmCarts.barangmasuk || [], perubahan = [];
     const kirimSemua = awal && p12MS.rev === 0 && p12MS.mulai;
@@ -62941,11 +63150,18 @@ async function p12MSSinkron(awal) {
     const kunci = p12MS.kunci;
     const r = await postJson({ aksi: 'memo_sesi_sinkron', kunci, perangkatId: P12_PERANGKAT, sejakRev: awal ? 0 : p12MS.rev, perubahan, mulaiBaru: !!(awal && p12MS.mulai), email: currentUserEmail() }, 20000, true);
     if (!r || !r.success || r.sibuk || kunci !== p12MS.kunci) return;
-    perubahan.forEach(p => p12MS.kotor.delete(String(p.sku).toUpperCase()));
+    // v2026.10.51: tanda "diubah" hanya dilepas bila isi keranjang MASIH sama dengan yang barusan dikirim.
+    // Dulu dilepas per SKU -> qty yang diubah lagi selama request berjalan ditimpa angka lama dari server (qty mundur).
+    const kiniCart = p12MSSnapCart();
+    perubahan.forEach(p => {
+      const K = String(p.sku).toUpperCase(), c = kiniCart.get(K);
+      const sama = c ? (c.qty === (Number(p.qty) || 0) && c.catatan === String(p.catatan || '') && !p.hapus) : (p.hapus || (Number(p.qty) || 0) === 0);
+      if (sama) p12MS.kotor.delete(K);
+    });
     if (awal && (r.rev || 0) === 0) {
       // sesi baru: HP ini yang pertama -> kirim seluruh checklist sebagai titik awal bersama
       p12MS.kotor = new Set(Array.from(p12MSSnapCart().keys()));
-      p12MS.mulai = false; p12MS.jalan = false; return p12MSSinkron(false);
+      p12MS.mulai = false; lanjutKirim = true; return; // dikirim setelah kunci 'jalan' dilepas (dulu bisa 2 sinkron paralel)
     }
     p12MS.mulai = false;
     p12MSTerapkan(r.items || []);
@@ -62960,6 +63176,7 @@ async function p12MSSinkron(awal) {
     p12MSBanner();
   } catch (e) { /* jaringan putus: dicoba lagi di putaran berikutnya */ }
   finally { p12MS.jalan = false; }
+  if (lanjutKirim) return p12MSSinkron(false);
 }
 function p12MSTerapkan(items) {
   if (!items.length) { p12MS.snap = p12MSSnapCart(); return; }
@@ -62998,7 +63215,8 @@ function p12MSBanner() {
     ? `⚠ Memo checklist ini SUDAH DIKIRIM oleh ${p12MS.selesai.oleh}${p12MS.selesai.noMemo ? ' (' + p12MS.selesai.noMemo + ')' : ''} - jangan dikirim dobel.`
     : `👥 Checklist bersama · ${p12MS.staf.length ? 'juga dikerjakan: ' + p12MS.staf.join(', ') : 'hanya HP ini'} · tersinkron ${jam}`;
 }
-setInterval(() => { try { if (!document.hidden && p12MSAktif()) { if (p12MSKunciCart() !== p12MS.kunci) p12MSDeteksiPerubahan(); else p12MSSinkron(false); } } catch (e) { } }, 4000);
+// v2026.10.51: tiap 4 dtk bila ada HP lain di checklist ini / ada perubahan; bila hanya HP ini -> tiap 15 dtk (memo_sesi_sinkron 164x/hari)
+setInterval(() => { try { if (!document.hidden && p12MSAktif()) { if (p12MSKunciCart() !== p12MS.kunci) p12MSDeteksiPerubahan(); else if (p12MS.kotor.size || (p12MS.staf && p12MS.staf.length) || Date.now() - (p12MS.terakhir || 0) >= 15000) p12MSSinkron(false); } } catch (e) { } }, 4000);
 (function () {
   if (typeof mgmSubmit !== 'function') return;
   const asli = mgmSubmit;
@@ -65662,16 +65880,41 @@ async function spbOcrIsiHasil_(peta) {
   if (kirim.length) spbOcrKirim_(kirim);
 }
 // Antrean latar
+// v2026.10.51 (Paket 33): antrean dicek oleh SATU tab saja per perangkat (kunci di localStorage), jeda bertambah saat
+// antrean kosong (2 -> 4 -> 8 menit, maks 10), HP memakai jeda 10 menit & tidak di jaringan seluler/hemat data.
+// Statistik 21 Okt: 131 pengecekan, hampir semuanya kosong.
+const SPB_OCR_KUNCI_TAB = 'spb_ocr_pemimpin_v1';
+const SPB_OCR_ID_TAB = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function spbOcrTabPemimpin_() {
+  try {
+    const c = JSON.parse(localStorage.getItem(SPB_OCR_KUNCI_TAB) || 'null');
+    if (c && c.id !== SPB_OCR_ID_TAB && Date.now() - c.t < 90000) return false;
+    localStorage.setItem(SPB_OCR_KUNCI_TAB, JSON.stringify({ id: SPB_OCR_ID_TAB, t: Date.now() }));
+    return true;
+  } catch (e) { return true; }
+}
+function spbOcrPerangkatHp_() {
+  try { return (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820) || /Mobi|iPhone|Android/i.test(navigator.userAgent || ''); } catch (e) { return false; }
+}
+function spbOcrJedaMs_() {
+  const dasar = spbOcrPerangkatHp_() ? 600000 : 110000;
+  return Math.min(600000, dasar * Math.pow(2, Math.min(3, SPB_OCR.kosong || 0)));
+}
 async function spbOcrAntreanJalan_() {
   if (SPB_OCR.berhenti || SPB_OCR.antrean || document.hidden) return;
   try { if (!currentUserEmail()) return; } catch (e) { return; }
   if (!(omxApakahOwner_() || window.innerWidth >= 900)) return;
-  if (Date.now() - SPB_OCR.terakhir < 110000) return;
+  let tBersama = 0; try { tBersama = +localStorage.getItem('spb_ocr_terakhir_v1') || 0; } catch (e) { }
+  if (Date.now() - Math.max(SPB_OCR.terakhir, tBersama) < spbOcrJedaMs_()) return;
+  if (spbOcrPerangkatHp_()) { try { const c = navigator.connection; if (c && (c.saveData || c.type === 'cellular')) return; } catch (e) { } }
+  if (!spbOcrTabPemimpin_()) return;
   SPB_OCR.antrean = 1; SPB_OCR.terakhir = Date.now();
+  try { localStorage.setItem('spb_ocr_terakhir_v1', String(SPB_OCR.terakhir)); } catch (e) { }
   try {
     const r = await postJson({ aksi: 'spb_ocr_antrean', maks: 6, email: currentUserEmail() }, 30000, true);
     if (!r || !r.success) { if (r && /izin/i.test(r.error || '')) SPB_OCR.berhenti = true; return; }
-    if (!r.daftar || !r.daftar.length) return;
+    if (!r.daftar || !r.daftar.length) { SPB_OCR.kosong = (SPB_OCR.kosong || 0) + 1; return; }
+    SPB_OCR.kosong = 0;
     const hasil = [];
     for (const it of r.daftar) {
       try {
@@ -65681,7 +65924,8 @@ async function spbOcrAntreanJalan_() {
       } catch (e) { SPB_OCR.terakhir = Date.now() + 600000; break; }
     }
     await spbOcrKirim_(hasil);
-    if (r.sisa) SPB_OCR.terakhir = 0; // masih ada -> lanjut di detak berikutnya
+    if (r.sisa) { SPB_OCR.terakhir = 0; try { localStorage.setItem('spb_ocr_terakhir_v1', '0'); } catch (e) { } } // masih ada -> lanjut di detak berikutnya
+    try { localStorage.setItem(SPB_OCR_KUNCI_TAB, JSON.stringify({ id: SPB_OCR_ID_TAB, t: Date.now() })); } catch (e) { }
   } catch (e) { } finally { SPB_OCR.antrean = 0; }
 }
 setTimeout(() => { spbOcrAntreanJalan_(); setInterval(spbOcrAntreanJalan_, 20000); }, 25000);
@@ -65723,13 +65967,22 @@ async function spbOcrUjiTampil_(r, wadah) {
        tiap pesan yang dibuka dicatat (siapa & kapan), nomor "jangan dihubungi lagi" disembunyikan.
    (c) Kartu Info Pembeli: tombol 💬 WhatsApp bila No HP tersedia.
    ===================================================================================== */
-function pjxSegarkan_() {
-  try { pjxCache.clear(); } catch (e) { }
+// v2026.10.51: daftarId (array No Pesanan) -> hanya pesanan itu yang dibuang dari cache & dimuat ulang.
+// Dulu SETIAP simpan hasil OCR latar (±2 menit sekali) membuang semua cache detail -> tiap buka detail = request baru.
+function pjxSegarkan_(daftarId) {
+  const sebagian = Array.isArray(daftarId);
+  const ids = sebagian ? new Set(daftarId.map(x => String(x || '').trim()).filter(Boolean)) : null;
+  if (sebagian && !ids.size) return;
+  try { if (sebagian) ids.forEach(id => pjxCache.delete(id)); else pjxCache.clear(); } catch (e) { }
   try {
     const body = el('wp-gabungan-body'); if (!body) return;
     body.querySelectorAll('tr[data-kunci]').forEach(tr => {
       const aksi = tr.nextElementSibling;
       if (!aksi || aksi.style.display === 'none') return;
+      if (sebagian) {
+        const o = (wpGabunganCache || []).find(x => wpGabunganKunciUnik(x) === tr.dataset.kunci);
+        if (!o || !ids.has(String(o.noReferensi || '').trim())) return;
+      }
       const box = aksi.querySelector('.pjx-box');
       if (box) pjxMuat(tr.dataset.kunci, box);
     });
@@ -65740,8 +65993,14 @@ function pjxSegarkan_() {
     const asli = window[nama];
     if (typeof asli !== 'function') return;
     window[nama] = async function () {
+      const arg0 = arguments[0];
       const r = await asli.apply(this, arguments);
-      setTimeout(pjxSegarkan_, 300);
+      if (nama === 'spbOcrKirim_') {
+        // hasil OCR latar: hanya pesanan yang barusan terbaca
+        const ids = Array.isArray(arg0) ? arg0.filter(h => h && !h.gagal).map(h => h.sn) : [];
+        if (!ids.length) return r;
+        setTimeout(() => pjxSegarkan_(ids), 300);
+      } else setTimeout(pjxSegarkan_, 300);
       WA.data = {}; // daftar follow-up dimuat ulang
       return r;
     };
