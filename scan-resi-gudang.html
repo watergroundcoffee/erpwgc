@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.49';
+  var VERSI = 'v2026.10.50';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -20946,7 +20946,7 @@ function wpGabunganRenderHalaman(idBaruMasuk) {
     <tr class="${[iniBaru ? 'wp-row-baru-masuk' : '', wpGabBarisTersimpan.has(kunci) ? 'wp-row-tersimpan' : ''].join(' ').trim()}" ${wpGabBarisMemuat.has(kunci) ? 'aria-busy="true"' : ''} data-kunci="${escapeHtml(kunci)}" data-idx="${idx}">
       <td><input type="checkbox" class="wp-gab-row-check" data-idx="${idx}" ${wpGabunganTerpilih.has(kunci) ? 'checked' : ''} /></td>
       <td>${tokoKapsulHtml(o.toko || 'Waterground')}</td>
-      <td>${kanalLogoHtml(o.sumber)}${lblBadgeHtml(o)}</td>
+      <td>${kanalLogoHtml(o.sumber)}${lblBadgeHtml(o)}${o.ekspor ? '<span title="Pesanan dari toko luar negeri (Program Ekspor Shopee / FLEXI) - pembeli = akun ekspor Shopee, barang dikirim ke gudang ekspor Shopee" style="display:inline-block; font-size:10.5px; font-weight:600; margin-left:4px; color:#2b6cb0;">🌏 Ekspor</span>' : ''}</td>
       <td class="wp-dim" style="white-space:nowrap;">${escapeHtml(o.tanggal)}</td>
       <td>${escapeHtml(o.noReferensi)}${iniBaru ? ' <span class="wp-badge-baru">BARU</span>' : ''}</td>
       <td>${wpGabSelPembeliHtml(o, kunci)}</td>
@@ -66402,6 +66402,52 @@ async function rtcBuka_(noResi, jenis) {
   }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('rtc-modal')) rtcTutup_(); }, true);
+</script>
+<script>
+/* PAKET 32 (v2026.10.50) - DN-300: tombol Owner "🌏 Cek pesanan ekspor" (Penjualan > Shopee) */
+async function sekBuka_() {
+  omxModal('🌏 Pesanan Shopee Ekspor (Program Ekspor / FLEXI)', '<div id="sek-isi" style="font-size:12.5px;">Memeriksa pesanan & rincian dana dari Shopee… (±30 detik)</div>', { lebar: true });
+  try {
+    const r = await postJson({ aksi: 'shopee_ekspor_cek', hari: 180, email: currentUserEmail() }, 120000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    const isi = el('sek-isi'); if (!isi) return;
+    const rp = v => (v === undefined || v === null || v === '') ? '-' : 'Rp ' + Math.round(Number(v)).toLocaleString('id-ID');
+    const st = Object.keys(r.perStatus || {}).map(k => `${escapeHtml(k)}: ${r.perStatus[k]}`).join(' · ');
+    const baris = (r.rinci || []).map(x => `<tr${x.jenis === 'Ekspor' ? ' style="background:rgba(43,108,176,.06);"' : ''}><td>${escapeHtml(x.jenis)}</td><td>${escapeHtml(x.sn)}<div style="font-size:10.5px; color:var(--web-text-dim);">${escapeHtml(x.tanggal)} · ${escapeHtml(x.produk)}</div></td>
+      <td style="text-align:right;">${rp(x.totalErp)}${x.mataUang && x.mataUang !== 'IDR' ? `<div style="color:#c53030; font-size:10.5px;">${escapeHtml(x.mataUang)} ${escapeHtml(String(x.totalShopee))}</div>` : ''}</td>
+      <td style="text-align:right;">${x.ok ? rp(x.danaDiterima) : '<span style="color:#c53030;">' + escapeHtml(x.pesan || 'gagal') + '</span>'}</td>
+      <td style="text-align:right;">${x.ok ? x.persenPotongan + '%' : ''}</td>
+      <td style="font-size:10.5px;">${x.ok ? Object.keys(x.rincian || {}).map(k => `${escapeHtml(k)} ${Math.round(x.rincian[k]).toLocaleString('id-ID')}`).join('<br>') : ''}</td></tr>`).join('');
+    isi.innerHTML = `
+      <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:8px; line-height:1.5;">Pesanan dari toko luar negeri masuk ke toko Indonesia atas nama akun <b>sipbuyerid</b> (pembeli = Shopee). Barang dikirim ke gudang ekspor Shopee, dana diterima dalam Rupiah lewat dompet Shopee yang sama.
+        OmniAI kini menandainya <b>🌏 Ekspor</b> dan tidak menganggapnya pelanggan (tidak masuk Kelola Pelanggan, Follow-up WA, penarikan data pembeli).</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; margin-bottom:10px;">
+        <div style="border:1px solid var(--web-border); border-radius:10px; padding:8px 10px;"><div style="font-size:11px; color:var(--web-text-dim);">Pesanan ekspor (${r.hari} hari)</div><b style="font-size:15px;">${r.jumlah}</b></div>
+        <div style="border:1px solid var(--web-border); border-radius:10px; padding:8px 10px;"><div style="font-size:11px; color:var(--web-text-dim);">Nilai pesanan ekspor</div><b style="font-size:15px;">${rp(r.nilai)}</b></div>
+        <div style="border:1px solid var(--web-border); border-radius:10px; padding:8px 10px;"><div style="font-size:11px; color:var(--web-text-dim);">Rata-rata potongan Shopee</div><b style="font-size:15px;">Ekspor ${r.rataPotonganEkspor ?? '-'}% · Dalam negeri ${r.rataPotonganDalam ?? '-'}%</b></div>
+      </div>
+      ${st ? `<div style="font-size:11.5px; margin-bottom:8px;">Status: ${st}</div>` : ''}
+      ${r.rinci && r.rinci.length ? `<div class="web-table-wrap" style="max-height:340px; overflow:auto;"><table class="web-table" style="font-size:11.5px;"><thead><tr><th>Jenis</th><th>Pesanan</th><th style="text-align:right;">Total di ERP</th><th style="text-align:right;">Dana diterima</th><th style="text-align:right;">Potongan</th><th>Rincian biaya Shopee</th></tr></thead><tbody>${baris}</tbody></table></div>`
+        : `<div style="color:var(--web-text-dim);">${r.terhubung ? 'Belum ada pesanan ekspor / selesai untuk dibandingkan dalam periode ini.' : 'Shopee belum terhubung.'}</div>`}
+      ${r.daftar && r.daftar.length ? `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px;">Daftar ${r.daftar.length} pesanan ekspor terbaru</summary><div style="font-size:11.5px; margin-top:4px;">${r.daftar.map(o => `${escapeHtml(o.tanggal)} · ${escapeHtml(o.sn)} · ${escapeHtml(o.status)} · ${rp(o.total)}`).join('<br>')}</div></details>` : ''}`;
+  } catch (e) { const isi = el('sek-isi'); if (isi) isi.innerHTML = `<div class="status-text err">${escapeHtml(e.message || String(e))}</div>`; }
+}
+(function () {
+  function pasang() {
+    if (!omxApakahOwner_()) return;
+    const ref = el('spb-uji-btn') || el('wp-shopee-sync-btn');
+    if (ref && !el('sek-btn')) {
+      const b = document.createElement('button');
+      b.id = 'sek-btn'; b.className = 'web-btn-secondary'; b.style.fontSize = '12px';
+      b.textContent = '🌏 Cek pesanan ekspor';
+      b.title = 'Khusus Owner: pesanan Shopee dari luar negeri (Program Ekspor / FLEXI) & perbandingan rincian dananya';
+      b.onclick = sekBuka_;
+      ref.parentNode.insertBefore(b, ref);
+    }
+  }
+  try { pasang(); } catch (e) { }
+  setInterval(() => { try { pasang(); } catch (e) { } }, 4000);
+})();
 </script>
 </body>
 </html>
