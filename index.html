@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.46';
+  var VERSI = 'v2026.10.47';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -6972,7 +6972,7 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
 .pmx-sku-ok { box-shadow: 0 0 0 2px rgba(22, 163, 74, .35) !important; }
 
 /* Dialog konfirmasi generik (di atas modal) */
-.omni-dlg-latar { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .18s ease; }
+.omni-dlg-latar { position: fixed; inset: 0; z-index: 10035; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .18s ease; }
 .omni-dlg-latar.tampil { opacity: 1; }
 .omni-dlg { width: min(440px, 100%); max-height: 90vh; overflow-y: auto; background: var(--web-panel); color: var(--web-text); border: 1px solid var(--web-border); border-radius: 16px; padding: 20px 20px 16px; box-shadow: 0 24px 60px rgba(15, 23, 42, .25); transform: translateY(8px) scale(.98); transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
 .omni-dlg-latar.tampil .omni-dlg { transform: none; }
@@ -7210,7 +7210,8 @@ tr.aia-baris-detail td { background: var(--web-bg); font-size: 12px; }
 .dok-item img, .mgm-foto-thumb img, #vm-drop-isi img, .lamp-able img, img[data-zoom], .rt2-up img { cursor: zoom-in; }
 
 /* ---------- 5) KONFIRMASI UMUM ---------- */
-.okf-latar { position: fixed; inset: 0; z-index: 3400; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(15,23,42,0); transition: background .16s ease; }
+/* v2026.10.47 (DN-261021-133538-549): konfirmasi & dialog harus di ATAS jendela modal (omx-modal 9000, drawer AI 10031) - dulu 3400 -> tombol Ya tertutup jendela & tidak bisa diklik */
+.okf-latar { position: fixed; inset: 0; z-index: 10036; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(15,23,42,0); transition: background .16s ease; }
 .okf-latar.tampil { background: rgba(15,23,42,.45); }
 .okf-kartu { width: min(380px, 100%); padding: 22px 20px 16px; border-radius: 18px; text-align: center; background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0);
   box-shadow: 0 24px 60px rgba(15,23,42,.25); transform: translateY(8px) scale(.97); opacity: 0; transition: transform .18s cubic-bezier(.2,.8,.2,1), opacity .16s ease; }
@@ -66158,8 +66159,8 @@ function ipmRenderPratinjau_() {
     ${tanpaTgl ? `<div style="font-size:12px; background:#fff4cc; color:#6b4e00; border-radius:8px; padding:8px 10px; margin-bottom:8px;">${tanpaTgl} nota belum punya tanggal. Isi di Excel lalu pilih file lagi, atau pakai 1 tanggal untuk semuanya:
       <input type="date" id="ipm-tgl-ganti" max="${new Date().toISOString().slice(0, 10)}" style="margin-left:6px;"> (kosong = nota tsb dilewati)</div>` : ''}
     ${skuAsing.size ? `<div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:8px;">SKU belum ada di katalog (tetap tercatat, stok tidak dipotong): ${Array.from(skuAsing).slice(0, 30).map(escapeHtml).join(', ')}${skuAsing.size > 30 ? ' …' : ''}</div>` : ''}
-    <label style="font-size:12.5px; display:flex; gap:6px; align-items:flex-start; margin:6px 0;"><input type="checkbox" id="ipm-stok" checked>
-      <span>Catat pengurangan stok pada tanggal nota (seperti penjualan lampau). Stok dihitung dari Smart Opname terakhir + mutasi, jadi nota sebelum opname terakhir tidak mengubah stok sekarang.</span></label>
+    <label style="font-size:12.5px; display:flex; gap:6px; align-items:flex-start; margin:6px 0;"><input type="checkbox" id="ipm-stok">
+      <span>Juga catat pengurangan stok pada tanggal nota (opsional, lebih lambat). Biarkan TIDAK dicentang bila hanya ingin menyimpan riwayat pesanan - stok sekarang tidak berubah.</span></label>
     <div id="ipm-cek" style="font-size:12px; margin:6px 0;">Mengecek ke server (No Invoice yang sudah ada)…</div>
     <div class="web-table-wrap" style="max-height:260px; overflow:auto;"><table class="web-table" style="font-size:11.5px;"><thead><tr><th>No Invoice</th><th>Tanggal</th><th>Pembeli</th><th>Barang</th><th style="text-align:right;">Total</th></tr></thead><tbody>
       ${n.slice(0, 200).map(x => `<tr${!x.tanggal ? ' style="background:#fde2e2;"' : ''}><td>${escapeHtml(x.noInvoice)}</td><td>${escapeHtml(x.tanggal || '—')}</td><td>${escapeHtml(x.nama)}</td><td>${x.items.length}</td><td style="text-align:right;">${Math.round(ipmTotal_(x)).toLocaleString('id-ID')}</td></tr>`).join('')}
@@ -66194,15 +66195,25 @@ async function ipmMulai_() {
   btn.disabled = true;
   const hasil = { simpan: 0, duplikat: 0, ganti: 0, stok: 0, pembeli: 0, error: [] };
   try {
-    for (let i = 0; i < kirim.length; i += 40) {
-      st.textContent = `Menyimpan ${Math.min(i + 40, kirim.length)} / ${kirim.length} nota…`; st.className = 'status-text';
-      const r = await postJsonTulis({ aksi: 'import_pesanan_manual', invoices: kirim.slice(i, i + 40), potongStok: el('ipm-stok').checked, email: currentUserEmail() }, 180000);
+    const UK = 25;
+    for (let i = 0; i < kirim.length; i += UK) {
+      st.textContent = `Menyimpan ${Math.min(i + UK, kirim.length)} / ${kirim.length} nota…`; st.className = 'status-text';
+      const r = await postJsonTulis({ aksi: 'import_pesanan_manual', invoices: kirim.slice(i, i + UK), potongStok: el('ipm-stok').checked, email: currentUserEmail() }, 180000);
       if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
       const l = r.laporan; hasil.simpan += r.disimpan; hasil.duplikat += l.duplikat.length; hasil.ganti += l.gantiNomor.length; hasil.stok += l.stokDipotong || 0; hasil.pembeli += l.pembeliBaru || 0; hasil.error.push(...l.error);
     }
     st.innerHTML = `✓ ${hasil.simpan} nota tersimpan · ${hasil.duplikat} sudah ada (dilewati) · ${hasil.ganti} ganti nomor · ${hasil.stok} baris stok · ${hasil.pembeli} pembeli baru` +
       (hasil.error.length ? `<div style="color:#c53030;">${hasil.error.length} ditolak: ${hasil.error.slice(0, 8).map(escapeHtml).join(' · ')}</div>` : '');
     st.className = 'status-text ok';
+    // v2026.10.47: bukti tersimpan - daftar Manual Order dibaca ulang dari server & No Invoice hasil import dihitung
+    try {
+      const d = await postJson({ aksi: 'lihat_pesanan', semua: true, segar: true, email: currentUserEmail() }, 90000);
+      if (d && d.success) {
+        const ada = new Set((d.items || []).map(x => String(x.noInvoice || '').toUpperCase()));
+        const ketemu = kirim.filter(x => ada.has(String(x.noInvoice).toUpperCase()) || Array.from(ada).some(a => a.startsWith(String(x.noInvoice).toUpperCase() + '-I'))).length;
+        st.insertAdjacentHTML('beforeend', `<div>🔎 Dicek ulang di database: <b>${ketemu}</b> dari ${kirim.length} nota ada di daftar Manual Order.</div>`);
+      }
+    } catch (eV) { }
     try { if (typeof wpFetchList === 'function') wpFetchList(); } catch (e) { }
   } catch (e) { st.textContent = '✗ ' + (e.message || e) + ` (${hasil.simpan} nota sudah tersimpan - import ulang aman, nota yang sudah ada dilewati)`; st.className = 'status-text err'; btn.disabled = false; }
 }
