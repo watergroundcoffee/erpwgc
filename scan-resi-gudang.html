@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.40';
+  var VERSI = 'v2026.10.40-b';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -65325,9 +65325,11 @@ function spbHtmlLaporan_(r) {
     const baris = SPB_FIELD_LABEL.map(([k, label]) => `<tr><td style="padding:5px 6px; font-size:11.5px; font-weight:600; white-space:nowrap;">${label}</td>${sumber.map(s => `<td style="padding:5px 6px; vertical-align:top;">${s.field ? spbSel_(s.field[k]) : '<span style="font-size:10.5px; color:#888;">–</span>'}</td>`).join('')}</tr>`).join('');
     const akhir = b.akhir || {};
     const ringkas = SPB_FIELD_LABEL.filter(([k]) => akhir[k]).map(([k, label]) => `${label}${akhir[k].penagihan ? ' (penagihan)' : ''}: <b>${omxEsc(akhir[k].nilai)}</b> <span style="color:var(--web-text-dim);">← ${omxEsc(spbNamaApiPendek_(akhir[k].api))}</span>`).join('<br>');
-    const mentah = sumber.map(s => `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:11px;">Jawaban mentah ${omxEsc(spbNamaApiPendek_(s.api))}${s.varian ? ' · ' + omxEsc(String(s.varian).slice(0, 60)) : ''}</summary><pre style="white-space:pre-wrap; word-break:break-all; font-size:10.5px; max-height:220px; overflow:auto; background:var(--web-surface-2, rgba(0,0,0,0.04)); padding:6px; border-radius:6px;">${omxEsc(s.mentah || '(kosong)')}</pre></details>`).join('');
+    const percobaan = sumber.filter(s => s.percobaan && s.percobaan.length).map(s => `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:11px;">Semua bentuk permintaan ${omxEsc(spbNamaApiPendek_(s.api))} yang dicoba (${s.percobaan.length})</summary>${s.percobaan.map(c => `<div style="font-size:11px; margin:4px 0 2px;"><b>${omxEsc(c.varian)}</b> · <span style="color:${c.ok ? (c.adaIsi ? '#1f8f4e' : '#b7791f') : '#c53030'};">${c.ok ? (c.adaIsi ? 'berhasil, ada data' : 'berhasil, tanpa data terbuka') : 'gagal: ' + omxEsc((c.error + ' ' + c.pesan).trim().slice(0, 160))}</span></div><pre style="white-space:pre-wrap; word-break:break-all; font-size:10.5px; max-height:140px; overflow:auto; background:var(--web-surface-2, rgba(0,0,0,0.04)); padding:6px; border-radius:6px;">${omxEsc(c.mentah || '')}</pre>`).join('')}</details>`).join('');
+    const mentah = percobaan + sumber.map(s => `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:11px;">Jawaban mentah ${omxEsc(spbNamaApiPendek_(s.api))}${s.varian ? ' · ' + omxEsc(String(s.varian).slice(0, 60)) : ''}</summary><pre style="white-space:pre-wrap; word-break:break-all; font-size:10.5px; max-height:220px; overflow:auto; background:var(--web-surface-2, rgba(0,0,0,0.04)); padding:6px; border-radius:6px;">${omxEsc(s.mentah || '(kosong)')}</pre></details>`).join('');
     return `<div style="border:1px solid var(--web-border); border-radius:10px; padding:10px; margin-bottom:12px;">
-      <div style="font-size:12.5px; font-weight:700;">No Pesanan ${omxEsc(b.sn)} <span style="font-weight:400; color:var(--web-text-dim);">· status ${omxEsc(b.status || 'tidak ditemukan')}</span></div>
+      <div style="font-size:12.5px; font-weight:700;">No Pesanan ${omxEsc(b.sn)} <span style="font-weight:400; color:var(--web-text-dim);">· status ${omxEsc(b.status || 'tidak ditemukan')}</span>${b.kilat ? ' <span style="font-size:10.5px; font-weight:600; color:#2b6cb0;">⚡ Pengiriman Kilat / Gudang Shopee</span>' : ''}</div>
+      ${b.kilat ? '<div style="font-size:11px; color:var(--web-text-dim); margin-top:2px;">Pesanan ini dikirim dari Gudang Shopee: label & data penerima dikelola Shopee, jadi wajar bila semua sumber tersamar.</div>' : ''}
       <div style="font-size:11.5px; margin:4px 0 8px;">Username: ${b.username ? `<b>${omxEsc(b.username)}</b> ${spbChip_(b.usernameStatus)}` : spbChip_('kosong')} · Buyer ID: ${omxEsc(b.buyerId || '-')}</div>
       <div style="overflow-x:auto;"><table style="border-collapse:collapse; width:100%;"><thead><tr><th style="text-align:left; padding:5px 6px; font-size:11px;">Field</th>${kepala}</tr></thead><tbody>${baris}</tbody></table></div>
       <div style="font-size:11.5px; margin-top:8px; line-height:1.55;"><b>Yang berhasil didapat:</b><br>${ringkas || '<span style="color:#c53030;">Tidak ada data kontak yang terbuka dari API mana pun untuk pesanan ini.</span>'}</div>
