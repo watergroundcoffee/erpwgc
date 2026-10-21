@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.39';
+  var VERSI = 'v2026.10.40';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -65293,6 +65293,146 @@ function bdlSalin(sku) { try { navigator.clipboard.writeText(sku); pgrToast('Kod
     return asli.apply(this, arguments);
   };
   try { if (/^#katalog\/bundling\b/.test(window.location.hash || '')) setTimeout(() => katalogBukaSub('bundling'), 0); } catch (e) { }
+})();
+</script>
+<script>
+/* =====================================================================================
+   PAKET 24 (v2026.10.40) - DATA PEMBELI SHOPEE SELENGKAP MUNGKIN
+   - Tombol "🔬 Uji sumber data pembeli" (khusus Owner) di Penjualan > Shopee dan di jendela Input Data Pembeli Shopee:
+     aksi shopee_pembeli_uji -> tabel per field (Username, Nama, HP, Alamat, Kota, ..., Penagihan) x per API Shopee,
+     tanda Terisi / Disamarkan / Gambar / Kosong, jawaban mentah tiap API, + teks label resmi (dibaca pdf.js di browser).
+   - Tarik data pembeli: data penagihan (faktur) & sumber data ditampilkan di status jendela.
+   ===================================================================================== */
+const SPB_FIELD_LABEL = [
+  ['nama', 'Nama penerima'], ['hp', 'No HP'], ['alamat', 'Alamat pengiriman'], ['kelurahan', 'Kelurahan'], ['kecamatan', 'Kecamatan'],
+  ['kota', 'Kota'], ['provinsi', 'Provinsi'], ['kodePos', 'Kode pos'], ['email', 'Email'], ['npwp', 'NPWP / Tax ID']
+];
+const SPB_STATUS_TAMPIL = { terisi: ['✓ Terisi', '#1f8f4e'], tersamar: ['＊ Disamarkan', '#b7791f'], gambar: ['🖼 Gambar', '#2b6cb0'], kosong: ['– Kosong', '#888'] };
+function spbChip_(st) { const s = SPB_STATUS_TAMPIL[st] || SPB_STATUS_TAMPIL.kosong; return `<span style="font-size:10.5px; font-weight:600; color:${s[1]}; white-space:nowrap;">${s[0]}</span>`; }
+function spbSel_(f) {
+  if (!f) return spbChip_('kosong');
+  if (f.status === 'gambar' && f.nilai) {
+    const src = /^data:image\//.test(f.nilai) ? f.nilai : 'data:image/png;base64,' + f.nilai.replace(/\s+/g, '');
+    return spbChip_('gambar') + `<div><img src="${pgrAttr(src)}" alt="" style="max-width:180px; max-height:60px; display:block; margin-top:3px; background:#fff;"></div>`;
+  }
+  return spbChip_(f.status) + (f.nilai ? `<div style="font-size:11.5px; word-break:break-word; margin-top:2px;">${omxEsc(String(f.nilai).slice(0, 300))}</div>` : '');
+}
+function spbNamaApiPendek_(api) { return String(api || '').replace(/^v2\./, ''); }
+function spbHtmlLaporan_(r) {
+  const bagian = (r.laporan || []).map(b => {
+    const sumber = b.sumber || [];
+    const kepala = sumber.map(s => `<th style="text-align:left; padding:5px 6px; font-size:11px; min-width:150px;">${omxEsc(spbNamaApiPendek_(s.api))}<div style="font-weight:400; font-size:10.5px; color:${s.ok ? '#1f8f4e' : '#c53030'};">${s.ok ? 'berhasil' : 'gagal: ' + omxEsc((s.error + ' ' + s.pesan).trim().slice(0, 120))}</div>${s.faktur ? `<div style="font-weight:400; font-size:10.5px; color:var(--web-text-dim);">faktur diminta pembeli: ${s.faktur.diminta === true ? 'ya' : s.faktur.diminta === false ? 'tidak' : '?'}</div>` : ''}</th>`).join('');
+    const baris = SPB_FIELD_LABEL.map(([k, label]) => `<tr><td style="padding:5px 6px; font-size:11.5px; font-weight:600; white-space:nowrap;">${label}</td>${sumber.map(s => `<td style="padding:5px 6px; vertical-align:top;">${s.field ? spbSel_(s.field[k]) : '<span style="font-size:10.5px; color:#888;">–</span>'}</td>`).join('')}</tr>`).join('');
+    const akhir = b.akhir || {};
+    const ringkas = SPB_FIELD_LABEL.filter(([k]) => akhir[k]).map(([k, label]) => `${label}${akhir[k].penagihan ? ' (penagihan)' : ''}: <b>${omxEsc(akhir[k].nilai)}</b> <span style="color:var(--web-text-dim);">← ${omxEsc(spbNamaApiPendek_(akhir[k].api))}</span>`).join('<br>');
+    const mentah = sumber.map(s => `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:11px;">Jawaban mentah ${omxEsc(spbNamaApiPendek_(s.api))}${s.varian ? ' · ' + omxEsc(String(s.varian).slice(0, 60)) : ''}</summary><pre style="white-space:pre-wrap; word-break:break-all; font-size:10.5px; max-height:220px; overflow:auto; background:var(--web-surface-2, rgba(0,0,0,0.04)); padding:6px; border-radius:6px;">${omxEsc(s.mentah || '(kosong)')}</pre></details>`).join('');
+    return `<div style="border:1px solid var(--web-border); border-radius:10px; padding:10px; margin-bottom:12px;">
+      <div style="font-size:12.5px; font-weight:700;">No Pesanan ${omxEsc(b.sn)} <span style="font-weight:400; color:var(--web-text-dim);">· status ${omxEsc(b.status || 'tidak ditemukan')}</span></div>
+      <div style="font-size:11.5px; margin:4px 0 8px;">Username: ${b.username ? `<b>${omxEsc(b.username)}</b> ${spbChip_(b.usernameStatus)}` : spbChip_('kosong')} · Buyer ID: ${omxEsc(b.buyerId || '-')}</div>
+      <div style="overflow-x:auto;"><table style="border-collapse:collapse; width:100%;"><thead><tr><th style="text-align:left; padding:5px 6px; font-size:11px;">Field</th>${kepala}</tr></thead><tbody>${baris}</tbody></table></div>
+      <div style="font-size:11.5px; margin-top:8px; line-height:1.55;"><b>Yang berhasil didapat:</b><br>${ringkas || '<span style="color:#c53030;">Tidak ada data kontak yang terbuka dari API mana pun untuk pesanan ini.</span>'}</div>
+      ${mentah}
+    </div>`;
+  }).join('');
+  const info = `<div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:10px; line-height:1.5;">Setiap API Shopee yang diizinkan untuk aplikasi dipanggil langsung. <b>Disamarkan</b> = Shopee mengirim tanda bintang (****). Hasil yang terisi otomatis disimpan di sheet <b>Pembeli Shopee Lengkap</b>${r.tersimpan ? ' (' + r.tersimpan + ' pesanan diperbarui)' : ''}.${r.varianDokumen ? ' Bentuk permintaan dokumen pengiriman yang berhasil: ' + omxEsc(r.varianDokumen) + '.' : ''}</div>`;
+  const label = (r.labelHasil && r.labelHasil.length) || r.labelPdf ? `<div style="border:1px solid var(--web-border); border-radius:10px; padding:10px;"><b style="font-size:12px;">Teks label resmi Shopee</b>
+      <div style="font-size:11px; color:var(--web-text-dim);">${(r.labelHasil || []).map(h => omxEsc((h.no || '') + ': ' + (h.ok ? 'label didapat' : (h.pesan || 'gagal')))).join('<br>')}</div>
+      <pre id="spb-label-teks" style="white-space:pre-wrap; font-size:11px; max-height:260px; overflow:auto; margin-top:6px;">${r.labelPdf ? 'Membaca teks label...' : ''}</pre></div>` : '';
+  return info + bagian + label;
+}
+let spbPdfJsJanji_ = null;
+function spbMuatPdfJs_() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (spbPdfJsJanji_) return spbPdfJsJanji_;
+  spbPdfJsJanji_ = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => { try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(window.pdfjsLib); } catch (e) { rej(e); } };
+    s.onerror = () => { spbPdfJsJanji_ = null; rej(new Error('pdf.js gagal dimuat')); };
+    document.head.appendChild(s);
+  });
+  return spbPdfJsJanji_;
+}
+async function spbBacaTeksLabel_(b64) {
+  const lib = await spbMuatPdfJs_();
+  const bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const doc = await lib.getDocument({ data: arr }).promise;
+  const hasil = [];
+  for (let p = 1; p <= Math.min(doc.numPages, 6); p++) {
+    const isi = await (await doc.getPage(p)).getTextContent();
+    let baris = [], yLama = null, teks = '';
+    isi.items.forEach(it => { const y = Math.round(it.transform[5]); if (yLama !== null && Math.abs(y - yLama) > 2) { baris.push(teks.trim()); teks = ''; } teks += it.str + ' '; yLama = y; });
+    if (teks.trim()) baris.push(teks.trim());
+    hasil.push('--- Halaman ' + p + ' ---\n' + baris.filter(Boolean).join('\n'));
+  }
+  return hasil.join('\n\n') || '(PDF tidak berisi teks - label berupa gambar)';
+}
+async function spbUjiBuka(noPesanan) {
+  if (!omxApakahOwner_()) { omniNotif('Uji sumber data pembeli khusus Owner.'); return; }
+  const daftar = noPesanan ? [String(noPesanan).trim()] : [];
+  omxModal('🔬 Uji sumber data pembeli Shopee', `<div style="font-size:12px; color:var(--web-text-dim);">Memanggil semua API Shopee${daftar.length ? ' untuk pesanan ' + omxEsc(daftar[0]) : ' untuk contoh 1 pesanan per status'}... (bisa ±30-60 detik)</div>`, { lebar: true });
+  try {
+    const r = await postJson({ aksi: 'shopee_pembeli_uji', daftar, label: true, email: currentUserEmail() }, 150000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menguji');
+    const isi = document.querySelector('#omx-modal .omx-modal-isi');
+    if (!isi) return;
+    isi.innerHTML = spbHtmlLaporan_(r);
+    if (r.labelPdf) {
+      try { const t = await spbBacaTeksLabel_(r.labelPdf); const pre = el('spb-label-teks'); if (pre) pre.textContent = t; }
+      catch (eP) { const pre = el('spb-label-teks'); if (pre) pre.textContent = 'Teks label tidak bisa dibaca: ' + (eP.message || eP); }
+    }
+  } catch (err) {
+    const isi = document.querySelector('#omx-modal .omx-modal-isi');
+    if (isi) isi.innerHTML = `<div class="status-text err">${omxEsc(err.message || String(err))}</div>`;
+  }
+}
+(function () {
+  // Tombol Owner di toolbar Shopee & di jendela Input Data Pembeli
+  function pasang() {
+    if (!omxApakahOwner_()) return;
+    const btnSync = el('wp-shopee-sync-btn');
+    if (btnSync && !el('spb-uji-btn')) {
+      const b = document.createElement('button');
+      b.id = 'spb-uji-btn'; b.className = 'web-btn-secondary'; b.style.fontSize = '12px';
+      b.textContent = '🔬 Uji sumber data pembeli';
+      b.title = 'Khusus Owner: cek API Shopee mana yang memberi username, nama, HP, alamat pengiriman & penagihan';
+      b.onclick = () => spbUjiBuka('');
+      btnSync.parentNode.insertBefore(b, btnSync);
+    }
+    const st = el('wp-shopee-modal-status');
+    if (st && !el('spb-uji-btn-modal')) {
+      const b2 = document.createElement('button');
+      b2.id = 'spb-uji-btn-modal'; b2.className = 'web-btn-secondary'; b2.style.cssText = 'width:100%; margin-top:6px; font-size:12px;';
+      b2.textContent = '🔬 Cek semua sumber Shopee (Owner)';
+      b2.onclick = () => spbUjiBuka(String(el('wp-shopee-modal-nopesanan').textContent || '').trim());
+      st.parentNode.insertBefore(b2, st);
+    }
+  }
+  try { pasang(); } catch (e) { }
+  setInterval(() => { try { pasang(); } catch (e) { } }, 4000);
+  // Status jendela: tampilkan data penagihan & sumber data dari hasil tarik
+  if (typeof wpTarikPembeliShopee === 'function') {
+    const asli = wpTarikPembeliShopee;
+    wpTarikPembeliShopee = async function (daftarNo) {
+      const hasil = await asli.apply(this, arguments);
+      try {
+        if (daftarNo && daftarNo.length === 1) {
+          const h = hasil[String(daftarNo[0])];
+          if (h) setTimeout(() => {
+            const st = el('wp-shopee-modal-status');
+            if (!st || el('wp-shopee-modal').style.display === 'none') return;
+            const tambah = [];
+            const nmSumber = s => String(s || '').replace(/^get_/, '').replace(/_/g, ' ');
+            if (h.sumber) { const s = ['nama', 'hp', 'alamat'].filter(f => h.sumber[f] && h.sumber[f] !== 'get_order_detail').map(f => f + ' dari ' + nmSumber(h.sumber[f])); if (s.length) tambah.push(s.join(', ')); }
+            if (h.namaPenagihan || h.alamatPenagihan) tambah.push('Penagihan (faktur): ' + [h.namaPenagihan, h.hpPenagihan, h.emailPenagihan, h.alamatPenagihan, h.npwp ? 'NPWP ' + h.npwp : ''].filter(Boolean).join(' · '));
+            if (tambah.length) st.textContent = (st.textContent ? st.textContent + ' ' : '') + '[' + tambah.join(' | ') + ']';
+          }, 0);
+        }
+      } catch (e) { }
+      return hasil;
+    };
+  }
 })();
 </script>
 </body>
