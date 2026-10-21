@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.40-b';
+  var VERSI = 'v2026.10.42';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -65380,6 +65380,7 @@ async function spbUjiBuka(noPesanan) {
     const isi = document.querySelector('#omx-modal .omx-modal-isi');
     if (!isi) return;
     isi.innerHTML = spbHtmlLaporan_(r);
+    try { if (typeof spbOcrUjiTampil_ === 'function') spbOcrUjiTampil_(r, isi); } catch (eU) { }
     if (r.labelPdf) {
       try { const t = await spbBacaTeksLabel_(r.labelPdf); const pre = el('spb-label-teks'); if (pre) pre.textContent = t; }
       catch (eP) { const pre = el('spb-label-teks'); if (pre) pre.textContent = 'Teks label tidak bisa dibaca: ' + (eP.message || eP); }
@@ -65418,6 +65419,8 @@ async function spbUjiBuka(noPesanan) {
     const asli = wpTarikPembeliShopee;
     wpTarikPembeliShopee = async function (daftarNo) {
       const hasil = await asli.apply(this, arguments);
+      // v2026.10.42: gambar data penerima dari Shopee dibaca OCR gratis di browser (Tesseract.js) sebelum form diisi
+      try { if (typeof spbOcrIsiHasil_ === 'function') await spbOcrIsiHasil_(hasil); } catch (eO) { console.warn('OCR pembeli:', eO); }
       try {
         if (daftarNo && daftarNo.length === 1) {
           const h = hasil[String(daftarNo[0])];
@@ -65436,6 +65439,180 @@ async function spbUjiBuka(noPesanan) {
     };
   }
 })();
+</script>
+<script>
+/* =====================================================================================
+   PAKET 24d (v2026.10.42) - OCR GRATIS DI BROWSER untuk gambar data penerima Shopee (tanpa AI)
+   Shopee mengirim nama / HP / alamat / kecamatan / kota / provinsi / kode pos sebagai gambar teks murni
+   (PNG hitam di latar transparan). Dibaca Tesseract.js 5.1.1 (open source, gratis, jalan di browser; bahasa eng,
+   ±10 MB sekali unduh lalu tersimpan di cache browser). Latar diisi putih + diperbesar 2x; HP & kode pos hanya angka.
+   - Tarik data pembeli (jendela / massal): gambar langsung dibaca lalu form terisi; hasil dikirim ke server (spb_ocr_simpan).
+   - Antrean latar: browser admin/Owner yang membuka web (layar >= 900 px atau Owner) mengambil antrean server
+     (spb_ocr_antrean, 6 per kali, tiap 2 menit saat tab aktif), membaca, mengirim hasil.
+   - Jendela Uji: kotak "Hasil OCR gratis (browser)".
+   ===================================================================================== */
+const SPB_OCR = { lib: null, worker: null, janji: null, antrean: 0, berhenti: false, terakhir: 0 };
+const SPB_OCR_URUT = ['nama', 'hp', 'alamat', 'kelurahan', 'kecamatan', 'kota', 'provinsi', 'kodePos'];
+function spbOcrMuatLib_() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  return new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    sc.onload = () => window.Tesseract ? res(window.Tesseract) : rej(new Error('Tesseract tidak termuat'));
+    sc.onerror = () => rej(new Error('Pustaka OCR (tesseract.js) gagal dimuat - cek koneksi'));
+    document.head.appendChild(sc);
+  });
+}
+function spbOcrWorker_() {
+  if (SPB_OCR.worker) return Promise.resolve(SPB_OCR.worker);
+  if (SPB_OCR.janji) return SPB_OCR.janji;
+  SPB_OCR.janji = (async () => {
+    const T = await spbOcrMuatLib_();
+    const w = await T.createWorker('eng', 1, { logger: () => { } });
+    SPB_OCR.worker = w;
+    return w;
+  })().catch(e => { SPB_OCR.janji = null; throw e; });
+  return SPB_OCR.janji;
+}
+function spbOcrKanvas_(dataUrl) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = 2, c = document.createElement('canvas');
+      c.width = Math.max(1, img.naturalWidth * k); c.height = Math.max(1, img.naturalHeight * k);
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); // latar transparan -> putih (wajib untuk Tesseract)
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      g.drawImage(img, 0, 0, c.width, c.height);
+      res(c);
+    };
+    img.onerror = () => rej(new Error('gambar rusak'));
+    img.src = /^data:image\//.test(dataUrl) ? dataUrl : 'data:image/png;base64,' + String(dataUrl || '').replace(/\s+/g, '');
+  });
+}
+// Alamat yang terpotong di tengah kata ("Cengk\nareng", "JAK\nARTA") digabung; kata acuan dari kecamatan/kota/provinsi
+function spbOcrGabungBaris_(teks, acuan) {
+  const baris = String(teks || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+  const kamus = new Set(String(acuan || '').toUpperCase().split(/[^A-Z0-9]+/).filter(x => x.length >= 4));
+  let hasil = '';
+  baris.forEach(b => {
+    if (!hasil) { hasil = b; return; }
+    const akhir = (hasil.match(/([A-Za-z]+)$/) || [])[1] || '', awal = (b.match(/^([A-Za-z]+)/) || [])[1] || '';
+    let sambung = false;
+    if (akhir && awal) {
+      if (/^[a-z]/.test(awal) && !/[.,]$/.test(hasil)) sambung = true;
+      else if (kamus.has((akhir + awal).toUpperCase()) && !kamus.has(akhir.toUpperCase())) sambung = true;
+    }
+    hasil += (sambung ? '' : ' ') + b;
+  });
+  return hasil.replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').trim();
+}
+async function spbOcrBacaGambar_(gambar) {
+  const w = await spbOcrWorker_();
+  const mentah = {}, data = {}, yakin = {};
+  for (const f of SPB_OCR_URUT) {
+    if (!gambar || !gambar[f]) continue;
+    const angka = f === 'hp' || f === 'kodePos';
+    await w.setParameters({ tessedit_pageseg_mode: f === 'alamat' ? '6' : '7', tessedit_char_whitelist: angka ? '0123456789+' : '', preserve_interword_spaces: '1' });
+    const kanvas = await spbOcrKanvas_(gambar[f]);
+    const r = await w.recognize(kanvas);
+    mentah[f] = String(r.data.text || '').trim(); yakin[f] = Math.round(r.data.confidence || 0);
+  }
+  const acuan = [mentah.kecamatan, mentah.kota, mentah.provinsi, mentah.kelurahan].join(' ');
+  for (const f of Object.keys(mentah)) {
+    if (yakin[f] < 55) continue; // tidak yakin -> biarkan kosong (diisi manual)
+    let v = f === 'alamat' ? spbOcrGabungBaris_(mentah[f], acuan) : mentah[f].replace(/\s*\n\s*/g, ' ').trim();
+    if (f === 'hp') { v = v.replace(/[^\d+]/g, ''); const n = v.replace(/\D/g, '').length; if (n < 8 || n > 15) continue; }
+    if (f === 'kodePos') { v = v.replace(/\D/g, ''); if (!/^\d{5}$/.test(v)) continue; }
+    if (v && !/\*{2,}/.test(v)) data[f] = v;
+  }
+  return { data, mentah, yakin };
+}
+function spbOcrRakitAlamat_(d) {
+  let a = d.alamat || '';
+  if (!a) return '';
+  const low = a.toLowerCase();
+  const tambah = [d.kecamatan, d.kota, d.provinsi].filter(x => x && low.indexOf(String(x).toLowerCase()) < 0);
+  if (tambah.length) a += ', ' + tambah.join(', ');
+  if (d.kodePos && a.indexOf(d.kodePos) < 0) a += ' ' + d.kodePos;
+  return a;
+}
+async function spbOcrKirim_(hasil) {
+  if (!hasil.length) return null;
+  try { return await postJson({ aksi: 'spb_ocr_simpan', hasil, email: currentUserEmail() }, 45000, true); } catch (e) { return null; }
+}
+// Dipanggil wpTarikPembeliShopee: isi h.nama/hp/alamat dari gambar
+async function spbOcrIsiHasil_(peta) {
+  const kirim = [];
+  for (const sn of Object.keys(peta || {})) {
+    const h = peta[sn];
+    if (!h || !h.gambar || !Object.keys(h.gambar).length) continue;
+    if (h.nama && h.hp && h.alamat) continue;
+    try {
+      const o = await spbOcrBacaGambar_(h.gambar);
+      const d = o.data;
+      if (!(d.nama || d.hp || d.alamat)) { kirim.push({ sn, gagal: true, catatan: 'OCR tidak yakin' }); continue; }
+      h.sumber = h.sumber || {};
+      if (!h.nama && d.nama) { h.nama = d.nama; h.sumber.nama = 'dokumen kirim (OCR browser)'; }
+      if (!h.hp && d.hp) { h.hp = d.hp; h.sumber.hp = 'dokumen kirim (OCR browser)'; }
+      if (!h.alamat && d.alamat) { h.alamat = spbOcrRakitAlamat_(d); h.sumber.alamat = 'dokumen kirim (OCR browser)'; }
+      h.tersamar = !(h.nama || h.hp || h.alamat);
+      kirim.push({ sn, data: d });
+    } catch (e) { console.warn('OCR', sn, e); break; } // pustaka gagal dimuat -> berhenti
+  }
+  if (kirim.length) spbOcrKirim_(kirim);
+}
+// Antrean latar
+async function spbOcrAntreanJalan_() {
+  if (SPB_OCR.berhenti || SPB_OCR.antrean || document.hidden) return;
+  try { if (!currentUserEmail()) return; } catch (e) { return; }
+  if (!(omxApakahOwner_() || window.innerWidth >= 900)) return;
+  if (Date.now() - SPB_OCR.terakhir < 110000) return;
+  SPB_OCR.antrean = 1; SPB_OCR.terakhir = Date.now();
+  try {
+    const r = await postJson({ aksi: 'spb_ocr_antrean', maks: 6, email: currentUserEmail() }, 30000, true);
+    if (!r || !r.success) { if (r && /izin/i.test(r.error || '')) SPB_OCR.berhenti = true; return; }
+    if (!r.daftar || !r.daftar.length) return;
+    const hasil = [];
+    for (const it of r.daftar) {
+      try {
+        const o = await spbOcrBacaGambar_(it.gambar);
+        if (o.data.nama || o.data.hp || o.data.alamat) hasil.push({ sn: it.sn, data: o.data });
+        else hasil.push({ sn: it.sn, gagal: true, catatan: 'OCR tidak yakin (' + Object.keys(o.yakin).map(k => k + ' ' + o.yakin[k] + '%').join(', ') + ')' });
+      } catch (e) { SPB_OCR.terakhir = Date.now() + 600000; break; }
+    }
+    await spbOcrKirim_(hasil);
+    if (r.sisa) SPB_OCR.terakhir = 0; // masih ada -> lanjut di detak berikutnya
+  } catch (e) { } finally { SPB_OCR.antrean = 0; }
+}
+setTimeout(() => { spbOcrAntreanJalan_(); setInterval(spbOcrAntreanJalan_, 20000); }, 25000);
+// Jendela Uji: baca gambar dokumen kirim & tampilkan
+async function spbOcrUjiTampil_(r, wadah) {
+  const kotak = document.createElement('div');
+  kotak.style.cssText = 'border:1px solid var(--web-border); border-radius:10px; padding:10px; margin-bottom:12px;';
+  kotak.innerHTML = '<b style="font-size:12px;">Hasil OCR gratis (browser, tanpa AI)</b><div id="spb-ocr-uji-isi" style="font-size:11.5px; margin-top:6px;">Menyiapkan OCR (pertama kali ±10 MB)...</div>';
+  wadah.insertBefore(kotak, wadah.firstChild.nextSibling);
+  const isi = kotak.querySelector('#spb-ocr-uji-isi'), kirim = [], html = [];
+  for (const b of (r.laporan || [])) {
+    const dok = (b.sumber || []).find(s => /shipping_document_data_info/.test(s.api));
+    const g = {};
+    if (dok && dok.field) SPB_OCR_URUT.forEach(f => { const x = dok.field[f]; if (x && x.status === 'gambar' && x.nilai) g[f] = x.nilai; });
+    if (!Object.keys(g).length) { html.push(`<div><b>${omxEsc(b.sn)}</b>: tidak ada gambar dari dokumen pengiriman${b.kilat ? ' (Pengiriman Kilat)' : ''}.</div>`); continue; }
+    try {
+      const o = await spbOcrBacaGambar_(g);
+      html.push(`<div style="margin-bottom:6px;"><b>${omxEsc(b.sn)}</b><br>` + SPB_OCR_URUT.filter(f => o.mentah[f] !== undefined).map(f =>
+        `${f}: <b>${omxEsc(o.data[f] || '')}</b>${o.data[f] ? '' : ' <span style="color:#c53030;">(ditolak)</span>'} <span style="color:var(--web-text-dim);">· yakin ${o.yakin[f]}% · mentah "${omxEsc(o.mentah[f].replace(/\n/g, ' / '))}"</span>`).join('<br>') +
+        (o.data.alamat ? `<br>Alamat lengkap: <b>${omxEsc(spbOcrRakitAlamat_(o.data))}</b>` : '') + '</div>');
+      if (o.data.nama || o.data.hp || o.data.alamat) kirim.push({ sn: b.sn, data: o.data });
+    } catch (e) { html.push(`<div class="status-text err">${omxEsc(b.sn)}: ${omxEsc(e.message || String(e))}</div>`); break; }
+    isi.innerHTML = html.join('');
+  }
+  isi.innerHTML = html.join('') || 'Tidak ada gambar untuk dibaca.';
+  if (kirim.length) {
+    const s = await spbOcrKirim_(kirim);
+    if (s && s.success) isi.insertAdjacentHTML('beforeend', `<div style="color:#1f8f4e; margin-top:4px;">Tersimpan: ${s.terbaca} pesanan · kolom pesanan terisi: ${s.pesananTerisi}</div>`);
+  }
+}
 </script>
 </body>
 </html>
