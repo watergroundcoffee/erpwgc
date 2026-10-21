@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.48';
+  var VERSI = 'v2026.10.49';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -22956,7 +22956,13 @@ function rt2RenderDetail(noResi) {
         <div class="rt2-drop-zona" tabindex="0" aria-label="Area unggah foto atau video unboxing ${k}">
           <span class="rt2-drop-ikon" aria-hidden="true">⬆</span>
           <div><b>Tarik &amp; lepas foto / video ke sini</b><small>Dari WhatsApp, browser, atau folder · bisa juga klik area ini lalu Ctrl+V · upload berjalan di latar, boleh lanjut kerja</small></div>
-          <label class="rt2-drop-btn">Pilih file<input type="file" accept="image/*,video/*" multiple hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" /></label>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button type="button" class="rt2-drop-btn" onclick="event.stopPropagation(); rtcBuka_('${k}', 'foto')" title="Buka kamera - setelah dipotret langsung tersimpan">📷 Ambil foto</button>
+            <button type="button" class="rt2-drop-btn" onclick="event.stopPropagation(); rtcBuka_('${k}', 'video')" title="Rekam video - setelah selesai langsung tersimpan (dikompres otomatis)">🎥 Rekam video</button>
+            <label class="rt2-drop-btn" onclick="event.stopPropagation()">Pilih file<input type="file" accept="image/*,video/*" multiple hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" /></label>
+          </div>
+          <input type="file" id="rtc-in-foto-${k}" accept="image/*" capture="environment" hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" />
+          <input type="file" id="rtc-in-video-${k}" accept="video/*" capture="environment" hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" />
         </div>
       </div>
       ${typeof p10KlaimHtml === 'function' ? p10KlaimHtml(noResi, det, d) : ''}
@@ -62174,9 +62180,8 @@ function p10MediaAlatHtml(noResi, det) {
   const k = pgrAttr(noResi);
   const lama = (det.foto || []).concat(det.video || []).filter(m => m && m.id && !p10DiStorage(m));
   const gagal = lama.filter(m => m.salinGagal).length;
-  return `<div class="p10-alat">
-    <label title="Buka kamera HP untuk memotret">📷 Ambil foto<input type="file" accept="image/*" capture="environment" hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" /></label>
-    <label title="Rekam video lalu dikompres otomatis sebelum diunggah">🎥 Rekam video<input type="file" accept="video/*" capture="environment" hidden onchange="rt2UnggahFiles('${k}', this.files); this.value='';" /></label>
+  // v2026.10.49 (DN-261021-151816-774): tombol Ambil foto / Rekam video pindah ke dalam kotak putus-putus (rt2-drop-zona)
+  return `<div class="p10-alat"${lama.length || gagal ? '' : ' style="display:none;"'}>
     ${lama.length ? `<button type="button" onclick="p10SalinDrive('${k}', this)" title="Salin file Google Drive lama ke Supabase supaya bisa dilihat, diunduh & disalin">⇪ Salin ${lama.length} file Drive ke Supabase</button>` : ''}
     ${gagal ? `<span class="p10-gagal">${gagal} file belum bisa disalin (cek di Drive apakah dibagikan "Siapa saja yang memiliki link")</span>` : ''}
   </div>`;
@@ -66245,18 +66250,35 @@ async function ipmMulai_() {
    status penarikan otomatis data pembeli Shopee (DN-606)
    ===================================================================================== */
 const PM_DOK_MULAI_MS = Date.UTC(2026, 9, 20, 17, 0, 0); // 21 Okt 2026 00:00 WIB - pesanan sebelum ini dianggap lengkap
+// v2026.10.49 (DN-261021-153730-478): tanpa kapsul & tanpa istilah "Lama" - nama dokumen buram bila belum ada,
+// terang (bisa diklik untuk dilihat) bila sudah dilampirkan.
 function dokChipHtml_(it, kel) {
   if (kel === 'batal') return '<span style="font-size:11px; color:var(--web-text-dim);">—</span>';
-  const lama = (it.tanggalMs || 0) && it.tanggalMs < PM_DOK_MULAI_MS;
-  const chip = (ok, ikon, label, judul) => `<span title="${pgrAttr(judul)}" style="display:inline-flex; align-items:center; gap:3px; font-size:11px; padding:2px 7px; border-radius:999px; margin:1px 3px 1px 0; white-space:nowrap;
-    background:${ok ? 'rgba(31,143,78,.12)' : 'rgba(197,48,48,.08)'}; color:${ok ? '#1f8f4e' : '#c53030'};">${ok ? '✓' : '○'} ${ikon} ${label}</span>`;
-  if (lama) return chip(true, '📁', 'Lama', 'Pesanan sebelum 21 Okt 2026 - dianggap lengkap tanpa dokumen');
   const kirimOk = !!((it.noResi && it.noResi !== '-') || it.kurirToko);
   const b = it.bayarDiterima;
-  const tunai = b && /Metode:\s*Tunai/i.test(b.catatan || '');
-  const judulBayar = b ? `Lunas · ${b.waktu || ''} · dikonfirmasi ${b.oleh || ''}${tunai ? ' · tunai diterima ' + (b.diterimaOleh || '') : (b.bukti ? ' · ada bukti' : '')}` : 'Belum ada bukti pembayaran';
-  return chip(kirimOk, '🚚', it.kurirToko ? 'Kurir' : 'Resi', kirimOk ? (it.kurirToko ? 'Diantar kurir toko: ' + (it.kurirToko.oleh || '') : 'Resi ' + it.noResi) : 'Belum ada resi / bukti kurir toko') +
-    chip(!!b, tunai ? '💵' : '💳', 'Bayar', judulBayar);
+  const no = pgrAttr(it.noInvoice);
+  const item = (ok, label, jenis, judul) => ok
+    ? `<a href="javascript:void(0)" class="dok-ada" onclick="dokLihat_('${no}','${jenis}')" title="${pgrAttr(judul)} - klik untuk melihat" style="font-size:12px; font-weight:600; color:var(--web-text); text-decoration:underline dotted; margin-right:8px; white-space:nowrap;">${label}</a>`
+    : `<span class="dok-kurang" title="${pgrAttr(judul)}" style="font-size:12px; color:var(--web-text-dim); opacity:.38; margin-right:8px; white-space:nowrap;">${label}</span>`;
+  return item(kirimOk, it.kurirToko ? 'Bukti Antar' : 'Resi', 'kirim', kirimOk ? 'Dokumen pengiriman sudah ada' : 'Belum ada resi / bukti kurir toko') +
+    item(!!b, 'Bukti Bayar', 'bayar', b ? 'Pembayaran sudah dikonfirmasi' : 'Belum ada bukti pembayaran');
+}
+function dokLihat_(noInvoice, jenis) {
+  const it = (wpListCache || []).find(x => x.noInvoice === noInvoice); if (!it) return;
+  const gambar = url => url ? (/\.pdf($|\?)/i.test(url) ? `<a href="${pgrAttr(url)}" target="_blank" rel="noopener">📄 Buka PDF bukti</a>`
+    : `<a href="${pgrAttr(url)}" target="_blank" rel="noopener"><img src="${pgrAttr(url)}" alt="Bukti" style="max-width:100%; max-height:420px; border-radius:10px; border:1px solid var(--web-border); display:block; margin-top:8px;" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'🔗 Buka bukti di tab baru'}))"></a>`) : '';
+  const baris = (k, v) => v ? `<div style="display:flex; gap:10px; font-size:13px; margin:3px 0;"><span style="min-width:110px; color:var(--web-text-dim);">${k}</span><b>${escapeHtml(String(v))}</b></div>` : '';
+  let isi = '';
+  if (jenis === 'kirim') {
+    if (it.kurirToko) isi = baris('Diantar oleh', it.kurirToko.oleh) + baris('Waktu', it.kurirToko.waktu) + baris('Diterima oleh', it.kurirToko.diterimaOleh) + baris('Catatan', it.kurirToko.catatan) + gambar(it.kurirToko.bukti);
+    else isi = baris('No Resi', it.noResi) + baris('Kurir', it.kurir) + baris('Penerima', it.namaPenerima) + baris('Status', it.status);
+  } else {
+    const b = it.bayarDiterima || {};
+    const metode = (/Metode:\s*([^|]+)/.exec(b.catatan || '') || [])[1];
+    isi = baris('Metode', metode ? metode.trim() : (b.bukti ? 'Transfer' : '')) + baris('Diterima oleh', b.diterimaOleh) + baris('Dikonfirmasi', b.oleh) + baris('Waktu', b.waktu) +
+      baris('Total', it.total ? 'Rp ' + Number(it.total).toLocaleString('id-ID') : '') + (b.bukti ? gambar(b.bukti) : '<div style="font-size:12px; color:var(--web-text-dim); margin-top:6px;">Tanpa foto bukti.</div>');
+  }
+  omxModal((jenis === 'kirim' ? '🚚 ' : '💳 ') + (jenis === 'kirim' ? (it.kurirToko ? 'Bukti antar' : 'Resi') : 'Bukti bayar') + ' · ' + noInvoice, isi || 'Tidak ada data.', {});
 }
 async function pmHidupkan_(row, noInvoice) {
   if (!(await omniKonfirm_(`Hidupkan lagi pesanan ${noInvoice || ''}?\nStatus kembali "Belum Dikirim". Jejak pembatalan tetap tercatat.`))) return;
@@ -66309,6 +66331,77 @@ async function spbTampilStatus_() {
     : '🤖 Penarikan otomatis menunggu Shopee terhubung (Pengaturan).';
 }
 setInterval(() => { try { spbTampilStatus_(); } catch (e) { } }, 3000);
+</script>
+<script>
+/* =====================================================================================
+   PAKET 31 (v2026.10.49) - DN-774: kamera foto / video unboxing langsung dari kotak unggah Resi Masuk.
+   HP (layar sentuh): membuka kamera bawaan (input capture) - hasil langsung diunggah.
+   Laptop/PC: jendela kamera (getUserMedia). Foto: 1 klik "Jepret" -> jendela tertutup & foto langsung diunggah.
+   Video: mulai otomatis, klik "Selesai" -> jendela tertutup & video diunggah (dikompres otomatis oleh rt2UnggahFiles).
+   Tanpa kamera / izin ditolak -> pilih file biasa.
+   ===================================================================================== */
+const RTC = { stream: null, rec: null, potong: [], noResi: '', jenis: '' };
+function rtcHp_() { try { return matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent); } catch (e) { return false; } }
+function rtcTutup_() {
+  try { if (RTC.rec && RTC.rec.state !== 'inactive') { RTC.rec.onstop = null; RTC.rec.stop(); } } catch (e) { }
+  try { if (RTC.stream) RTC.stream.getTracks().forEach(t => t.stop()); } catch (e) { }
+  RTC.stream = null; RTC.rec = null; RTC.potong = [];
+  const m = el('rtc-modal'); if (m) m.remove();
+}
+async function rtcBuka_(noResi, jenis) {
+  const cadangan = () => { const inp = el(`rtc-in-${jenis}-${noResi}`); if (inp) inp.click(); };
+  if (rtcHp_() || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { cadangan(); return; }
+  rtcTutup_();
+  RTC.noResi = noResi; RTC.jenis = jenis;
+  const m = document.createElement('div');
+  m.id = 'rtc-modal';
+  m.style.cssText = 'position:fixed; inset:0; z-index:10034; background:rgba(15,23,42,.72); display:flex; align-items:center; justify-content:center; padding:16px;';
+  m.innerHTML = `<div style="background:var(--web-panel,#fff); border-radius:14px; padding:12px; width:min(640px,100%); box-shadow:0 18px 48px rgba(0,0,0,.35);">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px;"><b>${jenis === 'foto' ? '📷 Ambil foto' : '🎥 Rekam video'} · ${escapeHtml(noResi)}</b><span id="rtc-info" style="color:var(--web-text-dim);"></span>
+      <button type="button" class="web-btn-secondary" style="margin-left:auto; font-size:12px;" onclick="rtcTutup_()">✕ Batal</button></div>
+    <video id="rtc-video" autoplay playsinline muted style="width:100%; border-radius:10px; background:#000; max-height:60vh;"></video>
+    <button type="button" class="web-btn-primary" id="rtc-aksi" style="width:100%; margin-top:10px;" disabled>Menyalakan kamera…</button></div>`;
+  document.body.appendChild(m);
+  try {
+    RTC.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: jenis === 'video' });
+  } catch (e) {
+    rtcTutup_(); pgrToast('Kamera tidak bisa dibuka (' + (e.name || e.message || e) + ') - pilih file saja.'); cadangan(); return;
+  }
+  const v = el('rtc-video'), btn = el('rtc-aksi');
+  if (!v || !btn) { rtcTutup_(); return; }
+  v.srcObject = RTC.stream;
+  if (jenis === 'foto') {
+    btn.disabled = false; btn.textContent = '📸 Jepret & simpan';
+    btn.onclick = () => {
+      const c = document.createElement('canvas'); c.width = v.videoWidth || 1280; c.height = v.videoHeight || 720;
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      c.toBlob(b => {
+        const nr = RTC.noResi; rtcTutup_();
+        if (!b) { pgrToast('Gagal mengambil foto'); return; }
+        const f = new File([b], `unboxing-${nr}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        rt2UnggahFiles(nr, [f]);
+      }, 'image/jpeg', 0.9);
+    };
+  } else {
+    const tipe = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || '';
+    try { RTC.rec = new MediaRecorder(RTC.stream, tipe ? { mimeType: tipe } : undefined); } catch (e) { rtcTutup_(); cadangan(); return; }
+    RTC.potong = [];
+    RTC.rec.ondataavailable = e => { if (e.data && e.data.size) RTC.potong.push(e.data); };
+    RTC.rec.onstop = () => {
+      const jt = (RTC.rec && RTC.rec.mimeType) || tipe || 'video/webm', nr = RTC.noResi, bag = RTC.potong.slice();
+      rtcTutup_();
+      const b = new Blob(bag, { type: jt.split(';')[0] });
+      if (b.size < 1000) { pgrToast('Video terlalu pendek / kosong'); return; }
+      rt2UnggahFiles(nr, [new File([b], `unboxing-${nr}-${Date.now()}.${/mp4/.test(jt) ? 'mp4' : 'webm'}`, { type: jt.split(';')[0] })]);
+    };
+    RTC.rec.start(1000);
+    const t0 = Date.now();
+    const info = el('rtc-info'); const jam = setInterval(() => { if (!el('rtc-modal')) { clearInterval(jam); return; } const d = Math.floor((Date.now() - t0) / 1000); if (info) info.textContent = `● merekam ${Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')}`; }, 500);
+    btn.disabled = false; btn.textContent = '⏹ Selesai & simpan';
+    btn.onclick = () => { btn.disabled = true; btn.textContent = 'Menyimpan…'; try { RTC.rec.stop(); } catch (e) { rtcTutup_(); } };
+  }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('rtc-modal')) rtcTutup_(); }, true);
 </script>
 </body>
 </html>
