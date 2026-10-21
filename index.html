@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.47';
+  var VERSI = 'v2026.10.48';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -10211,6 +10211,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
                 </div>
                 <div style="flex:1;"></div>
                 <button type="button" class="web-btn-secondary" id="wpm-btn-bersih" hidden onclick="wpmBersihkanBatal()" style="margin:0;"></button>
+                <button type="button" class="web-btn-secondary" onclick="ksBuka_()" style="margin:0;" title="Uang tunai dari pembeli yang dipegang staff & belum disetor ke perusahaan">💵 Kas Staff</button>
                 <button type="button" class="web-btn-secondary" onclick="ipmBuka()" style="margin:0;" title="Khusus Owner: impor penjualan manual lama dari file Excel yang sudah dirapikan">📥 Import Excel</button>
                 <button type="button" class="web-btn-secondary" onclick="exportKeExcel('pesanan', null)" style="margin:0;"><span class="oi oi-download" aria-hidden="true"></span> Export</button>
               </div>
@@ -10218,7 +10219,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               <span id="wp-list-judul" hidden></span>
               <div class="web-table-wrap">
                 <table class="web-table" style="font-size:12.5px;">
-                  <thead><tr><th>No Invoice</th><th>Tanggal</th><th>Penerima</th><th id="wp-th-total">Total</th><th>Status</th><th></th></tr></thead>
+                  <thead><tr><th>No Invoice</th><th>Tanggal</th><th>Penerima</th><th id="wp-th-total">Total</th><th>Status</th><th title="Kelengkapan dokumen: Resi / bukti kurir toko & bukti pembayaran">Dokumen</th><th></th></tr></thead>
                   <tbody id="wp-list-body"></tbody>
                 </table>
               </div>
@@ -10772,6 +10773,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
             <button class="web-btn-secondary" id="wp-btn-kirim-toggle" onclick="wpToggleInputResi()" style="display:none;"><span class="oi oi-truck" aria-hidden="true"></span> Input No Resi</button>
             <button class="web-btn-primary" id="wp-btn-kurir-toko" type="button" onclick="kftBukaDariWeb()" style="display:none;"><span class="oi oi-check" aria-hidden="true"></span> Konfirmasi Diterima</button>
             <button class="web-btn-secondary" id="wp-btn-bayar" type="button" onclick="byrBukaDariWeb()" style="display:none;" title="Konfirmasi bahwa uang dari pembeli sudah masuk"><span class="oi oi-check" aria-hidden="true"></span> Tandai Lunas</button>
+            <button class="web-btn-secondary" id="wp-btn-hidupkan" type="button" onclick="pmHidupkan_(wpCurrentDetailRow, (wpCurrentDetailOrder || {}).noInvoice)" style="display:none;" title="Pesanan ini dibatalkan - hidupkan lagi (kembali Belum Dikirim)">♻️ Hidupkan Lagi</button>
             <span id="wp-bayar-chip" class="omx-chip-ok" hidden></span>
             <button class="web-btn-danger" id="wp-btn-batal" onclick="wpToggleKonfirmasiBatal()" style="display:none;"><span class="oi oi-x" aria-hidden="true"></span> Batalkan</button>
           </div>
@@ -24686,6 +24688,7 @@ function wpRenderListRows() {
     const aksi = it._antre || proses ? '' : `
       <button type="button" class="wpm-aksi" onclick="wpmBukaDokumen('${pgrAttr(it.noInvoice)}')" title="Invoice & Label (Cetak / Simpan / Copy)">📄 Invoice</button>
       <button type="button" class="wpm-aksi" onmouseenter="wpPrefetchDetail(${it.row})" onmouseleave="wpBatalPrefetch()" onfocus="wpPrefetchDetail(${it.row})" onclick="wpBukaDetail(${it.row})">Lihat</button>
+      ${kel === 'batal' && (currentUser.izin || {}).batalPesanan || kel === 'batal' && currentUser.isOwner ? `<button type="button" class="wpm-aksi" onclick="pmHidupkan_(${it.row}, '${pgrAttr(it.noInvoice)}')" title="Hidupkan lagi pesanan ini (kembali Belum Dikirim)">♻️ Hidupkan</button>` : ''}
       ${kel === 'batal' ? (bolehHapus ? `<button type="button" class="wpm-aksi bahaya" onclick="wpmHapusPermanen('${pgrAttr(it.noInvoice)}')" title="Hapus permanen">🗑</button>` : '')
         : (wpBolehBatal(it) ? `<button type="button" class="wp-btn-batal-mini" title="Batalkan pesanan ${pgrAttr(it.noInvoice)}" aria-label="Batalkan pesanan ${pgrAttr(it.noInvoice)}" onclick="wpBatalCepat(${it.row})"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>` : '')}`;
     return `<tr class="${kel === 'batal' ? 'wpm-batal' : ''}">
@@ -24694,6 +24697,7 @@ function wpRenderListRows() {
       <td>${escapeHtml(it.namaPenerima || '')}${it.namaPembeli && it.namaPembeli !== it.namaPenerima ? `<div class="wpm-sub">Pembeli: ${escapeHtml(it.namaPembeli)}</div>` : ''}</td>
       ${wpBolehLihatHarga ? `<td style="white-space:nowrap; font-weight:600;">Rp ${Number(it.total || 0).toLocaleString('id-ID')}</td>` : ''}
       <td>${pill}</td>
+      <td>${typeof dokChipHtml_ === 'function' ? dokChipHtml_(it, kel) : ''}</td>
       <td class="wp-td-aksi"><div class="wpm-aksi-wrap">${aksi}</div></td>
     </tr>`;
   }).join('');
@@ -25672,6 +25676,7 @@ function wpRenderDetail_(o) {
   el('wp-btn-batal').style.display = (izin.batalPesanan && belumSelesai) ? 'inline-block' : 'none';
   ['wp-btn-cetak-invoice', 'wp-btn-kirim-toggle', 'wp-btn-edit-pesanan', 'wp-btn-batal'].forEach(id => { const b = el(id); if (b) b.disabled = !siap; });
   try { omxDetailAksiWeb_(o, izin, belumSelesai, siap); } catch (eOmx) { console.warn(eOmx); }
+  try { const bh = el('wp-btn-hidupkan'); if (bh) { bh.style.display = (o.status === 'Dibatalkan' && (izin.batalPesanan || currentUser.isOwner)) ? 'inline-block' : 'none'; bh.disabled = !siap; } } catch (eH) { }
 }
 async function wpBukaDetail(row) {
   wpTutupPoModal();
@@ -60771,7 +60776,13 @@ function byrBuka(k) {
   omxmModal(`<div class="omxm-kepala">Tandai Lunas (pembayaran sudah masuk)<small>${omxEsc(o.noInvoice)} · ${omxEsc(o.namaPembeli || o.namaPenerima || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
     <div class="omxm-isi">
       <div class="byr-ringkas"><span>Total tagihan</span><b>${o.total !== undefined ? omxRp(o.total) : '-'}</b><span>Dikonfirmasi oleh</span><b>${omxEsc(omxNamaStaff())}</b></div>
-      <label class="byr-file" for="byr-file" data-p13-drop="byr" tabindex="0"><span id="byr-file-pratinjau">📎</span><span><b>Bukti transfer (opsional)</b><br><small style="opacity:.7;">Foto / screenshot / PDF. Klik, tarik dari WhatsApp ke sini, atau Ctrl+V.</small></span></label>
+      <div style="display:flex; gap:14px; margin:10px 0 6px; font-size:13px;">
+        <label><input type="radio" name="byr-metode" value="Transfer" checked onchange="byrGantiMetode_()"> Transfer / QRIS</label>
+        <label><input type="radio" name="byr-metode" value="Tunai" onchange="byrGantiMetode_()"> Tunai</label>
+      </div>
+      <div id="byr-tunai" hidden style="margin-bottom:8px;"><label style="font-size:12.5px;">Uang tunai diterima oleh *<input id="byr-penerima" class="web-form-input" value="${pgrAttr(omxNamaStaff())}" style="width:100%; box-sizing:border-box; margin-top:3px;"></label>
+        <div style="font-size:11.5px; opacity:.75; margin-top:3px;">Masuk ke 💵 Kas Staff atas nama orang ini sampai disetor ke perusahaan.</div></div>
+      <label class="byr-file" for="byr-file" data-p13-drop="byr" tabindex="0"><span id="byr-file-pratinjau">📎</span><span><b id="byr-file-judul">Bukti transfer (wajib)</b><br><small style="opacity:.7;">Foto / screenshot / PDF. Klik, tarik dari WhatsApp ke sini, atau Ctrl+V.</small></span></label>
       <input type="file" id="byr-file" accept="image/*,application/pdf" hidden onchange="byrPilihFile(this)" />
       <div style="font-size:11.5px; opacity:.7; margin-top:10px;">Waktu konfirmasi dicatat otomatis saat tombol ditekan.</div>
     </div>
@@ -60790,11 +60801,21 @@ async function byrPilihFile(inp) {
     }
   } catch (e) { omxToast(e.message, 'error'); byr.fotoData = ''; }
 }
+function byrGantiMetode_() {
+  const m = (document.querySelector('input[name="byr-metode"]:checked') || {}).value || 'Transfer';
+  const t = el('byr-tunai'); if (t) t.hidden = m !== 'Tunai';
+  const j = el('byr-file-judul'); if (j) j.textContent = m === 'Tunai' ? 'Foto uang / nota (opsional)' : 'Bukti transfer (wajib)';
+}
 function byrKonfirmasi() {
   if (!byr) return;
   const k = byr, o = k.order, waktuKlikMs = Date.now();
+  // v2026.10.48 (DN-264): transfer wajib bukti; tunai wajib nama penerima uang (masuk Kas Staff)
+  const metode = (document.querySelector('input[name="byr-metode"]:checked') || {}).value || 'Transfer';
+  const diterimaOleh = el('byr-penerima') ? el('byr-penerima').value.trim() : '';
+  if (metode === 'Transfer' && !k.fotoData) { omxToast('Lampirkan bukti transfer dulu (foto / screenshot / PDF).', 'error'); return; }
+  if (metode === 'Tunai' && !diterimaOleh) { omxToast('Isi siapa yang menerima uang tunai.', 'error'); return; }
   omxModalTutup();
-  omxSimpanInstan({ aksi: 'konfirmasi_pembayaran', row: k.row, noInvoice: o.noInvoice, waktuKlikMs, base64: k.fotoData || '', mime: k.mime || '' }, {
+  omxSimpanInstan({ aksi: 'konfirmasi_pembayaran', row: k.row, noInvoice: o.noInvoice, waktuKlikMs, base64: k.fotoData || '', mime: k.mime || '', metode, diterimaOleh }, {
     label: 'Tandai Lunas · ' + o.noInvoice,
     optimis: () => { o.bayarDiterima = { waktu: omxJam(waktuKlikMs), oleh: omxNamaStaff(), bukti: '', _menyimpan: true }; k.render(); },
     berhasil: d => { o.bayarDiterima = d.bayarDiterima || Object.assign({}, o.bayarDiterima, { _menyimpan: false }); k.render(); if (k.onSelesai) k.onSelesai(); try { playBeep(); } catch (e) { } },
@@ -66217,6 +66238,77 @@ async function ipmMulai_() {
     try { if (typeof wpFetchList === 'function') wpFetchList(); } catch (e) { }
   } catch (e) { st.textContent = '✗ ' + (e.message || e) + ` (${hasil.simpan} nota sudah tersimpan - import ulang aman, nota yang sudah ada dilewati)`; st.className = 'status-text err'; btn.disabled = false; }
 }
+</script>
+<script>
+/* =====================================================================================
+   PAKET 30 (v2026.10.48) - Manual Order: ♻️ Hidupkan lagi (DN-398), kolom Dokumen + 💵 Kas Staff (DN-264),
+   status penarikan otomatis data pembeli Shopee (DN-606)
+   ===================================================================================== */
+const PM_DOK_MULAI_MS = Date.UTC(2026, 9, 20, 17, 0, 0); // 21 Okt 2026 00:00 WIB - pesanan sebelum ini dianggap lengkap
+function dokChipHtml_(it, kel) {
+  if (kel === 'batal') return '<span style="font-size:11px; color:var(--web-text-dim);">—</span>';
+  const lama = (it.tanggalMs || 0) && it.tanggalMs < PM_DOK_MULAI_MS;
+  const chip = (ok, ikon, label, judul) => `<span title="${pgrAttr(judul)}" style="display:inline-flex; align-items:center; gap:3px; font-size:11px; padding:2px 7px; border-radius:999px; margin:1px 3px 1px 0; white-space:nowrap;
+    background:${ok ? 'rgba(31,143,78,.12)' : 'rgba(197,48,48,.08)'}; color:${ok ? '#1f8f4e' : '#c53030'};">${ok ? '✓' : '○'} ${ikon} ${label}</span>`;
+  if (lama) return chip(true, '📁', 'Lama', 'Pesanan sebelum 21 Okt 2026 - dianggap lengkap tanpa dokumen');
+  const kirimOk = !!((it.noResi && it.noResi !== '-') || it.kurirToko);
+  const b = it.bayarDiterima;
+  const tunai = b && /Metode:\s*Tunai/i.test(b.catatan || '');
+  const judulBayar = b ? `Lunas · ${b.waktu || ''} · dikonfirmasi ${b.oleh || ''}${tunai ? ' · tunai diterima ' + (b.diterimaOleh || '') : (b.bukti ? ' · ada bukti' : '')}` : 'Belum ada bukti pembayaran';
+  return chip(kirimOk, '🚚', it.kurirToko ? 'Kurir' : 'Resi', kirimOk ? (it.kurirToko ? 'Diantar kurir toko: ' + (it.kurirToko.oleh || '') : 'Resi ' + it.noResi) : 'Belum ada resi / bukti kurir toko') +
+    chip(!!b, tunai ? '💵' : '💳', 'Bayar', judulBayar);
+}
+async function pmHidupkan_(row, noInvoice) {
+  if (!(await omniKonfirm_(`Hidupkan lagi pesanan ${noInvoice || ''}?\nStatus kembali "Belum Dikirim". Jejak pembatalan tetap tercatat.`))) return;
+  try {
+    const r = await postJsonTulis({ aksi: 'hidupkan_pesanan', row, noInvoice, email: currentUserEmail() }, 30000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    pgrToast('♻️ Pesanan ' + (noInvoice || '') + ' hidup lagi - status Belum Dikirim');
+    try { const x = (wpListCache || []).find(it => it.noInvoice === noInvoice); if (x) { x.status = ''; x.alasanBatal = ''; } wpRenderListRows(); } catch (e) { }
+    try { if (wpCurrentDetailOrder && wpCurrentDetailOrder.noInvoice === noInvoice) { wpDetailCache.delete(wpCurrentDetailRow); wpBukaDetail(wpCurrentDetailRow); } } catch (e) { }
+    try { wpFetchList(); } catch (e) { }
+  } catch (e) { omniNotif('Gagal menghidupkan pesanan: ' + (e.message || e)); }
+}
+async function ksBuka_() {
+  omxModal('💵 Kas Staff (uang tunai dari pembeli)', '<div id="ks-isi" style="font-size:12.5px;">Memuat…</div>', { lebar: true });
+  try {
+    const r = await postJson({ aksi: 'kas_staff_lihat', email: currentUserEmail() }, 30000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    const isi = el('ks-isi'); if (!isi) return;
+    const saldo = Object.keys(r.saldo || {}).map(k => `<div style="border:1px solid var(--web-border); border-radius:10px; padding:8px 10px;"><div style="font-size:11px; color:var(--web-text-dim);">${escapeHtml(k)}</div><b>Rp ${Math.round(r.saldo[k]).toLocaleString('id-ID')}</b></div>`).join('');
+    isi.innerHTML = `<div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:8px;">Setiap pesanan yang ditandai lunas <b>tunai</b> masuk ke sini atas nama penerima uang, sampai Owner menandai uangnya sudah disetor ke perusahaan.</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:10px;">${saldo || '<div style="color:var(--web-text-dim);">Tidak ada uang tunai yang belum disetor.</div>'}</div>
+      <div class="web-table-wrap" style="max-height:340px; overflow:auto;"><table class="web-table" style="font-size:12px;"><thead><tr>${r.owner ? '<th></th>' : ''}<th>Waktu</th><th>No Invoice</th><th>Staff</th><th style="text-align:right;">Jumlah</th><th>Status</th></tr></thead><tbody>
+      ${(r.daftar || []).map(x => `<tr>${r.owner ? `<td>${x.status === 'Belum Disetor' ? `<input type="checkbox" class="ks-pilih" value="${x.baris}">` : ''}</td>` : ''}<td>${escapeHtml(x.waktu)}</td><td>${escapeHtml(x.noInvoice)}</td><td>${escapeHtml(x.staff)}</td>
+        <td style="text-align:right;">${Math.round(x.jumlah).toLocaleString('id-ID')}</td><td>${escapeHtml(x.status)}${x.disetor ? `<div style="font-size:10.5px; color:var(--web-text-dim);">${escapeHtml(x.disetor)} · ${escapeHtml(x.oleh)}</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--web-text-dim);">Belum ada catatan.</td></tr>'}
+      </tbody></table></div>
+      ${r.owner ? '<button type="button" class="web-btn-primary" id="ks-setor" style="margin-top:10px;">✓ Tandai yang dipilih sudah disetor</button><div id="ks-st" class="status-text"></div>' : ''}`;
+    const b = el('ks-setor');
+    if (b) b.onclick = async () => {
+      const baris = Array.from(document.querySelectorAll('.ks-pilih:checked')).map(x => +x.value);
+      if (!baris.length) { el('ks-st').textContent = 'Pilih baris dulu.'; return; }
+      const r2 = await postJsonTulis({ aksi: 'kas_staff_setor', baris, email: currentUserEmail() }, 30000);
+      if (r2 && r2.success) { pgrToast(`✓ ${r2.ditandai} setoran dicatat`); ksBuka_(); } else el('ks-st').textContent = '✗ ' + ((r2 && r2.error) || 'Gagal');
+    };
+  } catch (e) { const isi = el('ks-isi'); if (isi) isi.innerHTML = `<div class="status-text err">${escapeHtml(e.message || String(e))}</div>`; }
+}
+// DN-606: status penarikan otomatis di jendela data pembeli Shopee
+let spbStatusCache = { t: 0, d: null };
+async function spbTampilStatus_() {
+  const modal = el('wp-shopee-modal'); if (!modal || modal.style.display === 'none') return;
+  const st = el('wp-shopee-modal-status'); if (!st) return;
+  let box = el('spb-otomatis');
+  if (!box) { box = document.createElement('div'); box.id = 'spb-otomatis'; box.style.cssText = 'font-size:11.5px; color:var(--web-text-dim); margin-top:6px; line-height:1.45;'; st.parentNode.insertBefore(box, st.nextSibling); }
+  if (!spbStatusCache.d || Date.now() - spbStatusCache.t > 300000) {
+    try { const r = await postJson({ aksi: 'spb_status', email: currentUserEmail() }, 20000); if (r && r.success) spbStatusCache = { t: Date.now(), d: r }; } catch (e) { }
+  }
+  const d = spbStatusCache.d; if (!d) return;
+  const jam = d.terakhirMs ? new Date(d.terakhirMs).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'belum';
+  box.innerHTML = d.aktif ? `🤖 <b>Otomatis</b>: sistem menarik data pembeli Shopee sendiri tiap ±${d.jedaMenit} menit (pesanan ${d.hari} hari terakhir; yang sudah lengkap tidak dicari lagi). Terakhir jalan: ${escapeHtml(jam)}.
+    Antrean gambar dibaca OCR: ${d.antreanMenunggu} menunggu · ${d.antreanSelesai} selesai${d.antreanGagal ? ' · ' + d.antreanGagal + ' gagal' : ''}. Tombol di atas hanya untuk menarik sekarang juga.`
+    : '🤖 Penarikan otomatis menunggu Shopee terhubung (Pengaturan).';
+}
+setInterval(() => { try { spbTampilStatus_(); } catch (e) { } }, 3000);
 </script>
 </body>
 </html>
