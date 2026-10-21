@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.42';
+  var VERSI = 'v2026.10.43';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -17100,7 +17100,7 @@ async function wpSimpanDataPembeliShopee() {
   setLoadingDots(statusEl, 'Menyimpan');
   try {
     const data = await postJson({
-      aksi: 'input_data_pembeli_shopee', row: wpShopeeRowAktif,
+      aksi: 'input_data_pembeli_shopee', row: wpShopeeRowAktif, noPesanan: String(el('wp-shopee-modal-nopesanan').textContent || '').trim(),
       usernameManual: el('wp-shopee-modal-username').value.trim(),
       namaManual: el('wp-shopee-modal-nama').value.trim(), hpManual: el('wp-shopee-modal-hp').value.trim(),
       alamatManual: el('wp-shopee-modal-alamat').value.trim(), catatan: el('wp-shopee-modal-catatan').value.trim(),
@@ -65613,6 +65613,261 @@ async function spbOcrUjiTampil_(r, wadah) {
     if (s && s.success) isi.insertAdjacentHTML('beforeend', `<div style="color:#1f8f4e; margin-top:4px;">Tersimpan: ${s.terbaca} pesanan · kolom pesanan terisi: ${s.pesananTerisi}</div>`);
   }
 }
+</script>
+<script>
+/* =====================================================================================
+   PAKET 25 (v2026.10.43) - DN-261021-085640-808 + FOLLOW-UP WHATSAPP
+   (a) Setelah data pembeli disimpan (Simpan Semua / Simpan 1 pesanan / hasil OCR), cache detail pesanan (pjxCache)
+       dibuang & kartu Info Pembeli yang terbuka dimuat ulang -> data baru langsung terlihat.
+   (b) Sub-tab baru Penjualan > "💬 Follow-up WA": daftar pembeli per jenis (pengiriman / kritik & saran / komplain-retur /
+       repeat order), dihubungi SATU PER SATU lewat wa.me (gratis, tanpa WhatsApp API), pesan dari template (Owner bisa ubah),
+       tiap pesan yang dibuka dicatat (siapa & kapan), nomor "jangan dihubungi lagi" disembunyikan.
+   (c) Kartu Info Pembeli: tombol 💬 WhatsApp bila No HP tersedia.
+   ===================================================================================== */
+function pjxSegarkan_() {
+  try { pjxCache.clear(); } catch (e) { }
+  try {
+    const body = el('wp-gabungan-body'); if (!body) return;
+    body.querySelectorAll('tr[data-kunci]').forEach(tr => {
+      const aksi = tr.nextElementSibling;
+      if (!aksi || aksi.style.display === 'none') return;
+      const box = aksi.querySelector('.pjx-box');
+      if (box) pjxMuat(tr.dataset.kunci, box);
+    });
+  } catch (e) { }
+}
+(function () {
+  const bungkus = (nama) => {
+    const asli = window[nama];
+    if (typeof asli !== 'function') return;
+    window[nama] = async function () {
+      const r = await asli.apply(this, arguments);
+      setTimeout(pjxSegarkan_, 300);
+      WA.data = {}; // daftar follow-up dimuat ulang
+      return r;
+    };
+  };
+  ['wpBulkPembeliKirimLatar', 'wpSimpanDataPembeliShopee', 'spbOcrKirim_'].forEach(bungkus);
+})();
+
+const WA = { jenis: 'kirim', data: {}, sembunyiSudah: false, cari: '', kanal: '', antre: null, tpl: null, bolehEdit: false };
+const WA_JENIS_LABEL = { kirim: '🚚 Follow-up pengiriman', ulasan: '⭐ Kritik & saran', komplain: '↩️ Komplain / retur', repeat: '🔁 Repeat order' };
+function waNomorBersih_(v) {
+  let d = String(v || '').replace(/\D/g, '');
+  if (!d || /\*/.test(String(v || ''))) return '';
+  if (d.startsWith('0062')) d = d.slice(2);
+  if (d.startsWith('0')) d = '62' + d.slice(1); else if (d.startsWith('8')) d = '62' + d;
+  return d.startsWith('62') && d.length >= 10 && d.length <= 15 ? d : '';
+}
+function waIsiTemplate_(tpl, o) {
+  const t = tpl || {};
+  const toko = /conner/i.test(o.channel || '') ? (t.tokoConner || 'Conner Hardware') : (t.tokoDefault || 'Waterground Coffee & Roastery');
+  let produk = String(o.produk || '').split(/;\s*/)[0] || 'pesanan Kakak';
+  if (produk.length > 70) produk = produk.slice(0, 67).replace(/\s+\S*$/, '') + '…';
+  const nama = String(o.nama || o.username || '').trim();
+  const nilai = { nama: nama ? nama.split(/\s+/).slice(0, 2).join(' ') : '', namaLengkap: nama, noPesanan: o.id || '', produk,
+    kurir: o.kurir || 'kurir', resi: o.resi || '', resiTeks: o.resi ? ' dengan nomor resi *' + o.resi + '*' : '', channel: o.channel || '', toko,
+    total: o.total ? 'Rp ' + Number(o.total).toLocaleString('id-ID') : '' };
+  return String(t[o.jenis] || '').replace(/\{(\w+)\}/g, (m, k) => (k in nilai ? nilai[k] : m)).replace(/Kak\s+(?=[,.!?\n👋😊])/g, 'Kak');
+}
+async function waMuat_(segar) {
+  const j = WA.jenis, isi = el('wa-isi');
+  if (!segar && WA.data[j]) { waRender_(); return; }
+  if (isi) isi.innerHTML = '<div class="pjx-kosong"><span class="ccx-cari-status"><i class="ccx-putar"></i> Memuat daftar pembeli…</span></div>';
+  try {
+    const r = await postJson({ aksi: 'wa_followup_daftar', jenis: j, segar: !!segar, email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal memuat');
+    WA.data[j] = r; WA.tpl = r.template; WA.bolehEdit = !!r.bolehEditTemplate;
+    waRender_();
+  } catch (err) { if (isi) isi.innerHTML = `<div class="status-text err">${omxEsc(err.message || String(err))}</div>`; }
+}
+function waDaftarTampil_() {
+  const r = WA.data[WA.jenis]; if (!r) return [];
+  const q = WA.cari.toLowerCase();
+  return (r.daftar || []).filter(o => (!WA.sembunyiSudah || !o.sudah) && (!WA.kanal || o.channel === WA.kanal) &&
+    (!q || [o.nama, o.username, o.id, o.produk, o.hp, o.resi].join(' ').toLowerCase().includes(q)));
+}
+function waRender_() {
+  const wadah = el('wa-isi'), r = WA.data[WA.jenis];
+  if (!wadah || !r) return;
+  document.querySelectorAll('.wa-chip').forEach(b => {
+    const j = b.dataset.jenis; b.classList.toggle('active', j === WA.jenis);
+    const n = (r.hitung && r.hitung[j] !== undefined) ? r.hitung[j] : '';
+    b.innerHTML = WA_JENIS_LABEL[j] + (n !== '' ? ` <span style="opacity:.7;">(${n})</span>` : '');
+  });
+  const daftar = waDaftarTampil_(), sudah = daftar.filter(o => o.sudah).length;
+  const kanal = Array.from(new Set((r.daftar || []).map(o => o.channel))).sort();
+  const atr = r.aturan || {};
+  const ket = { kirim: 'Pesanan yang sedang dikirim / baru sampai.', ulasan: `Pesanan terkirim / selesai ≤ ${atr.ulasanHari + 7 || 21} hari.`,
+    komplain: 'Pesanan berstatus retur / dibatalkan.', repeat: `Pesanan selesai ${atr.repeatMin}-${atr.repeatMaks} hari lalu & pembeli belum belanja lagi (1 baris per nomor).` }[WA.jenis];
+  const tanpa = (r.tanpaNomor || {})[WA.jenis] || 0;
+  wadah.innerHTML = `
+    <div style="font-size:11.5px; color:var(--web-text-dim); margin:4px 0 8px;">${ket} ${tanpa ? `· <b>${tanpa}</b> pesanan lain belum punya nomor HP (data Shopee tersamar / belum terbaca OCR) - tidak ditampilkan.` : ''}</div>
+    <div class="web-toolbar-row" style="gap:8px; flex-wrap:wrap;">
+      <input class="web-search-input" id="wa-cari" placeholder="Cari nama / No Pesanan / produk…" value="${pgrAttr(WA.cari)}" style="max-width:240px; margin:0;">
+      <select class="web-form-input" id="wa-kanal" style="max-width:170px; margin:0;"><option value="">Semua channel</option>${kanal.map(k => `<option ${k === WA.kanal ? 'selected' : ''}>${omxEsc(k)}</option>`).join('')}</select>
+      <label style="font-size:12px; display:flex; gap:5px; align-items:center;"><input type="checkbox" id="wa-sembunyi" ${WA.sembunyiSudah ? 'checked' : ''}> Sembunyikan yang sudah dihubungi</label>
+      <div style="flex:1;"></div>
+      <span style="font-size:11.5px; color:var(--web-text-dim);">${daftar.length} pembeli · ${sudah} sudah dihubungi</span>
+      <button class="web-btn-primary" style="font-size:12px;" onclick="waMulaiSatuPerSatu_()">▶ Hubungi satu per satu</button>
+      <button class="web-btn-secondary" style="font-size:12px;" onclick="waMuat_(true)">🔄</button>
+      ${WA.bolehEdit ? '<button class="web-btn-secondary" style="font-size:12px;" onclick="waEditTemplate_()">✏️ Template pesan</button>' : ''}
+    </div>
+    <div class="web-table-wrap"><table class="web-table"><thead><tr><th>Tanggal</th><th>Channel</th><th>Pembeli</th><th>WhatsApp</th><th>Pesanan</th><th>Status</th><th>Dihubungi</th><th></th></tr></thead>
+    <tbody>${daftar.slice(0, 300).map((o, i) => `<tr${o.sudah ? ' style="opacity:.62;"' : ''}>
+      <td style="white-space:nowrap;">${new Date(o.tanggalMs).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</td>
+      <td>${omxEsc(o.channel)}</td>
+      <td>${omxEsc(o.nama || '-')}${o.username ? `<div style="font-size:10.5px; color:var(--web-text-dim);">@${omxEsc(o.username)}</div>` : ''}</td>
+      <td style="white-space:nowrap;">${omxEsc(o.hp)}</td>
+      <td style="font-size:11.5px;">${omxEsc(o.id)}<div style="color:var(--web-text-dim);">${omxEsc(String(o.produk || '').slice(0, 60))}</div></td>
+      <td style="font-size:11.5px;">${omxEsc(o.status)}${o.resi ? `<div style="color:var(--web-text-dim);">${omxEsc(o.kurir || '')} ${omxEsc(o.resi)}</div>` : ''}</td>
+      <td style="font-size:11px;">${o.sudah ? `✓ ${omxEsc(o.sudah.t)}<div style="color:var(--web-text-dim);">${omxEsc(o.sudah.oleh || '')}${o.sudah.n > 1 ? ' · ' + o.sudah.n + 'x' : ''}</div>` : '-'}</td>
+      <td><button class="web-btn-secondary" style="font-size:11.5px; white-space:nowrap;" data-wa-i="${i}">💬 Kirim</button></td></tr>`).join('') ||
+      '<tr><td colspan="8" style="text-align:center; color:var(--web-text-dim);">Tidak ada pembeli untuk jenis ini.</td></tr>'}</tbody></table></div>
+    ${daftar.length > 300 ? '<div style="font-size:11px; color:var(--web-text-dim);">Menampilkan 300 pertama - gunakan pencarian / filter.</div>' : ''}`;
+  const tampil = daftar;
+  wadah.querySelectorAll('button[data-wa-i]').forEach(b => b.addEventListener('click', () => { WA.antre = null; waBukaDialog_(Object.assign({}, tampil[+b.dataset.waI], { jenis: WA.jenis })); }));
+  const c = el('wa-cari'); if (c) c.addEventListener('input', () => { WA.cari = c.value; clearTimeout(WA._t); WA._t = setTimeout(() => { waRender_(); const c2 = el('wa-cari'); if (c2) { c2.focus(); c2.setSelectionRange(c2.value.length, c2.value.length); } }, 250); });
+  const k = el('wa-kanal'); if (k) k.addEventListener('change', () => { WA.kanal = k.value; waRender_(); });
+  const s2 = el('wa-sembunyi'); if (s2) s2.addEventListener('change', () => { WA.sembunyiSudah = s2.checked; waRender_(); });
+}
+function waMulaiSatuPerSatu_() {
+  const antre = waDaftarTampil_().filter(o => !o.sudah);
+  if (!antre.length) { omniNotif('Semua pembeli di daftar ini sudah dihubungi.'); return; }
+  WA.antre = { daftar: antre.map(o => Object.assign({}, o, { jenis: WA.jenis })), i: 0 };
+  waBukaDialog_(WA.antre.daftar[0]);
+}
+function waLanjut_() {
+  if (!WA.antre) { omxTutupModal(); return; }
+  WA.antre.i++;
+  if (WA.antre.i >= WA.antre.daftar.length) { omxTutupModal(); WA.antre = null; omniNotif('Selesai - semua pembeli di daftar sudah dilewati / dihubungi.'); waRender_(); return; }
+  waBukaDialog_(WA.antre.daftar[WA.antre.i]);
+}
+async function waCatat_(o, jenis, catatan) {
+  try {
+    const r = await postJson({ aksi: 'wa_followup_catat', noPesanan: o.id, channel: o.channel, nama: o.nama || o.username || '', nomor: o.nomor, jenis, catatan: catatan || '', email: currentUserEmail() }, 20000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal mencatat');
+    return true;
+  } catch (e) { pgrToast('Pesan terbuka, tapi catatan gagal disimpan: ' + (e.message || e)); return false; }
+}
+function waTandaiLokal_(o, jenis) {
+  const r = WA.data[jenis]; if (!r) return;
+  const x = (r.daftar || []).find(d => d.id === o.id && d.nomor === o.nomor);
+  if (x) x.sudah = { t: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), oleh: 'Anda', n: ((x.sudah && x.sudah.n) || 0) + 1 };
+}
+async function waBukaDialog_(o) {
+  if (!WA.tpl) { try { const r = await postJson({ aksi: 'wa_followup_daftar', jenis: o.jenis || 'kirim', email: currentUserEmail() }, 60000); if (r && r.success) { WA.tpl = r.template; WA.bolehEdit = !!r.bolehEditTemplate; WA.data[r.jenis] = r; } } catch (e) { } }
+  if (!o.nomor) { omniNotif('Nomor WhatsApp pembeli ini belum ada / tidak valid.'); return; }
+  const urut = WA.antre ? ` <span style="font-weight:400; color:var(--web-text-dim);">(${WA.antre.i + 1} dari ${WA.antre.daftar.length})</span>` : '';
+  const pilihJenis = Object.keys(WA_JENIS_LABEL).map(j => `<button type="button" class="web-btn-secondary wa-dj" data-j="${j}" style="font-size:11.5px;${j === o.jenis ? ' outline:2px solid var(--web-accent, #3b82f6);' : ''}">${WA_JENIS_LABEL[j]}</button>`).join(' ');
+  omxModal('💬 WhatsApp ' + (o.nama || o.username || o.hp), `
+    <div style="font-size:12px; margin-bottom:6px;"><b>${omxEsc(o.nama || '-')}</b>${o.username ? ' · @' + omxEsc(o.username) : ''} · ${omxEsc(o.hp || o.nomor)} · ${omxEsc(o.channel || '')}${urut}
+      <div style="color:var(--web-text-dim); font-size:11.5px;">${omxEsc(o.id || '')} · ${omxEsc(String(o.produk || '').slice(0, 90))} · ${omxEsc(o.status || '')}${o.sudah ? ' · <b>sudah dihubungi ' + omxEsc(o.sudah.t) + '</b>' : ''}</div></div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">${pilihJenis}</div>
+    <textarea id="wa-teks" class="web-form-input" rows="8" style="width:100%; box-sizing:border-box; font-family:inherit; font-size:12.5px; resize:vertical;"></textarea>
+    <div style="font-size:11px; color:var(--web-text-dim); margin:2px 0 10px;">Pesan bisa diubah dulu sebelum dikirim. WhatsApp terbuka di tab / aplikasi baru - tekan Kirim di sana.</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="web-btn-primary" id="wa-buka">💬 Buka WhatsApp${WA.antre ? ' & lanjut' : ''}</button>
+      ${WA.antre ? '<button type="button" class="web-btn-secondary" id="wa-lewati">Lewati ▶</button>' : ''}
+      <button type="button" class="web-btn-secondary" id="wa-stop" style="margin-left:auto; color:var(--web-danger);">🚫 Jangan hubungi nomor ini lagi</button>
+    </div>`, { lebar: true });
+  const teks = el('wa-teks');
+  const isi = j => { o.jenis = j; teks.value = waIsiTemplate_(WA.tpl, o); document.querySelectorAll('.wa-dj').forEach(b => b.style.outline = b.dataset.j === j ? '2px solid var(--web-accent, #3b82f6)' : ''); };
+  isi(o.jenis || 'kirim');
+  document.querySelectorAll('.wa-dj').forEach(b => b.addEventListener('click', () => isi(b.dataset.j)));
+  el('wa-buka').addEventListener('click', () => {
+    window.open('https://wa.me/' + o.nomor + '?text=' + encodeURIComponent(teks.value), '_blank', 'noopener'); // dibuka langsung dari klik (tidak diblokir browser)
+    const jenis = o.jenis;
+    waCatat_(o, jenis, ''); waTandaiLokal_(o, jenis);
+    if (WA.antre) waLanjut_(); else { omxTutupModal(); waRender_(); }
+  });
+  const lw = el('wa-lewati'); if (lw) lw.addEventListener('click', waLanjut_);
+  el('wa-stop').addEventListener('click', async () => {
+    if (!(await omniKonfirm_('Nomor ' + (o.hp || o.nomor) + ' tidak akan muncul lagi di daftar follow-up. Lanjutkan?'))) return;
+    await waCatat_(o, 'stop', 'Owner/admin menandai jangan dihubungi');
+    Object.keys(WA.data).forEach(j => { const r = WA.data[j]; if (r && r.daftar) r.daftar = r.daftar.filter(d => d.nomor !== o.nomor); });
+    if (WA.antre) { WA.antre.daftar.splice(WA.antre.i, 1); WA.antre.i--; waLanjut_(); } else { omxTutupModal(); waRender_(); }
+  });
+}
+function waEditTemplate_() {
+  const t = WA.tpl || {};
+  const kol = [['tokoDefault', 'Nama toko (Waterground)', 1], ['tokoConner', 'Nama toko (Conner)', 1], ['kirim', WA_JENIS_LABEL.kirim, 5], ['ulasan', WA_JENIS_LABEL.ulasan, 5], ['komplain', WA_JENIS_LABEL.komplain, 5], ['repeat', WA_JENIS_LABEL.repeat, 5]];
+  omxModal('✏️ Template pesan WhatsApp', `
+    <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:8px;">Kode yang otomatis diganti: {nama} {namaLengkap} {noPesanan} {produk} {kurir} {resi} {resiTeks} {channel} {toko} {total}. Kosongkan kotak untuk kembali ke teks bawaan.</div>
+    ${kol.map(([k, lbl, baris]) => `<label style="font-size:12px; font-weight:600; display:block; margin-top:8px;">${lbl}</label>
+      ${baris > 1 ? `<textarea class="web-form-input wa-tpl" data-k="${k}" rows="${baris}" style="width:100%; box-sizing:border-box; font-family:inherit; font-size:12px;">${omxEsc(t[k] || '')}</textarea>` : `<input class="web-form-input wa-tpl" data-k="${k}" value="${pgrAttr(t[k] || '')}" style="width:100%; box-sizing:border-box;">`}`).join('')}
+    <button type="button" class="web-btn-primary" id="wa-tpl-simpan" style="margin-top:12px; width:100%;">Simpan template</button><div class="status-text" id="wa-tpl-status"></div>`, { lebar: true });
+  el('wa-tpl-simpan').addEventListener('click', async () => {
+    const template = {}; document.querySelectorAll('.wa-tpl').forEach(x => { template[x.dataset.k] = x.value; });
+    const st = el('wa-tpl-status'); st.textContent = 'Menyimpan…';
+    try {
+      const r = await postJson({ aksi: 'wa_template_simpan', template, email: currentUserEmail() }, 20000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+      WA.tpl = r.template; st.textContent = '✓ Tersimpan'; st.className = 'status-text ok'; setTimeout(omxTutupModal, 600);
+    } catch (e) { st.textContent = '✗ ' + (e.message || e); st.className = 'status-text err'; }
+  });
+}
+// Sub-tab Penjualan > Follow-up WA
+(function () {
+  function pasang() {
+    const ref = el('wp-gabsub-pelanggan'), viewRef = el('wp-gabsub-view-pelanggan');
+    if (!ref || el('wp-gabsub-wa')) return !!ref;
+    const b = document.createElement('button');
+    b.className = 'web-nav-sub-tab'; b.id = 'wp-gabsub-wa'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', 'false');
+    b.textContent = '💬 Follow-up WA'; b.onclick = () => wpGabunganSubTab('wa');
+    ref.parentNode.insertBefore(b, ref.nextSibling);
+    const v = document.createElement('div'); v.id = 'wp-gabsub-view-wa'; v.style.display = 'none';
+    v.innerHTML = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">${Object.keys(WA_JENIS_LABEL).map(j => `<button type="button" class="web-btn-secondary wa-chip" data-jenis="${j}" style="font-size:12px;">${WA_JENIS_LABEL[j]}</button>`).join('')}</div>
+      <div id="wa-isi"></div>`;
+    (viewRef ? viewRef.parentNode : ref.parentNode.parentNode).insertBefore(v, viewRef ? viewRef.nextSibling : null);
+    v.querySelectorAll('.wa-chip').forEach(c => c.addEventListener('click', () => { WA.jenis = c.dataset.jenis; WA.cari = ''; WA.kanal = ''; waMuat_(false); }));
+    return true;
+  }
+  if (!pasang()) { const t = setInterval(() => { if (pasang()) clearInterval(t); }, 2000); }
+  const asli = window.wpGabunganSubTab;
+  if (typeof asli === 'function') {
+    window.wpGabunganSubTab = function (sub) {
+      const v = el('wp-gabsub-view-wa'), b = el('wp-gabsub-wa');
+      if (sub === 'wa') {
+        asli.call(this, 'pelanggan_x'); // menyembunyikan semua view lain
+        if (typeof wpHentikanAutoRefreshGabungan === 'function') wpHentikanAutoRefreshGabungan();
+        if (v) v.style.display = 'block';
+        if (b) { b.classList.add('active'); b.setAttribute('aria-selected', 'true'); }
+        try { if (lokasiWebAktif && lokasiWebAktif.tab === 'pesanan' && lokasiWebAktif.sub !== 'wa') simpanLokasiTerakhir('pesanan', 'wa'); } catch (e) { }
+        waMuat_(false);
+        return;
+      }
+      if (v) v.style.display = 'none';
+      if (b) { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); }
+      return asli.apply(this, arguments);
+    };
+  }
+  try { if (/^#pesanan\/wa\b/.test(location.hash || '')) setTimeout(() => wpGabunganSubTab('wa'), 1500); } catch (e) { }
+})();
+// Kartu Info Pembeli: tombol WhatsApp
+(function () {
+  if (typeof pjxRender !== 'function') return;
+  const asli = pjxRender;
+  pjxRender = function (box, o, p) {
+    const r = asli.apply(this, arguments);
+    try {
+      const nomor = waNomorBersih_(p && p.hp);
+      const kartu = box.querySelector('.pjx-kartu');
+      if (nomor && kartu && !kartu.querySelector('.wa-pjx')) {
+        const st = normalisasiStatusLokal_((p && p.status) || o.status);
+        const jenis = /retur|batal|cancel/i.test(st) ? 'komplain' : (/selesai|completed|terkirim|deliver/i.test(st) ? 'ulasan' : 'kirim');
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'web-btn-secondary wa-pjx'; btn.style.cssText = 'margin-top:10px; font-size:12px; width:100%;';
+        btn.textContent = '💬 Hubungi via WhatsApp';
+        btn.onclick = () => { WA.antre = null; waBukaDialog_({ id: o.noReferensi, channel: (p && p.sumber) || o.sumber, nama: p && p.nama && p.nama !== '-' && !/\*{2,}/.test(p.nama) ? p.nama : '', username: p && p.username !== '-' ? p.username : '',
+          nomor, hp: p.hp, produk: o.produk || (p && p.ringkasProduk) || ((p && p.items) || []).map(x => x.nama).join('; '), status: (p && p.status) || o.status, kurir: o.kurir || '', resi: o.noResi || '', total: o.total || 0, jenis }); };
+        kartu.appendChild(btn);
+      }
+    } catch (e) { console.warn('wa pjx', e); }
+    return r;
+  };
+})();
+function normalisasiStatusLokal_(s) { return String(s || ''); }
 </script>
 </body>
 </html>
