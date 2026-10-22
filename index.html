@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.53';
+  var VERSI = 'v2026.10.54';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -24807,7 +24807,7 @@ function wpRenderListRows() {
       : kel === 'batal' ? `<span class="web-status-pill batal" title="${pgrAttr(it.alasanBatal || '')}">Dibatalkan</span>`
       : kel === 'dikirim' ? `<span class="web-status-pill dikirim">${escapeHtml(it.status)}</span>` : '<span class="web-status-pill aktif">Belum Dikirim</span>';
     const aksi = it._antre || proses ? '' : `
-      <button type="button" class="wpm-aksi" onclick="wpmBukaDokumen('${pgrAttr(it.noInvoice)}')" title="Invoice & Label (Cetak / Simpan / Copy)">📄 Invoice</button>
+      <button type="button" class="wpm-aksi" onclick="wpmBukaDokumen('${pgrAttr(it.noInvoice)}')" title="Cetak: Invoice, Label & Surat Jalan (Cetak / Simpan / Copy)">🖨 Cetak</button>
       <button type="button" class="wpm-aksi" onmouseenter="wpPrefetchDetail(${it.row})" onmouseleave="wpBatalPrefetch()" onfocus="wpPrefetchDetail(${it.row})" onclick="wpBukaDetail(${it.row})">Lihat</button>
       ${kel === 'batal' && (currentUser.izin || {}).batalPesanan || kel === 'batal' && currentUser.isOwner ? `<button type="button" class="wpm-aksi" onclick="pmHidupkan_(${it.row}, '${pgrAttr(it.noInvoice)}')" title="Hidupkan lagi pesanan ini (kembali Belum Dikirim)">♻️ Hidupkan</button>` : ''}
       ${kel === 'batal' ? (bolehHapus ? `<button type="button" class="wpm-aksi bahaya" onclick="wpmHapusPermanen('${pgrAttr(it.noInvoice)}')" title="Hapus permanen">🗑</button>` : '')
@@ -67455,6 +67455,485 @@ async function p35TtbUjiBuka(daftar) {
     }
   }
   setTimeout(pasang, 2500); setInterval(pasang, 15000);
+})();
+</script>
+
+
+<!-- ===================================================================================
+     PAKET 36 (v2026.10.54) - Tim AI Agent Katalog (CEO, Product Manager Nama/Kategori/Bundling), Agen Harga (SnK),
+     Agen Penjualan pindah ke Penjualan, tombol Cetak, kapsul Dokumen bisa diklik, label pembeli Shopee, Tugas Harian ringkas
+     =================================================================================== -->
+<style>
+.p36-btn-agen { background: linear-gradient(135deg, #4f46e5, #7c3aed) !important; color: #fff !important; border: none !important; font-weight: 700; }
+.p36-btn-agen:hover { filter: brightness(1.08); }
+.p36-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 12px; border: 1px dashed #c7d2fe; border-radius: 12px; background: rgba(99,102,241,.06); font-size: 12.5px; }
+.p36-bar b { color: #4338ca; }
+.p36-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
+.p36-tabs button { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.p36-tabs button.aktif { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-weight: 700; }
+.p36-tabs button i { font-style: normal; background: #ef4444; color: #fff; border-radius: 999px; padding: 0 6px; font-size: 10.5px; margin-left: 4px; }
+.p36-kontrol { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 12.5px; }
+.p36-usulan { border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--web-panel, #fff); display: flex; gap: 10px; align-items: flex-start; }
+.p36-usulan.selesai { opacity: .6; }
+.p36-usulan .p36-isi { flex: 1; min-width: 0; }
+.p36-usulan .p36-judul { font-weight: 700; font-size: 13.5px; word-break: break-word; }
+.p36-usulan .p36-alasan { font-size: 12px; color: var(--web-text-dim, #64748b); margin-top: 3px; }
+.p36-usulan .p36-lama { font-size: 12px; color: var(--web-text-dim, #64748b); text-decoration: line-through; word-break: break-word; }
+.p36-usulan input.p36-edit { width: 100%; box-sizing: border-box; margin: 5px 0 0; font-size: 13px; }
+.p36-usulan .p36-aksi { display: flex; gap: 6px; flex: none; align-items: center; }
+.p36-usulan .p36-aksi button { font-size: 12px; padding: 5px 10px; margin: 0; }
+.p36-usulan .p36-hasil { font-size: 12px; margin-top: 4px; }
+.p36-usulan details { font-size: 12px; margin-top: 4px; }
+.p36-usulan details label { display: block; padding: 1px 0; }
+.p36-ok { color: #047857; } .p36-ng { color: #b91c1c; }
+.p36-chip { display: inline-block; font-size: 10.5px; padding: 1px 8px; border-radius: 999px; background: #eef2ff; color: #4338ca; margin-right: 4px; font-weight: 700; }
+.p36-chip.merah { background: #fef2f2; color: #b91c1c; } .p36-chip.hijau { background: #ecfdf5; color: #047857; } .p36-chip.kuning { background: #fffbeb; color: #b45309; }
+.p36-tabel td { vertical-align: top; }
+.p36-tabel ul { margin: 2px 0 0; padding-left: 16px; }
+.p36-snk li { font-size: 12px; margin-bottom: 4px; }
+.p36-dok-klik { cursor: pointer; }
+.p36-dok-klik:hover { opacity: 1 !important; border-style: solid !important; }
+.p36-agp-tab { margin-left: auto; align-self: center; font-size: 12.5px !important; padding: 6px 14px !important; border-radius: 999px !important; margin-bottom: 6px; }
+.p36-tgs-lagi { border: none; background: none; color: #4f46e5; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 0; text-align: left; }
+@media (prefers-color-scheme: dark) { .p36-tabs button.aktif { background: rgba(99,102,241,.2); color: #c7d2fe; } .p36-bar b { color: #c7d2fe; } }
+</style>
+<script>
+/* ============================ PAKET 36 (v2026.10.54) ============================ */
+try {
+  ['agk_daftar', 'agh_rencana', 'agh_mode', 'spbl_antrean', 'spbl_status'].forEach(a => WEBAPP_AKSI_TANPA_BUANG.add(a));
+  WEBAPP_AKSI_BUANG_PEMBELI.add('spbl_simpan');
+} catch (e) { }
+function p36Boleh() { try { return typeof agpBoleh === 'function' ? agpBoleh() : omxApakahOwner_(); } catch (e) { return false; } }
+function p36Rp(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function p36Esc(s) { return escapeHtml(String(s === undefined || s === null ? '' : s)); }
+
+/* ---------------- 1) TIM AI AGENT KATALOG ---------------- */
+const P36_AGEN = [
+  { k: 'ceo', label: '👔 CEO', ai: true },
+  { k: 'pm_nama', label: '🏷 PM Nama', ai: true },
+  { k: 'pm_kategori', label: '🗂 PM Kategori', ai: true },
+  { k: 'pm_bundling', label: '🎁 PM Bundling', ai: false },
+  { k: 'harga', label: '💰 Agen Harga', ai: false }
+];
+const p36 = { agen: 'ceo', data: null, hitung: {}, memuat: false, metrik: null, narasi: '', ringkas: '' };
+function p36Buka(agen) {
+  if (!p36Boleh()) { pgrToast('AI Agent khusus Owner / Admin Keuangan'); return; }
+  if (agen === 'harga') { p36HargaBuka(); return; }
+  let l = el('p36-latar');
+  if (!l) {
+    l = document.createElement('div'); l.id = 'p36-latar'; l.className = 'agp-latar';
+    l.innerHTML = `<div class="agp-panel" role="dialog" aria-modal="true" aria-label="Tim AI Agent Katalog">
+      <div class="agp-head"><h2>🤖 Tim AI Agent Katalog<small id="p36-sub">Agen menganalisa &amp; mengusulkan - Anda tinggal OK atau Tolak</small></h2>
+        <button type="button" class="agp-x" onclick="p36Tutup()" aria-label="Tutup">✕</button></div>
+      <div class="p36-tabs" id="p36-tabs"></div>
+      <div id="p36-isi"></div></div>`;
+    l.addEventListener('mousedown', e => { if (e.target === l) p36Tutup(); });
+    document.body.appendChild(l);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('p36-latar') && el('p36-latar').style.display !== 'none') p36Tutup(); });
+  }
+  l.style.display = 'flex';
+  p36GantiAgen(agen || p36.agen || 'ceo');
+}
+function p36Tutup() { const l = el('p36-latar'); if (l) l.style.display = 'none'; }
+function p36RenderTab() {
+  const t = el('p36-tabs'); if (!t) return;
+  t.innerHTML = P36_AGEN.map(a => `<button type="button" class="${a.k === p36.agen ? 'aktif' : ''}" onclick="p36GantiAgen('${a.k}')">${a.label}${p36.hitung[a.k] ? `<i>${p36.hitung[a.k]}</i>` : ''}</button>`).join('');
+}
+async function p36GantiAgen(agen) {
+  if (agen === 'harga') { p36Tutup(); p36HargaBuka(); return; }
+  p36.agen = agen; p36.data = null; p36.metrik = null; p36.narasi = ''; p36.ringkas = '';
+  p36RenderTab();
+  el('p36-isi').innerHTML = '<div class="agp-muat">Memuat usulan…</div>';
+  try {
+    const r = await postJson({ aksi: 'agk_daftar', agen, email: currentUserEmail() }, 60000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    p36.data = r; p36.hitung = r.hitung || {};
+    p36RenderTab();
+    if (!r.usulan.length && !r.riwayat.length) { p36Jalankan(); return; }
+    if (agen === 'ceo' && !p36.metrik) { p36Jalankan(); return; }
+    p36Render();
+  } catch (e) { el('p36-isi').innerHTML = `<div class="agp-muat p36-ng">Gagal: ${p36Esc(e.message || e)}</div>`; }
+}
+async function p36Jalankan() {
+  if (p36.memuat) return;
+  p36.memuat = true;
+  const ai = el('p36-pakai-ai') ? el('p36-pakai-ai').checked : false;
+  const st = el('p36-status');
+  if (st) st.textContent = '⏳ Agen sedang bekerja…'; else el('p36-isi').innerHTML = '<div class="agp-muat">Agen sedang membaca Produk Master &amp; menyusun usulan…</div>';
+  try {
+    const r = await postJson({ aksi: 'agk_jalankan', agen: p36.agen, pakaiAI: ai, email: currentUserEmail() }, 180000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    p36.data = { usulan: r.usulan, riwayat: r.riwayat }; p36.ringkas = r.ringkas;
+    if (r.metrik) p36.metrik = r.metrik;
+    p36.narasi = r.narasi || (r.narasiError ? 'AI belum bisa dipakai: ' + r.narasiError : '');
+    p36.hitung[p36.agen] = r.usulan.length;
+    p36RenderTab(); p36Render();
+    const s = r.simpan || {};
+    pgrToast(`🤖 ${r.agenNama}: ${s.baru || 0} usulan baru${s.diperbarui ? ', ' + s.diperbarui + ' diperbarui' : ''}`);
+  } catch (e) { const s2 = el('p36-status'); if (s2) s2.innerHTML = `<span class="p36-ng">Gagal: ${p36Esc(e.message || e)}</span>`; else el('p36-isi').innerHTML = `<div class="agp-muat p36-ng">Gagal: ${p36Esc(e.message || e)}</div>`; }
+  finally { p36.memuat = false; }
+}
+function p36KartuHtml(u) {
+  const d = u.data || {};
+  let detail = '';
+  if (u.jenis === 'ganti_nama') detail = `<div class="p36-lama">${p36Esc(d.lama)}</div><input class="web-form-input p36-edit" data-p36-nama="${p36Esc(u.id)}" value="${p36Esc(d.baru)}" maxlength="150" aria-label="Nama baru ${p36Esc(d.sku)}"><div class="p36-alasan">${p36Esc(d.sku)}${d.brand ? ' · Brand diisi <b>' + p36Esc(d.brand) + '</b>' : ''}${d.panjang ? ' · <span class="p36-chip kuning">masih panjang</span>' : ''}</div>`;
+  else if (u.jenis === 'pasang_kategori') detail = `<details><summary>Lihat produk (${d.skuList.length}) - hilangkan centang yang tidak cocok</summary>${(d.contoh || []).map(c => `<label><input type="checkbox" checked data-p36-sku="${p36Esc(u.id)}" value="${p36Esc(c.sku)}"> ${p36Esc(c.sku)} · ${p36Esc(c.nama)}</label>`).join('')}${d.skuList.length > (d.contoh || []).length ? `<div class="p36-alasan">+ ${d.skuList.length - d.contoh.length} produk lain ikut dipasang</div>` : ''}</details>`;
+  else if (u.jenis === 'buat_bundling') detail = `<ul style="margin:4px 0 0; padding-left:18px; font-size:12px;">${(d.produk || []).map(p => `<li>${p.qty}× ${p36Esc(p.nama)} <span class="p36-alasan">(${p36Esc(p.sku)} · stok ${p.stok})</span></li>`).join('')}</ul>
+      <div style="font-size:12px; margin-top:3px;">Harga normal <b>${p36Rp(d.hargaNormal)}</b>${d.diskonPct ? ` → bundling <b class="p36-ok">${p36Rp(d.hargaBundling)}</b> (-${d.diskonPct}%)` : ''} · HPP ${p36Rp(d.hpp)} ${d.sumber === 'penjualan' ? '<span class="p36-chip hijau">sering dibeli bersama</span>' : '<span class="p36-chip">pelengkap</span>'}</div>
+      <input class="web-form-input p36-edit" data-p36-bnama="${p36Esc(u.id)}" value="${p36Esc(d.nama)}" maxlength="120" aria-label="Nama bundling">`;
+  else if (u.jenis === 'delegasi' || u.jenis === 'manual') detail = `<div class="p36-alasan"><span class="p36-chip ${u.jenis === 'manual' ? 'kuning' : ''}">${u.jenis === 'manual' ? 'tugas manual' : 'delegasi → ' + p36Esc(d.agen === 'harga' ? 'Agen Harga' : ((P36_AGEN.find(a => a.k === d.agen) || {}).label || d.agen))}</span>${(d.contoh || []).length ? 'contoh SKU: ' + p36Esc(d.contoh.join(', ')) : ''}</div>`;
+  else if (u.jenis === 'ide_owner') detail = `<div class="p36-alasan"><span class="p36-chip hijau">ide Owner</span> diteruskan ke ${p36Esc(d.agen === 'harga' ? 'Agen Harga' : d.agen)}</div>`;
+  return `<div class="p36-usulan" id="p36-u-${p36Esc(u.id)}"><input type="checkbox" class="p36-pilih" value="${p36Esc(u.id)}" aria-label="Pilih usulan" checked>
+    <div class="p36-isi"><div class="p36-judul">${p36Esc(u.jenis === 'ganti_nama' ? 'Rapikan nama' : u.judul)}</div><div class="p36-alasan">${p36Esc(u.alasan)}</div>${detail}<div class="p36-hasil" id="p36-h-${p36Esc(u.id)}"></div></div>
+    <div class="p36-aksi"><button type="button" class="web-btn-primary" onclick="p36Putuskan(['${p36Esc(u.id)}'], true)">✓ OK</button><button type="button" class="web-btn-secondary" onclick="p36Putuskan(['${p36Esc(u.id)}'], false)">✕</button></div></div>`;
+}
+function p36Render() {
+  const isi = el('p36-isi'); if (!isi || !p36.data) return;
+  const a = P36_AGEN.find(x => x.k === p36.agen) || {};
+  const info = (p36.data.agenInfo || {})[p36.agen] || {};
+  const us = p36.data.usulan || [];
+  let atas = '';
+  if (p36.agen === 'ceo' && p36.metrik) {
+    const m = p36.metrik, k = (l, v, kelas) => `<div class="agp-k"><span>${l}</span><b class="${kelas || ''}">${v}</b></div>`;
+    atas = `<div class="agp-kpi">${k('Skor kesehatan katalog', m.skor + '/100', m.skor >= 80 ? 'agp-naik' : (m.skor < 60 ? 'agp-turun' : ''))}${k('Produk aktif', m.total.toLocaleString('id-ID'))}${k('Dijual di bawah HPP', m.hargaRugi, m.hargaRugi ? 'agp-turun' : '')}${k('Tanpa kategori', m.tanpaKategori.toLocaleString('id-ID'))}${k('Tanpa HPP', m.tanpaHpp)}${k('Nama perlu dirapikan', m.namaBerantakan.toLocaleString('id-ID'))}${k('Tanpa foto', m.tanpaFoto)}${k('Harga coret < harga jual', m.coretKurang)}</div>
+      ${p36.narasi ? `<div class="agp-kartu"><h3>Arahan CEO (AI)</h3><div class="agp-narasi">${p36Esc(p36.narasi)}</div></div>` : ''}
+      <div class="agp-kartu"><h3>💡 Usulkan ide ke CEO</h3><textarea id="p36-ide" class="web-form-input" rows="2" style="width:100%; box-sizing:border-box; margin:0;" placeholder="mis. Bikin paket hemat V60 untuk pemula, atau naikkan harga grinder yang laris"></textarea>
+        <div class="p36-kontrol" style="margin:6px 0 0;"><button type="button" class="web-btn-primary" style="margin:0;" onclick="p36KirimIde()">Kirim ke CEO</button><span class="p36-alasan" id="p36-ide-st"></span></div></div>`;
+  }
+  isi.innerHTML = `<div class="p36-bar"><b>${p36Esc(info.nama || a.label)}</b><span>${p36Esc(info.tugas || '')}</span></div>
+    <div class="p36-kontrol">
+      <button type="button" class="web-btn-primary" style="margin:0;" onclick="p36Jalankan()">▶ Jalankan agen sekarang</button>
+      ${a.ai ? `<label title="AI dipakai seperlunya saja (nama > 70 karakter / produk yang tidak dikenali rumus). Tanpa centang = 100% gratis."><input type="checkbox" id="p36-pakai-ai"> Pakai AI (hemat token)</label>` : ''}
+      <span id="p36-status" class="p36-alasan">${p36Esc(p36.ringkas || '')}</span></div>
+    ${atas}
+    <div class="agp-kartu"><h3>Usulan menunggu keputusan <small>· ${us.length} usulan · centang lalu OK sekaligus, atau per baris</small></h3>
+      ${us.length ? `<div class="p36-kontrol"><label><input type="checkbox" checked onchange="document.querySelectorAll('#p36-isi .p36-pilih').forEach(c => c.checked = this.checked)"> Centang semua</label>
+        <button type="button" class="web-btn-primary" style="margin:0;" onclick="p36PutuskanTerpilih(true)">✓ OK yang dicentang</button>
+        <button type="button" class="web-btn-secondary" style="margin:0;" onclick="p36PutuskanTerpilih(false)">✕ Tolak yang dicentang</button></div>` : ''}
+      ${us.map(p36KartuHtml).join('') || '<div class="agp-kosong">Tidak ada usulan menunggu. Klik "Jalankan agen sekarang" untuk analisa ulang.</div>'}</div>
+    ${(p36.data.riwayat || []).length ? `<details class="agp-kartu"><summary style="cursor:pointer; font-weight:700; font-size:13px;">Riwayat keputusan (${p36.data.riwayat.length})</summary><ul class="agp-temuan">${p36.data.riwayat.map(u => `<li class="${u.status === 'Disetujui' ? 'info' : 'sedang'}"><b>${p36Esc(u.status)} · ${p36Esc(u.judul)}</b>${p36Esc(u.hasil || '')} <span class="p36-alasan">${u.diputuskan ? new Date(u.diputuskan).toLocaleString('id-ID') : ''} · ${p36Esc(u.oleh)}</span></li>`).join('')}</ul></details>` : ''}`;
+}
+function p36PutuskanTerpilih(setuju) {
+  const ids = Array.from(document.querySelectorAll('#p36-isi .p36-pilih:checked')).map(c => c.value);
+  if (!ids.length) { pgrToast('Centang usulan dulu'); return; }
+  p36Putuskan(ids, setuju);
+}
+async function p36Putuskan(ids, setuju) {
+  const us = (p36.data && p36.data.usulan) || [];
+  const kep = ids.map(id => {
+    const u = us.find(x => x.id === id), k = { id, setuju };
+    if (!u || !setuju) return k;
+    if (u.jenis === 'ganti_nama') { const i = document.querySelector(`[data-p36-nama="${CSS.escape(id)}"]`); if (i && i.value.trim() !== u.data.baru) k.ubah = { namaBaru: i.value.trim() }; }
+    if (u.jenis === 'buat_bundling') { const i = document.querySelector(`[data-p36-bnama="${CSS.escape(id)}"]`); if (i) k.ubah = { nama: i.value.trim() }; }
+    if (u.jenis === 'pasang_kategori') {
+      const buang = Array.from(document.querySelectorAll(`[data-p36-sku="${CSS.escape(id)}"]`)).filter(c => !c.checked).map(c => c.value);
+      if (buang.length) k.ubah = { skuList: u.data.skuList.filter(s => buang.indexOf(s) === -1) };
+    }
+    return k;
+  });
+  if (setuju && kep.length > 1) {
+    const ya = await omniKonfirmasi({ ikon: '🤖', judul: `Jalankan ${kep.length} usulan?`, pesan: 'Perubahan langsung ditulis ke Produk Master / SKU Bundling. Usulan yang gagal tetap menunggu.', ya: 'Ya, jalankan', tidak: 'Batal' });
+    if (!ya) return;
+  }
+  ids.forEach(id => { const h = el('p36-h-' + id); if (h) h.textContent = '⏳ Memproses…'; });
+  let katalog = false, buka = '';
+  for (let i = 0; i < kep.length; i += 50) {
+    try {
+      const r = await postJsonTulis({ aksi: 'agk_putuskan', keputusan: kep.slice(i, i + 50), email: currentUserEmail() }, 240000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+      if (r.katalogBerubah) katalog = true;
+      r.hasil.forEach(h => {
+        const kot = el('p36-h-' + h.id), kartu = el('p36-u-' + h.id);
+        if (kot) kot.innerHTML = `<span class="${h.ok ? 'p36-ok' : 'p36-ng'}">${h.ok ? (h.status === 'Ditolak' ? '✕ Ditolak' : '✓ ') : '⚠ '}${p36Esc(h.status === 'Ditolak' ? '' : h.pesan)}</span>`;
+        if (h.ok && kartu) { kartu.classList.add('selesai'); kartu.querySelectorAll('button, input').forEach(b => b.disabled = true); }
+        if (h.ok && p36.data) p36.data.usulan = p36.data.usulan.filter(u => u.id !== h.id);
+        if (h.bukaAgen) buka = h.bukaAgen;
+      });
+    } catch (e) { ids.slice(i, i + 50).forEach(id => { const h = el('p36-h-' + id); if (h) h.innerHTML = `<span class="p36-ng">⚠ ${p36Esc(e.message || e)}</span>`; }); }
+  }
+  p36.hitung[p36.agen] = (p36.data && p36.data.usulan.length) || 0; p36RenderTab();
+  if (katalog) { try { p35ProdukRinganBasi_(); } catch (e) { } try { katalogProdukCache = []; if (el('katalog-view-produk') && el('katalog-view-produk').style.display !== 'none') katalogFetchProduk(); } catch (e) { } }
+  if (buka && buka !== p36.agen) setTimeout(() => { if (buka === 'harga') { p36Tutup(); p36HargaBuka(); } else p36GantiAgen(buka); }, 900);
+}
+async function p36KirimIde() {
+  const t = el('p36-ide'), st = el('p36-ide-st'); if (!t) return;
+  if (t.value.trim().length < 5) { st.textContent = 'Tulis idenya dulu.'; return; }
+  st.textContent = '⏳ CEO membaca…';
+  try {
+    const r = await postJsonTulis({ aksi: 'agk_usul_owner', teks: t.value.trim(), pakaiAI: !!(el('p36-pakai-ai') && el('p36-pakai-ai').checked), email: currentUserEmail() }, 90000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    t.value = ''; st.textContent = r.jawab;
+    const d = await postJson({ aksi: 'agk_daftar', agen: 'ceo', email: currentUserEmail() }, 60000, true);
+    if (d && d.success) { p36.data = d; p36.hitung = d.hitung || {}; p36RenderTab(); p36Render(); const s2 = el('p36-ide-st'); if (s2) s2.textContent = r.jawab; }
+  } catch (e) { st.innerHTML = `<span class="p36-ng">${p36Esc(e.message || e)}</span>`; }
+}
+
+/* ---------------- 2) AGEN HARGA (SnK marketplace) ---------------- */
+const p36h = { rencana: [], mode: 'SIMULASI', modeSync: '', snk: [], calon: [], ch: 'semua' };
+function p36HargaCalon() {
+  const param = hargaParamDipakai(), out = [];
+  (katalogHargaCache || []).forEach(p => {
+    const hpp = Number(p.hpp) || 0;
+    if (!(hpp > 0)) return;
+    const margin = (p.marginCustom !== null && p.marginCustom !== undefined && p.marginCustom !== '') ? Number(p.marginCustom) : katalogMarginGlobalCache;
+    [['shopee', p.hargaShopee, p.hargaCoretShopee], ['tiktok', p.hargaTiktok, p.hargaCoretTiktok]].forEach(([ch, F, C]) => {
+      let r; try { r = hargaRekomendasiChannel(ch, hpp, margin, param); } catch (e) { return; }
+      if (!r || r.status !== 'ok') return;
+      const X = Math.round(r.harga), Cp = Math.round(r.coret || hargaHitungHargaCoret(r.harga, r.markup) || r.harga);
+      F = Number(F) || 0; C = Number(C) || F;
+      const beda = Math.abs(X - F) > Math.max(100, F * 0.01) || Math.abs(Cp - C) > Math.max(100, C * 0.01);
+      if (!beda) return;
+      out.push({ sku: p.sku, nama: p.nama, ch, final: X, coret: Cp, F, C, gap: F > 0 ? Math.abs(X - F) / F : 1, rugi: F > 0 && F < hpp });
+    });
+  });
+  return out.sort((a, b) => (b.rugi - a.rugi) || (b.gap - a.gap));
+}
+async function p36HargaBuka() {
+  if (!p36Boleh()) { pgrToast('Agen Harga khusus Owner / Admin Keuangan'); return; }
+  let l = el('p36h-latar');
+  if (!l) {
+    l = document.createElement('div'); l.id = 'p36h-latar'; l.className = 'agp-latar';
+    l.innerHTML = `<div class="agp-panel" role="dialog" aria-modal="true" aria-label="Agen Harga">
+      <div class="agp-head"><h2>💰 Agen Harga<small>Memasang harga rekomendasi Kalkulator ke marketplace sesuai SnK - semua butuh klik OK</small></h2>
+        <button type="button" class="agp-x" onclick="p36Buka('ceo')">🤖 Tim Agent lain</button>
+        <button type="button" class="agp-x" onclick="el('p36h-latar').style.display='none'" aria-label="Tutup">✕</button></div>
+      <div id="p36h-isi"></div></div>`;
+    l.addEventListener('mousedown', e => { if (e.target === l) l.style.display = 'none'; });
+    document.body.appendChild(l);
+  }
+  l.style.display = 'flex';
+  const isi = el('p36h-isi');
+  isi.innerHTML = '<div class="agp-muat">Menghitung harga rekomendasi dari Kalkulator Harga Jual…</div>';
+  try {
+    if (!katalogHargaCache || !katalogHargaCache.length) {
+      const d = await postJson({ aksi: 'lihat_katalog_harga', email: currentUserEmail() });
+      if (!d || !d.success) throw new Error((d && d.error) || 'Data harga gagal dimuat');
+      hargaTerapkanDataServer(d);
+    }
+    const m = await postJson({ aksi: 'agh_mode', email: currentUserEmail() }, 30000, true);
+    if (m && m.success) { p36h.mode = m.mode; p36h.modeSync = m.modeSync; p36h.snk = m.snk; p36h.log = m.log || []; }
+    p36h.calon = p36HargaCalon();
+    await p36HargaRencana();
+  } catch (e) { isi.innerHTML = `<div class="agp-muat p36-ng">Gagal: ${p36Esc(e.message || e)}</div>`; }
+}
+async function p36HargaRencana() {
+  const isi = el('p36h-isi');
+  const pilih = p36h.calon.filter(c => p36h.ch === 'semua' || c.ch === p36h.ch).slice(0, 40);
+  p36h.rencana = [];
+  if (pilih.length) {
+    const r = await postJson({ aksi: 'agh_rencana', items: pilih.map(c => ({ sku: c.sku, ch: c.ch, final: c.final, coret: c.coret })), email: currentUserEmail() }, 120000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyusun rencana');
+    p36h.rencana = r.rencana; p36h.mode = r.mode; p36h.modeSync = r.modeSync; p36h.snk = r.snk;
+  }
+  p36HargaRender();
+}
+const P36_MODE_LABEL = { DISKON_LANGSUNG: ['Diskon langsung', 'hijau'], TURUN_DASAR_DISKON: ['Turun harga dasar + diskon', 'hijau'], RESTRUKTUR_7_HARI: ['Naik harga + diskon 7 hari lagi', 'kuning'],
+  HARGA_DASAR_SAJA: ['Harga dasar saja', ''], HARGA_DASAR_TIKTOK: ['Harga dasar TikTok', ''], SUDAH_SESUAI: ['Sudah sesuai', 'hijau'], DITOLAK: ['Ditolak pengaman', 'merah'],
+  TUNDA_24_JAM: ['Tunggu 24 jam', 'kuning'], ADA_AGENDA: ['Ada agenda berjalan', 'kuning'], GAGAL_BACA: ['Gagal baca', 'merah'], TIDAK_VALID: ['Tidak valid', 'merah'] };
+function p36HargaRender() {
+  const isi = el('p36h-isi'); if (!isi) return;
+  const owner = omxApakahOwner_(), live = p36h.mode === 'LIVE';
+  const baris = p36h.rencana.map((r, i) => {
+    const ml = P36_MODE_LABEL[r.mode] || [r.mode, ''];
+    return `<tr><td>${r.boleh ? `<input type="checkbox" class="p36h-pilih" value="${i}" aria-label="Pilih ${p36Esc(r.sku)}">` : ''}</td>
+      <td><b>${p36Esc(r.nama || r.sku)}</b><div class="p36-alasan">${p36Esc(r.sku)} · ${p36Esc(r.channel)}</div></td>
+      <td class="r">${p36Rp(r.hargaLama)}<div class="p36-alasan">coret ${p36Rp(r.coretLama)}</div></td>
+      <td class="r"><b>${p36Rp(r.hargaBaru)}</b><div class="p36-alasan">coret ${p36Rp(r.coretBaru)}${r.diskonPct ? ' · -' + r.diskonPct + '%' : ''}</div></td>
+      <td><span class="p36-chip ${ml[1]}">${p36Esc(ml[0])}</span>${r.alasan ? `<div class="p36-alasan">${p36Esc(r.alasan)}</div>` : ''}
+        ${(r.langkah || []).length ? `<ul>${r.langkah.map(x => `<li style="font-size:12px;">${p36Esc(x)}</li>`).join('')}</ul>` : ''}
+        ${(r.cek || []).length ? `<details><summary class="p36-alasan" style="cursor:pointer;">Cek SnK (${r.cek.filter(c => c.ok).length}/${r.cek.length} lolos)</summary>${r.cek.map(c => `<div style="font-size:11.5px;" class="${c.ok ? 'p36-ok' : 'p36-ng'}">${c.ok ? '✓' : '✕'} ${p36Esc(c.teks)}</div>`).join('')}</details>` : ''}</td></tr>`;
+  }).join('');
+  const nShopee = p36h.calon.filter(c => c.ch === 'shopee').length, nTik = p36h.calon.filter(c => c.ch === 'tiktok').length;
+  isi.innerHTML = `
+    <div class="p36-bar" style="${live ? 'border-color:#fca5a5; background:rgba(239,68,68,.06);' : ''}">
+      <b>Mode Agen: ${live ? '🔴 LIVE - harga marketplace benar-benar diubah' : '🟢 SIMULASI - hanya rencana & catatan, marketplace tidak disentuh'}</b>
+      ${owner ? `<button type="button" class="web-btn-secondary" style="margin:0; font-size:12px;" onclick="p36HargaMode('${live ? 'SIMULASI' : 'LIVE'}')">${live ? 'Kembali ke SIMULASI' : 'Aktifkan LIVE…'}</button>` : ''}
+      ${p36h.modeSync && p36h.modeSync !== 'LIVE' ? '<span class="p36-chip kuning">Sync Harga sistem masih DRY_RUN → walau LIVE, kiriman ke marketplace tetap simulasi</span>' : ''}</div>
+    <div class="p36-kontrol"><div class="agp-seg">${[['semua', 'Semua (' + p36h.calon.length + ')'], ['shopee', 'Shopee (' + nShopee + ')'], ['tiktok', 'TikTok/Tokopedia (' + nTik + ')']].map(([k, t]) => `<button type="button" class="${p36h.ch === k ? 'aktif' : ''}" onclick="p36h.ch='${k}'; el('p36h-isi').innerHTML='<div class=\\'agp-muat\\'>Menyusun rencana…</div>'; p36HargaRencana().catch(e=>pgrToast(e.message))">${t}</button>`).join('')}</div>
+      <span class="p36-alasan">Produk yang harganya belum sesuai rekomendasi (dijual rugi didahulukan). Maks 40 per rencana.</span></div>
+    <div class="agp-grid"><div>
+      <div class="agp-kartu"><h3>Rencana pemasangan harga <small>· centang lalu jalankan · server mengecek ulang sebelum eksekusi</small></h3>
+        ${baris ? `<div class="p36-kontrol"><label><input type="checkbox" onchange="document.querySelectorAll('.p36h-pilih').forEach(c => c.checked = this.checked)"> Centang semua yang boleh</label>
+          ${owner ? `<button type="button" class="web-btn-primary" style="margin:0;" onclick="p36HargaJalankan()">✓ ${live ? 'Jalankan (LIVE)' : 'Jalankan simulasi'}</button>` : '<span class="p36-alasan">Menjalankan khusus Owner.</span>'}<span id="p36h-st" class="p36-alasan"></span></div>
+          <div class="agp-wrap"><table class="agp-tabel p36-tabel"><thead><tr><th></th><th>Produk</th><th class="r">Saat ini</th><th class="r">Rekomendasi</th><th>Rencana &amp; SnK</th></tr></thead><tbody>${baris}</tbody></table></div>`
+          : '<div class="agp-kosong">✓ Semua harga sudah sesuai rekomendasi Kalkulator (atau HPP belum diisi).</div>'}</div></div>
+      <div><div class="agp-kartu"><h3>Aturan (SnK) yang dijaga agen</h3><ul class="p36-snk">${(p36h.snk || []).map(s => `<li>${p36Esc(s)}</li>`).join('')}</ul></div>
+        <div class="agp-kartu"><h3>Log Agen Harga <small>· 30 terakhir</small></h3>${(p36h.log || []).length ? `<ul class="agp-temuan">${p36h.log.map(r => `<li class="${r[8] === 'SUCCESS' ? 'info' : 'sedang'}"><b>${p36Esc(r[8])} · ${p36Esc(r[1])} ${p36Esc(r[2])} · ${p36Esc(r[3])}</b>${p36Esc(r[0])} · ${p36Esc(String(r[9]).slice(0, 220))}</li>`).join('')}</ul>` : '<div class="agp-kosong">Belum ada.</div>'}</div></div></div>`;
+}
+async function p36HargaMode(mode) {
+  if (mode === 'LIVE') {
+    const ya = await omniKonfirmasi({ ikon: '⚠️', judul: 'Aktifkan Agen Harga LIVE?', pesan: 'Setelah ini, rencana yang Anda centang & jalankan akan BENAR-BENAR mengubah harga / diskon di Shopee & TikTok Shop (tetap lewat pengaman HPP + komisi dan aturan SnK). Coba dulu dengan 1-2 produk.', ya: 'Ya, aktifkan LIVE', tidak: 'Batal' });
+    if (!ya) return;
+  }
+  const r = await postJsonTulis({ aksi: 'agh_mode', mode, email: currentUserEmail() }, 30000);
+  if (!r || !r.success) { omniNotif((r && r.error) || 'Gagal'); return; }
+  p36h.mode = r.mode; p36h.log = r.log; p36HargaRender();
+}
+async function p36HargaJalankan() {
+  const idx = Array.from(document.querySelectorAll('.p36h-pilih:checked')).map(c => +c.value);
+  if (!idx.length) { pgrToast('Centang produk dulu'); return; }
+  const live = p36h.mode === 'LIVE';
+  const ya = await omniKonfirmasi({ ikon: live ? '⚠️' : '🧪', judul: `${live ? 'Jalankan LIVE' : 'Simulasikan'} ${idx.length} rencana harga?`, pesan: live ? 'Harga & diskon di marketplace akan diubah sesuai rencana. Restrukturisasi Shopee membuat agenda diskon 7 hari 1 jam lagi (bisa dibatalkan selama masih menunggu).' : 'Mode SIMULASI: tidak ada harga yang diubah, hanya dicatat di Log Agen Harga.', ya: 'Ya, jalankan', tidak: 'Batal' });
+  if (!ya) return;
+  const st = el('p36h-st'), items = idx.map(i => p36h.rencana[i]).map(r => ({ sku: r.sku, ch: r.ch, final: r.hargaBaru, coret: r.coretBaru }));
+  let ok = 0, lain = 0;
+  for (let i = 0; i < items.length; i += 4) {
+    st.textContent = `⏳ ${Math.min(i + 4, items.length)} / ${items.length}…`;
+    try {
+      const r = await postJsonTulis({ aksi: 'agh_jalankan', items: items.slice(i, i + 4), email: currentUserEmail() }, 240000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+      r.hasil.forEach(h => { if (h.status === 'SUCCESS' || h.status === 'SIMULASI') ok++; else lain++; });
+    } catch (e) { st.innerHTML = `<span class="p36-ng">${p36Esc(e.message || e)}</span>`; break; }
+  }
+  pgrToast(`💰 Agen Harga: ${ok} ${live ? 'berhasil' : 'disimulasikan'}${lain ? ', ' + lain + ' dilewati/ditolak (lihat log)' : ''}`);
+  try { if (live) katalogHargaCache = []; } catch (e) { }
+  p36HargaBuka();
+}
+
+/* ---------------- 3) Tombol AI Agent di halaman Katalog ---------------- */
+function p36PasangTombol() {
+  const boleh = p36Boleh();
+  const pasang = (wadah, id, html, sebelum) => {
+    if (!wadah) return;
+    let b = el(id);
+    if (!b && boleh) { const t = document.createElement('div'); t.innerHTML = html.trim(); b = t.firstChild; b.id = id; if (sebelum && sebelum.parentNode === wadah) wadah.insertBefore(b, sebelum); else wadah.appendChild(b); }
+    if (b) b.style.display = boleh ? '' : 'none';
+  };
+  const tb = document.querySelector('#katalog-view-produk .web-toolbar-row');
+  if (tb) pasang(tb, 'p36-btn-nama', `<button type="button" class="web-btn-secondary p36-btn-agen" style="font-size:12px;" onclick="p36Buka('pm_nama')" title="Product Manager AI merapikan nama produk dengan rumus (gratis), AI hanya untuk nama sulit">🤖 Rapikan Nama (AI Agent)</button>`, tb.querySelector('[onclick*="SapuBersih"]'));
+  pasang(document.querySelector('#katalog-view-kategori .app-header-hierarki'), 'p36-btn-kat', `<button type="button" class="web-btn-secondary p36-btn-agen" style="font-size:12px; margin-left:auto;" onclick="p36Buka('pm_kategori')">🤖 Product Manager Kategori</button>`);
+  const hk = document.querySelector('#katalog-view-dashboard .klap-head-aksi');
+  if (hk) pasang(hk, 'p36-btn-ceo', `<button type="button" class="web-btn-secondary p36-btn-agen" onclick="p36Buka('ceo')">🤖 AI Agent CEO</button>`, hk.firstChild);
+  const bd = el('katalog-view-bundling');
+  if (bd && bd.style.display !== 'none' && boleh && !el('p36-bar-bdl')) {
+    const t = document.createElement('div'); t.id = 'p36-bar-bdl'; t.className = 'p36-bar';
+    t.innerHTML = '<b>🎁 Product Manager Bundling</b><span>AI mengusulkan kombinasi bundling yang pas untuk toko kopi - Anda cukup klik OK.</span><button type="button" class="web-btn-secondary p36-btn-agen" style="margin:0 0 0 auto; font-size:12px;" onclick="p36Buka(\'pm_bundling\')">Lihat usulan bundling</button>';
+    bd.insertBefore(t, bd.firstChild);
+  }
+  const hb = document.querySelector('.harga-btn-pengaturan-ai');
+  if (hb && !hb.dataset.p36) {
+    hb.dataset.p36 = '1'; hb.onclick = e => { e.preventDefault(); p36HargaBuka(); };
+    hb.removeAttribute('onclick'); hb.classList.add('p36-btn-agen'); hb.title = 'Agen Harga: pasang harga rekomendasi sesuai SnK marketplace';
+    hb.innerHTML = '🤖 Agen Harga';
+  }
+}
+setTimeout(() => { p36PasangTombol(); setInterval(p36PasangTombol, 1500); }, 1500);
+
+/* ---------------- 4) DN-261022-193913-840: Agen Penjualan pindah ke modul Penjualan ---------------- */
+function p36PindahAgp() {
+  const nav = el('agp-nav'), induk = document.querySelector('.web-nav-item[data-tab="pesanan"]');
+  const wrap = induk && induk.parentNode.querySelector('.web-submenu-wrap');
+  if (nav && wrap && nav.parentNode !== wrap) { nav.classList.add('web-nav-sub'); nav.textContent = 'Agen Penjualan & Margin'; wrap.appendChild(nav); }
+  const tabBar = el('wp-gabsub-pesanan') && el('wp-gabsub-pesanan').parentNode;
+  if (tabBar && !el('p36-agp-tab')) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'p36-agp-tab'; b.className = 'web-btn-secondary p36-btn-agen p36-agp-tab';
+    b.innerHTML = '📈 Agen Penjualan &amp; Margin'; b.title = 'Analisa omzet, margin, stok laku & rekomendasi aksi (Owner / Admin Keuangan)';
+    b.onclick = () => agpBuka();
+    tabBar.appendChild(b);
+  }
+  const b2 = el('p36-agp-tab'); if (b2) b2.style.display = p36Boleh() ? '' : 'none';
+}
+setTimeout(() => { p36PindahAgp(); setInterval(p36PindahAgp, 3000); }, 800);
+
+/* ---------------- 5) DN-261022-190938-386: kapsul Dokumen abu-abu bisa diklik ---------------- */
+dokChipHtml_ = function (it, kel) {
+  if (kel === 'batal') return '<span style="font-size:11px; color:var(--web-text-dim);">—</span>';
+  const kirimOk = !!((it.noResi && it.noResi !== '-') || it.kurirToko);
+  const b = it.bayarDiterima;
+  const no = pgrAttr(it.noInvoice);
+  const kap = (ok, ikon, label, jenis, judul) => ok
+    ? `<button type="button" class="p35-dok p35-dok-ada" onclick="dokLihat_('${no}','${jenis}')" title="${pgrAttr(judul)} - klik untuk melihat">${ikon}<span>${label}</span></button>`
+    : `<button type="button" class="p35-dok p35-dok-kurang p36-dok-klik" onclick="p36DokAksi('${no}','${jenis}')" title="${pgrAttr(judul)} - klik untuk konfirmasi / upload bukti">${ikon}<span>${label}</span></button>`;
+  const tunai = !!b && /Metode:\s*Tunai/i.test(b.catatan || '');
+  return kap(kirimOk, it.kurirToko ? P35_IKON.antar : P35_IKON.kirim, it.kurirToko ? 'Bukti Antar' : 'Resi', 'kirim', kirimOk ? 'Dokumen pengiriman sudah ada' : 'Belum ada resi / bukti kurir toko') +
+    kap(!!b, tunai ? P35_IKON.tunai : P35_IKON.bayar, 'Bukti Bayar', 'bayar', b ? (tunai ? 'Dibayar tunai' : 'Pembayaran sudah dikonfirmasi') : 'Belum ada bukti pembayaran');
+};
+function p36DokAksi(noInvoice, jenis) {
+  const it = (wpListCache || []).find(x => x.noInvoice === noInvoice); if (!it) return;
+  const izin = (currentUser && currentUser.izin) || {}, owner = omxApakahOwner_();
+  const tombol = [];
+  if (jenis === 'bayar') {
+    if (owner || izin.buatInvoice) tombol.push(['💳 Upload bukti &amp; tandai lunas', 'bayar']);
+  } else if (owner || izin.kirimResi || izin.buatInvoice) {
+    if (/kurir toko/i.test(it.kurir || '')) tombol.push(['📷 Konfirmasi diterima (Kurir Toko)', 'kurir']);
+    tombol.push(['🚚 Input No Resi / kirim pesanan', 'resi']);
+  }
+  tombol.push(['🔎 Lihat detail pesanan', 'detail']);
+  omxModal((jenis === 'bayar' ? '💳 Bukti bayar belum ada' : '🚚 Dokumen kirim belum ada') + ' · ' + noInvoice,
+    `<div style="font-size:12.5px; color:var(--web-text-dim); margin-bottom:10px;">${p36Esc(it.namaPenerima || '')}${it.total !== undefined ? ' · ' + p36Rp(it.total) : ''} · ${p36Esc(it.status || 'Belum Dikirim')}</div>
+     <div style="display:flex; flex-direction:column; gap:8px;">${tombol.map(([t, k], i) => `<button type="button" class="${i ? 'web-btn-secondary' : 'web-btn-primary'}" style="margin:0; text-align:left;" onclick="p36DokPilih('${pgrAttr(noInvoice)}','${k}')">${t}</button>`).join('')}</div>`, {});
+}
+function p36DokPilih(noInvoice, k) {
+  const it = (wpListCache || []).find(x => x.noInvoice === noInvoice); if (!it) return;
+  try { omxModalTutup(); } catch (e) { }
+  const segar = () => { try { wpRenderListRows(); } catch (e) { } };
+  if (k === 'bayar') byrBuka({ row: it.row, order: it, render: segar, onSelesai: () => { try { wpFetchList(); } catch (e) { } } });
+  else if (k === 'kurir') kftBuka({ row: it.row, noInvoice: it.noInvoice, nama: it.namaPenerima, onSelesai: () => { try { wpFetchList(); } catch (e) { } } });
+  else {
+    wpBukaDetail(it.row);
+    if (k === 'resi') setTimeout(() => { const b = el('wp-btn-kirim-toggle'); if (b && b.offsetParent !== null && !b.disabled) b.click(); }, 1200);
+  }
+}
+
+/* ---------------- 6) DN-261022-192438-596: label resmi Shopee dibaca browser (antrean) ---------------- */
+const P36_LBL = { jalan: 0, berhenti: false };
+async function p36SpblJalan_() {
+  if (P36_LBL.jalan || P36_LBL.berhenti || document.hidden) return;
+  try { if (!currentUserEmail()) return; } catch (e) { return; }
+  if (!(omxApakahOwner_() || window.innerWidth >= 900)) return;
+  let t = 0; try { t = +localStorage.getItem('p36_spbl_t_v1') || 0; } catch (e) { }
+  if (Date.now() < t + 120000) return;
+  try { localStorage.setItem('p36_spbl_t_v1', String(Date.now())); } catch (e) { }
+  P36_LBL.jalan = 1;
+  try {
+    const r = await postJson({ aksi: 'spbl_antrean', maks: 3, email: currentUserEmail() }, 120000, true);
+    if (!r || !r.success) { if (r && /izin/i.test(r.error || '')) P36_LBL.berhenti = true; return; }
+    if (!r.daftar || !r.daftar.length) { try { localStorage.setItem('p36_spbl_t_v1', String(Date.now() + 480000)); } catch (e) { } return; }
+    const kirim = [];
+    for (const x of r.daftar) {
+      try {
+        const p = p35ParseLabel_(await p35PdfHalaman_(x.pdf), p35OpsiToko_()), k = p35HasilKeKiriman_(x.sn, p);
+        delete k.kunci; k.sn = x.sn; kirim.push(k);
+      } catch (e) { kirim.push({ sn: x.sn, gagal: true, catatan: 'PDF tidak terbaca: ' + (e.message || e) }); }
+    }
+    if (kirim.length) await postJson({ aksi: 'spbl_simpan', hasil: kirim, email: currentUserEmail() }, 60000, true);
+    if (r.sisa) { try { localStorage.setItem('p36_spbl_t_v1', '0'); } catch (e) { } }
+  } catch (e) { } finally { P36_LBL.jalan = 0; }
+}
+setTimeout(() => { p36SpblJalan_(); setInterval(p36SpblJalan_, 30000); }, 55000);
+let p36SpblSt = { t: 0, d: null };
+setInterval(async () => {
+  const box = el('spb-otomatis'); if (!box || box.offsetParent === null) return;
+  if (!p36SpblSt.d || Date.now() - p36SpblSt.t > 300000) {
+    p36SpblSt.t = Date.now();
+    try { const r = await postJson({ aksi: 'spbl_status', email: currentUserEmail() }, 20000, true); if (r && r.success) p36SpblSt.d = r.antrean; } catch (e) { }
+  }
+  const a = p36SpblSt.d; if (!a) return;
+  let s = el('p36-spbl-st');
+  if (!s || !box.contains(s)) { s = document.createElement('div'); s.id = 'p36-spbl-st'; box.appendChild(s); }
+  s.textContent = `🏷 Label resmi dibaca otomatis (sumber ke-5, bila API & OCR belum cukup): ${a.Menunggu} menunggu · ${a.Selesai} terbaca${a.Gagal ? ' · ' + a.Gagal + ' gagal' : ''}.`;
+}, 3000);
+
+/* ---------------- 7) Pesan staf: Tugas Harian ringkas (3 teratas + Lihat semua) ---------------- */
+let p36TugasSemua = false;
+(function () {
+  if (typeof ovRenderTugasHarian !== 'function') return;
+  const asli = ovRenderTugasHarian;
+  ovRenderTugasHarian = function () {
+    const r = asli.apply(this, arguments);
+    try {
+      const w = el('ov-tugas-harian-list'); if (!w) return r;
+      const anak = Array.from(w.children).filter(x => !x.classList.contains('p36-tgs-lagi'));
+      if (anak.length > 3) {
+        anak.forEach((x, i) => { x.style.display = p36TugasSemua || i < 3 ? '' : 'none'; });
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'p36-tgs-lagi';
+        b.textContent = p36TugasSemua ? '▲ Ringkas' : `▼ Lihat semua (${anak.length} tugas)`;
+        b.onclick = () => { p36TugasSemua = !p36TugasSemua; ovRenderTugasHarian(); };
+        w.appendChild(b);
+      }
+    } catch (e) { }
+    return r;
+  };
 })();
 </script>
 
