@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.55';
+  var VERSI = 'v2026.10.56';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -67937,5 +67937,372 @@ let p36TugasSemua = false;
 })();
 </script>
 
+<script>
+/* ============================ PAKET 38 (v2026.10.56) ============================
+   DN-976 kamera menyala terus / tidak bisa dipakai lagi · DN-744 tombol rekam merah + jeda + stop
+   DN-140 Spasi untuk foto / video · DN-576 hapus foto & video unboxing · DN-684 Pengiriman Kilat wajib Berhasil / Retur
+   DN-294 PM Nama belajar gaya Owner
+   =============================================================================== */
+(function () {
+  const css = document.createElement('style');
+  css.textContent = [
+    '.p38-kam{background:var(--web-panel,#fff);border-radius:14px;padding:12px;width:min(680px,100%);box-shadow:0 18px 48px rgba(0,0,0,.35);}',
+    '.p38-kam-kepala{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;}',
+    '.p38-kam-layar{position:relative;border-radius:10px;overflow:hidden;background:#000;}',
+    '.p38-kam-layar video{width:100%;display:block;max-height:60vh;background:#000;}',
+    '.p38-kam-waktu{position:absolute;top:10px;left:10px;padding:3px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;display:none;align-items:center;gap:6px;}',
+    '.p38-kam-waktu.tampil{display:inline-flex;}',
+    '.p38-kam-waktu i{width:9px;height:9px;border-radius:50%;background:#ef4444;display:inline-block;}',
+    '.p38-kam-waktu.rekam i{animation:p38kedip 1s infinite;}',
+    '.p38-kam-waktu.jeda i{background:#f59e0b;animation:none;}',
+    '@keyframes p38kedip{50%{opacity:.25;}}',
+    '.p38-kam-kontrol{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:12px;min-height:64px;}',
+    '.p38-rana{width:62px;height:62px;border-radius:50%;border:4px solid #e5e7eb;background:#fff;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.18);}',
+    '.p38-rana:disabled{opacity:.45;cursor:default;}',
+    '.p38-rana span{width:44px;height:44px;border-radius:50%;background:#ef4444;display:block;transition:all .15s;}',
+    '.p38-rana.foto span{background:#f8fafc;border:2px solid #cbd5e1;}',
+    '.p38-rana.rekam span{width:24px;height:24px;border-radius:6px;}',
+    '.p38-bulat{width:44px;height:44px;border-radius:50%;border:1px solid var(--web-border,#e5e7eb);background:var(--web-panel,#fff);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--web-text,#111);}',
+    '.p38-bulat[hidden]{display:none;}',
+    '.p38-kam-ket{text-align:center;font-size:11.5px;color:var(--web-text-dim,#6b7280);margin-top:8px;}',
+    '.p38-kam-ket kbd{font-family:inherit;font-size:10.5px;border:1px solid var(--web-border,#d1d5db);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--web-bg,#f8fafc);}',
+    '.p38-thumb-wrap{position:relative;display:inline-flex;}',
+    '.p38-hapus{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:1px solid var(--web-border,#e5e7eb);background:var(--web-panel,#fff);color:#b91c1c;font-size:12px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.18);padding:0;opacity:.85;}',
+    '.p38-hapus:hover{opacity:1;background:#fee2e2;}',
+    '.kl-pill-tunggu{background:#ffedd5;color:#9a3412;}',
+    '.p38-cek{display:block;margin-top:3px;font-size:10.5px;font-weight:700;color:#b45309;}',
+    '.p38-belajar ul{margin:6px 0 0;padding-left:18px;font-size:12px;}',
+    '.p38-belajar .p38-contoh{font-size:11.5px;color:var(--web-text-dim,#6b7280);margin-top:6px;}',
+    '.p38-belajar .p38-contoh div{margin-top:2px;}'
+  ].join('\n');
+  document.head.appendChild(css);
+})();
+
+/* ---------- 1) Kamera: semua stream dicatat & selalu dimatikan (DN-976) ---------- */
+const P38_STREAM = new Set();
+(function () {
+  try {
+    const md = navigator.mediaDevices;
+    if (!md || !md.getUserMedia || md.__p38) return;
+    const asli = md.getUserMedia.bind(md);
+    md.getUserMedia = async function (c) {
+      const s = await asli(c);
+      try { P38_STREAM.add(s); s.getTracks().forEach(t => t.addEventListener('ended', () => { if (s.getTracks().every(x => x.readyState === 'ended')) P38_STREAM.delete(s); })); } catch (e) { }
+      return s;
+    };
+    md.__p38 = true;
+  } catch (e) { }
+})();
+function p38MatikanStream(s) { try { if (s) { s.getTracks().forEach(t => t.stop()); P38_STREAM.delete(s); } } catch (e) { } }
+function p38MatikanSemuaKamera() { try { Array.from(P38_STREAM).forEach(p38MatikanStream); } catch (e) { } }
+window.addEventListener('pagehide', p38MatikanSemuaKamera);
+window.addEventListener('beforeunload', p38MatikanSemuaKamera);
+
+/* ---------- 2) Jendela kamera Resi Masuk (laptop/PC) - menggantikan versi Paket 31 ---------- */
+const P38K = { sesi: 0, stream: null, rec: null, potong: [], noResi: '', jenis: '', mulai: 0, jedaMs: 0, jedaMulai: 0, jam: null, simpan: false };
+function p38KamWaktu_() {
+  const w = el('p38-waktu'); if (!w || !P38K.rec) return;
+  const kini = P38K.rec.state === 'paused' ? P38K.jedaMulai : Date.now();
+  const d = Math.max(0, Math.floor((kini - P38K.mulai - P38K.jedaMs) / 1000));
+  w.querySelector('b').textContent = `${Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')}`;
+}
+rtcTutup_ = function () {
+  P38K.sesi++;
+  try { if (P38K.rec && P38K.rec.state !== 'inactive') { P38K.rec.onstop = null; P38K.rec.stop(); } } catch (e) { }
+  p38MatikanStream(P38K.stream);
+  try { if (RTC.stream) p38MatikanStream(RTC.stream); } catch (e) { }
+  clearInterval(P38K.jam);
+  P38K.stream = null; P38K.rec = null; P38K.potong = []; P38K.jam = null; P38K.simpan = false;
+  try { RTC.stream = null; RTC.rec = null; RTC.potong = []; } catch (e) { }
+  const m = el('rtc-modal'); if (m) m.remove();
+};
+rtcBuka_ = async function (noResi, jenis) {
+  const cadangan = () => { const inp = el(`rtc-in-${jenis}-${noResi}`); if (inp) inp.click(); };
+  if (rtcHp_() || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { cadangan(); return; }
+  if (jenis === 'video' && typeof MediaRecorder === 'undefined') { cadangan(); return; }
+  rtcTutup_();
+  const sesi = ++P38K.sesi;
+  P38K.noResi = noResi; P38K.jenis = jenis;
+  const m = document.createElement('div');
+  m.id = 'rtc-modal';
+  m.style.cssText = 'position:fixed; inset:0; z-index:10034; background:rgba(15,23,42,.72); display:flex; align-items:center; justify-content:center; padding:16px;';
+  m.innerHTML = `<div class="p38-kam" role="dialog" aria-modal="true" aria-label="${jenis === 'foto' ? 'Ambil foto' : 'Rekam video'}">
+    <div class="p38-kam-kepala"><b>${jenis === 'foto' ? '📷 Ambil foto' : '🎥 Rekam video'} · ${escapeHtml(noResi)}</b><span id="rtc-info" style="color:var(--web-text-dim);">Menyalakan kamera…</span>
+      <button type="button" class="web-btn-secondary" style="margin-left:auto; font-size:12px;" onclick="rtcTutup_()">✕ Tutup</button></div>
+    <div class="p38-kam-layar"><video id="rtc-video" autoplay playsinline muted></video>
+      <span class="p38-kam-waktu" id="p38-waktu"><i></i><b>0:00</b></span></div>
+    <div class="p38-kam-kontrol">
+      ${jenis === 'video' ? '<button type="button" class="p38-bulat" id="p38-jeda" hidden title="Jeda / lanjut (P)" aria-label="Jeda">⏸</button>' : ''}
+      <button type="button" class="p38-rana ${jenis === 'foto' ? 'foto' : ''}" id="rtc-aksi" disabled title="${jenis === 'foto' ? 'Jepret (Spasi)' : 'Mulai rekam (Spasi)'}" aria-label="${jenis === 'foto' ? 'Jepret' : 'Mulai rekam'}"><span></span></button>
+      ${jenis === 'video' ? '<button type="button" class="p38-bulat" id="p38-stop" hidden title="Stop & simpan (Spasi)" aria-label="Stop dan simpan">⏹</button>' : ''}
+    </div>
+    <div class="p38-kam-ket" id="p38-ket">${jenis === 'foto' ? '<kbd>Spasi</kbd> jepret & simpan · <kbd>Esc</kbd> tutup' : '<kbd>Spasi</kbd> mulai / stop & simpan · <kbd>P</kbd> jeda / lanjut · <kbd>Esc</kbd> tutup'}</div></div>`;
+  m.addEventListener('mousedown', e => { if (e.target === m && !(P38K.rec && P38K.rec.state !== 'inactive')) rtcTutup_(); });
+  document.body.appendChild(m);
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: jenis === 'video' });
+  } catch (e) {
+    if (sesi !== P38K.sesi) return;
+    rtcTutup_();
+    const nama = (e && e.name) || '';
+    pgrToast(nama === 'NotReadableError' ? 'Kamera sedang dipakai aplikasi / tab lain - tutup dulu lalu coba lagi (atau pilih file).' : 'Kamera tidak bisa dibuka (' + (nama || e.message || e) + ') - pilih file saja.');
+    if (nama !== 'NotReadableError') cadangan();
+    return;
+  }
+  // Jendela sudah ditutup / dibuka ulang sebelum kamera siap -> kamera ini langsung dimatikan (penyebab lampu kamera menyala terus)
+  if (sesi !== P38K.sesi || !el('rtc-modal')) { p38MatikanStream(stream); return; }
+  P38K.stream = stream; try { RTC.stream = stream; } catch (e) { }
+  const v = el('rtc-video'), btn = el('rtc-aksi'), info = el('rtc-info');
+  v.srcObject = stream; try { await v.play(); } catch (e) { }
+  if (sesi !== P38K.sesi) return;
+  btn.disabled = false;
+  if (info) info.textContent = jenis === 'foto' ? 'Siap' : 'Siap merekam';
+  if (jenis === 'foto') { btn.onclick = p38Jepret_; return; }
+  btn.onclick = p38RekamMulai_;
+  el('p38-jeda').onclick = p38RekamJeda_;
+  el('p38-stop').onclick = p38RekamStop_;
+};
+function p38Jepret_() {
+  const v = el('rtc-video'), btn = el('rtc-aksi');
+  if (!v || !P38K.stream || !btn || btn.disabled) return;
+  btn.disabled = true;
+  const c = document.createElement('canvas'); c.width = v.videoWidth || 1280; c.height = v.videoHeight || 720;
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  try { playBeep(); } catch (e) { }
+  c.toBlob(b => {
+    const nr = P38K.noResi; rtcTutup_();
+    if (!b) { pgrToast('Gagal mengambil foto'); return; }
+    rt2UnggahFiles(nr, [new File([b], `unboxing-${nr}-${Date.now()}.jpg`, { type: 'image/jpeg' })]);
+  }, 'image/jpeg', 0.9);
+}
+function p38RekamMulai_() {
+  if (!P38K.stream || (P38K.rec && P38K.rec.state !== 'inactive')) return;
+  const tipe = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || '';
+  let rec;
+  try { rec = new MediaRecorder(P38K.stream, tipe ? { mimeType: tipe } : undefined); } catch (e) { pgrToast('Perekam video tidak didukung browser ini - pilih file saja.'); return; }
+  const sesi = P38K.sesi;
+  P38K.rec = rec; P38K.potong = []; P38K.mulai = Date.now(); P38K.jedaMs = 0; P38K.jedaMulai = 0;
+  rec.ondataavailable = e => { if (e.data && e.data.size) P38K.potong.push(e.data); };
+  rec.onstop = () => {
+    if (sesi !== P38K.sesi) return;
+    const jt = rec.mimeType || tipe || 'video/webm', nr = P38K.noResi, bag = P38K.potong.slice();
+    rtcTutup_();
+    const b = new Blob(bag, { type: jt.split(';')[0] });
+    if (b.size < 1000) { pgrToast('Video terlalu pendek / kosong'); return; }
+    rt2UnggahFiles(nr, [new File([b], `unboxing-${nr}-${Date.now()}.${/mp4/.test(jt) ? 'mp4' : 'webm'}`, { type: jt.split(';')[0] })]);
+  };
+  rec.start(1000);
+  const btn = el('rtc-aksi'), w = el('p38-waktu'), info = el('rtc-info');
+  btn.classList.add('rekam'); btn.title = 'Stop & simpan (Spasi)'; btn.setAttribute('aria-label', 'Stop dan simpan'); btn.onclick = p38RekamStop_;
+  el('p38-jeda').hidden = false; el('p38-stop').hidden = false;
+  w.classList.add('tampil', 'rekam'); w.classList.remove('jeda');
+  if (info) info.textContent = '● Merekam';
+  clearInterval(P38K.jam); P38K.jam = setInterval(p38KamWaktu_, 250); p38KamWaktu_();
+}
+function p38RekamJeda_() {
+  const r = P38K.rec; if (!r) return;
+  const w = el('p38-waktu'), b = el('p38-jeda'), info = el('rtc-info');
+  try {
+    if (r.state === 'recording') {
+      r.pause(); P38K.jedaMulai = Date.now();
+      if (w) { w.classList.remove('rekam'); w.classList.add('jeda'); }
+      if (b) { b.textContent = '▶'; b.setAttribute('aria-label', 'Lanjut'); }
+      if (info) info.textContent = '⏸ Dijeda';
+    } else if (r.state === 'paused') {
+      P38K.jedaMs += Date.now() - P38K.jedaMulai; P38K.jedaMulai = 0; r.resume();
+      if (w) { w.classList.add('rekam'); w.classList.remove('jeda'); }
+      if (b) { b.textContent = '⏸'; b.setAttribute('aria-label', 'Jeda'); }
+      if (info) info.textContent = '● Merekam';
+    }
+    p38KamWaktu_();
+  } catch (e) { pgrToast('Jeda tidak didukung browser ini'); }
+}
+function p38RekamStop_() {
+  const r = P38K.rec; if (!r || r.state === 'inactive' || P38K.simpan) return;
+  P38K.simpan = true;
+  ['rtc-aksi', 'p38-jeda', 'p38-stop'].forEach(id => { const b = el(id); if (b) b.disabled = true; });
+  const info = el('rtc-info'); if (info) info.textContent = 'Menyimpan…';
+  clearInterval(P38K.jam);
+  try { r.stop(); } catch (e) { rtcTutup_(); }
+}
+/* Spasi / P untuk kamera (DN-140) - juga di jendela webcam lama (p13) */
+function p38KameraTerbuka_() { return !!el('rtc-modal') || !!el('p13wc-btn'); }
+function p38BukanKetik_(e) { const t = e.target; return !(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))); }
+document.addEventListener('keydown', e => {
+  if (!p38KameraTerbuka_() || !p38BukanKetik_(e)) return;
+  const spasi = e.code === 'Space' || e.key === ' ';
+  if (spasi) {
+    e.preventDefault(); e.stopPropagation();
+    if (e.repeat) return;
+    if (el('rtc-modal')) {
+      if (P38K.jenis === 'foto') p38Jepret_();
+      else if (P38K.rec && P38K.rec.state !== 'inactive') p38RekamStop_();
+      else { const b = el('rtc-aksi'); if (b && !b.disabled) p38RekamMulai_(); }
+    } else { const b = el('p13wc-btn'); if (b && !b.disabled) b.click(); }
+    return;
+  }
+  if ((e.key === 'p' || e.key === 'P') && el('rtc-modal') && P38K.rec && P38K.rec.state !== 'inactive') { e.preventDefault(); p38RekamJeda_(); }
+}, true);
+document.addEventListener('keyup', e => { if (p38KameraTerbuka_() && p38BukanKetik_(e) && (e.code === 'Space' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+/* ---------- 3) Hapus foto / video unboxing (DN-576) ---------- */
+const p38RenderDetailAsli = rt2RenderDetail;
+rt2RenderDetail = function (noResi) {
+  const hasil = p38RenderDetailAsli.apply(this, arguments);
+  try { p38PasangHapus_(noResi); } catch (e) { }
+  return hasil;
+};
+function p38PasangHapus_(noResi) {
+  const box = el('rt2-detail-' + noResi); if (!box) return;
+  box.querySelectorAll('.rt2-media-list button.rt2-thumb').forEach(b => {
+    if (b.parentElement && b.parentElement.classList.contains('p38-thumb-wrap')) return;
+    const m = String(b.getAttribute('onclick') || '').match(/,\s*'(foto|video)',\s*(\d+)\)/);
+    if (!m) return;
+    const w = document.createElement('span'); w.className = 'p38-thumb-wrap';
+    b.parentNode.insertBefore(w, b); w.appendChild(b);
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'p38-hapus'; x.textContent = '✕';
+    x.title = 'Hapus ' + (m[1] === 'foto' ? 'foto' : 'video') + ' ini'; x.setAttribute('aria-label', x.title);
+    x.onclick = ev => { ev.stopPropagation(); p38HapusMedia(noResi, m[1], +m[2]); };
+    w.appendChild(x);
+  });
+}
+async function p38HapusMedia(noResi, jenis, i) {
+  const det = rt2.detail[noResi], list = det && det[jenis], media = list && list[i];
+  if (!media) return;
+  const ya = await omniKonfirmasi({ ikon: '🗑', judul: `Hapus ${jenis} ini?`, pesan: `${media.nama || (jenis + ' ' + (i + 1))} dihapus dari bukti unboxing resi ${noResi}.`, ya: 'Ya, hapus', tidak: 'Batal' });
+  if (!ya) return;
+  try {
+    const r = await postJsonTulis({ aksi: 'retur_hapus_media', noResi, jenis, i, nama: media.nama || '', id: media.id || media.url || '', email: currentUserEmail() });
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    const d2 = rt2.detail[noResi];
+    if (d2) { d2[jenis] = Array.isArray(r.sisa) ? r.sisa : d2[jenis].filter((x, k) => k !== i); }
+    try { const dd = rt2Data(noResi); if (dd) dd[jenis === 'foto' ? 'jumlahFoto' : 'jumlahVideo'] = d2[jenis].length; } catch (e) { }
+    rt2RenderDetail(noResi);
+    pgrToast('🗑 ' + (jenis === 'foto' ? 'Foto' : 'Video') + ' dihapus');
+  } catch (e) { pgrToast('Gagal menghapus: ' + (e.message || e)); }
+}
+
+/* ---------- 4) Pengiriman Kilat: wajib berakhir Berhasil / Diretur (DN-684) ---------- */
+const p38KlPillAsli = klPillHasil;
+klPillHasil = function (h) {
+  if (h === 'Menunggu Retur') return '<span class="kl-pill kl-pill-tunggu">Menunggu Retur</span>';
+  return p38KlPillAsli(h);
+};
+function p38KlTandai_() {
+  if (!klData || !Array.isArray(klData.items) || klData.__p38) return;
+  klData.items.forEach(it => { if (it.perluCek && !it.__p38) { it.statusAkhir = (it.statusAkhir ? it.statusAkhir + ' · ' : '') + '⚠ ' + it.perluCek; it.__p38 = 1; } });
+  klData.__p38 = true;
+}
+const p38KlRekapAsli = klRenderRekap;
+klRenderRekap = function () {
+  p38KlTandai_();
+  const h = p38KlRekapAsli.apply(this, arguments);
+  try {
+    const r = (klData && klData.ringkasan) || {}, box = el('kl-rekap-kpi');
+    if (box && (r.menungguRetur || r.perluCek)) {
+      const info = box.querySelector('.kl-kpi-info');
+      const t = document.createElement('div');
+      t.innerHTML = `${r.menungguRetur ? `<div class="kl-kpi kl-kpi-retur"><span>Menunggu Retur</span><b>${r.menungguRetur}</b><i>batal, barang belum kembali</i></div>` : ''}${r.perluCek ? `<div class="kl-kpi"><span>⚠ Perlu dicek</span><b style="color:#b45309;">${r.perluCek}</b><i>&gt; 14 hari tanpa kepastian</i></div>` : ''}`;
+      Array.from(t.children).forEach(c => box.insertBefore(c, info || null));
+    }
+    const bar = document.querySelector('[data-kl-filter="Batal"]');
+    if (bar && !document.querySelector('[data-kl-filter="Menunggu Retur"]')) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'web-chart-toggle-btn'; b.dataset.klFilter = 'Menunggu Retur';
+      b.setAttribute('onclick', 'klFilterRekap(this)'); b.innerHTML = '<span class="oi oi-clock" aria-hidden="true"></span> Menunggu Retur';
+      bar.parentNode.insertBefore(b, bar);
+    }
+  } catch (e) { }
+  return h;
+};
+const p38CckAsli = cckRender;
+cckRender = function () {
+  p38KlTandai_();
+  const h = p38CckAsli.apply(this, arguments);
+  try {
+    if (!klData) return h;
+    const items = klData.items || [], n = items.filter(it => it.hasil === 'Menunggu Retur').length, r = klData.ringkasan || {};
+    const seg = el('cck-seg');
+    if (seg && n) {
+      const b = document.createElement('button'); b.type = 'button'; if (cckFilter === 'Menunggu Retur') b.className = 'aktif';
+      b.innerHTML = `Menunggu Retur <em>${n}</em>`; b.onclick = () => { cckFilter = 'Menunggu Retur'; cckRender(); };
+      const batal = Array.from(seg.children).find(x => /^Batal/.test(x.textContent.trim()));
+      seg.insertBefore(b, batal || null);
+    }
+    const rk = el('cck-ringkas');
+    if (rk && (r.menungguRetur || r.perluCek)) rk.insertAdjacentHTML('beforeend', `${r.menungguRetur ? `<span>Menunggu retur <b>${r.menungguRetur}</b></span>` : ''}${r.perluCek ? `<span style="color:#b45309;">⚠ Perlu dicek <b>${r.perluCek}</b></span>` : ''}`);
+  } catch (e) { }
+  return h;
+};
+ccIsiBadgeKilat = function () {
+  const b = el('cc-n-kilat'); if (!b) return;
+  const items = klData && Array.isArray(klData.items) ? klData.items : [];
+  const belum = items.filter(it => it.hasil === 'Dalam Proses' || it.hasil === 'Menunggu Retur').length;
+  const cek = items.filter(it => it.perluCek).length;
+  b.textContent = belum || '';
+  b.title = belum ? belum + ' Pengiriman Kilat belum berakhir (Berhasil / Diretur)' + (cek ? ' · ' + cek + ' perlu dicek' : '') : '';
+};
+
+/* ---------- 5) PM Nama belajar gaya Owner (DN-294) ---------- */
+const p38P36RenderAsli = p36Render;
+p36Render = function () {
+  const h = p38P36RenderAsli.apply(this, arguments);
+  try {
+    const b = p36.agen === 'pm_nama' && p36.data && p36.data.belajar;
+    const isi = el('p36-isi');
+    if (b && isi && !el('p38-belajar')) {
+      const n = b.hitung || {};
+      const kartu = document.createElement('details');
+      kartu.className = 'agp-kartu p38-belajar'; kartu.id = 'p38-belajar';
+      kartu.innerHTML = `<summary style="cursor:pointer; font-weight:700; font-size:13px;">🧠 Yang sudah dipelajari dari Anda <small style="font-weight:400; color:var(--web-text-dim);">· ${b.jumlah || 0} contoh (${n.koreksi || 0} diedit sebelum OK, ${n.manual || 0} edit manual di Produk Master, ${n.setuju || 0} OK, ${n.tolak || 0} ditolak)</small></summary>
+        <div class="p36-alasan" style="margin-top:6px;">Ubah nama di kotak usulan sebelum klik OK, atau edit nama langsung di Produk Master - agen mencatat gayanya, memakainya untuk usulan berikutnya, dan menyesuaikan usulan yang masih menunggu.</div>
+        ${b.terakhir && b.terakhir.teks ? `<div class="p36-alasan" style="margin-top:4px;"><b>Terakhir:</b> ${p36Esc(b.terakhir.teks)}</div>` : ''}
+        ${(b.pola || []).length ? `<ul>${b.pola.map(x => `<li>${p36Esc(x)}</li>`).join('')}</ul>` : '<div class="p36-alasan" style="margin-top:6px;">Belum ada pola - edit beberapa nama dulu.</div>'}
+        ${(b.contoh || []).length ? `<div class="p38-contoh"><b>Contoh terbaru:</b>${b.contoh.map(c => `<div>${p36Esc(c.lama)} → <b>${p36Esc(c.final)}</b> <span class="p36-chip">${c.aksi === 'manual' ? 'edit manual' : 'diedit'}</span></div>`).join('')}</div>` : ''}
+        ${omxApakahOwner_() && b.jumlah ? '<div class="p36-kontrol" style="margin:8px 0 0;"><button type="button" class="web-btn-secondary" style="margin:0; font-size:11.5px;" onclick="p38LupakanBelajar()">Lupakan semua pelajaran</button></div>' : ''}`;
+      const kontrol = isi.querySelector('.p36-kontrol');
+      if (kontrol && kontrol.nextSibling) isi.insertBefore(kartu, kontrol.nextSibling); else isi.appendChild(kartu);
+    }
+  } catch (e) { }
+  return h;
+};
+const p38P36PutuskanAsli = p36Putuskan;
+p36Putuskan = async function (ids, setuju) {
+  const agen = p36.agen;
+  let adaEdit = false;
+  try {
+    if (agen === 'pm_nama' && setuju) {
+      const us = (p36.data && p36.data.usulan) || [];
+      adaEdit = ids.some(id => { const u = us.find(x => x.id === id); const i = document.querySelector(`[data-p36-nama="${CSS.escape(id)}"]`); return u && i && i.value.trim() !== u.data.baru; });
+    }
+  } catch (e) { }
+  const sebelum = p36.data && p36.data.belajar && p36.data.belajar.terakhir ? p36.data.belajar.terakhir.t : 0;
+  const h = await p38P36PutuskanAsli.apply(this, arguments);
+  if (agen === 'pm_nama' && (adaEdit || setuju === false)) {
+    try {
+      const r = await postJson({ aksi: 'agk_daftar', agen: 'pm_nama', email: currentUserEmail() }, 60000, true);
+      if (r && r.success && p36.agen === 'pm_nama') {
+        const t = r.belajar && r.belajar.terakhir;
+        setTimeout(() => {
+          if (p36.agen !== 'pm_nama') return;
+          p36.data = r; p36.hitung = r.hitung || p36.hitung; p36RenderTab(); p36Render();
+          if (t && t.t > sebelum && t.teks) pgrToast(t.teks);
+        }, 1200);
+      }
+    } catch (e) { }
+  }
+  return h;
+};
+async function p38LupakanBelajar() {
+  const ya = await omniKonfirmasi({ ikon: '🧠', judul: 'Lupakan semua pelajaran PM Nama?', pesan: 'Pola & contoh gaya nama yang sudah dipelajari dihapus. Nama produk tidak berubah.', ya: 'Ya, lupakan', tidak: 'Batal' });
+  if (!ya) return;
+  try {
+    const r = await postJsonTulis({ aksi: 'agk_belajar_hapus', email: currentUserEmail() });
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    pgrToast('Pelajaran PM Nama dihapus'); p36GantiAgen('pm_nama');
+  } catch (e) { pgrToast('Gagal: ' + (e.message || e)); }
+}
+</script>
 </body>
 </html>
