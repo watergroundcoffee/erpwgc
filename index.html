@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.58';
+  var VERSI = 'v2026.10.59';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -69079,6 +69079,306 @@ mgmGantiTab = function (tab) {
     if (w && !el('p40-hint-tanpa-inv')) { const d = document.createElement('div'); d.id = 'p40-hint-tanpa-inv'; d.className = 'p40-hint'; d.textContent = 'Belum ada invoice pembelian? Langsung scan barangnya saja - invoice boleh diinput menyusul, nanti dicocokkan otomatis.'; w.appendChild(d); }
   } catch (e) { }
   return r;
+};
+</script>
+
+<!-- ===================================================================================
+     PAKET 41 (v2026.10.59) - Komplain ringkas + resi pengiriman + penyelesaian & catatan + jendela penerimaan gudang ·
+     kamera langsung mati · jumlah Kilat di HP · No Pengajuan otomatis di Resi Masuk · (DN-537/977/854/344/478/164 di server)
+     =================================================================================== -->
+<style>
+  .p41-sub { font-size: 10.5px; color: var(--web-text-dim, #64748b); margin-top: 3px; line-height: 1.35; white-space: nowrap; }
+  .p41-sub b { font-weight: 600; color: inherit; }
+  .p41-ok { color: var(--web-accent, #15803d); font-weight: 600; }
+  .p41-warn { color: var(--web-warning, #b45309); font-weight: 600; }
+  .p41-terima { border: 0; background: rgba(22,163,74,.10); color: #15803d; font: inherit; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 8px; cursor: pointer; margin-top: 3px; white-space: nowrap; }
+  .p41-terima:hover { background: rgba(22,163,74,.2); }
+  .p41-selesai { font-size: 11px; margin-top: 4px; line-height: 1.35; }
+  .p41-selesai small { display: block; color: var(--web-text-dim, #64748b); font-size: 10.5px; }
+  .p41-catatan { margin-top: 4px; font-size: 11px; background: rgba(250,204,21,.14); border-left: 3px solid #eab308; border-radius: 6px; padding: 3px 6px; white-space: pre-wrap; max-width: 260px; }
+  .p41-catatan small { display: block; color: var(--web-text-dim, #64748b); font-size: 10px; }
+  .p41-cat-btn { border: 0; background: transparent; color: #4f46e5; font: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer; padding: 2px 0; }
+  .p41-gd-grid { display: grid; grid-template-columns: 150px 1fr; gap: 5px 10px; font-size: 12.5px; margin-bottom: 10px; }
+  .p41-gd-grid span:nth-child(odd) { color: var(--web-text-dim, #64748b); }
+  .p41-gd-foto { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+  .p41-gd-foto a { display: block; width: 104px; height: 104px; border-radius: 10px; overflow: hidden; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-bg, #f8fafc); text-decoration: none; font-size: 11px; color: inherit; }
+  .p41-gd-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .p41-gd-foto a span { display: flex; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 6px; }
+  .p41-gd-tabel { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px; }
+  .p41-gd-tabel th, .p41-gd-tabel td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--web-border, #e2e8f0); }
+  .p41-kilat-ringkas { display: flex; gap: 6px; margin: 6px 0 2px; }
+  .p41-kilat-ringkas .kurir-summary-row { flex: 1; }
+  .p41-stat-kilat { font-size: 11px; color: var(--text-dim, #64748b); margin-left: 8px; }
+  .p41-otomatis { font-size: 10.5px; color: var(--web-text-dim, #64748b); display: block; margin-top: 2px; }
+</style>
+<script>
+/* ============================ PAKET 41 (v2026.10.59) ============================ */
+/* ---------- 1) DN-900: kamera langsung mati saat jendela ditutup ---------- */
+try {
+  // Kamera tidak lagi "dihangatkan" saat kursor mendekat & tidak disimpan setelah ditutup -> lampu webcam padam seketika
+  p39Panaskan_ = function () { };
+  p39PoolSimpan_ = function (s) { p38MatikanStream(s); };
+  p39PoolBuang_();
+  const p41TutupAsli_ = rtcTutup_;
+  rtcTutup_ = function () {
+    const r = p41TutupAsli_.apply(this, arguments);
+    try {
+      p39PoolBuang_();
+      if (P39K.panas) { const pr = P39K.panas; P39K.panas = null; pr.then(s => p38MatikanStream(s)).catch(() => { }); }
+      // matikan semua aliran kamera yang tidak sedang tampil di layar lain (mis. kamera scan barcode)
+      const dipakai = new Set(Array.from(document.querySelectorAll('video')).map(v => v.srcObject).filter(Boolean));
+      Array.from(P38_STREAM).forEach(s => { if (!dipakai.has(s)) p38MatikanStream(s); });
+    } catch (e) { }
+    return r;
+  };
+} catch (e) { console.warn('P41 kamera', e); }
+
+/* ---------- 2) DN-840 (HP): jumlah Pengiriman Kilat terpisah di Daftar Resi Keluar ---------- */
+const P41_F_KILAT = '__P41_KILAT__', P41_F_REG = '__P41_REGULER__';
+function p41IsKilat_(it) { try { return p40Kilat_(it); } catch (e) { return false; } }
+const p41RingkasAsli_ = renderRingkasanKurirUI;
+renderRingkasanKurirUI = function () {
+  const r = p41RingkasAsli_.apply(this, arguments);
+  try {
+    const wrap = el('kurir-summary-wrap');
+    const aktif = currentListItems.filter(it => !it.dihapus);
+    const nK = aktif.filter(p41IsKilat_).length, nR = aktif.length - nK;
+    const stat = el('list-stats');
+    let s = el('p41-stat-kilat');
+    if (currentMode !== 'keluar' || !aktif.length) { if (s) s.remove(); return r; }
+    if (stat) { if (!s) { s = document.createElement('span'); s.id = 'p41-stat-kilat'; s.className = 'p41-stat-kilat'; (stat.querySelector('div') || stat).appendChild(s); } s.textContent = `(⚡ Kilat ${nK} · Reguler ${nR})`; }
+    if (!wrap) return r;
+    const box = document.createElement('div'); box.className = 'p41-kilat-ringkas';
+    [[P41_F_KILAT, '⚡ Pengiriman Kilat', nK], [P41_F_REG, '📦 Reguler', nR]].forEach(([f, label, n]) => {
+      const row = document.createElement('div');
+      row.className = 'kurir-summary-row' + (activeKurirFilter === f ? ' kurir-summary-active' : '');
+      row.innerHTML = `<span class="k-nama">${label}</span><span class="k-jumlah">${n}</span>`;
+      row.addEventListener('click', () => filterByKurir(f));
+      box.appendChild(row);
+    });
+    const judul = wrap.firstElementChild;
+    if (judul && judul.nextSibling) wrap.insertBefore(box, judul.nextSibling); else wrap.appendChild(box);
+    wrap.querySelectorAll('button.back-btn').forEach(b => {
+      if (activeKurirFilter === P41_F_KILAT) b.textContent = '✕ Hapus Filter Pengiriman Kilat';
+      else if (activeKurirFilter === P41_F_REG) b.textContent = '✕ Hapus Filter Reguler';
+    });
+  } catch (e) { console.warn('P41 kilat', e); }
+  return r;
+};
+const p41FilterAsli_ = applyListFilters;
+applyListFilters = function () {
+  if (activeKurirFilter !== P41_F_KILAT && activeKurirFilter !== P41_F_REG) return p41FilterAsli_.apply(this, arguments);
+  const query = el('list-search-input').value.trim().toLowerCase();
+  const mauKilat = activeKurirFilter === P41_F_KILAT;
+  let filtered = currentListItems.filter(it => !it.dihapus && p41IsKilat_(it) === mauKilat);
+  if (query) filtered = filtered.filter(item => resiCocokCari(item.noResi, query) || String(item.noInvoice || '').toLowerCase().includes(query));
+  renderListItems(filtered);
+  el('list-empty').style.display = filtered.length === 0 ? 'block' : 'none';
+  el('list-empty').textContent = mauKilat ? 'Tidak ada resi Pengiriman Kilat ' + listLabelAktif + '.' : 'Tidak ada resi reguler ' + listLabelAktif + '.';
+};
+
+/* ---------- 3) DN-977: No Pengajuan otomatis di Resi Masuk ---------- */
+const p41Rt2BarisAsli_ = rt2HtmlBaris;
+rt2HtmlBaris = function (d) {
+  let h = p41Rt2BarisAsli_.apply(this, arguments);
+  try {
+    if (d && d.noLaporanOtomatis) {
+      const sel = rt2HtmlSelEdit(d, 'noLaporan', 'No laporan...', 'No Laporan', false);
+      const tanda = `<span class="p41-otomatis" title="No Pengajuan (Return SN) dari data ${pgrAttr(d.sumberSistem || 'retur marketplace')}">Otomatis · ${escapeHtml(d.sumberSistem || 'retur marketplace')}</span>`;
+      h = h.replace(`<td>${sel}</td>`, `<td>${sel}${tanda}</td>`);
+    }
+  } catch (e) { }
+  return h;
+};
+
+/* ---------- 4) DN-387 / DN-749 / DN-402: tabel Komplain ringkas ---------- */
+const P41_THEAD = '<tr><th>No Pesanan</th><th>Pelanggan</th><th>Alasan Komplain</th><th>Status &amp; Penyelesaian</th><th class="num">Refund</th><th>Resi Pengiriman</th><th>No Resi Pengembalian</th></tr>';
+function p41PasangThead_() {
+  const t = el('retur-body') && el('retur-body').closest('table');
+  const th = t && t.querySelector('thead');
+  if (th && th.dataset.p41 !== '1') { th.innerHTML = P41_THEAD; th.dataset.p41 = '1'; }
+}
+returRenderSkeleton = function (n) {
+  p41PasangThead_();
+  const lebar = [130, 100, 150, 140, 70, 120, 130];
+  el('retur-body').innerHTML = Array.from({ length: n || 8 }, (_, r) =>
+    `<tr class="wp-skel" aria-hidden="true">${lebar.map((w, i) => `<td><i style="width:${Math.max(14, w - ((r * 11 + i * 7) % 30))}px"></i></td>`).join('')}</tr>`).join('');
+  el('retur-empty').style.display = 'none';
+};
+const p41CocokAsli_ = returCocokCari;
+returCocokCari = function (r, q) {
+  if (p41CocokAsli_(r, q)) return true;
+  if (!q) return true;
+  const teks = [r.resiKirim, r.catatanInternal && r.catatanInternal.catatan].map(x => String(x || '')).join(' ').toLowerCase();
+  return q.split(/\s+/).filter(Boolean).every(t => teks.indexOf(t) !== -1 || resiCocokCari(r.resiKirim, t) || p41CocokAsli_(r, t));
+};
+function p41Rp_(n) { return 'Rp ' + Number(n || 0).toLocaleString('id-ID'); }
+function p41Tgl_(ms) { try { return new Date(ms).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+function p41Penyelesaian_(r) {
+  const st = String(r.status || '').toUpperCase(), p = r.penyelesaian || {}, refund = Number(r.totalRefund || 0);
+  let utama = '', ket = [];
+  const asal = (typeof wpGabunganCache !== 'undefined' ? wpGabunganCache : []).find(o => String(o.noReferensi) === String(r.orderId));
+  const sebagian = asal && Number(asal.total) > 0 && refund > 0 && refund < Number(asal.total) ? ` (sebagian dari ${p41Rp_(asal.total)})` : '';
+  if (/^ACCEPTED$|REFUND_PAID|REQUEST_SUCCESS|REFUNDED/.test(st)) utama = `💸 Refund ke Pembeli ${p41Rp_(refund)}${sebagian}`;
+  else if (/^CLOSED$|COMPLETE/.test(st)) utama = refund > 0 ? `✔ Selesai · refund ${p41Rp_(refund)}${sebagian}` : '✔ Selesai / ditutup';
+  else if (/CANCEL/.test(st)) utama = '✖ Dibatalkan pembeli · tidak ada refund';
+  else if (/REJECT/.test(st)) utama = '✖ Pengajuan ditolak';
+  else if (/JUDGING/.test(st)) utama = '⚖️ Ditinjau Shopee (banding)';
+  else if (/SELLER_DISPUTE/.test(st)) utama = '⚖️ Banding Anda sedang diproses';
+  else if (/^REQUESTED$|PENDING/.test(st)) utama = '⏳ Menunggu keputusan Anda';
+  else if (r.diterimaGudang) utama = '🔍 Barang sudah di gudang · putuskan refund / banding';
+  else if (/^PROCESSING$|AWAITING|SHIPPED/.test(st)) utama = String(r.noResiPengembalian || '').trim() && wpResiStr(r.noResiPengembalian) !== '-' ? '🚚 Barang dalam perjalanan kembali' : '⏳ Menunggu pembeli mengirim barang';
+  if (p.solusi === 1 || p.solusi === '1') ket.push('Refund saja (barang tidak dikembalikan)');
+  else if (p.solusi === 0 || p.solusi === '0') ket.push('Retur barang & refund');
+  if (p.nego && /ONGOING|PENDING/i.test(p.nego.status || '')) ket.push('Negosiasi berjalan' + (p.nego.tawaran ? ' · tawaran ' + p41Rp_(p.nego.tawaran) : ''));
+  if (p.kompensasi && p.kompensasi.jumlah) ket.push('Kompensasi penjual ' + p41Rp_(p.kompensasi.jumlah) + (p.kompensasi.status ? ' (' + p.kompensasi.status.toLowerCase().replace(/_/g, ' ') + ')' : ''));
+  const batas = p.batasPenjual || p.batas;
+  if (batas && /^(REQUESTED|PROCESSING)$/.test(st) && batas > Date.now()) ket.push('Batas tanggapan: ' + p41Tgl_(batas));
+  return { utama, ket };
+}
+function p41CatatanHtml_(r, i) {
+  const c = r.catatanInternal;
+  return (c && c.catatan ? `<div class="p41-catatan">📝 ${escapeHtml(c.catatan)}<small>${escapeHtml([c.oleh, c.waktu].filter(Boolean).join(' · '))}</small></div>` : '') +
+    `<button type="button" class="p41-cat-btn" onclick="p41EditCatatan(${i})">✏️ ${c && c.catatan ? 'Ubah catatan' : 'Catatan internal'}</button>`;
+}
+wpRenderRetur = function (pertahankanHalaman) {
+  returUpdateBadge();
+  p41PasangThead_();
+  const q = (el('retur-cari')?.value || '').toLowerCase().trim();
+  const belumGudang = !!el('retur-belum-gudang')?.checked;
+  const sortPilihan = el('retur-sort')?.value || 'terbaru';
+  const jumlah = { '': 0 };
+  let daftar = [];
+  returCache.forEach(r => {
+    if (belumGudang && r.diterimaGudang) return;
+    if (!returCocokCari(r, q)) return;
+    const kat = returKategori(r);
+    jumlah[''] += 1; jumlah[kat] = (jumlah[kat] || 0) + 1;
+    if (!returKategoriAktif || kat === returKategoriAktif) daftar.push(r);
+  });
+  returRenderKapsul(jumlah);
+  daftar = daftar.slice().sort((a, b) => {
+    if (sortPilihan === 'terlama') return a.tanggalObj - b.tanggalObj;
+    if (sortPilihan === 'refund_tinggi') return b.totalRefund - a.totalRefund;
+    if (sortPilihan === 'refund_rendah') return a.totalRefund - b.totalRefund;
+    return b.tanggalObj - a.tanggalObj;
+  });
+  if (daftar.length === 0) {
+    el('retur-body').innerHTML = '';
+    el('retur-empty').style.display = 'block';
+    el('retur-empty').textContent = returCache.length ? 'Tidak ada retur yang cocok dengan pencarian / filter.' : `Belum ada data retur/komplain ${RETUR_KANAL_NAMA[returKanal]}. Klik "Sync dari ${RETUR_KANAL_NAMA[returKanal]}" untuk menarik data terbaru.`;
+    if (el('retur-paginasi')) el('retur-paginasi').innerHTML = '';
+    return;
+  }
+  el('retur-empty').style.display = 'none';
+  const maksHalaman = Math.max(1, Math.ceil(daftar.length / returPaginasiState.perPage));
+  if (returPaginasiState.page > maksHalaman) returPaginasiState.page = maksHalaman;
+  const halamanIni = halamanDataPaginasi(daftar, returPaginasiState);
+  const sekarang = Date.now();
+  el('retur-body').innerHTML = halamanIni.map(r => {
+    const i = returCache.indexOf(r);
+    const kat = returKategori(r);
+    const katInfo = RETUR_KATEGORI.find(c => c.k === kat) || RETUR_KATEGORI[0];
+    const al = returAlasanKategori(r.alasan);
+    const nama = returNamaPelanggan(r);
+    const umur = r.tanggalObj ? Math.floor((sekarang - r.tanggalObj) / 86400000) : null;
+    const umurHtml = (umur !== null && (kat === 'menunggu' || kat === 'pengecekan')) ? ` <span class="rt-umur ${umur > 7 ? 'lama' : ''}" title="Umur komplain">${umur} hari</span>` : '';
+    const ps = p41Penyelesaian_(r);
+    const resiKirim = String(r.resiKirim || '').trim();
+    const kirimHtml = resiKirim
+      ? `<div class="wp-mono">${wpOmniSorot(resiKirim, q)}</div><div class="p41-sub">${r.keluarGudang ? `<span class="p41-ok">✓ Keluar gudang</span> ${escapeHtml(r.waktuKeluar || '')}` : '<span class="p41-warn">Belum discan keluar gudang</span>'}</div>`
+      : '<span class="wp-dim">-</span><div class="p41-sub">resi pengiriman belum tercatat</div>';
+    const resiKembali = wpResiStr(r.noResiPengembalian);
+    const gudangHtml = r.diterimaGudang
+      ? (r.gudang ? `<button type="button" class="p41-terima" onclick="p41BukaGudang(${i})" title="Lihat kondisi penerimaan, foto & video">✓ Diterima gudang · ${escapeHtml(r.tanggalDiterima || r.gudang.waktu || '')}</button>`
+        : `<div class="p41-sub"><span class="p41-ok">✓ Diterima gudang</span> ${escapeHtml(r.tanggalDiterima || '')}</div>`)
+      : '<div class="p41-sub"><span class="p41-warn">Belum diterima gudang</span></div>';
+    return `
+    <tr>
+      <td><a class="web-table-link wp-retur-link" data-retur-i="${i}" title="Lihat detail produk & pesanan asal">${wpOmniSorot(String(r.orderId || '-'), q)}</a>
+        <div class="p41-sub">Tanggal Komplain: <b>${escapeHtml(r.tanggal || '-')}</b>${umurHtml}</div></td>
+      <td>${nama ? wpOmniSorot(nama, q) : '<span class="wp-dim">-</span>'}</td>
+      <td class="rt-alasan" title="${escapeHtml(String(r.alasan || ''))}">
+        <span class="rt-alasan-chip rt-a-${al.k}"><span aria-hidden="true">${al.ikon}</span>${escapeHtml(al.label)}</span>
+        <div class="rt-alasan-teks">${escapeHtml(String(r.alasan || '-'))}</div></td>
+      <td><span class="rt-status" style="--w:${katInfo.warna}" title="${escapeHtml(String(r.status || ''))}"><i aria-hidden="true"></i>${escapeHtml(returLabelStatus(r.status))}</span>
+        ${ps.utama || ps.ket.length ? `<div class="p41-selesai">${escapeHtml(ps.utama)}${ps.ket.map(k => `<small>${escapeHtml(k)}</small>`).join('')}</div>` : ''}
+        ${p41CatatanHtml_(r, i)}</td>
+      <td class="num">${p41Rp_(r.totalRefund)}</td>
+      <td>${kirimHtml}</td>
+      <td><div class="wp-mono">${wpOmniSorot(resiKembali, q)}</div>${gudangHtml}</td>
+    </tr>`;
+  }).join('');
+  el('retur-body').querySelectorAll('.wp-retur-link').forEach(a => a.addEventListener('click', () => returBukaDetail(parseInt(a.dataset.returI, 10))));
+  if (el('retur-paginasi')) renderPaginasi('retur-paginasi', daftar.length, returPaginasiState, () => wpRenderRetur(true));
+};
+function p41EditCatatan(i) {
+  const r = returCache[i]; if (!r) return;
+  const c = r.catatanInternal || {};
+  omxModal('Catatan internal komplain · ' + (r.orderId || ''), `
+    <div style="font-size:12px; color:var(--web-text-dim); margin-bottom:6px;">Hanya terlihat di ERP (tidak dikirim ke marketplace). Contoh: "Gudang memang kirim kurang 1 pcs".</div>
+    <textarea id="p41-cat-isi" class="web-form-input" rows="4" maxlength="1000" style="width:100%; resize:vertical;">${escapeHtml(c.catatan || '')}</textarea>
+    <div class="status-text" id="p41-cat-st" style="text-align:left;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+      <button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button>
+      <button type="button" class="web-btn-primary" id="p41-cat-simpan">Simpan</button></div>`);
+  el('p41-cat-simpan').onclick = async () => {
+    const st = el('p41-cat-st'), teks = el('p41-cat-isi').value.trim();
+    st.textContent = 'Menyimpan…'; st.className = 'status-text';
+    try {
+      const d = await postJsonTulis({ aksi: 'p41_catatan_komplain_simpan', kanal: r.kanal || returKanal, returnId: r.returnId, orderId: r.orderId, catatan: teks, email: currentUserEmail() }, 30000);
+      if (!d || !d.success) throw new Error((d && d.error) || 'Gagal menyimpan');
+      r.catatanInternal = d.catatanInternal;
+      try { simpanCacheLokal('retur_' + (r.kanal || returKanal), returCachePerKanal[r.kanal || returKanal]); } catch (e) { }
+      omxTutupModal(); wpRenderRetur(true); pgrToast('✓ Catatan tersimpan');
+    } catch (e) { st.textContent = '✗ ' + (e.message || e); st.className = 'status-text err'; }
+  };
+}
+function p41BukaGudang(i) {
+  const r = returCache[i]; if (!r || !r.gudang) return;
+  const g = r.gudang;
+  const baris = (a, b) => `<span>${a}</span><span>${b}</span>`;
+  const media = (g.foto || []).map(f => `<a href="${pgrAttr(f.url)}" target="_blank" rel="noopener" title="${pgrAttr(f.nama)}">${f.thumb ? `<img src="${pgrAttr(f.thumb)}" alt="${pgrAttr(f.nama)}" loading="lazy">` : `<span>📷 ${escapeHtml(f.nama || 'Foto')}</span>`}</a>`).join('')
+    + (g.video || []).map(v => `<a href="${pgrAttr(v.url)}" target="_blank" rel="noopener" title="${pgrAttr(v.nama)}"><span>🎥 ${escapeHtml(v.nama || 'Video')}</span></a>`).join('');
+  const item = (g.item || []).length ? `<table class="p41-gd-tabel"><thead><tr><th>SKU</th><th>Nama</th><th>Qty</th><th>Kondisi</th></tr></thead><tbody>${g.item.map(x => `<tr><td class="wp-mono">${escapeHtml(x.sku || '-')}</td><td>${escapeHtml(x.nama || '-')}</td><td>${x.qty}</td><td>${escapeHtml(x.status || '-')}</td></tr>`).join('')}</tbody></table>` : '<div class="wp-dim" style="font-size:12px; margin-bottom:10px;">Isi paket aktual belum dicatat di Resi Masuk.</div>';
+  omxModal('Penerimaan retur di gudang · ' + (r.orderId || ''), `
+    <div class="p41-gd-grid">
+      ${baris('Resi discan', `<b class="wp-mono">${escapeHtml(g.resi)}</b>`)}
+      ${baris('Waktu diterima', escapeHtml(g.waktu || '-') + (g.oleh ? ' · ' + escapeHtml(g.oleh) : ''))}
+      ${baris('Dicocokkan lewat', escapeHtml(g.dasar || '-'))}
+      ${baris('Kondisi penerimaan', g.statusCek ? `<b>${escapeHtml(g.statusCek)}</b>` : '<span class="p41-warn">Belum dicek</span>')}
+      ${baris('Stok', g.stokDiproses ? '✓ Sudah diproses ke stok' + (g.stokWaktu ? ' · ' + escapeHtml(g.stokWaktu) : '') : 'Belum diproses')}
+      ${g.klaim && (g.klaim.tahap || g.klaim.hasil) ? baris('Klaim marketplace', escapeHtml([g.klaim.tahap, g.klaim.hasil].filter(Boolean).join(' · '))) : ''}
+      ${g.catatan ? baris('Catatan gudang', escapeHtml(g.catatan)) : ''}
+    </div>
+    <div style="font-size:12px; font-weight:600; margin-bottom:4px;">📦 Isi paket yang diterima</div>${item}
+    <div style="font-size:12px; font-weight:600;">📷 Foto &amp; 🎥 video unboxing (${(g.foto || []).length + (g.video || []).length})</div>
+    ${media ? `<div class="p41-gd-foto">${media}</div>` : '<div class="wp-dim" style="font-size:12px; margin:6px 0 10px;">Belum ada foto / video.</div>'}
+    <button type="button" class="web-btn-primary" style="width:100%;" onclick="p41KeResiMasuk('${pgrAttr(g.resi)}')">🔎 Buka di Pengiriman › Resi Masuk</button>`, { lebar: true });
+}
+function p41KeResiMasuk(resi) {
+  omxTutupModal();
+  try { location.hash = '#pengiriman/resi-masuk'; } catch (e) { }
+  let n = 0;
+  const coba = () => { const c = el('rt2-cari'); if (c && c.offsetParent !== null) { c.value = resi; try { rt2Render(); } catch (e) { } return; } if (++n < 20) setTimeout(coba, 250); };
+  setTimeout(coba, 300);
+}
+// Detail retur (klik No Pesanan): tambah resi pengiriman, penyelesaian & catatan
+const p41DetailAsli_ = returBukaDetail;
+returBukaDetail = function (i) {
+  const hasil = p41DetailAsli_.apply(this, arguments);
+  try {
+    const r = returCache[i], isi = el('wp-retur-detail-isi'); if (!r || !isi) return hasil;
+    const ps = p41Penyelesaian_(r);
+    const div = document.createElement('div');
+    div.className = 'web-panel'; div.style.cssText = 'margin:10px 0; padding:10px 12px; background:var(--web-bg); font-size:12.5px;';
+    div.innerHTML = `<div style="font-weight:600; margin-bottom:4px;">🧾 Penyelesaian</div><div>${escapeHtml(ps.utama || returLabelStatus(r.status))}</div>${ps.ket.map(k => `<div class="wp-dim" style="font-size:11.5px;">${escapeHtml(k)}</div>`).join('')}
+      <div style="margin-top:6px;">🚚 Resi Pengiriman: <b class="wp-mono">${escapeHtml(r.resiKirim || '-')}</b> · ${r.keluarGudang ? '✓ keluar gudang ' + escapeHtml(r.waktuKeluar || '') : 'belum discan keluar gudang'}</div>
+      ${r.catatanInternal && r.catatanInternal.catatan ? `<div class="p41-catatan" style="max-width:none;">📝 ${escapeHtml(r.catatanInternal.catatan)}</div>` : ''}
+      ${r.gudang ? `<button type="button" class="p41-terima" onclick="returTutupDetail(); p41BukaGudang(${i})">✓ Lihat penerimaan gudang, foto &amp; video</button>` : ''}`;
+    isi.insertBefore(div, isi.querySelector('#wp-retur-btn-ke-pesanan'));
+  } catch (e) { }
+  return hasil;
 };
 </script>
 
