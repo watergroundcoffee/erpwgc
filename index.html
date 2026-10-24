@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.61';
+  var VERSI = 'v2026.10.62';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -32909,7 +32909,7 @@ function vbPasangEventMatriks() {
     const tampil = () => {
       const q = inp.value.trim().toLowerCase();
       if (!q) { hasil.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
-      pilihan = katalogProdukCache.filter(p => !p.arsip && (p.sku.toLowerCase().includes(q) || String(p.nama || '').toLowerCase().includes(q)))
+      pilihan = katalogProdukCache.filter(p => !p.arsip && (p.sku.toLowerCase().includes(q) || String(p.nama || '').toLowerCase().includes(q) || !!p44KodeCocok_(p.sku, q))) // v2026.10.62 (DN-249): + semua SKU Mapping
         .map(p => ({ p, blok: (p.idVarian && p.idVarian !== vb.idGrup) || vbSkuDiSlotLain(p.sku, key) ? 1 : 0 }))
         // yang BISA dipilih di atas, lalu yang SKU-nya diawali kata kunci
         .sort((a, b) => (a.blok - b.blok) || ((a.p.sku.toLowerCase().startsWith(q) ? 0 : 1) - (b.p.sku.toLowerCase().startsWith(q) ? 0 : 1)))
@@ -32920,7 +32920,7 @@ function vbPasangEventMatriks() {
         const diSlotLain = vbSkuDiSlotLain(p.sku, key);
         const alasan = diGrupLain ? 'sudah di grup varian lain' : (diSlotLain ? 'sudah dipakai slot lain' : '');
         return `<div class="vb-cari-item${alasan ? ' nonaktif' : ''}${i === 0 ? ' fokus' : ''}" role="option" data-sku="${pgrAttr(p.sku)}" ${alasan ? 'aria-disabled="true"' : ''}>
-          <b>${escapeHtml(p.sku)}</b><span>${escapeHtml(p.nama || '')}</span>${alasan ? `<em>${alasan}</em>` : ''}</div>`;
+          <b>${escapeHtml(p.sku)}</b><span>${escapeHtml(p.nama || '')}</span>${p44KodeCocokHtml_(p.sku, inp.value.trim().toLowerCase())}${alasan ? `<em>${alasan}</em>` : ''}</div>`;
       }).join('') : '<div class="vb-cari-item nonaktif"><span>Tidak ditemukan - pakai "Buat SKU Baru"</span></div>';
       hasil.hidden = false;
       inp.setAttribute('aria-expanded', 'true');
@@ -70062,6 +70062,177 @@ async function p43Asisten(paksa) {
     else if (n > 600) clearInterval(tunggu);
   }, 2000);
 })();
+</script>
+
+<!-- ===================================================================================
+     PAKET 44 (v2026.10.62) - Photoroom · cari SKU varian lewat semua SKU Mapping · Hapus Permanen saat hover · jendela terkunci saat
+     menarik URL · Simpan 1x klik · SKU & harga supplier · Sederhanakan tanpa AI + ulangi AI · pola scraping + baca ulang AI
+     =================================================================================== -->
+<style>
+  .katalog-baris-arsip .p34-hapus-permanen { display: block; margin-top: 4px; opacity: 0; pointer-events: none; transition: opacity .15s; }
+  .katalog-baris-arsip:hover .p34-hapus-permanen, .katalog-baris-arsip .p34-hapus-permanen:focus { opacity: 1; pointer-events: auto; }
+  .p44-kode-cocok { display: block; font-size: 10.5px; color: #15803d; font-weight: 600; }
+  #katalog-modal-tambah-produk .web-panel.p44-kunci { position: relative; }
+  .p44-kunci #katalog-modal-tambah-produk-body, .p44-kunci .tp-isi-ai, .p44-kunci #tp-btn-simpan { pointer-events: none; opacity: .5; filter: grayscale(.3); }
+  .p44-kunci-banner { position: sticky; top: 52px; z-index: 5; margin: 8px 0; padding: 8px 12px; border-radius: 10px; background: #eef2ff; color: #3730a3; font-size: 12.5px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .p44-kunci-banner i { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: p44putar .8s linear infinite; flex: none; }
+  @keyframes p44putar { to { transform: rotate(360deg); } }
+  .p44-pr-set { margin-left: 8px; border: 0; background: none; color: var(--gm-aksen-teks, #4338ca); font: 600 11px/1.2 inherit; cursor: pointer; text-decoration: underline; }
+</style>
+<script>
+/* ============================ PAKET 44 (v2026.10.62) ============================ */
+const P44 = { tarik: 0, batal: false, d: null, paksaAI: false, pr: null };
+/* ---------- DN-249: kode SKU Mapping cocok ---------- */
+function p44KodeSku_(sku) {
+  const a = [];
+  (katalogSkuTerhubungMap[sku] || []).forEach(x => a.push({ k: typeof x === 'string' ? x : (x.skuSupplier || x.sku || x.kode || ''), j: 'SKU Supplier' }));
+  (katalogSkuMarketplaceMap[sku] || []).forEach(x => a.push({ k: x.skuMarketplace || x.sku || '', j: x.platform || 'Marketplace' }));
+  return a.filter(x => x.k);
+}
+function p44KodeCocok_(sku, q) { if (!q) return null; return p44KodeSku_(sku).find(x => String(x.k).toLowerCase().includes(q)) || null; }
+function p44KodeCocokHtml_(sku, q) {
+  if (!q || String(sku).toLowerCase().includes(q)) return '';
+  const c = p44KodeCocok_(sku, q); return c ? `<small class="p44-kode-cocok">cocok: ${escapeHtml(c.j)} ${escapeHtml(c.k)}</small>` : '';
+}
+
+/* ---------- DN-259: Simpan cukup 1x klik ---------- */
+document.addEventListener('mousedown', e => {
+  const b = e.target.closest && e.target.closest('#tp-btn-simpan');
+  if (b && !b.disabled) e.preventDefault(); // kolom aktif tidak blur dulu -> tampilan tidak bergeser sebelum klik terjadi
+}, true);
+const p44SimpanAsli_ = katalogSimpanProdukBaru;
+katalogSimpanProdukBaru = async function () {
+  if (P44.tarik) { pgrToast('Tunggu - data dari URL masih ditarik.'); return; }
+  const a = document.activeElement;
+  if (a && a !== document.body && el('katalog-modal-tambah-produk').contains(a)) { a.blur(); await new Promise(r => setTimeout(r, 30)); }
+  return p44SimpanAsli_.apply(this, arguments);
+};
+
+/* ---------- DN-421: jendela terkunci saat menarik URL, ✕ membatalkan ---------- */
+function p44Kunci_(nyala) {
+  const panel = document.querySelector('#katalog-modal-tambah-produk > .web-panel'); if (!panel) return;
+  panel.classList.toggle('p44-kunci', !!nyala);
+  const btn = el('tp-btn-simpan'); if (btn) { if (nyala) { btn.dataset.p44 = btn.disabled ? '1' : '0'; btn.disabled = true; } else if (btn.dataset.p44 !== undefined) { btn.disabled = btn.dataset.p44 === '1'; delete btn.dataset.p44; } }
+  let b = el('p44-kunci-banner');
+  if (nyala && !b) { panel.querySelector('.web-panel-header').insertAdjacentHTML('afterend', '<div id="p44-kunci-banner" class="p44-kunci-banner"><i></i><span>Menarik data dari halaman supplier… tekan ✕ di kanan atas untuk membatalkan.</span></div>'); }
+  else if (!nyala && b) b.remove();
+}
+tpSupTerdeteksi_ = (function (asli) { return function (teks) { const r = asli.apply(this, arguments); if (r && P44.paksaAI) r.paksaAI = true; return r; }; })(tpSupTerdeteksi_);
+const p44BacaAsli_ = tpIsiAiBaca;
+tpIsiAiBaca = async function (paksaAI) {
+  const teks = el('tp-ai-teks') ? el('tp-ai-teks').value.trim() : '';
+  const sup = !paksaAI && tpSupTerdeteksi_(teks);
+  if (!sup) return p44BacaAsli_.apply(this, arguments);
+  const token = ++P44.tarik; P44.batal = false; P44.d = null; p44Kunci_(true);
+  try { await p44BacaAsli_.apply(this, arguments); }
+  finally {
+    const dibatalkan = P44.batal;
+    if (P44.tarik === token) { P44.tarik = 0; p44Kunci_(false); }
+    P44.paksaAI = false;
+    if (!dibatalkan) p44StatusBaca_();
+  }
+};
+const p44TerapkanAsli_ = tpIsiAiTerapkan;
+tpIsiAiTerapkan = function (d) {
+  if (P44.batal) return 0;
+  P44.d = d || null;
+  return p44TerapkanAsli_.apply(this, arguments);
+};
+const p44TutupAsli_ = katalogTutupModalTambahProduk;
+katalogTutupModalTambahProduk = function () {
+  if (P44.tarik) { P44.batal = true; P44.tarik = 0; p44Kunci_(false); pgrToast('Penarikan data dibatalkan.'); }
+  return p44TutupAsli_.apply(this, arguments);
+};
+function p44StatusBaca_() {
+  const d = P44.d, s = el('tp-status'); if (!d || !s || !d.urlProduk) return;
+  const asal = d.sumberBaca === 'ai' ? '🤖 dibaca AI' + (d.polaDipelajari && d.polaDipelajari.length ? ' · pola situs ' + d.polaDomain + ' disimpan' : '')
+    : (d.sumberBaca === 'pola' ? '⚡ dibaca tanpa AI (pola tersimpan ' + d.polaDomain + ')' : '⚡ dibaca tanpa AI');
+  const kurang = [];
+  if (!d.skuSupplier) kurang.push('No SKU'); if (!(Number(d.harga) > 0)) kurang.push('harga');
+  s.insertAdjacentHTML('beforeend', `<div style="margin-top:4px; font-size:11.5px;">${escapeHtml(asal)}${kurang.length ? ' · ⚠️ ' + escapeHtml(kurang.join(' & ')) + ' tidak ditemukan' : ''} · <a href="#" onclick="p44BacaUlangAI(); return false;">🤖 Baca ulang dengan AI</a></div>`);
+  P44.urlTerakhir = d.urlProduk;
+}
+async function p44BacaUlangAI() {
+  const url = P44.urlTerakhir; if (!url) return;
+  try { tpIsiAiBuka(); } catch (e) { }
+  if (el('tp-ai-teks')) el('tp-ai-teks').value = url;
+  P44.paksaAI = true;
+  await tpIsiAiBaca();
+}
+
+/* ---------- DN-405: Sederhanakan tanpa AI dulu, bisa ulangi dengan AI ---------- */
+p42SederhanakanNama = async function (pakaiAI) {
+  const inp = el('tp-nama'), st = el('tp-status'), b = el('p42-nama-btn');
+  const lama = pakaiAI === true && P44.namaAsli ? P44.namaAsli : inp.value.trim(); if (!lama) { pgrToast('Isi Nama Produk dulu.'); return; }
+  b.disabled = true; b.textContent = pakaiAI === true ? '🤖 AI merapikan…' : '🤖 Merapikan…';
+  try {
+    const r = await postJson({ aksi: 'p42_sederhanakan_nama', nama: lama, merk: el('tp-merk') ? el('tp-merk').value : '', ai: pakaiAI === true, paksaAI: pakaiAI === true, email: currentUserEmail() }, 60000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    P44.namaAsli = lama;
+    if (!r.sama && r.baru) {
+      inp.value = r.baru; inp.classList.remove('tp-ai-sorot'); void inp.offsetWidth; inp.classList.add('tp-ai-sorot');
+      if (r.brand && el('tp-merk') && !el('tp-merk').value.trim()) el('tp-merk').value = r.brand;
+    }
+    if (st) {
+      st.className = 'status-text ok';
+      st.innerHTML = `${r.ai ? '🤖 Nama dirapikan AI' : (r.sama ? '✓ Nama sudah rapi menurut rumus' : '⚡ Nama disederhanakan tanpa AI')}${r.alasan && r.alasan.length ? ' (' + escapeHtml(r.alasan.slice(0, 3).join(' · ')) + ')' : ''}. <a href="#" id="p42-nama-batal">Kembalikan</a>${r.ai ? '' : ' · <a href="#" id="p44-nama-ai">🤖 Ulangi dengan AI</a>'}`;
+      el('p42-nama-batal').onclick = ev => { ev.preventDefault(); inp.value = lama; st.textContent = 'Nama dikembalikan.'; st.className = 'status-text'; };
+      if (el('p44-nama-ai')) el('p44-nama-ai').onclick = ev => { ev.preventDefault(); p42SederhanakanNama(true); };
+    }
+  } catch (e) { pgrToast('✗ ' + (e.message || e)); }
+  finally { b.disabled = false; b.textContent = '🤖 Sederhanakan'; }
+};
+try { const b = el('p42-nama-btn'); if (b) b.onclick = () => p42SederhanakanNama(); } catch (e) { }
+const p44PasangNamaAsli_ = p42PasangTombolNama_;
+p42PasangTombolNama_ = function () { const r = p44PasangNamaAsli_.apply(this, arguments); const b = el('p42-nama-btn'); if (b) b.onclick = () => p42SederhanakanNama(); return r; };
+
+/* ---------- DN-981: Photoroom untuk latar putih ---------- */
+async function p44PhotoroomAktif_() {
+  if (P44.pr && Date.now() - P44.pr.t < 10 * 60000) return P44.pr.aktif;
+  try { const r = await postJson({ aksi: 'p44_photoroom_status', email: currentUserEmail() }, 20000, true); P44.pr = { aktif: !!(r && r.success && r.aktif), t: Date.now() }; }
+  catch (e) { P44.pr = { aktif: false, t: Date.now() }; }
+  return P44.pr.aktif;
+}
+async function p44KecilkanUntukKirim_(file) {
+  const img = await p34MuatGambar(file), MAKS = 1600, sk = Math.min(1, MAKS / Math.max(img.naturalWidth, img.naturalHeight));
+  const cv = document.createElement('canvas'); cv.width = Math.round(img.naturalWidth * sk); cv.height = Math.round(img.naturalHeight * sk);
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+  return cv.toDataURL('image/jpeg', 0.9);
+}
+const p44RapikanAsli_ = p34FotoRapikanFile;
+p34FotoRapikanFile = async function (file) {
+  if (!file || file.__p34 || !p34FotoAktif() || !/^image\//i.test(file.type || '')) return p44RapikanAsli_.apply(this, arguments);
+  try {
+    if (await p44PhotoroomAktif_()) {
+      const dataUrl = await p44KecilkanUntukKirim_(file);
+      const r = await postJson({ aksi: 'p44_photoroom', gambar: dataUrl, mime: 'image/jpeg', email: currentUserEmail() }, 90000, true);
+      if (r && r.success && r.gambar) {
+        const bin = atob(r.gambar), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const hasil = new File([u8], String(file.name || 'foto').replace(/\.[a-z0-9]+$/i, '') + '-photoroom.jpg', { type: r.mime || 'image/jpeg' });
+        hasil.__p34 = true; hasil.__p34Info = { photoroom: true };
+        return hasil;
+      }
+      if (!P44.prPesan) { P44.prPesan = 1; pgrToast('Photoroom gagal (' + ((r && r.error) || 'tidak ada jawaban') + ') - memakai cara lama.'); }
+    }
+  } catch (e) { if (!P44.prPesan) { P44.prPesan = 1; pgrToast('Photoroom gagal - memakai cara lama.'); } }
+  return p44RapikanAsli_.apply(this, arguments);
+};
+const p44ToggleAsli_ = p34FotoToggleHtml;
+p34FotoToggleHtml = function () {
+  const h = p44ToggleAsli_.apply(this, arguments);
+  return p34ApakahOwner() ? h + '<button type="button" class="p44-pr-set" onclick="event.preventDefault(); p44AturPhotoroom()" title="Pakai Photoroom API untuk latar putih">⚙️ Photoroom</button>' : h;
+};
+async function p44AturPhotoroom() {
+  const aktif = await p44PhotoroomAktif_();
+  const k = await omniTanya_((aktif ? 'Photoroom AKTIF. ' : 'Photoroom belum aktif. ') + 'Tempel kunci API Photoroom (dari app.photoroom.com/api-dashboard) untuk latar putih otomatis. Kosongkan lalu OK untuk mematikan.');
+  if (k === null || k === undefined) return;
+  try {
+    const r = await postJsonTulis({ aksi: 'p44_photoroom_status', kunci: String(k).trim(), email: currentUserEmail() }, 20000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    P44.pr = { aktif: r.aktif, t: Date.now() }; P44.prPesan = 0;
+    pgrToast(r.aktif ? '✓ Photoroom aktif - foto berikutnya memakai latar putih Photoroom.' : 'Photoroom dimatikan - kembali ke cara lama.');
+  } catch (e) { pgrToast('✗ ' + (e.message || e)); }
+}
 </script>
 
 </body>
