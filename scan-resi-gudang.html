@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.59';
+  var VERSI = 'v2026.10.60';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -69380,6 +69380,307 @@ returBukaDetail = function (i) {
   } catch (e) { }
   return hasil;
 };
+</script>
+
+<!-- ===================================================================================
+     PAKET 42 (v2026.10.60) - Katalog > Produk Master: gabung produk · isi detail lengkap dari supplier + Isi Kotak · AI belajar ·
+     sederhanakan nama · ✓ SKU marketplace · Hubungkan SKU saat hover · tanpa cermin Tokopedia · angka 0 awal · spasi · Bersihkan SKU Mapping
+     =================================================================================== -->
+<style>
+  .p42-ok { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 999px; background: rgba(22,163,74,.14); color: #15803d; font-size: 10px; font-weight: 800; vertical-align: middle; }
+  .p42-hub-hover { opacity: 0; pointer-events: none; transition: opacity .15s; }
+  #katalog-produk-body tr:hover .p42-hub-hover, .p42-hub-hover:focus { opacity: 1; pointer-events: auto; }
+  .p42-nama-btn { margin-left: 8px; border: 0; background: none; color: var(--gm-aksen-teks, #4338ca); font: 600 11.5px/1.2 inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .p42-isi-kotak { white-space: pre-wrap; line-height: 1.5; }
+  .p42-mod-list { max-height: 260px; overflow: auto; border: 1px solid var(--web-border, #e2e8f0); border-radius: 10px; font-size: 12px; }
+  .p42-mod-list div { padding: 5px 8px; border-bottom: 1px solid var(--web-border, #e2e8f0); }
+  .p42-mod-list div:last-child { border-bottom: 0; }
+  .p42-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+  .p42-kpi div { border: 1px solid var(--web-border, #e2e8f0); border-radius: 10px; padding: 8px; font-size: 11px; color: var(--web-text-dim, #64748b); }
+  .p42-kpi b { display: block; font-size: 18px; color: var(--web-text, #0f172a); }
+  .p42-gab-pil { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--web-border, #e2e8f0); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; cursor: pointer; font-size: 12.5px; }
+  .p42-gab-pil input { margin-top: 3px; }
+</style>
+<script>
+/* ============================ PAKET 42 (v2026.10.60) ============================ */
+const P42 = { ai: null, mp: null, mpT: 0, mpMuat: null };
+const P42_ISI_NAMA = "Isi Kotak (What's in the Box)";
+const P42_ISI_RE = /isi\s*kotak|what'?s\s*in\s*the\s*box|kelengkapan/i;
+
+/* ---------- DN-720: TikTok tidak lagi otomatis menambah Tokopedia ---------- */
+katalogUbahSkuMarketplace = function (idx, value) {
+  const baris = katalogBarisMarketplace[idx]; if (!baris) return;
+  baris.sku = value;
+  baris.mirrorGroup = null; // tiap baris berdiri sendiri
+};
+
+/* ---------- DN-786: kolom angka berisi 0 -> nol awal tidak menempel ---------- */
+document.addEventListener('focusin', e => {
+  const t = e.target;
+  if (t && t.tagName === 'INPUT' && (t.type === 'number' || t.inputMode === 'numeric' || t.inputMode === 'decimal') && String(t.value) === '0') { try { t.select(); } catch (er) { } }
+}, true);
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (!t || t.tagName !== 'INPUT' || !(t.type === 'number' || t.inputMode === 'numeric' || t.inputMode === 'decimal')) return;
+  const v = String(t.value);
+  if (/^-?0\d/.test(v)) { const baru = v.replace(/^(-?)0+(?=\d)/, '$1'); if (baru !== v) t.value = baru; }
+}, true);
+
+/* ---------- DN-480: spasi tidak sengaja ---------- */
+function p42Rapi(s) { return String(s == null ? '' : s).replace(/[\u00a0\u200b\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function p42RapikanForm_() {
+  [['tp-nama', 0], ['tp-merk', 0], ['tp-tipe', 0], ['tp-material', 0], ['tp-volume', 0], ['tp-warna', 0], ['tp-sku', 1]].forEach(([id, sku]) => {
+    const e = el(id); if (!e) return;
+    const v = sku ? String(e.value || '').replace(/\s+/g, '') : p42Rapi(e.value);
+    if (v !== e.value) e.value = v;
+  });
+  try { (tpBarisSupplier || []).forEach(r => { r.sku = String(r.sku || '').replace(/\s+/g, ''); if (r.namaSupplier) r.namaSupplier = p42Rapi(r.namaSupplier); }); } catch (e) { }
+  try { (tpBarisMarketplace || []).forEach(r => { r.sku = String(r.sku || '').replace(/\s+/g, ''); }); } catch (e) { }
+  try { (katalogBarisMarketplace || []).forEach(r => { r.sku = String(r.sku || '').replace(/\s+/g, ''); }); (katalogBarisSupplier || []).forEach(r => { r.sku = String(r.sku || '').replace(/\s+/g, ''); }); } catch (e) { }
+}
+document.addEventListener('focusout', e => {
+  const t = e.target; if (!t || t.tagName !== 'INPUT') return;
+  if (/^tp-(nama|merk|tipe|material|volume|warna)$/.test(t.id)) { const v = p42Rapi(t.value); if (v !== t.value) t.value = v; }
+  else if (t.id === 'tp-sku' || t.classList.contains('kat-input-sku')) { const v = String(t.value || '').replace(/\s+/g, ''); if (v !== t.value) { t.value = v; t.dispatchEvent(new Event('input', { bubbles: true })); } }
+}, true);
+
+/* ---------- DN-381: kolom Isi Kotak (What's in the Box) ---------- */
+function p42PasangIsiKotak_() {
+  if (el('p42-isi-kotak')) return;
+  const tombol = document.querySelector('#katalog-modal-tambah-produk-body button[onclick="katalogTambahBarisSpesifikasi()"]'); if (!tombol) return;
+  const w = document.createElement('div');
+  w.innerHTML = `<label style="font-size:12px; font-weight:600;">📦 Isi Kotak (What's in the Box) <span style="font-weight:400; color:var(--web-text-dim);">· 1 barang per baris</span></label>
+    <textarea id="p42-isi-kotak" class="web-form-input p42-isi-kotak" rows="3" placeholder="1 x Botol Soda Siphon 1L&#10;1 x Kunci Pembuka Tabung&#10;1 x Panduan Penggunaan"></textarea>`;
+  tombol.insertAdjacentElement('afterend', w);
+}
+function p42MuatIsiKotak_() {
+  p42PasangIsiKotak_();
+  const ta = el('p42-isi-kotak'); if (!ta) return;
+  ta.value = '';
+  document.querySelectorAll('#tp-spesifikasi-dinamis-list > div').forEach(row => {
+    const n = row.querySelector('.tp-spesdin-nama'), v = row.querySelector('.tp-spesdin-nilai');
+    if (n && P42_ISI_RE.test(n.value)) { ta.value = String(v ? v.value : '').replace(/\s*\|\s*/g, '\n'); row.remove(); }
+  });
+}
+const p42SpekAsli_ = katalogAmbilSpesifikasiDinamis;
+katalogAmbilSpesifikasiDinamis = function () {
+  const h = p42SpekAsli_.apply(this, arguments).filter(x => !P42_ISI_RE.test(x.nama));
+  const ta = el('p42-isi-kotak'), isi = ta ? ta.value.split('\n').map(p42Rapi).filter(Boolean) : [];
+  if (isi.length) h.push({ nama: P42_ISI_NAMA, nilai: isi.join(' | ') });
+  return h;
+};
+const p42BukaTambahAsli_ = katalogBukaModalTambahProduk;
+katalogBukaModalTambahProduk = async function () { P42.ai = null; const r = await p42BukaTambahAsli_.apply(this, arguments); try { p42MuatIsiKotak_(); p42PasangTombolNama_(); } catch (e) { } return r; };
+const p42BukaEditAsli_ = katalogBukaModalEditProdukInti;
+katalogBukaModalEditProdukInti = async function () { P42.ai = null; const r = await p42BukaEditAsli_.apply(this, arguments); try { p42MuatIsiKotak_(); p42PasangTombolNama_(); } catch (e) { } return r; };
+
+/* ---------- DN-996 / DN-731: terapkan semua hasil AI / supplier + catat untuk belajar ---------- */
+const P42_FIELD_ID = { nama: 'tp-nama', merk: 'tp-merk', tipe: 'tp-tipe', material: 'tp-material', volume: 'tp-volume', warna: 'tp-warna' };
+const p42TerapkanAsli_ = tpIsiAiTerapkan;
+tpIsiAiTerapkan = function (d) {
+  d = d || {};
+  let n = p42TerapkanAsli_.apply(this, arguments);
+  try {
+    P42.ai = P42.ai || {};
+    Object.keys(P42_FIELD_ID).forEach(f => { const e = el(P42_FIELD_ID[f]); if (e && d[f] && e.value === String(d[f])) P42.ai[f] = String(d[f]); });
+    p42MuatIsiKotak_();
+    const ta = el('p42-isi-kotak');
+    if (ta && d.isiKotak && !ta.value.trim()) { tpAiSebelum = tpAiSebelum || {}; tpAiSebelum['p42-isi-kotak'] = ''; ta.value = d.isiKotak; ta.classList.remove('tp-ai-sorot'); void ta.offsetWidth; ta.classList.add('tp-ai-sorot'); P42.ai.isiKotak = d.isiKotak; n++; }
+    const adaSpek = new Set(Array.from(document.querySelectorAll('#tp-spesifikasi-dinamis-list .tp-spesdin-nama')).map(x => x.value.trim().toLowerCase()));
+    (d.spesifikasiLain || []).forEach(s => { if (s && s.nama && !adaSpek.has(String(s.nama).toLowerCase())) { katalogTambahBarisSpesifikasi(s.nama, s.nilai); adaSpek.add(String(s.nama).toLowerCase()); n++; } });
+  } catch (e) { console.warn('P42 terapkan', e); }
+  return n;
+};
+// Supplier: semua kolom dipakai (dulu tipe, volume, spesifikasi lain & isi kotak dibuang)
+tpIsiAiBaca = async function (paksaAI) {
+  const teks = el('tp-ai-teks') ? el('tp-ai-teks').value.trim() : '';
+  const sup = !paksaAI && tpSupTerdeteksi_(teks);
+  if (!sup) return tpIsiAiBacaAsli.apply(this, arguments);
+  const st = el('tp-ai-status'), btn = el('tp-ai-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  st.textContent = sup.url ? 'Membuka halaman supplier & melengkapi detail…' : 'Mencari SKU ' + sup.sku + ' di jakartanotebook.com…';
+  try {
+    const r = await postJson(Object.assign({ aksi: 'supplier_tarik_produk', email: currentUserEmail() }, sup), 120000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal membaca halaman supplier');
+    const d = r.data || {};
+    let n = tpIsiAiTerapkan(d);
+    const isiKosong = (id, v) => {
+      const e = el(id); if (!e || !v || String(e.value || '').trim()) return false;
+      tpAiSebelum[id] = e.value; e.value = v; e.classList.remove('tp-ai-sorot'); void e.offsetWidth; e.classList.add('tp-ai-sorot');
+      e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); n++; return true;
+    };
+    const hargaTerisi = isiKosong('tp-harga-supplier', d.harga ? String(d.harga) : '');
+    const fotoTerisi = isiKosong('tp-url-foto', d.foto || '');
+    isiKosong('tp-url-supplier', d.urlProduk || '');
+    tpIsiAiTutup();
+    const s = el('tp-status');
+    if (s) {
+      const catat = [];
+      if (d.aiDipakai) catat.push('kolom kosong dilengkapi AI');
+      if (d.gayaDipakai && d.gayaDipakai.length) catat.push('gaya Anda diterapkan: ' + d.gayaDipakai.slice(0, 3).join(', '));
+      if (d.harga && !hargaTerisi) catat.push('harga supplier Rp ' + Number(d.harga).toLocaleString('id-ID') + ' (Harga Modal sudah terisi, tidak ditimpa)');
+      if (d.foto && !fotoTerisi) catat.push('foto utama tidak diganti karena sudah ada');
+      s.className = 'status-text ok';
+      s.innerHTML = `✦ ${n} kolom terisi dari halaman supplier${d.skuSupplier ? ' (SKU ' + escapeHtml(d.skuSupplier) + ')' : ''}. Cek kolom yang disorot sebelum menyimpan.`
+        + (catat.length ? ' · ' + escapeHtml(catat.join(' · ')) : '') + ` <a href="#" onclick="tpIsiAiBatalkan(); return false;">Batalkan isian</a>`
+        + (d.urlProduk ? ` · <a href="${pgrAttr(d.urlProduk)}" target="_blank" rel="noopener">Buka halaman supplier</a>` : '');
+    }
+    if (!n) pgrToast('Halaman supplier terbaca, tetapi semua kolom sudah sama / sudah terisi.');
+  } catch (err) { st.textContent = '✗ ' + String(err.message || err).replace(/^Error:\s*/, ''); }
+  finally { btn.disabled = false; }
+};
+const p42BatalAsli_ = tpIsiAiBatalkan;
+tpIsiAiBatalkan = function () { P42.ai = null; return p42BatalAsli_.apply(this, arguments); };
+const p42SimpanAsli_ = katalogSimpanProdukBaru;
+katalogSimpanProdukBaru = async function () {
+  p42RapikanForm_();
+  try {
+    if (P42.ai) {
+      const pasangan = [];
+      Object.keys(P42.ai).forEach(f => {
+        const akhir = f === 'isiKotak' ? (el('p42-isi-kotak') ? el('p42-isi-kotak').value.trim() : '') : (el(P42_FIELD_ID[f]) ? el(P42_FIELD_ID[f]).value.trim() : '');
+        pasangan.push({ f, ai: P42.ai[f], akhir });
+      });
+      P42.ai = null;
+      if (pasangan.length) postJson({ aksi: 'p42_ai_produk_belajar', pasangan, email: currentUserEmail() }, 30000, true).catch(() => { });
+    }
+  } catch (e) { }
+  return p42SimpanAsli_.apply(this, arguments);
+};
+
+/* ---------- DN-892: tombol Sederhanakan Nama ---------- */
+function p42PasangTombolNama_() {
+  if (el('p42-nama-btn')) return;
+  const inp = el('tp-nama'); if (!inp) return;
+  const lbl = inp.previousElementSibling; if (!lbl || lbl.tagName !== 'LABEL') return;
+  const b = document.createElement('button'); b.type = 'button'; b.id = 'p42-nama-btn'; b.className = 'p42-nama-btn';
+  b.textContent = '🤖 Sederhanakan'; b.title = 'Rapikan nama: [Merek] [Jenis] [Model] [Ukuran] [Varian] - mengikuti gaya Anda';
+  b.onclick = p42SederhanakanNama; lbl.appendChild(b);
+}
+async function p42SederhanakanNama() {
+  const inp = el('tp-nama'), st = el('tp-status'), b = el('p42-nama-btn');
+  const lama = inp.value.trim(); if (!lama) { pgrToast('Isi Nama Produk dulu.'); return; }
+  b.disabled = true; b.textContent = '🤖 Merapikan…';
+  try {
+    const r = await postJson({ aksi: 'p42_sederhanakan_nama', nama: lama, merk: el('tp-merk') ? el('tp-merk').value : '', email: currentUserEmail() }, 60000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    if (r.sama || !r.baru) { pgrToast('Nama sudah rapi.'); return; }
+    inp.value = r.baru; inp.classList.remove('tp-ai-sorot'); void inp.offsetWidth; inp.classList.add('tp-ai-sorot');
+    if (r.brand && el('tp-merk') && !el('tp-merk').value.trim()) el('tp-merk').value = r.brand;
+    if (st) { st.className = 'status-text ok'; st.innerHTML = `🤖 Nama disederhanakan${r.alasan && r.alasan.length ? ' (' + escapeHtml(r.alasan.slice(0, 3).join(' · ')) + ')' : ''}. <a href="#" id="p42-nama-batal">Kembalikan</a>`; el('p42-nama-batal').onclick = ev => { ev.preventDefault(); inp.value = lama; st.textContent = 'Nama dikembalikan.'; st.className = 'status-text'; }; }
+  } catch (e) { pgrToast('✗ ' + (e.message || e)); }
+  finally { b.disabled = false; b.textContent = '🤖 Sederhanakan'; }
+}
+
+/* ---------- DN-702 / DN-255: ✓ SKU ditemukan + Hubungkan SKU saat hover ---------- */
+async function p42MuatStatusMp_() {
+  if (P42.mp && Date.now() - P42.mpT < 30 * 60000) return P42.mp;
+  if (!P42.mp) { try { const c = JSON.parse(localStorage.getItem('p42_mp_v1') || 'null'); if (c && Date.now() - c.t < 6 * 3600000) { P42.mp = { shopee: new Set(c.s), tiktok: new Set(c.k) }; P42.mpT = c.t; } } catch (e) { } }
+  if (P42.mpMuat) return P42.mpMuat;
+  P42.mpMuat = (async () => {
+    try {
+      const r = await postJson({ aksi: 'p42_sku_mp_status', email: currentUserEmail() }, 45000, true);
+      if (r && r.success) {
+        P42.mp = { shopee: new Set((r.shopee || []).map(x => String(x).toUpperCase())), tiktok: new Set((r.tiktok || []).map(x => String(x).toUpperCase())) }; P42.mpT = Date.now();
+        try { localStorage.setItem('p42_mp_v1', JSON.stringify({ t: P42.mpT, s: [...P42.mp.shopee], k: [...P42.mp.tiktok] })); } catch (e) { }
+      }
+    } catch (e) { } finally { P42.mpMuat = null; }
+    return P42.mp;
+  })();
+  return P42.mp || P42.mpMuat;
+}
+function p42Ditemukan_(platform, kode) {
+  const m = P42.mp; if (!m) return false; const k = String(kode || '').toUpperCase();
+  if (platform === 'Shopee') return m.shopee.has(k);
+  if (platform === 'TikTok Shop' || platform === 'Tokopedia') return m.tiktok.has(k);
+  return false;
+}
+function p42HiasTabel_() {
+  document.querySelectorAll('#katalog-produk-body tr').forEach(tr => {
+    const linkBtn = tr.querySelector('.katalog-btn-link-sku-supplier'); if (!linkBtn) return;
+    const sku = linkBtn.dataset.sku, daftar = (katalogSkuMarketplaceMap[sku] || []);
+    const td = linkBtn.closest('td'), wadah = td && td.querySelector('div > div');
+    const tombol = td ? td.querySelectorAll('.katalog-salin-sku') : [];
+    tombol.forEach((b, i) => {
+      const m = daftar[i]; if (!m || b.querySelector('.p42-ok')) return;
+      if (p42Ditemukan_(m.platform, m.skuMarketplace)) b.insertAdjacentHTML('beforeend', `<span class="p42-ok" title="Ditemukan di listing ${escapeHtml(m.platform)}">✓</span>`);
+    });
+    if (wadah && tombol.length && !wadah.querySelector('.katalog-btn-hubungkan')) {
+      const p = (katalogProdukCache || []).find(x => x.sku === sku);
+      if (!p || !p.arsip) wadah.insertAdjacentHTML('beforeend', `<button type="button" class="katalog-btn-hubungkan p42-hub-hover" data-sku="${escapeHtml(sku)}" onclick="event.stopPropagation(); katalogBukaHubungkanSku(this)">🔗 Hubungkan SKU</button>`);
+    }
+  });
+}
+const p42PasangHandlerAsli_ = katalogPasangHandlerBaris;
+katalogPasangHandlerBaris = function () {
+  const r = p42PasangHandlerAsli_.apply(this, arguments);
+  try { p42HiasTabel_(); if (!P42.mp || Date.now() - P42.mpT > 30 * 60000) Promise.resolve(p42MuatStatusMp_()).then(() => p42HiasTabel_()); } catch (e) { }
+  return r;
+};
+
+/* ---------- DN-710: gabungkan 2 produk master ---------- */
+const p42BatchAsli_ = katalogUpdateBatchBar;
+katalogUpdateBatchBar = function () {
+  const r = p42BatchAsli_.apply(this, arguments);
+  try {
+    const bar = el('katalog-batch-bar'); if (!bar) return r;
+    let b = el('p42-gabung-btn');
+    if (!b) { b = document.createElement('button'); b.id = 'p42-gabung-btn'; b.type = 'button'; b.className = 'web-btn-secondary'; b.style.cssText = 'font-size:12px; background:#fff; color:#1e40af;'; b.textContent = '🔀 Gabungkan 2 Produk'; b.onclick = p42BukaGabung; bar.appendChild(b); }
+    b.style.display = katalogProdukTerpilih.size === 2 ? '' : 'none';
+  } catch (e) { }
+  return r;
+};
+function p42BukaGabung() {
+  const [a, b] = Array.from(katalogProdukTerpilih);
+  const pa = katalogProdukCache.find(x => x.sku === a) || { sku: a }, pb = katalogProdukCache.find(x => x.sku === b) || { sku: b };
+  const pil = (p, cek) => `<label class="p42-gab-pil"><input type="radio" name="p42-gab" value="${pgrAttr(p.sku)}" ${cek ? 'checked' : ''}><span><b>${escapeHtml(p.sku)}</b> · ${escapeHtml(p.nama || '')}<br><small style="color:var(--web-text-dim);">${(katalogSkuMarketplaceMap[p.sku] || []).length} SKU marketplace · ${(katalogSkuTerhubungMap[p.sku] || []).length} SKU supplier</small></span></label>`;
+  omxModal('🔀 Gabungkan 2 Produk Master', `
+    <div style="font-size:12.5px; margin-bottom:8px;">Pilih produk yang <b>DIPERTAHANKAN</b>. Produk lainnya digabung ke sini:</div>
+    ${pil(pa, true)}${pil(pb, false)}
+    <div style="font-size:11.5px; color:var(--web-text-dim); line-height:1.5; margin:6px 0 10px;">• Semua SKU Supplier &amp; Marketplace disatukan (yang dobel dibuang).<br>• Kolom yang masih kosong (deskripsi, berat, dimensi, foto…) dilengkapi dari produk yang digabung.<br>• Stok produk yang digabung dipindah (tercatat di Riwayat Stok).<br>• Produk yang digabung <b>diarsipkan</b> (bisa dipulihkan), SKU lamanya tetap tersambung.</div>
+    <div class="status-text" id="p42-gab-st" style="text-align:left;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button><button type="button" class="web-btn-primary" id="p42-gab-ok">Gabungkan</button></div>`);
+  el('p42-gab-ok').onclick = async () => {
+    const tetap = (document.querySelector('input[name="p42-gab"]:checked') || {}).value, gabung = tetap === a ? b : a, st = el('p42-gab-st');
+    el('p42-gab-ok').disabled = true; st.textContent = 'Menggabungkan…'; st.className = 'status-text';
+    try {
+      const r = await postJsonTulis({ aksi: 'p42_gabung_produk', skuTetap: tetap, skuGabung: gabung, toko: currentToko, email: currentUserEmail() }, 90000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+      omxTutupModal(); katalogBatchBatalkanSemua();
+      pgrToast(`✓ ${gabung} digabung ke ${tetap}` + (r.stokDipindah ? ` · stok ${r.stokDipindah} dipindah` : '') + (r.dilengkapi.length ? ` · ${r.dilengkapi.length} kolom dilengkapi` : ''));
+      try { katalogFetchProduk({ segar: true }); } catch (e) { }
+    } catch (e) { st.textContent = '✗ ' + (e.message || e); st.className = 'status-text err'; el('p42-gab-ok').disabled = false; }
+  };
+}
+
+/* ---------- DN-925: Bersihkan SKU Mapping ---------- */
+(function () {
+  const sapu = document.querySelector('#katalog-view-produk button[onclick="katalogBukaModalSapuBersih()"]');
+  if (sapu && !el('p42-mapping-btn')) {
+    const b = document.createElement('button'); b.id = 'p42-mapping-btn'; b.className = 'web-btn-secondary'; b.style.fontSize = '12px';
+    b.title = 'Cocokkan SKU Gudang ↔ Supplier ↔ listing Shopee / TikTok: yang pasti cocok dihubungkan otomatis';
+    b.innerHTML = '🧹 Bersihkan SKU Mapping'; b.onclick = () => p42BukaMapping(); sapu.insertAdjacentElement('afterend', b);
+  }
+})();
+async function p42BukaMapping(terapkan) {
+  omxModal('🧹 Bersihkan SKU Mapping', '<div id="p42-map-isi" style="font-size:12.5px;">Mencocokkan SKU Gudang, Supplier &amp; listing marketplace…</div>', { lebar: true });
+  try {
+    const r = await postJson({ aksi: 'p42_audit_mapping', terapkan: !!terapkan, toko: currentToko, email: currentUserEmail() }, 120000, !!terapkan);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    const j = r.jumlah, w = el('p42-map-isi'); if (!w) return;
+    const daftar = (a, fn) => a.length ? `<div class="p42-mod-list">${a.map(x => `<div>${fn(x)}</div>`).join('')}</div>` : '<div class="wp-dim" style="font-size:12px;">Tidak ada.</div>';
+    w.innerHTML = `${terapkan ? `<div class="status-text ok" style="text-align:left;">✓ ${r.dihubungkan} SKU marketplace dihubungkan otomatis.</div>` : ''}
+      <div class="p42-kpi"><div><b>${j.terhubung}</b>listing sudah terhubung</div><div><b>${j.usulan}</b>bisa dihubungkan otomatis</div><div><b>${j.bentrok}</b>bentrok</div><div><b>${j.takBertuan}</b>listing tak bertuan</div></div>
+      <div style="font-size:11.5px; color:var(--web-text-dim); margin-bottom:10px;">Listing dibaca: Shopee ${r.jumlahListing['Shopee']} · TikTok Shop ${r.jumlahListing['TikTok Shop']} (indeks Shopee ${r.umurIndeksShopeeJam} jam lalu). Pemeriksaan otomatis berjalan tiap malam 04.00${r.terakhir ? ' · terakhir: ' + r.terakhir.dihubungkan + ' dihubungkan' : ''}.</div>
+      <b>✅ Bisa dihubungkan otomatis (${j.usulan})</b>${daftar(r.usulan, x => `${escapeHtml(x.platform)} <b class="wp-mono">${escapeHtml(x.kode)}</b> → ${escapeHtml(x.sku)} · ${escapeHtml(x.nama || '')} <span class="wp-dim">(${escapeHtml(x.dasar)})</span>`)}
+      ${j.usulan ? `<button type="button" class="web-btn-primary" style="width:100%; margin:8px 0 12px;" onclick="p42BukaMapping(true)">Hubungkan ${j.usulan} SKU sekarang</button>` : '<div style="height:10px"></div>'}
+      <b>⚠️ Bentrok - pilih manual (${j.bentrok})</b>${daftar(r.bentrok, x => `${escapeHtml(x.platform)} <b class="wp-mono">${escapeHtml(x.kode)}</b> · ${escapeHtml(x.alasan)}: ${escapeHtml(x.produk.join(', '))}`)}
+      <div style="height:10px"></div><b>❔ Listing marketplace tak bertuan (${j.takBertuan})</b> <span class="wp-dim" style="font-size:11px;">- hubungkan lewat tombol 🔗 Hubungkan SKU di produknya</span>${daftar(r.takBertuan, x => `${escapeHtml(x.platform)} <b class="wp-mono">${escapeHtml(x.kode)}</b>`)}
+      <div style="height:10px"></div><b>🚫 Terhubung di ERP tapi tidak ada di listing marketplace (${j.tidakAda})</b> <span class="wp-dim" style="font-size:11px;">- tidak dihapus otomatis, cek di Seller Centre</span>${daftar(r.tidakAda, x => `${escapeHtml(x.sku)} · ${escapeHtml(x.nama || '')} → ${escapeHtml(x.platform)} <b class="wp-mono">${escapeHtml(x.kode)}</b>`)}`;
+    if (terapkan) { try { katalogFetchProduk({ segar: true }); } catch (e) { } }
+  } catch (e) { const w = el('p42-map-isi'); if (w) w.innerHTML = `<div class="status-text err" style="text-align:left;">✗ ${escapeHtml(e.message || e)}</div>`; }
+}
 </script>
 
 </body>
