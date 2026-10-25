@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.62';
+  var VERSI = 'v2026.10.63';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -13550,9 +13550,6 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               <option value="nama-asc">Nama A-Z</option>
               <option value="nama-desc">Nama Z-A</option>
             </select>
-            <label class="kat-toggle-arsip" title="Tampilkan juga produk yang sudah diarsipkan (dihapus) - bisa dipulihkan">
-              <input type="checkbox" id="katalog-produk-tampil-arsip" onchange="katalogToggleArsip(this.checked)" /> <span class="oi oi-box" aria-hidden="true"></span> Tampilkan Arsip
-            </label>
           </div>
 
           <!-- Floating batch action bar - cuma nongol kalau ada yang dicentang -->
@@ -70232,6 +70229,569 @@ async function p44AturPhotoroom() {
     P44.pr = { aktif: r.aktif, t: Date.now() }; P44.prPesan = 0;
     pgrToast(r.aktif ? '✓ Photoroom aktif - foto berikutnya memakai latar putih Photoroom.' : 'Photoroom dimatikan - kembali ke cara lama.');
   } catch (e) { pgrToast('✗ ' + (e.message || e)); }
+}
+</script>
+
+<!-- ===================================================================================
+     PAKET 45 (v2026.10.63) - deteksi & daftarkan SKU marketplace otomatis · foto tak terpakai dihapus dari Supabase ·
+     foto kecil di kapsul varian · SKU & Harga Modal dari URL supplier + peringatan · foto 1:1 · tanpa "Tampilkan Arsip" ·
+     tanda ! kuning double input + pesan saat hover · merk dari URL · daftar merk & nama tanpa merk di depan
+     =================================================================================== -->
+<style>
+  .kat-toggle-arsip { display: none !important; }
+  /* DN-686: double input + pesan hanya saat hover */
+  .tp-cek-ikon.p45-dobel { background: rgba(234,179,8,.20); color: #a16207; border-color: rgba(234,179,8,.45); }
+  .tp-cek-ikon.p45-dobel::before { content: '!'; }
+  #tp-baris-sku-marketplace .tp-cek-pesan { display: none !important; }
+  .sku-mp-baris.p45-baris-dobel { box-shadow: inset 3px 0 0 #eab308; border-radius: 8px; }
+  .sku-mp-baris.p45-auto .kat-input-sku { background: rgba(22,163,74,.07); }
+  .p45-tip { position: fixed; z-index: 2147483000; max-width: 320px; padding: 7px 10px; border-radius: 8px; background: #1f2937; color: #fff; font-family: inherit; font-size: 12px; line-height: 1.4; font-weight: 500; box-shadow: 0 6px 18px rgba(0,0,0,.28); pointer-events: none; display: none; white-space: pre-line; }
+  .p45-deteksi { font-size: 11.5px; line-height: 1.4; margin: 2px 2px 6px; color: var(--web-text-dim); }
+  .p45-deteksi:empty { display: none; }
+  .p45-deteksi.ok { color: #15803d; } .p45-deteksi.waspada { color: #b45309; }
+  /* DN-683: foto kecil di kapsul varian */
+  .katalog-varian-chip { display: inline-flex; align-items: center; gap: 4px; }
+  .p45-chip-foto { width: 16px; height: 16px; flex: none; border-radius: 4px; object-fit: contain; background: #fff; margin: -1px 0 -1px -4px; border: 1px solid var(--web-border); }
+  /* DN-949: foto tidak pernah terpotong */
+  .tp-foto-box img, img.tabel-thumb, img.tabel-img-zoom, .katalog-card-img-container img, #katalog-detail-foto-wrap img, .katalog-detail-galeri-box img { object-fit: contain !important; background: #fff; }
+  /* DN-754: merk kecil abu-abu di atas nama */
+  .tabel-produk-brand, .p45-card-merk { font-size: 10.5px; line-height: 1.3; text-transform: uppercase; letter-spacing: .4px; font-weight: 600; color: var(--web-text-dim); }
+  .p45-merk-pop { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin-top: 2px; max-height: 230px; overflow-y: auto; background: var(--web-panel, #fff); border: 1px solid var(--web-border); border-radius: 10px; box-shadow: 0 8px 22px rgba(0,0,0,.16); padding: 4px; }
+  .p45-merk-pop button { display: flex; width: 100%; justify-content: space-between; gap: 8px; border: 0; background: none; text-align: left; padding: 6px 9px; border-radius: 7px; font: inherit; font-size: 13px; color: var(--web-text); cursor: pointer; }
+  .p45-merk-pop button:hover, .p45-merk-pop button.aktif { background: rgba(79,70,229,.09); }
+  .p45-merk-pop small { color: var(--web-text-dim); font-size: 11px; }
+  .p45-merk-pop .kosong { padding: 6px 9px; font-size: 12px; color: var(--web-text-dim); }
+  /* DN-896: info & peringatan SKU Supplier */
+  .p45-supp-info { font-size: 11px; line-height: 1.35; margin-top: 4px; color: var(--web-text-dim); }
+  .p45-supp-info.waspada { color: #b45309; font-weight: 600; }
+  .sku-supp-baris.p45-waspada { box-shadow: inset 3px 0 0 #f59e0b; border-radius: 8px; }
+  #p45-supp-peringatan { margin: 2px 0 8px; padding: 8px 10px; border-radius: 10px; background: rgba(245,158,11,.10); color: #92400e; font-size: 12px; line-height: 1.45; }
+  #p45-supp-peringatan:empty { display: none; }
+  #p45-supp-peringatan ul { margin: 4px 0 0; padding-left: 18px; }
+  .p45-alat { margin: 0; white-space: nowrap; }
+</style>
+<script>
+/* ============================ PAKET 45 (v2026.10.63) ============================ */
+const P45 = { dicek: null, tolak: null, tDeteksi: 0, token: 0, sup: null, supJalan: {}, supTahu: new Set(), arsip: [], arsipT: 0, arsipMuat: null, merk: null, merkN: -1 };
+const P45_PF = ['Shopee', 'TikTok Shop', 'Tokopedia'];
+function p45Up(s) { return String(s || '').replace(/\s+/g, '').toUpperCase(); }
+function p45Rp(n) { return (Number(n) || 0).toLocaleString('id-ID'); }
+function p45Muat_(k) { try { const o = JSON.parse(localStorage.getItem(k) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function p45Simpan_(k, o, maks) {
+  try {
+    const ks = Object.keys(o);
+    if (ks.length > maks) ks.sort((a, b) => ((o[a] && o[a].t) || 0) - ((o[b] && o[b].t) || 0)).slice(0, ks.length - maks).forEach(x => delete o[x]);
+    localStorage.setItem(k, JSON.stringify(o));
+  } catch (e) { }
+}
+function p45ModalTerbuka_() { const m = el('katalog-modal-tambah-produk'); return !!m && m.style.display !== 'none' && m.style.display !== ''; }
+function p45SkuProdukIni_() { return katalogModalMode === 'edit' ? String(katalogModalSkuLama || '') : String((el('tp-sku') && el('tp-sku').value) || '').trim(); }
+
+/* ---------- tooltip ringan: tampil saat hover, tidak menggeser tampilan ---------- */
+(function () {
+  let tip = null, aktif = null;
+  const sembunyi = () => { if (tip) tip.style.display = 'none'; aktif = null; };
+  document.addEventListener('mouseover', e => {
+    const t = e.target && e.target.closest ? e.target.closest('[data-p45-tip]') : null;
+    if (t === aktif) return;
+    if (!t || !t.dataset.p45Tip) { sembunyi(); return; }
+    aktif = t;
+    if (!tip) { tip = document.createElement('div'); tip.className = 'p45-tip'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip); }
+    tip.textContent = t.dataset.p45Tip; tip.style.display = 'block';
+    const r = t.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2)), y = r.top - h - 8;
+    if (y < 8) y = r.bottom + 8;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  });
+  document.addEventListener('scroll', sembunyi, true);
+  document.addEventListener('mousedown', sembunyi, true);
+})();
+
+/* ---------- DN-686: double input (! kuning) + semua pesan cek lewat hover ---------- */
+function p45InfoDobel_(r, idx) {
+  if (!r || !String(r.sku || '').trim() || r.platform === 'Website') return '';
+  const K = p45Up(r.sku);
+  const j = tpBarisMarketplace.findIndex((x, i) => i !== idx && x.platform === r.platform && p45Up(x.sku) === K);
+  if (j !== -1) return `Double input: SKU ${String(r.sku).trim()} untuk ${r.platform} sudah diisi di baris #${j + 1} produk ini. Hapus salah satu.`;
+  const skuIni = katalogModalMode === 'edit' ? katalogModalSkuLama : null;
+  const peta = typeof katalogSkuMarketplaceMap === 'object' && katalogSkuMarketplaceMap ? katalogSkuMarketplaceMap : {};
+  for (const skuJual in peta) {
+    if (skuJual === skuIni) continue;
+    if ((peta[skuJual] || []).some(m => m.platform === r.platform && p45Up(m.skuMarketplace) === K)) {
+      const p = (katalogProdukCache || []).find(x => x.sku === skuJual);
+      return `Double input: SKU ${String(r.sku).trim()} di ${r.platform} sudah terhubung ke produk ${skuJual}${p && p.nama ? ' (' + p.nama + ')' : ''}.`;
+    }
+  }
+  return '';
+}
+function p45MilikLain_(platform, kode, skuIni) {
+  const K = p45Up(kode), peta = typeof katalogSkuMarketplaceMap === 'object' && katalogSkuMarketplaceMap ? katalogSkuMarketplaceMap : {};
+  for (const skuJual in peta) { if (skuJual === skuIni) continue; if ((peta[skuJual] || []).some(m => m.platform === platform && p45Up(m.skuMarketplace) === K)) return skuJual; }
+  return '';
+}
+tpCekIkon_ = function (r, idx) {
+  if (!r.sku || r.platform === 'Website') return '';
+  const dobel = p45InfoDobel_(r, idx);
+  if (dobel) return `<button type="button" class="tp-cek-ikon p45-dobel" data-p45-tip="${pgrAttr(dobel)}" aria-label="${pgrAttr(dobel)}" onclick="tpCekSkuMp(${idx}, true)"></button>`;
+  const c = r.cek;
+  if (!c) return `<button type="button" class="tp-cek-ikon belum" data-p45-tip="Cek SKU ini ke ${pgrAttr(r.platform)}" aria-label="Cek SKU ke marketplace" onclick="tpCekSkuMp(${idx}, true)">Cek</button>`;
+  const tip = (c.pesan || '') + (c.status === 'cek' ? '' : ' (klik untuk cek ulang)');
+  return `<button type="button" class="tp-cek-ikon ${pgrAttr(c.status)}" data-p45-tip="${pgrAttr(tip)}" aria-label="${pgrAttr(c.pesan || 'Status cek SKU')}" onclick="tpCekSkuMp(${idx}, true)"></button>`;
+};
+const p45RenderMpAsli_ = tpRenderBarisMarketplace;
+tpRenderBarisMarketplace = function () {
+  const h = p45RenderMpAsli_.apply(this, arguments);
+  try {
+    const wrap = el('tp-baris-sku-marketplace'); if (!wrap) return h;
+    wrap.querySelectorAll('.sku-mp-baris').forEach(b => {
+      const i = parseInt(b.dataset.idx, 10), r = tpBarisMarketplace[i]; if (!r) return;
+      b.classList.toggle('p45-baris-dobel', !!p45InfoDobel_(r, i));
+      b.classList.toggle('p45-auto', !!r.p45Auto);
+    });
+    if (!el('p45-deteksi')) wrap.insertAdjacentHTML('afterend', '<div id="p45-deteksi" class="p45-deteksi" role="status"></div>');
+  } catch (e) { }
+  return h;
+};
+// Baris yang Owner hapus tidak ditambahkan otomatis lagi untuk produk ini
+const p45HapusMpAsli_ = tpHapusBarisMarketplace;
+tpHapusBarisMarketplace = function (idx) {
+  try {
+    const r = tpBarisMarketplace[idx];
+    if (r && String(r.sku || '').trim() && r.platform !== 'Website') {
+      if (!P45.tolak) P45.tolak = p45Muat_('p45_tolak_v1');
+      P45.tolak[p45SkuProdukIni_() + '|' + r.platform + '|' + p45Up(r.sku)] = { t: Date.now() };
+      p45Simpan_('p45_tolak_v1', P45.tolak, 3000);
+    }
+  } catch (e) { }
+  return p45HapusMpAsli_.apply(this, arguments);
+};
+
+/* ---------- DN-322 / DN-870: semua SKU dicek ke semua marketplace, yang ditemukan didaftarkan ---------- */
+function p45JadwalDeteksi(ms) {
+  clearTimeout(P45.tDeteksi);
+  P45.tDeteksi = setTimeout(() => { p45Deteksi().catch(e => console.warn('P45 deteksi', e)); }, ms == null ? 900 : ms);
+}
+function p45KodeProduk_() {
+  const kode = [];
+  const tambah = s => { const k = String(s || '').replace(/\s+/g, ''); if (k.length >= 3 && k.length <= 60 && !/^https?:/i.test(k) && !kode.some(x => x.toUpperCase() === k.toUpperCase())) kode.push(k); };
+  tambah(el('tp-sku') && el('tp-sku').value);
+  (tpBarisSupplier || []).forEach(r => tambah(r.sku));
+  (tpBarisMarketplace || []).forEach(r => { if (r.platform !== 'Website') tambah(r.sku); });
+  return kode;
+}
+async function p45Deteksi() {
+  if (!p45ModalTerbuka_() || (typeof P44 !== 'undefined' && P44.tarik)) return;
+  const skuProduk = p45SkuProdukIni_();
+  if (!P45.dicek) P45.dicek = p45Muat_('p45_dicek_v1');
+  if (!P45.tolak) P45.tolak = p45Muat_('p45_tolak_v1');
+  const ada = new Set((tpBarisMarketplace || []).filter(r => String(r.sku || '').trim()).map(r => r.platform + '|' + p45Up(r.sku)));
+  const kini = Date.now(), pasangan = [];
+  p45KodeProduk_().forEach(k => P45_PF.forEach(p => {
+    const key = p + '|' + p45Up(k);
+    if (ada.has(key) || P45.tolak[skuProduk + '|' + key]) return;
+    const c = P45.dicek[key];
+    if (c && (c.s === 'tidak_ada' || c.s === 'milik_lain') && kini - c.t < 6 * 3600000) return;
+    if (p45MilikLain_(p, k, katalogModalMode === 'edit' ? katalogModalSkuLama : null)) return;
+    pasangan.push({ platform: p, sku: k });
+  }));
+  if (!pasangan.length) return;
+  const token = ++P45.token, st = () => el('p45-deteksi');
+  const nKode = new Set(pasangan.map(x => p45Up(x.sku))).size;
+  if (st()) { st().className = 'p45-deteksi'; st().textContent = `🔎 Mengecek ${nKode} SKU produk ini ke Shopee, TikTok Shop & Tokopedia…`; }
+  let d = null;
+  try { d = await postJson({ aksi: 'p45_deteksi_sku_mp', pasangan: pasangan.slice(0, 36), skuJual: katalogModalMode === 'edit' ? katalogModalSkuLama : '', email: currentUserEmail() }, 120000, true); }
+  catch (e) { d = { success: false, error: e.message || String(e) }; }
+  if (token !== P45.token || !p45ModalTerbuka_() || p45SkuProdukIni_() !== skuProduk) return;
+  if (!d || !d.success) { if (st()) { st().className = 'p45-deteksi waspada'; st().textContent = '⚠️ Cek otomatis ke marketplace belum berhasil' + (d && d.error ? ': ' + d.error : '') + '.'; } return; }
+  const baru = [];
+  (d.hasil || []).forEach(h => {
+    const key = h.platform + '|' + p45Up(h.sku);
+    if (h.terhubungKe) P45.dicek[key] = { s: 'milik_lain', t: Date.now() };
+    else if (h.status === 'ada' || h.status === 'tidak_ada') P45.dicek[key] = { s: h.status, t: Date.now() };
+    if (h.status !== 'ada' || h.terhubungKe) return;
+    if (tpBarisMarketplace.some(r => r.platform === h.platform && p45Up(r.sku) === p45Up(h.sku))) return;
+    const r = { platform: h.platform, sku: h.sku, cek: { status: 'ada', pesan: h.pesan || ('Ditemukan di ' + h.platform + '.'), tanda: h.platform + '|' + h.sku }, p45Auto: true };
+    tpBarisMarketplace.push(r); baru.push(r);
+  });
+  p45Simpan_('p45_dicek_v1', P45.dicek, 4000);
+  if (baru.length) tpRenderBarisMarketplace();
+  const s = st(); if (!s) return;
+  s.className = 'p45-deteksi' + (baru.length ? ' ok' : '');
+  s.textContent = baru.length ? '✓ Ditemukan di marketplace & ditambahkan otomatis: ' + baru.map(r => r.platform + ' ' + r.sku).join(', ')
+    : '✓ Semua SKU sudah dicek ke marketplace - tidak ada SKU baru yang ditemukan.';
+  if (baru.length && katalogModalMode === 'edit' && katalogModalSkuLama) {
+    const skuJual = katalogModalSkuLama;
+    try {
+      const r = await postJsonTulis({ aksi: 'p45_daftarkan_sku_mp', skuJual, daftar: baru.map(x => ({ platform: x.platform, sku: x.sku })), toko: currentToko, email: currentUserEmail() }, 30000);
+      if (r && r.success) {
+        const peta = katalogSkuMarketplaceMap[skuJual] = katalogSkuMarketplaceMap[skuJual] || [];
+        (r.didaftarkan || []).forEach(x => { if (!peta.some(m => m.platform === x.platform && p45Up(m.skuMarketplace) === p45Up(x.sku))) peta.push({ platform: x.platform, skuMarketplace: x.sku }); });
+        try { katalogSimpanCacheLokal(); } catch (e) { }
+        try { P42.mpT = 0; } catch (e) { }
+        if (el('p45-deteksi')) el('p45-deteksi').textContent += ' · langsung tersimpan';
+      } else if (el('p45-deteksi')) el('p45-deteksi').textContent += ' · belum tersimpan (' + ((r && r.error) || 'gagal') + ') - klik Simpan Perubahan';
+    } catch (e) { if (el('p45-deteksi')) el('p45-deteksi').textContent += ' · belum tersimpan - klik Simpan Perubahan'; }
+  } else if (baru.length) s.textContent += ' · ikut tersimpan saat Anda klik Simpan';
+  if (d.sisa && d.sisa.length) p45JadwalDeteksi(1500);
+}
+const p45BukaEditAsli_ = katalogBukaModalEditProdukInti;
+katalogBukaModalEditProdukInti = async function () {
+  P45.token++; P45.supTahu = new Set(); if (el('p45-deteksi')) el('p45-deteksi').textContent = '';
+  const r = await p45BukaEditAsli_.apply(this, arguments);
+  try { p45JadwalDeteksi(700); p45SupplierSaatBuka_(); p45PasangMerk_(); } catch (e) { }
+  return r;
+};
+const p45BukaTambahAsli_ = katalogBukaModalTambahProduk;
+katalogBukaModalTambahProduk = async function () {
+  P45.token++; P45.supTahu = new Set(); if (el('p45-deteksi')) el('p45-deteksi').textContent = '';
+  const r = await p45BukaTambahAsli_.apply(this, arguments);
+  try { p45PasangMerk_(); p45TampilSupplier_(); } catch (e) { }
+  return r;
+};
+document.addEventListener('change', e => {
+  const t = e.target; if (!t || !t.closest || !t.closest('#katalog-modal-tambah-produk')) return;
+  if (t.id === 'tp-sku' || (t.classList.contains('kat-input-sku') && t.closest('#tp-baris-sku-supplier, #tp-baris-sku-marketplace'))) p45JadwalDeteksi();
+  const url = t.closest('#tp-baris-sku-supplier') && t.getAttribute('inputmode') === 'url';
+  if (url) { const b = t.closest('.sku-supp-baris'); if (b) p45TarikSupplier(parseInt(b.dataset.idx, 10), true); }
+  if (t.id === 'tp-merk') p45MerkSelesai_();
+  if (t.id === 'tp-nama') p45NamaTanpaMerk_(true);
+}, true);
+
+/* ---------- DN-896: SKU & Harga Modal dari URL supplier + peringatan ---------- */
+function p45SupCache_() { if (!P45.sup) P45.sup = p45Muat_('p45_sup_v1'); return P45.sup; }
+function p45IsiDariSup_(r, d) {
+  const u = []; if (!r || !d || !d.ok) return u;
+  if (d.sku && !String(r.sku || '').trim()) { r.sku = d.sku; u.push('No SKU'); }
+  if (d.harga > 0 && !(Number(r.hargaModal) > 0)) { r.hargaModal = d.harga; u.push('Harga Modal'); }
+  if (d.namaSupplier && !d.ditebak && !String(r.namaSupplier || '').trim()) r.namaSupplier = d.namaSupplier;
+  return u;
+}
+async function p45TarikSupplier(idx, paksa) {
+  const r = tpBarisSupplier[idx]; if (!r) return;
+  const url = String(r.url || '').trim(); if (!/^https?:\/\/[^\s/]+\.[^\s/]+/i.test(url)) { p45TampilSupplier_(); return; }
+  const cache = p45SupCache_(), c = cache[url];
+  if (c && !paksa && Date.now() - (c.t || 0) < 24 * 3600000) {
+    const ubah = p45IsiDariSup_(r, c);
+    if (ubah.length) { tpRenderBarisSupplier(); try { if (tpBarisSupplier[0] === r) tpSinkronSkuUtama(true); } catch (e) { } }
+    else p45TampilSupplier_();
+    return;
+  }
+  if (P45.supJalan[url]) return; P45.supJalan[url] = 1;
+  r.p45Info = '⏳ Membaca No SKU & harga dari halaman supplier…'; p45TampilSupplier_();
+  let d;
+  try {
+    const x = await postJson({ aksi: 'supplier_tarik_produk', url, toko: currentToko, email: currentUserEmail() }, 90000, true);
+    d = x && x.success && x.data ? { ok: 1, t: Date.now(), sku: String(x.data.skuSupplier || '').replace(/\s+/g, ''), harga: Number(x.data.harga) || 0, nama: String(x.data.nama || '').slice(0, 120), namaSupplier: x.data.namaSupplier || '', ditebak: !!x.data.namaSupplierDitebak }
+      : { gagal: String((x && x.error) || 'tidak ada jawaban').slice(0, 160), t: Date.now() };
+  } catch (e) { d = { gagal: String(e.message || e).slice(0, 160), t: Date.now() }; }
+  delete P45.supJalan[url];
+  if (d.ok) { cache[url] = d; p45Simpan_('p45_sup_v1', cache, 600); } else cache[url] = d;
+  const kini = tpBarisSupplier.find(x => String(x.url || '').trim() === url); if (!kini) return;
+  const ubah = p45IsiDariSup_(kini, d);
+  kini.p45Info = d.ok ? `⚡ Dibaca dari halaman supplier${d.sku ? ' · SKU ' + d.sku : ' · No SKU tidak ada di halaman'}${d.harga ? ' · Rp ' + p45Rp(d.harga) : ' · harga tidak terbaca'}${ubah.length ? ' · diisi otomatis: ' + ubah.join(' & ') : ''}` : '';
+  if (ubah.length) { tpRenderBarisSupplier(); try { if (tpBarisSupplier[0] === kini) tpSinkronSkuUtama(true); } catch (e) { } p45JadwalDeteksi(); }
+  else p45TampilSupplier_();
+}
+function p45SupplierSaatBuka_() {
+  let n = 0;
+  (tpBarisSupplier || []).forEach((r, i) => { if (n < 4 && /^https?:\/\//i.test(String(r.url || '').trim())) { n++; p45TarikSupplier(i, false); } });
+  p45TampilSupplier_();
+}
+function p45SalahNol_(a, b) { const r = a / b; return (r > 8.5 && r < 11.5) || (r > 0.087 && r < 0.118) || (r > 85 && r < 115) || (r > 0.0087 && r < 0.0118); }
+function p45PeriksaSupplier_() {
+  const out = [], hjEl = el('tp-harga'), hj = parseFloat(hjEl && hjEl.value) || 0, cache = p45SupCache_(), urlSeen = {}, skuSeen = {};
+  const semuaHm = (tpBarisSupplier || []).map(r => Number(r.hargaModal) || 0);
+  (tpBarisSupplier || []).forEach((r, i) => {
+    const no = '#' + (i + 1) + (i === 0 ? ' (★ Utama)' : ''), hm = Number(r.hargaModal) || 0, url = String(r.url || '').trim(), sku = String(r.sku || '').trim();
+    const d = url ? cache[url] : null;
+    if (url && !/^https?:\/\/[^\s/]+\.[^\s/]+/i.test(url)) out.push({ i, berat: 1, pesan: `Baris ${no}: URL supplier tidak terlihat seperti alamat halaman web.` });
+    if (url) { const u = url.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase(); if (urlSeen[u] !== undefined) out.push({ i, berat: 1, pesan: `Baris ${no}: URL sama dengan baris #${urlSeen[u] + 1}.` }); else urlSeen[u] = i; }
+    if (sku) {
+      const K = p45Up(sku); if (skuSeen[K] !== undefined) out.push({ i, berat: 1, pesan: `Baris ${no}: SKU ${sku} sama dengan baris #${skuSeen[K] + 1}.` }); else skuSeen[K] = i;
+      if (/^https?:/i.test(sku)) out.push({ i, berat: 2, pesan: `Baris ${no}: kolom SKU berisi alamat web - URL mungkin salah kolom.` });
+    }
+    if (d && d.ok) {
+      if (sku && d.sku && p45Up(sku) !== p45Up(d.sku)) out.push({ i, berat: 2, pesan: `Baris ${no}: SKU "${sku}" berbeda dengan No SKU di halaman supplier "${d.sku}".` });
+      if (hm > 0 && d.harga > 0) {
+        const sel = Math.abs(hm - d.harga) / d.harga;
+        if (sel > 0.3) out.push({ i, berat: 2, pesan: `Baris ${no}: Harga Modal Rp ${p45Rp(hm)} berbeda ${Math.round(sel * 100)}% dari harga di halaman supplier Rp ${p45Rp(d.harga)}${p45SalahNol_(hm, d.harga) ? ' - sepertinya kelebihan / kekurangan angka 0' : ''}.` });
+      }
+      if (!d.sku && !sku) out.push({ i, berat: 1, pesan: `Baris ${no}: No SKU tidak ditemukan di halaman supplier - isi manual.` });
+      if (!(d.harga > 0) && !hm) out.push({ i, berat: 1, pesan: `Baris ${no}: harga tidak terbaca dari halaman supplier - isi Harga Modal manual.` });
+    } else if (d && d.gagal) out.push({ i, berat: 1, pesan: `Baris ${no}: halaman supplier belum bisa dibaca (${d.gagal}).` });
+    if (hm > 0 && hm < 100) out.push({ i, berat: 2, pesan: `Baris ${no}: Harga Modal Rp ${p45Rp(hm)} terlalu kecil - salah ketik?` });
+    if (hm > 0 && hj > 0 && hm >= hj) out.push({ i, berat: 2, pesan: `Baris ${no}: Harga Modal Rp ${p45Rp(hm)} sama dengan / di atas Harga Jual Rp ${p45Rp(hj)} - produk ini rugi.` });
+    const lain = semuaHm.filter((x, j) => j !== i && x > 0);
+    if (hm > 0 && lain.length) {
+      const med = lain.slice().sort((a, b) => a - b)[Math.floor(lain.length / 2)];
+      if (hm >= med * 3 || hm * 3 <= med) out.push({ i, berat: 2, pesan: `Baris ${no}: Harga Modal Rp ${p45Rp(hm)} berbeda jauh dari supplier lain (± Rp ${p45Rp(med)})${p45SalahNol_(hm, med) ? ' - mungkin kelebihan / kekurangan angka 0' : ''}.` });
+    }
+  });
+  return out;
+}
+function p45TampilSupplier_() {
+  const wrap = el('tp-baris-sku-supplier'); if (!wrap) return [];
+  let box = el('p45-supp-peringatan');
+  if (!box) { wrap.insertAdjacentHTML('afterend', '<div id="p45-supp-peringatan" role="status"></div>'); box = el('p45-supp-peringatan'); }
+  const daftar = p45PeriksaSupplier_(), perBaris = {};
+  daftar.forEach(x => { (perBaris[x.i] = perBaris[x.i] || []).push(x); });
+  wrap.querySelectorAll('.sku-supp-baris').forEach(b => {
+    const i = parseInt(b.dataset.idx, 10), r = tpBarisSupplier[i]; if (!r) return;
+    b.classList.toggle('p45-waspada', !!(perBaris[i] && perBaris[i].some(x => x.berat >= 2)));
+    const isi = b.querySelector('.sku-supp-isi') || b;
+    let info = isi.querySelector('.p45-supp-info');
+    if (!r.p45Info) { if (info) info.remove(); return; }
+    if (!info) { isi.insertAdjacentHTML('beforeend', '<div class="p45-supp-info"></div>'); info = isi.querySelector('.p45-supp-info'); }
+    info.textContent = r.p45Info;
+  });
+  box.innerHTML = daftar.length ? `<b>⚠️ Periksa SKU Supplier:</b><ul>${daftar.map(x => `<li>${escapeHtml(x.pesan)}</li>`).join('')}</ul>` : '';
+  const baru = daftar.filter(x => x.berat >= 2 && !P45.supTahu.has(x.pesan));
+  if (baru.length && p45ModalTerbuka_()) { baru.forEach(x => P45.supTahu.add(x.pesan)); pgrToast('⚠️ ' + baru[0].pesan + (baru.length > 1 ? ` (+${baru.length - 1} lainnya)` : '')); }
+  return daftar;
+}
+const p45RenderSuppAsli_ = tpRenderBarisSupplier;
+tpRenderBarisSupplier = function () { const h = p45RenderSuppAsli_.apply(this, arguments); try { p45TampilSupplier_(); } catch (e) { } return h; };
+let p45TimerSupp = 0;
+document.addEventListener('input', e => {
+  const t = e.target; if (!t || !t.closest) return;
+  if (t.closest('#tp-baris-sku-supplier') || t.id === 'tp-harga') { clearTimeout(p45TimerSupp); p45TimerSupp = setTimeout(() => { try { p45TampilSupplier_(); } catch (er) { } }, 600); }
+  if (t.id === 'tp-merk') p45MerkPop_(true, true);
+}, true);
+const p45TerapkanAsli_ = tpIsiAiTerapkan;
+tpIsiAiTerapkan = function (d) {
+  const n = p45TerapkanAsli_.apply(this, arguments);
+  try {
+    if (d && d.urlProduk && (d.skuSupplier || Number(d.harga) > 0)) {
+      const c = p45SupCache_(); c[d.urlProduk] = { ok: 1, t: Date.now(), sku: String(d.skuSupplier || '').replace(/\s+/g, ''), harga: Number(d.harga) || 0, nama: String(d.nama || '').slice(0, 120), namaSupplier: d.namaSupplier || '', ditebak: !!d.namaSupplierDitebak };
+      p45Simpan_('p45_sup_v1', c, 600);
+    }
+    p45MerkSelesai_(); p45TampilSupplier_(); p45JadwalDeteksi();
+  } catch (e) { }
+  return n;
+};
+
+/* ---------- DN-171 / DN-754: daftar merk, ejaan seragam, nama tanpa merk di depan ---------- */
+function p45KunciMerk(b) { return String(b || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+const P45_BUKAN_MERK = /^(no ?brand|non ?brand|tanpa (merk|merek|brand)|tidak ada (merk|merek)|oem|generic|lainnya|lain-lain|-+|n\/?a)$/i;
+function p45PolaMerk(m) { return String(m).trim().split(/[\s\-_.&+]+/).filter(Boolean).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s\\-_.&+]*'); }
+function p45BuangMerkDepan(nama, merk) {
+  const n = String(nama || '').replace(/\s+/g, ' ').trim(), m = String(merk || '').replace(/\s+/g, ' ').trim();
+  if (!n || !m || P45_BUKAN_MERK.test(m)) return n;
+  const baru = n.replace(new RegExp('^[\\[(]?' + p45PolaMerk(m) + '[\\])]?(?=[\\s\\-–—|:,/]|$)[\\s\\-–—|:,/]*', 'i'), '').trim();
+  return baru.length >= 2 ? baru : n;
+}
+function p45DaftarMerk() {
+  const sumber = (katalogProdukCache || []).concat(P45.arsip || []);
+  if (P45.merk && P45.merkN === sumber.length) return P45.merk;
+  const hit = {};
+  sumber.forEach(p => {
+    const b = String(p.brand || '').replace(/\s+/g, ' ').trim(); if (!b || b.length > 40 || P45_BUKAN_MERK.test(b)) return;
+    const k = p45KunciMerk(b); if (!k) return; (hit[k] = hit[k] || {})[b] = (hit[k][b] || 0) + 1;
+  });
+  P45.merk = Object.keys(hit).map(k => { const v = hit[k]; let best = '', n = 0, tot = 0; Object.keys(v).forEach(b => { tot += v[b]; if (v[b] > n || (v[b] === n && b < best)) { best = b; n = v[b]; } }); return { nama: best, jumlah: tot }; })
+    .sort((a, b) => b.jumlah - a.jumlah || a.nama.localeCompare(b.nama));
+  P45.merkN = sumber.length;
+  return P45.merk;
+}
+function p45KanonMerk(m) { const k = p45KunciMerk(m); if (!k) return String(m || '').trim(); const x = p45DaftarMerk().find(b => p45KunciMerk(b.nama) === k); return x ? x.nama : String(m || '').replace(/\s+/g, ' ').trim(); }
+function p45MerkPop_(tampil, saring) {
+  const inp = el('tp-merk'); if (!inp) return;
+  let pop = el('p45-merk-pop');
+  if (!tampil) { if (pop) pop.remove(); return; }
+  const q = saring ? p45KunciMerk(inp.value) : '', semua = p45DaftarMerk();
+  const daftar = (q ? semua.filter(b => p45KunciMerk(b.nama).includes(q)) : semua).slice(0, 40);
+  if (!pop) { inp.insertAdjacentHTML('afterend', '<div id="p45-merk-pop" class="p45-merk-pop" role="listbox"></div>'); pop = el('p45-merk-pop'); }
+  pop.innerHTML = daftar.length ? daftar.map(b => `<button type="button" data-merk="${pgrAttr(b.nama)}"><span>${escapeHtml(b.nama)}</span><small>${b.jumlah} produk</small></button>`).join('')
+    : `<div class="kosong">${semua.length ? 'Merk baru - akan ditambahkan ke daftar saat disimpan.' : 'Daftar merk dimuat dari Produk Master.'}</div>`;
+}
+function p45MerkSelesai_() {
+  const inp = el('tp-merk'); if (!inp) return;
+  const v = inp.value.replace(/\s+/g, ' ').trim(), k = p45KanonMerk(v);
+  if (k && k !== inp.value) inp.value = k;
+  p45NamaTanpaMerk_(false);
+}
+function p45NamaTanpaMerk_(beriTahu) {
+  const n = el('tp-nama'), m = el('tp-merk'); if (!n || !m || !m.value.trim()) return false;
+  const baru = p45BuangMerkDepan(n.value, m.value);
+  if (baru && baru !== n.value.replace(/\s+/g, ' ').trim()) { n.value = baru; if (beriTahu !== null) pgrToast(`Merk "${m.value.trim()}" sudah ada di kolom Merk - dibuang dari depan Nama Produk.`); return true; }
+  return false;
+}
+function p45PasangMerk_() {
+  const inp = el('tp-merk'); if (!inp || inp.dataset.p45) return;
+  inp.dataset.p45 = '1'; inp.setAttribute('autocomplete', 'off');
+  if (inp.parentNode && getComputedStyle(inp.parentNode).position === 'static') inp.parentNode.style.position = 'relative';
+  inp.placeholder = 'Pilih / ketik merk (kosong = NO BRAND)';
+  inp.addEventListener('focus', () => p45MerkPop_(true));
+  inp.addEventListener('blur', () => setTimeout(() => { p45MerkPop_(false); p45MerkSelesai_(); }, 160));
+  inp.addEventListener('keydown', e => { if (e.key === 'Escape') p45MerkPop_(false); });
+  inp.parentNode.addEventListener('mousedown', e => {
+    const b = e.target.closest && e.target.closest('#p45-merk-pop button[data-merk]'); if (!b) return;
+    e.preventDefault(); inp.value = b.dataset.merk; p45MerkPop_(false); p45MerkSelesai_();
+  });
+}
+try { p45PasangMerk_(); } catch (e) { }
+const p45SimpanAsli_ = katalogSimpanProdukBaru;
+katalogSimpanProdukBaru = async function () {
+  try { if (el('tp-merk')) el('tp-merk').value = p45KanonMerk(el('tp-merk').value); p45NamaTanpaMerk_(null); } catch (e) { }
+  try {
+    const berat = p45TampilSupplier_().filter(x => x.berat >= 2);
+    if (berat.length && !(await omniKonfirm_('Ada data SKU Supplier yang perlu dicek:\n\n' + berat.slice(0, 6).map(x => '• ' + x.pesan).join('\n') + '\n\nTetap simpan?'))) return;
+  } catch (e) { }
+  return p45SimpanAsli_.apply(this, arguments);
+};
+
+/* ---------- Tampilan tabel: MERK kecil di atas, nama tanpa merk di depan ---------- */
+function p45ProdukDariSku_(sku) { return (katalogProdukCache || []).find(x => x.sku === sku) || (P45.arsip || []).find(x => x.sku === sku); }
+const p45RenderTabelAsli_ = katalogRenderTabel;
+katalogRenderTabel = function () {
+  const h = p45RenderTabelAsli_.apply(this, arguments);
+  try {
+    el('katalog-produk-body').querySelectorAll('tr[data-sku]').forEach(tr => {
+      const p = p45ProdukDariSku_(tr.dataset.sku); if (!p) return;
+      const nm = tr.querySelector('.tabel-produk-nama');
+      if (nm && p.brand) { const t = p45BuangMerkDepan(p.nama, p.brand); if (t !== String(p.nama || '').trim()) { nm.textContent = t; nm.title = p.nama; } }
+      if (p.arsip && nm) { nm.classList.remove('katalog-klik-detail'); nm.title = 'Produk diarsipkan - klik ♻️ Pulihkan untuk membuka & mengubahnya.'; }
+    });
+  } catch (e) { }
+  return h;
+};
+const p45RenderCardAsli_ = katalogRenderCard;
+katalogRenderCard = function () {
+  const h = p45RenderCardAsli_.apply(this, arguments);
+  try {
+    el('katalog-produk-card-grid').querySelectorAll('.katalog-card-produk[data-sku]').forEach(c => {
+      const p = p45ProdukDariSku_(c.dataset.sku), t = c.querySelector('.katalog-card-title'); if (!p || !t || c.querySelector('.p45-card-merk')) return;
+      if (p.brand) { t.insertAdjacentHTML('beforebegin', `<div class="p45-card-merk">${escapeHtml(p.brand)}</div>`); t.textContent = p45BuangMerkDepan(p.nama, p.brand); }
+    });
+  } catch (e) { }
+  return h;
+};
+
+/* ---------- DN-939: tanpa "Tampilkan Arsip" - produk arsip selalu tampil nerawang di paling bawah ---------- */
+try { const lbl = document.querySelector('label.kat-toggle-arsip'); if (lbl) lbl.remove(); } catch (e) { }
+async function p45MuatArsip(paksa) {
+  if (P45.arsipMuat) return P45.arsipMuat;
+  if (!paksa && P45.arsipT && Date.now() - P45.arsipT < 10 * 60000) return;
+  P45.arsipT = Date.now();
+  P45.arsipMuat = (async () => {
+    try {
+      const d = await postJson({ aksi: 'lihat_katalog_produk', denganArsip: true, email: currentUserEmail() }, 60000, true);
+      if (d && d.success) {
+        const aktif = new Set((katalogProdukCache || []).map(p => p.sku));
+        P45.arsip = (d.daftar || []).filter(p => p.arsip && !aktif.has(p.sku));
+        if (el('katalog-view-produk') && el('katalog-view-produk').offsetParent !== null) katalogProdukRenderHalaman();
+      }
+    } catch (e) { P45.arsipT = 0; } finally { P45.arsipMuat = null; }
+  })();
+  return P45.arsipMuat;
+}
+const p45FilterAsli_ = katalogFilterSortProduk;
+katalogFilterSortProduk = function () {
+  let arsip = [];
+  if (P45.arsip && P45.arsip.length) {
+    const simpan = katalogProdukCache, aktif = new Set((simpan || []).map(p => p.sku));
+    try { katalogProdukCache = P45.arsip.filter(p => !aktif.has(p.sku)); arsip = p45FilterAsli_.apply(this, arguments); }
+    catch (e) { arsip = []; } finally { katalogProdukCache = simpan; }
+  }
+  return p45FilterAsli_.apply(this, arguments).concat(arsip);
+};
+const p45RenderHalamanAsli_ = katalogProdukRenderHalaman;
+katalogProdukRenderHalaman = function () {
+  const h = p45RenderHalamanAsli_.apply(this, arguments);
+  try { if ((katalogProdukCache || []).length) p45MuatArsip(false); p45PasangAlatOwner_(); } catch (e) { }
+  return h;
+};
+function p45SegarkanArsip_(ms) { setTimeout(() => { p45MuatArsip(true); }, ms || 1500); }
+['katalogHapusSatuProduk', 'katalogBatchHapusProduk'].forEach(nama => {
+  const asli = window[nama]; if (typeof asli !== 'function') return;
+  window[nama] = async function () { const r = await asli.apply(this, arguments); p45SegarkanArsip_(1500); return r; };
+});
+const p45PulihkanAsli_ = katalogPulihkanProduk;
+katalogPulihkanProduk = async function (sku) {
+  const r = await p45PulihkanAsli_.apply(this, arguments);
+  if (!(katalogProdukCache || []).some(p => p.sku === sku)) setTimeout(async () => { try { await katalogFetchProduk({ segar: true }); } catch (e) { } p45MuatArsip(true); }, 300);
+  return r;
+};
+const p45HapusPermanenAsli_ = p34HapusPermanen;
+p34HapusPermanen = async function (sku) {
+  const r = await p45HapusPermanenAsli_.apply(this, arguments);
+  setTimeout(() => p45MuatArsip(true), 800);
+  return r;
+};
+
+/* ---------- DN-683: foto kecil di kapsul varian ---------- */
+function p45Thumb(url, px) {
+  const u = String(url || '').trim(); if (!/^https?:/i.test(u)) return '';
+  if (/\/storage\/v1\/object\/public\//.test(u)) return u.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + (u.includes('?') ? '&' : '?') + `width=${px}&height=${px}&resize=contain&quality=60`;
+  return typeof p43Thumb === 'function' ? p43Thumb(u, px) : u;
+}
+const p45ChipAsli_ = katVarianChipHtml;
+katVarianChipHtml = function (target) {
+  const h = p45ChipAsli_.apply(this, arguments);
+  try {
+    if (!target || !target.urlFoto) return h;
+    const t = p45Thumb(target.urlFoto, 40); if (!t) return h;
+    const img = `<img class="p45-chip-foto" src="${escapeHtml(t)}" data-asli="${escapeHtml(target.urlFoto)}" loading="lazy" alt="" onerror="if(this.dataset.asli&&this.src!==this.dataset.asli){this.src=this.dataset.asli}else{this.remove()}">`;
+    return h.replace(/^(\s*<span[^>]*>)/, '$1' + img);
+  } catch (e) { return h; }
+};
+
+/* ---------- DN-949: foto produk selalu persegi 1:1 tanpa terpotong ---------- */
+async function p45Kotakkan(file) {
+  try {
+    if (!file || !/^image\/(jpe?g|png|webp|bmp|heic|heif)/i.test(file.type || '')) return file;
+    const img = await p34MuatGambar(file), w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h || Math.abs(w - h) <= 2) return file;
+    const S = Math.min(1600, Math.max(w, h)), f = S / Math.max(w, h), dw = Math.round(w * f), dh = Math.round(h * f);
+    const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+    const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, S, S); cx.imageSmoothingQuality = 'high';
+    cx.drawImage(img, Math.round((S - dw) / 2), Math.round((S - dh) / 2), dw, dh);
+    const blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.92)); if (!blob) return file;
+    const out = new File([blob], String(file.name || 'foto').replace(/\.[a-z0-9]+$/i, '') + '-1x1.jpg', { type: 'image/jpeg' });
+    out.__p34 = true; out.__p34Info = Object.assign({}, file.__p34Info || {}, { persegi: true });
+    return out;
+  } catch (e) { return file; }
+}
+const p45RapikanAsli_ = p34FotoRapikanFile;
+p34FotoRapikanFile = async function () { const r = await p45RapikanAsli_.apply(this, arguments); return p45Kotakkan(r); };
+try {
+  const p45SlotAsli_ = katalogUploadKeSlotGaleriDetail;
+  katalogUploadKeSlotGaleriDetail = async function (slot, file) { return p45SlotAsli_.call(this, slot, await p34FotoRapikanFile(file)); };
+} catch (e) { }
+
+/* ---------- Alat Owner di toolbar: Bersihkan Foto (DN-845) & Rapikan Merk di Nama (DN-754) ---------- */
+function p45PasangAlatOwner_() {
+  if (el('p45-alat-owner') || !(typeof p34ApakahOwner === 'function' && p34ApakahOwner())) return;
+  const sort = el('katalog-produk-sort'); if (!sort || !sort.parentNode) return;
+  sort.insertAdjacentHTML('afterend', `<span id="p45-alat-owner" style="display:inline-flex; gap:6px; flex-wrap:wrap;">
+    <button type="button" class="web-btn-secondary p45-alat" onclick="p45RapikanMerkMassal()" title="Buang merk dari depan Nama Produk & seragamkan ejaan merk (khusus Owner)">🏷️ Rapikan Merk</button>
+    <button type="button" class="web-btn-secondary p45-alat" onclick="p45BersihkanFoto()" title="Hapus foto yang sudah tidak dipakai dari Supabase Storage (khusus Owner)">🧹 Bersihkan Foto</button></span>`);
+}
+async function p45RapikanMerkMassal() {
+  try {
+    const r = await postJson({ aksi: 'p45_buang_merk_massal', toko: currentToko, email: currentUserEmail() }, 60000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    if (!r.jumlah) { pgrToast('✓ Semua Nama Produk sudah tanpa merk di depan & ejaan merk sudah seragam.'); return; }
+    const contoh = (r.contoh || []).slice(0, 8).map(x => `• ${x.sku}: "${x.lama}" → "${x.baru}"${x.merkBaru !== x.merk ? ` (merk ${x.merk} → ${x.merkBaru})` : ''}`).join('\n');
+    if (!(await omniKonfirm_(`${r.jumlah} produk akan dirapikan:\n\n${contoh}${r.jumlah > 8 ? '\n…' : ''}\n\nLanjutkan?`))) return;
+    const t = await postJsonTulis({ aksi: 'p45_buang_merk_massal', terapkan: true, toko: currentToko, email: currentUserEmail() }, 120000);
+    if (!t || !t.success) throw new Error((t && t.error) || 'Gagal');
+    pgrToast(`✓ ${t.diterapkan} Nama Produk dirapikan.`);
+    try { await katalogFetchProduk({ segar: true }); } catch (e) { }
+  } catch (e) { pgrToast('✗ ' + String(e.message || e).replace(/^Error:\s*/, '')); }
+}
+async function p45BersihkanFoto() {
+  try {
+    pgrToast('Memeriksa foto di Supabase Storage…');
+    const r = await postJson({ aksi: 'p45_bersihkan_foto', email: currentUserEmail() }, 120000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    if (!r.takTerpakai) { pgrToast(`✓ Tidak ada foto tak terpakai (${r.diperiksaDiFolder} file foto produk diperiksa).`); return; }
+    const mb = (r.ukuranByte / 1048576).toFixed(1);
+    if (!(await omniKonfirm_(`Ditemukan ${r.takTerpakai} foto produk yang sudah tidak dipakai di mana pun (± ${mb} MB).\n${r.masihDipakai} foto lain masih dipakai dan TIDAK dihapus.\n\nHapus permanen dari Supabase Storage?`))) return;
+    const t = await postJsonTulis({ aksi: 'p45_bersihkan_foto', terapkan: true, email: currentUserEmail() }, 150000);
+    if (!t || !t.success) throw new Error((t && t.error) || 'Gagal');
+    pgrToast(`✓ ${t.dihapus} foto dihapus (± ${(t.ukuranByte / 1048576).toFixed(1)} MB)${t.sisa ? ` · ${t.sisa} lagi dihapus otomatis di jadwal berikutnya` : ''}.`);
+  } catch (e) { pgrToast('✗ ' + String(e.message || e).replace(/^Error:\s*/, '')); }
 }
 </script>
 
