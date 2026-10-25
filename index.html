@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.65';
+  var VERSI = 'v2026.10.66';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -27160,6 +27160,8 @@ function fin2RenderSemua() {
 }
 
 /* ---------- Dashboard Ringkasan ---------- */
+// v2026.10.66 (DN-344): biaya iklan di jurnal (akun Beban Iklan & Promosi) - dipisah dari biaya operasional gudang
+function fin2IklanJurnal_(lr) { return ((lr && lr.bebanUmum) || []).filter(x => (x.akun || x.nama) === 'Beban Iklan & Promosi').reduce((t, x) => t + (Number(x.nilai) || 0), 0); }
 function fin2RenderRingkasan(L) {
   const k = L.kpi, lr = L.labaRugi;
   document.querySelectorAll('#fin-view-ringkasan .fin2-kpi').forEach(x => x.classList.remove('fin2-memuat'));
@@ -27167,8 +27169,10 @@ function fin2RenderRingkasan(L) {
   el('fin2-kpi-omzet-sub').textContent = k.pesanan ? Number(k.pesanan).toLocaleString('id-ID') + ' pesanan · otomatis dari marketplace' : 'Otomatis dari semua marketplace';
   el('fin2-kpi-hpp').textContent = fin2Rp(k.hpp);
   el('fin2-kpi-hpp-sub').textContent = k.omzet ? fin2Persen(k.hpp / k.omzet) + ' dari omzet · dari modul Pembelian' : 'Otomatis dari modul Pembelian';
-  el('fin2-kpi-biaya').textContent = fin2Rp(k.biayaOperasional);
-  el('fin2-kpi-biaya-sub').textContent = k.omzet && k.biayaOperasional ? fin2Persen(k.biayaOperasional / k.omzet) + ' dari omzet · listrik, gaji, kemasan, dll' : 'Dari catatan biaya harian';
+  // v2026.10.66 (DN-261025-162929-344): kartu ini HANYA biaya gudang/operasional selain iklan (iklan punya kartu sendiri)
+  const iklanJ = fin2IklanJurnal_(lr), opsGudang = Math.max(0, (k.biayaOperasional || 0) - iklanJ);
+  el('fin2-kpi-biaya').textContent = fin2Rp(opsGudang);
+  el('fin2-kpi-biaya-sub').textContent = k.omzet && opsGudang ? fin2Persen(opsGudang / k.omzet) + ' dari omzet · gaji, listrik, kemasan, dll (tanpa iklan)' : 'Biaya gudang & operasional (tanpa iklan)';
   el('fin2-kpi-potongan').textContent = fin2Rp(k.potongan);
   el('fin2-kpi-potongan-sub').textContent = k.potongan && k.omzet ? fin2Persen(k.potongan / k.omzet) + ' dari omzet · komisi, layanan & iklan' : 'Komisi, biaya layanan & iklan';
   const lb = el('fin2-kpi-laba');
@@ -27194,7 +27198,8 @@ function fin2RenderRingkasan(L) {
     ? baris('Omzet', k.omzet, '') +
       baris('− Modal barang (HPP)', -lr.hpp, 'kurang') +
       baris('− Potongan marketplace', -lr.totalBebanPenjualan, 'kurang') +
-      baris('− Biaya operasional', -(lr.totalBebanUmum + lr.bebanKerugianPersediaan + (lr.bebanPenyusutan || 0)), 'merah') +
+      baris('− Biaya operasional', -(lr.totalBebanUmum + lr.bebanKerugianPersediaan + (lr.bebanPenyusutan || 0) - iklanJ), 'merah') +
+      (iklanJ ? baris('− Biaya iklan', -iklanJ, 'merah') : '') +
       (lr.pendapatanLain ? baris('+ Pendapatan lain', lr.pendapatanLain, 'hijau') : '') +
       (lr.bebanLain ? baris('− Bunga pinjaman', -lr.bebanLain, 'merah') : '') +
       (lr.bebanPajak ? baris('− Pajak penghasilan', -lr.bebanPajak, 'merah') : '') +
@@ -27238,7 +27243,8 @@ function fin2AlurPasangDetail(L) {
   const pct = v => om ? ' (' + fin2Persen(Math.abs(v) / om) + ' dari omzet)' : '';
   const daftar = (arr, f) => (arr || []).filter(x => x && x.nilai).sort((a, b) => b.nilai - a.nilai).slice(0, 6)
     .map(x => `<li><span>${escapeHtml(f(x))}</span><b>${fin2Rp(x.nilai)}</b></li>`).join('');
-  const opex = (lr.totalBebanUmum || 0) + (lr.bebanKerugianPersediaan || 0) + (lr.bebanPenyusutan || 0);
+  const iklanJ = fin2IklanJurnal_(lr); // v2026.10.66 (DN-344)
+  const opex = (lr.totalBebanUmum || 0) + (lr.bebanKerugianPersediaan || 0) + (lr.bebanPenyusutan || 0) - iklanJ;
   const info = {
     'Omzet': { rumus: 'Jumlah nilai semua pesanan di periode ini dari semua toko & marketplace (setelah diskon penjual), dihitung otomatis dari data pesanan.',
       isi: daftar(lr.pendapatan, x => x.kanal || x.nama) },
@@ -27246,9 +27252,10 @@ function fin2AlurPasangDetail(L) {
       + (k.skuTanpaHarga ? ` ⚠️ ${k.skuTanpaHarga} SKU terjual belum punya harga modal - HPP-nya dihitung 0, jadi laba terlihat lebih besar dari sebenarnya.` : ''), isi: '' },
     '− Potongan marketplace': { rumus: 'Komisi, biaya layanan, biaya program & potongan lain yang dipotong marketplace dari setiap pesanan (dari data pencairan marketplace).' + pct(lr.totalBebanPenjualan),
       isi: daftar(lr.bebanPenjualan, x => x.nama || x.kanal) },
-    '− Biaya operasional': { rumus: 'Semua biaya harian yang dicatat di menu Biaya (gaji, listrik, kemasan, iklan manual, dll.) + barang rusak/hilang + penyusutan aset.' + pct(opex),
-      isi: daftar((lr.bebanUmum || []).concat(lr.bebanKerugianPersediaan ? [{ label: 'Barang rusak / hilang', nilai: lr.bebanKerugianPersediaan }] : [], lr.bebanPenyusutan ? [{ label: 'Penyusutan aset', nilai: lr.bebanPenyusutan }] : []), x => (x.ikon ? x.ikon + ' ' : '') + (x.label || x.nama)) },
-    '= Laba bersih': { rumus: `Omzet ${fin2Rp(om)} − HPP ${fin2Rp(lr.hpp)} − potongan marketplace ${fin2Rp(lr.totalBebanPenjualan)} − biaya operasional ${fin2Rp(opex)}`
+    '− Biaya iklan': { rumus: 'Biaya iklan Shopee & TikTok Shop (sinkron otomatis tiap jam) + iklan yang dicatat manual di kategori Iklan & Promosi.' + pct(iklanJ), isi: '' },
+    '− Biaya operasional': { rumus: 'Biaya gudang & operasional yang dicatat di menu Biaya (gaji, listrik, kemasan, dll. - TANPA iklan) + barang rusak/hilang + penyusutan aset.' + pct(opex),
+      isi: daftar((lr.bebanUmum || []).filter(x => (x.akun || x.nama) !== 'Beban Iklan & Promosi').concat(lr.bebanKerugianPersediaan ? [{ label: 'Barang rusak / hilang', nilai: lr.bebanKerugianPersediaan }] : [], lr.bebanPenyusutan ? [{ label: 'Penyusutan aset', nilai: lr.bebanPenyusutan }] : []), x => (x.ikon ? x.ikon + ' ' : '') + (x.label || x.nama)) },
+    '= Laba bersih': { rumus: `Omzet ${fin2Rp(om)} − HPP ${fin2Rp(lr.hpp)} − potongan marketplace ${fin2Rp(lr.totalBebanPenjualan)} − biaya operasional ${fin2Rp(opex)}` + (iklanJ ? ` − biaya iklan ${fin2Rp(iklanJ)}` : '')
       + (lr.pendapatanLain ? ` + pendapatan lain ${fin2Rp(lr.pendapatanLain)}` : '') + (lr.bebanLain ? ` − bunga ${fin2Rp(lr.bebanLain)}` : '') + (lr.bebanPajak ? ` − pajak ${fin2Rp(lr.bebanPajak)}` : '')
       + ` = <b>${fin2Rp(lr.labaBersih)}</b>` + (om ? ` · margin bersih ${fin2Persen(lr.labaBersih / om)}` : '') + '.', isi: '', html: true }
   };
@@ -66628,7 +66635,7 @@ async function spbTampilStatus_() {
   }
   const d = spbStatusCache.d; if (!d) return;
   const jam = d.terakhirMs ? new Date(d.terakhirMs).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'belum';
-  box.innerHTML = d.aktif ? `🤖 <b>Otomatis</b>: sistem menarik data pembeli Shopee sendiri tiap ±${d.jedaMenit} menit (pesanan ${d.hari} hari terakhir; yang sudah lengkap tidak dicari lagi). Terakhir jalan: ${escapeHtml(jam)}.
+  box.innerHTML = d.aktif ? `🤖 <b>Otomatis</b>: ${d.mode === 'status' ? 'sistem menarik data pembeli Shopee <b>setiap status pesanan berubah</b> (1× per status: belum bayar → siap kirim → diproses → dikirim …)' : 'sistem menarik data pembeli Shopee sendiri tiap ±' + d.jedaMenit + ' menit'} (pesanan ${d.hari} hari terakhir; yang sudah lengkap tidak dicari lagi). Terakhir dicek: ${escapeHtml(jam)}.
     Antrean gambar dibaca OCR: ${d.antreanMenunggu} menunggu · ${d.antreanSelesai} selesai${d.antreanGagal ? ' · ' + d.antreanGagal + ' gagal' : ''}. Tombol di atas hanya untuk menarik sekarang juga.`
     : '🤖 Penarikan otomatis menunggu Shopee terhubung (Pengaturan).';
 }
@@ -71121,6 +71128,688 @@ vbPasangEventChips = function () {
   } catch (e) { }
   return r;
 };
+</script>
+
+<!-- ===================================================================================
+     PAKET 48 (v2026.10.66) - edit Catatan Dev · kartu Finance rapi (iklan terpisah) · seret beranimasi
+     (SKU & kapsul varian) · Hubungkan SKU saat hover · invoice pembelian dibaca otomatis (hemat token) +
+     konfirmasi SKU · Stock Opname HP per rak · log data pembeli Shopee per status
+     =================================================================================== -->
+<style>
+  /* ---- DN-876 / DN-344: kartu Dashboard Finance 3 x 2 mengikuti alur omzet -> laba ---- */
+  .fin2 #fin-view-ringkasan > .fin2-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+  @media (min-width: 1560px) { .fin2 #fin-view-ringkasan > .fin2-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+  @media (max-width: 760px) { .fin2 #fin-view-ringkasan > .fin2-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .fin2 #fin-view-ringkasan > .fin2-kpi-grid > .fin2-kpi-laba { grid-column: auto; } }
+  .fin2 #fin-view-ringkasan .fin2-kpi { display: flex; flex-direction: column; }
+  .fin2 #fin-view-ringkasan .fin2-kpi-nilai { white-space: nowrap; overflow-wrap: normal; overflow: hidden; text-overflow: ellipsis; font-size: clamp(18px, 2.1vw, 25px); }
+  .fin2 #fin-view-ringkasan .fin2-kpi-sub { margin-top: auto; padding-top: 6px; }
+  .fin2 #fin-view-ringkasan .fin2-kpi-laba { background: linear-gradient(180deg, rgba(16,185,129,.07), transparent 70%), var(--fin-kartu); border-color: rgba(16,185,129,.35); }
+  .fin2 #fin-view-ringkasan .fin2-kpi-label { font-weight: 600; }
+  .p48-langkah { display: inline-grid; place-items: center; min-width: 17px; height: 17px; border-radius: 999px; font-size: 10px; font-weight: 800; background: rgba(127,127,127,.14); color: var(--web-text-dim); margin-left: auto; flex: none; }
+  .p47-iklan-status { margin-top: 6px !important; }
+  .p48-iklan-baris { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+  .p48-iklan-baris .ok { color: #15803d; } .p48-iklan-baris .gagal { color: #b91c1c; } .p48-iklan-baris .warn { color: #b45309; }
+  .p48-iklan-baris button { border: 0; background: none; padding: 0; color: var(--web-accent, #4f46e5); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+  /* ---- DN-471: tombol Hubungkan SKU HANYA saat kursor di baris / kartu produk ---- */
+  #katalog-produk-body .katalog-btn-hubungkan, #katalog-produk-card-grid .katalog-btn-hubungkan { opacity: 0; pointer-events: none; transition: opacity .15s; }
+  #katalog-produk-body tr:hover .katalog-btn-hubungkan, #katalog-produk-card-grid .katalog-card-produk:hover .katalog-btn-hubungkan,
+  #katalog-produk-body .katalog-btn-hubungkan:focus-visible, #katalog-produk-card-grid .katalog-btn-hubungkan:focus-visible { opacity: 1; pointer-events: auto; }
+  @media (hover: none) { #katalog-produk-body .katalog-btn-hubungkan, #katalog-produk-card-grid .katalog-btn-hubungkan { opacity: 1; pointer-events: auto; } }
+
+  /* ---- DN-190 / DN-154: seret beranimasi (kartu terangkat, kartu lain bergeser) ---- */
+  .p48-angkat { position: relative; z-index: 30; box-shadow: 0 14px 32px rgba(15,23,42,.22), 0 2px 6px rgba(15,23,42,.12) !important; cursor: grabbing !important; transition: box-shadow .15s ease; will-change: transform; }
+  .sku-urut-baris.p48-angkat { background: var(--web-panel, #fff) !important; outline: 2px solid rgba(79,70,229,.45); }
+  .vb-chip.p48-angkat { outline: 2px solid rgba(79,70,229,.5); }
+  body.p48-menyeret, body.p48-menyeret * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+  .sku-urut-pegangan { touch-action: none; }
+  .vb-chips .vb-chip { touch-action: none; cursor: grab; }
+
+  /* ---- DN-241: edit Catatan Developer ---- */
+  .p48-dvn-edit textarea { width: 100%; min-height: 150px; box-sizing: border-box; }
+  .p48-spb-tabel { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .p48-spb-tabel th, .p48-spb-tabel td { border-bottom: 1px solid var(--web-border); padding: 5px 6px; text-align: right; }
+  .p48-spb-tabel th:first-child, .p48-spb-tabel td:first-child { text-align: left; }
+
+  /* ---- DN-355: invoice pembelian + konfirmasi SKU ---- */
+  .p48-konfirm { margin: 8px 0 4px; border: 1px solid #fcd34d; background: #fffbeb; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; color: #78350f; }
+  .p48-konfirm > b { display: block; margin-bottom: 6px; }
+  .p48-tanya { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 7px 0; border-top: 1px dashed rgba(180,83,9,.25); }
+  .p48-tanya:first-of-type { border-top: 0; }
+  .p48-tanya .p48-q { flex: 1 1 280px; min-width: 0; line-height: 1.45; }
+  .p48-tanya .p48-q small { display: block; color: #92400e; opacity: .85; }
+  .p48-tanya button { font: inherit; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 5px 11px; cursor: pointer; border: 1px solid transparent; }
+  .p48-ya { background: #16a34a; color: #fff; } .p48-bukan { background: #fff; color: #b91c1c; border-color: #fca5a5 !important; }
+  .p48-pilih { flex-basis: 100%; display: flex; flex-direction: column; gap: 5px; }
+  .p48-pilih input { width: 100%; box-sizing: border-box; margin: 0; }
+  .p48-pilih-daftar { max-height: 190px; overflow: auto; border: 1px solid var(--web-border); border-radius: 8px; background: var(--web-panel, #fff); color: var(--web-text); }
+  .p48-pilih-daftar button { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--web-border); border-radius: 0; padding: 6px 9px; font-weight: 500; color: inherit; }
+  .p48-pilih-daftar button:hover { background: rgba(79,70,229,.08); }
+  .p48-pilih-daftar button b { font-family: ui-monospace, monospace; margin-right: 6px; }
+  .pm-tabel-barang input.p48-sku-tanya { background: #fef3c7 !important; border-color: #f59e0b !important; }
+  .pm-tabel-barang input.p48-sku-ok { background: #ecfdf5 !important; border-color: #10b981 !important; }
+  .p48-baca-status { font-size: 12px; margin-top: 6px; }
+
+  /* ---- DN-886: Stock Opname HP per rak ---- */
+  .p48-rak { width: 100%; box-sizing: border-box; border: 1.5px solid #f59e0b; background: rgba(245,158,11,.09); border-radius: 14px; padding: 10px 12px; color: var(--text, inherit); }
+  .p48-rak-atas { display: flex; align-items: center; gap: 8px; }
+  .p48-rak-nama { font-size: 20px; font-weight: 800; letter-spacing: .02em; }
+  .p48-rak-nama small { display: block; font-size: 10.5px; font-weight: 600; opacity: .75; letter-spacing: 0; }
+  .p48-rak-atas .p48-sp { flex: 1; }
+  .p48-rak button { font: inherit; font-size: 12px; font-weight: 700; border-radius: 9px; padding: 7px 10px; border: 1px solid rgba(245,158,11,.6); background: rgba(255,255,255,.08); color: inherit; cursor: pointer; }
+  .p48-rak-info { font-size: 11px; opacity: .8; margin-top: 6px; line-height: 1.45; }
+  .p48-rak-selesai { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .p48-rak-selesai span { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(16,185,129,.18); color: #059669; }
+</style>
+<script>
+/* ============================ PAKET 48 (v2026.10.66) ============================ */
+const P48 = { konfirm: [], katalog: null, bacaSeq: 0 };
+
+/* =====================================================================
+   DN-190 + DN-154: SERET BERANIMASI (dipakai SKU Supplier / Marketplace & kapsul varian)
+   Kartu yang dipegang TERANGKAT mengikuti jari/kursor; kartu lain BERGESER memberi tempat (animasi FLIP).
+   opsi: { item: selector, pegangan: selector|null, sumbu: 'y'|'xy', padaUrut(urutanIndeksLama[]) }
+   ===================================================================== */
+function p48Seret(wadah, opsiAwal) {
+  if (!wadah) return;
+  wadah._p48opsi = opsiAwal; // wadah yang sama dirender ulang -> cukup perbarui opsi (listener hanya 1)
+  if (wadah.dataset.p48Seret) return;
+  wadah.dataset.p48Seret = '1';
+  wadah.addEventListener('pointerdown', e => {
+    const opsi = wadah._p48opsi; if (!opsi) return;
+    if (e.button !== undefined && e.button !== 0) return;
+    const item = e.target.closest(opsi.item);
+    if (!item || !wadah.contains(item)) return;
+    if (opsi.pegangan ? !e.target.closest(opsi.pegangan) : e.target.closest('button, input, textarea, select, a')) return;
+    p48SeretMulai_(wadah, item, e, opsi);
+  });
+}
+function p48SeretMulai_(wadah, item, e0, opsi) {
+  const induk = item.parentElement;
+  const saudara = () => Array.from(induk.children).filter(x => x.matches(opsi.item));
+  saudara().forEach((x, i) => { x.dataset.p48i = i; });
+  const r0 = item.getBoundingClientRect(), gx = e0.clientX - r0.left, gy = e0.clientY - r0.top;
+  let aktif = false, tx = 0, ty = 0, terakhirPindah = 0;
+  const hanyaY = opsi.sumbu === 'y';
+  const pasangTransform = () => { item.style.transform = `translate(${hanyaY ? 0 : tx}px, ${ty}px) scale(1.03)`; };
+  const geser = e => {
+    if (!aktif) {
+      if (Math.hypot(e.clientX - e0.clientX, e.clientY - e0.clientY) < 6) return;
+      aktif = true; item.classList.add('p48-angkat'); document.body.classList.add('p48-menyeret');
+      item.style.transition = 'box-shadow .15s ease';
+    }
+    e.preventDefault();
+    // posisi alami = posisi tanpa transform
+    const tLama = item.style.transform; item.style.transform = 'none';
+    const alami = item.getBoundingClientRect(); item.style.transform = tLama;
+    tx = e.clientX - gx - alami.left; ty = e.clientY - gy - alami.top; pasangTransform();
+    if (Date.now() - terakhirPindah < 120) return;
+    const lain = saudara().filter(x => x !== item);
+    const kena = lain.find(x => {
+      const r = x.getBoundingClientRect();
+      return e.clientY >= r.top && e.clientY <= r.bottom && (hanyaY || (e.clientX >= r.left && e.clientX <= r.right));
+    });
+    if (!kena) return;
+    const kr = kena.getBoundingClientRect(), sebelumItem = !!(item.compareDocumentPosition(kena) & Node.DOCUMENT_POSITION_PRECEDING);
+    // ambang setengah kartu supaya tidak bolak-balik
+    if (hanyaY) { const tengah = kr.top + kr.height / 2; if (sebelumItem ? e.clientY > tengah : e.clientY < tengah) return; }
+    else { const tengah = kr.left + kr.width / 2; const barisSama = Math.abs(kr.top - alami.top) < kr.height / 2; if (barisSama && (sebelumItem ? e.clientX > tengah : e.clientX < tengah)) return; }
+    const awal = new Map(lain.map(x => [x, x.getBoundingClientRect()]));
+    if (sebelumItem) induk.insertBefore(item, kena); else induk.insertBefore(item, kena.nextSibling);
+    terakhirPindah = Date.now();
+    lain.forEach(x => {
+      const a = awal.get(x), b = x.getBoundingClientRect(), dx = a.left - b.left, dy = a.top - b.top;
+      if ((dx || dy) && x.animate) x.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    });
+    item.style.transform = 'none'; const alamiBaru = item.getBoundingClientRect();
+    tx = e.clientX - gx - alamiBaru.left; ty = e.clientY - gy - alamiBaru.top; pasangTransform();
+  };
+  const selesai = () => {
+    document.removeEventListener('pointermove', geser, true);
+    document.removeEventListener('pointerup', selesai, true);
+    document.removeEventListener('pointercancel', selesai, true);
+    if (!aktif) return;
+    document.body.classList.remove('p48-menyeret');
+    const dari = item.style.transform;
+    item.style.transform = '';
+    if (item.animate) item.animate([{ transform: dari }, { transform: 'none' }], { duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    setTimeout(() => item.classList.remove('p48-angkat'), 180);
+    P48.klikDiblokir = Date.now();
+    const urutan = saudara().map(x => Number(x.dataset.p48i));
+    if (urutan.some((v, i) => v !== i)) setTimeout(() => { try { opsi.padaUrut(urutan); } catch (err) { console.warn('urut', err); } }, 190);
+  };
+  document.addEventListener('pointermove', geser, true);
+  document.addEventListener('pointerup', selesai, true);
+  document.addEventListener('pointercancel', selesai, true);
+}
+// klik yang terjadi tepat setelah melepas seretan tidak dihitung sebagai klik (mis. membuka edit nama kapsul)
+document.addEventListener('click', e => { if (P48.klikDiblokir && Date.now() - P48.klikDiblokir < 350) { e.preventDefault(); e.stopPropagation(); P48.klikDiblokir = 0; } }, true);
+document.addEventListener('dragstart', e => { if (e.target && e.target.closest && e.target.closest('.sku-urut-baris, .vb-chip')) e.preventDefault(); }, true);
+
+// SKU Supplier / Marketplace (jendela produk & Kelola Produk): ganti seret bawaan browser dengan seret beranimasi
+skuUrutPasang = function (wrap, ambilArr, renderUlang) {
+  if (!wrap) return;
+  p48Seret(wrap, {
+    item: '.sku-urut-baris', pegangan: '.sku-urut-pegangan', sumbu: 'y',
+    padaUrut: urutan => {
+      const arr = ambilArr(), salin = urutan.map(i => arr[i]).filter(x => x !== undefined);
+      if (salin.length !== arr.length) return;
+      const dipindah = arr.find((x, i) => salin.indexOf(x) !== i);
+      arr.splice(0, arr.length, ...salin);
+      renderUlang();
+      const baru = dipindah ? wrap.querySelector(`.sku-urut-baris[data-idx="${arr.indexOf(dipindah)}"]`) : null;
+      if (baru && baru.animate) baru.animate([{ background: 'rgba(79,70,229,0.16)' }, { background: 'transparent' }], { duration: 700, easing: 'ease-out' });
+    }
+  });
+};
+
+// Kapsul pilihan varian di Varian Builder: seret untuk mengubah urutan (klik biasa tetap = ubah nama)
+const p48VbChipsAsli_ = vbPasangEventChips;
+vbPasangEventChips = function () {
+  const h = p48VbChipsAsli_.apply(this, arguments);
+  try {
+    el('vb-isi').querySelectorAll('.vb-chips').forEach(box => {
+      const t = Number(box.dataset.tingkat);
+      box.querySelectorAll('.vb-chip').forEach(c => { if (!c.title || !/seret/.test(c.title)) c.title = (c.title ? c.title + ' · ' : '') + 'seret untuk mengubah urutan'; });
+      p48Seret(box, {
+        item: '.vb-chip', pegangan: null, sumbu: 'xy',
+        padaUrut: urutan => {
+          const opsi = t === 1 ? vb.opsi1 : vb.opsi2, salin = urutan.map(i => opsi[i]);
+          if (salin.length !== opsi.length || salin.some(x => x === undefined)) return;
+          opsi.splice(0, opsi.length, ...salin);
+          vbRender();
+          const st = el('vb-status'); if (st) st.textContent = 'Urutan pilihan diubah - klik 💾 Simpan Variasi untuk menyimpan.';
+        }
+      });
+    });
+  } catch (e) { }
+  return h;
+};
+
+/* =====================================================================
+   DN-876: kartu Biaya Iklan diringkas (1-2 baris, rincian di tooltip) + nomor urut alur kartu
+   ===================================================================== */
+p47RenderIklan_ = function (L) {
+  if (!p47PasangKartuIklan_()) return;
+  const r = P47.iklan, nilai = el('p47-iklan-nilai'), sub = el('p47-iklan-sub'), st = el('p47-iklan-status');
+  if (!r) { nilai.textContent = '…'; return; }
+  nilai.textContent = fin2Rp(r.total);
+  const omzet = L && L.kpi ? Number(L.kpi.omzet) || 0 : 0;
+  sub.textContent = [omzet ? fin2Persen(r.total / omzet) + ' dari omzet' : '', 'hari ini ' + fin2Rp(r.hariIni || 0)].filter(Boolean).join(' · ');
+  const plat = Object.keys(r.perPlatform || {}).sort((a, b) => (r.perPlatform[b] || 0) - (r.perPlatform[a] || 0)).map(p => p + ' ' + fin2Rp(r.perPlatform[p]));
+  const h = (r.sinkron && r.sinkron.hasil) || {}, rincian = [], tanda = [];
+  if (plat.length) rincian.push(plat.join(' · '));
+  rincian.push('Kemarin ' + fin2Rp(r.kemarin || 0));
+  let gagal = 0;
+  ['Shopee', 'TikTok Shop'].forEach(p => {
+    const x = h[p]; if (!x) return;
+    if (x.ok) rincian.push(`✓ ${p} s/d ${p47TglPendek_(r.terakhir && r.terakhir[p])}${x.cadangan ? ` (${x.cadangan} hari dari cadangan)` : ''}`);
+    else { gagal++; rincian.push(`✗ ${p}: ${String(x.pesan || 'gagal disinkron')}`); }
+  });
+  if ((r.hariKosong || []).length) { tanda.push(`<span class="warn">⚠️ ${r.hariKosong.length} hari kosong</span>`); rincian.push(r.hariKosong.length + ' hari belum ada data iklan: ' + r.hariKosong.slice(0, 10).join(', ')); }
+  if (gagal) tanda.push(`<span class="gagal">✗ ${gagal} platform gagal</span>`);
+  else if (Object.keys(h).length) tanda.push('<span class="ok">✓ tersinkron</span>');
+  const w = r.sinkron && r.sinkron.waktu ? r.sinkron.waktu.slice(11, 16) : '';
+  st.innerHTML = `<div class="p48-iklan-baris" data-p45-tip="${pgrAttr(rincian.join('\n'))}" title="${pgrAttr(rincian.join('\n'))}">${tanda.join('')}${w ? `<span>${escapeHtml(w)}</span>` : ''}<button type="button" onclick="p47SinkronIklan(true)">${P47.iklanJalan ? '⏳ menyinkron…' : '↻ Sinkron'}</button></div>`;
+};
+function p48NomoriKartuFinance_() {
+  const urut = ['fin2-kpi-omzet', 'fin2-kpi-hpp', 'fin2-kpi-potongan', 'fin2-kpi-biaya', 'p47-iklan-nilai', 'fin2-kpi-laba'];
+  const tanda = ['', '−', '−', '−', '−', '='];
+  urut.forEach((id, i) => {
+    const k = el(id) && el(id).closest('.fin2-kpi'); if (!k) return;
+    const atas = k.querySelector('.fin2-kpi-atas'); if (!atas || atas.querySelector('.p48-langkah')) return;
+    if (tanda[i]) atas.insertAdjacentHTML('beforeend', `<span class="p48-langkah" title="${i === 5 ? 'Hasil: omzet dikurangi semua biaya' : 'Mengurangi omzet'}">${tanda[i]}</span>`);
+  });
+}
+const p48RingkasanAsli_ = fin2RenderRingkasan;
+fin2RenderRingkasan = function (L) {
+  const h = p48RingkasanAsli_.apply(this, arguments);
+  try { p48NomoriKartuFinance_(); } catch (e) { }
+  return h;
+};
+
+/* =====================================================================
+   DN-241: edit Catatan Developer + log data pembeli Shopee per status
+   ===================================================================== */
+const p48DvnRenderAsli_ = dvnRender;
+dvnRender = function () {
+  const h = p48DvnRenderAsli_.apply(this, arguments);
+  try {
+    document.querySelectorAll('#dvn-isi [data-dvn-balas]').forEach(b => {
+      if (b.parentElement.querySelector('[data-p48-edit]')) return;
+      b.insertAdjacentHTML('beforebegin', `<button type="button" class="fin2-link" data-p48-edit="${pgrAttr(b.dataset.dvnBalas)}">✎ Edit</button>`);
+    });
+    const bar = document.querySelector('#web-tab-devnote .dvn-toolbar:nth-of-type(2)') || document.querySelectorAll('#web-tab-devnote .dvn-toolbar')[1];
+    if (bar && !el('p48-btn-spb')) bar.querySelector('.dvn-kecil').insertAdjacentHTML('beforebegin', '<button type="button" class="web-btn-secondary" id="p48-btn-spb" onclick="p48BukaLogSpb()" title="Di status pesanan apa data pembeli Shopee (nama, HP, alamat) mulai terbuka">📊 Log Pembeli Shopee</button>');
+  } catch (e) { }
+  return h;
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-p48-edit]');
+  if (b) { e.preventDefault(); p48DvnEdit(b.dataset.p48Edit); }
+});
+function p48DvnEdit(id) {
+  const x = (DVN.daftar || []).find(y => y.id === id); if (!x) return;
+  const d = { jenis: x.jenis, prioritas: x.prioritas };
+  const chip = (grup, nilai) => `<button type="button" class="dvn-chip${d[grup] === nilai ? ' aktif' : ''}" data-p48-${grup}="${pgrAttr(nilai)}">${escapeHtml(nilai)}</button>`;
+  const w = omxModal('✎ Edit Catatan ' + id, `<div class="p48-dvn-edit">
+    <div class="dvn-alamat"><code>${escapeHtml(x.alamat || '?')}</code><span>${escapeHtml(x.dibuat)} · ${escapeHtml(x.status)}</span></div>
+    <span class="dvn-label">Jenis</span><div class="dvn-chips">${['Bug', 'Data Salah', 'Tampilan', 'Ide Fitur', 'Lainnya'].map(v => chip('jenis', v)).join('')}</div>
+    <span class="dvn-label">Prioritas</span><div class="dvn-chips">${['Tinggi', 'Sedang', 'Rendah'].map(v => chip('prioritas', v)).join('')}</div>
+    <span class="dvn-label">Catatan</span><textarea id="p48-dvn-teks" class="dvn-teks" maxlength="4000">${escapeHtml(x.catatan)}</textarea>
+    <span class="dvn-label">Bagian ditunjuk <span class="dvn-kecil">(boleh dikosongkan)</span></span><textarea id="p48-dvn-bagian" class="dvn-teks" style="min-height:60px;" maxlength="600">${escapeHtml(x.bagian || '')}</textarea>
+    <div class="dvn-baris-aksi"><button type="button" class="web-btn-primary" id="p48-dvn-simpan">Simpan Perubahan</button>
+      <button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button></div></div>`);
+  ['jenis', 'prioritas'].forEach(g => w.querySelectorAll(`[data-p48-${g}]`).forEach(b => b.onclick = () => {
+    d[g] = b.getAttribute('data-p48-' + g); w.querySelectorAll(`[data-p48-${g}]`).forEach(z => z.classList.toggle('aktif', z === b));
+  }));
+  el('p48-dvn-simpan').onclick = async () => {
+    const teks = el('p48-dvn-teks').value.trim();
+    if (!teks) { pgrToast('Catatan tidak boleh kosong.'); return; }
+    const btn = el('p48-dvn-simpan'); btn.disabled = true; btn.textContent = 'Menyimpan…';
+    await dvnUbah_(id, { catatan: teks, jenis: d.jenis, prioritas: d.prioritas, bagian: el('p48-dvn-bagian').value.trim() }, 'Catatan diperbarui');
+    omxTutupModal();
+  };
+  setTimeout(() => { const t = el('p48-dvn-teks'); if (t) t.focus(); }, 50);
+}
+function p48SpbTabelHtml_(r) {
+  const st = Object.keys(r.ringkas || {});
+  if (!st.length) return '<div class="dvn-kecil">Belum ada percobaan tercatat. Data muncul setelah backend Paket 48 berjalan & ada pesanan Shopee yang statusnya berubah.</div>';
+  const pc = (n, t) => t ? Math.round(n / t * 100) + '%' : '-';
+  return `<table class="p48-spb-tabel"><thead><tr><th>Status pesanan</th><th>Dicoba</th><th>Nama</th><th>HP</th><th>Alamat</th><th>Username</th><th>Tersamar</th></tr></thead><tbody>
+    ${st.sort((a, b) => r.ringkas[b].coba - r.ringkas[a].coba).map(s => { const g = r.ringkas[s]; return `<tr><td><b>${escapeHtml(s)}</b></td><td>${g.coba}</td><td>${pc(g.nama, g.coba)}</td><td>${pc(g.hp, g.coba)}</td><td>${pc(g.alamat, g.coba)}</td><td>${pc(g.username, g.coba)}</td><td>${pc(g.tersamar, g.coba)}</td></tr>`; }).join('')}</tbody></table>`;
+}
+async function p48BukaLogSpb() {
+  omxModal('📊 Data pembeli Shopee per status pesanan', '<div class="web-placeholder">Memuat…</div>', { lebar: true });
+  try {
+    const r = await postJson({ aksi: 'p48_log_pembeli_shopee', email: currentUserEmail() }, 30000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal memuat');
+    const isi = document.querySelector('#omx-modal .omx-modal-isi'); if (!isi) return;
+    isi.innerHTML = `<div class="dvn-kecil" style="margin-bottom:8px;">Setiap pesanan Shopee yang datanya belum lengkap dicoba <b>1× setiap statusnya berubah</b> (dicek tiap ±${r.jedaCekDetik || 90} detik tanpa memanggil API). Persen = berapa kali data itu TERBUKA saat dicoba di status tersebut. Dari tabel ini kita tetapkan di status mana penarikan paling tepat.</div>
+      ${p48SpbTabelHtml_(r)}
+      ${(r.terakhir || []).length ? `<div class="dvn-label" style="margin-top:12px;">Percobaan terakhir</div><div style="max-height:240px; overflow:auto;"><table class="p48-spb-tabel"><tbody>${r.terakhir.map(x => `<tr><td>${escapeHtml(x.waktu)} · ${escapeHtml(x.no)}</td><td>${escapeHtml(x.status)}</td><td>${['nama', 'hp', 'alamat', 'username'].map(f => (x[f] ? '✓' : '·') + f).join(' ')}</td><td>${x.tersamar ? '****' : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+  } catch (e) { const isi = document.querySelector('#omx-modal .omx-modal-isi'); if (isi) isi.innerHTML = `<div class="status-text err">${escapeHtml(e.message || String(e))}</div>`; }
+}
+// Ringkasan log ikut di file .md Catatan Developer (supaya developer/AI bisa menetapkan event yang tepat)
+const p48DvnUnduhAsli_ = dvnUnduh;
+dvnUnduh = async function (format) {
+  if (format !== 'md') return p48DvnUnduhAsli_.apply(this, arguments);
+  let tambahan = '';
+  try {
+    const r = await postJson({ aksi: 'p48_log_pembeli_shopee', email: currentUserEmail() }, 20000, true);
+    const st = r && r.success ? Object.keys(r.ringkas || {}) : [];
+    if (st.length) {
+      tambahan = '\n## Log data pembeli Shopee per status pesanan (otomatis)\n\n| Status | Dicoba | Nama | HP | Alamat | Username | Tersamar |\n|---|---|---|---|---|---|---|\n' +
+        st.map(s => { const g = r.ringkas[s], p = n => g.coba ? Math.round(n / g.coba * 100) + '%' : '-'; return `| ${s} | ${g.coba} | ${p(g.nama)} | ${p(g.hp)} | ${p(g.alamat)} | ${p(g.username)} | ${p(g.tersamar)} |`; }).join('\n') + '\n';
+    }
+  } catch (e) { }
+  const asliUnduh = dvnUnduh_;
+  dvnUnduh_ = (nama, isi, tipe) => asliUnduh(nama, /\.md$/.test(nama) ? isi + tambahan : isi, tipe);
+  try { return await p48DvnUnduhAsli_.apply(this, arguments); } finally { dvnUnduh_ = asliUnduh; }
+};
+
+/* =====================================================================
+   DN-355 (+ DN-241 HEMAT TOKEN): upload invoice pembelian -> semua kolom terisi otomatis
+   1) PDF: teks dibaca di browser -> pembaca bawaan Shopee/Tokopedia + Pola Paste (0 token AI)
+   2) gagal -> hanya TEKS dikirim ke AI (murah); gambar dikirim hanya untuk foto / PDF hasil scan
+   3) hasil disimpan server per sidik file (invoice sama = 0 token) · daftar Produk Master TIDAK dikirim ke AI
+   4) SKU yang tidak tertulis ditebak di browser -> "Apakah benar ini SKU Gudang XXX?" [Iya] [Bukan -> pilih produk]
+   ===================================================================== */
+const P48_INGAT_KUNCI = 'p48_ingat_sku_v1';
+function p48Norm_(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+function p48Ingatan_() { try { return JSON.parse(localStorage.getItem(P48_INGAT_KUNCI) || '{}'); } catch (e) { return {}; } }
+function p48Ingat_(nama, kode, sku) {
+  try {
+    const m = p48Ingatan_();
+    if (nama) m['n:' + p48Norm_(nama)] = sku;
+    if (kode) m['k:' + p48Norm_(kode)] = sku;
+    const k = Object.keys(m); if (k.length > 3000) k.slice(0, k.length - 3000).forEach(x => delete m[x]);
+    localStorage.setItem(P48_INGAT_KUNCI, JSON.stringify(m));
+  } catch (e) { }
+}
+async function p48Katalog_() {
+  const k = await spMuatKatalogRingan();
+  return k || [];
+}
+// Kandidat SKU Gudang untuk 1 nama barang invoice (urut skor). Tanpa AI.
+function p48Kandidat_(nama, katalog, maks) {
+  const a = spToken(nama); if (!a.length) return [];
+  const angka = (String(nama).match(/\d+\s*(ml|gr|g|kg|cm|mm|l|oz|pcs)?/gi) || []).map(x => x.replace(/\s+/g, '').toLowerCase());
+  return katalog.map(p => {
+    const inter = p.tok.filter(w => a.includes(w)).length; if (!inter) return null;
+    let skor = inter / Math.max(1, Math.min(a.length, p.tok.length)) * 0.7 + inter / Math.max(a.length, p.tok.length) * 0.3;
+    const pn = String(p.nama).toLowerCase().replace(/\s+/g, '');
+    angka.forEach(x => { if (pn.includes(x)) skor += 0.12; });
+    return { sku: p.sku, nama: p.nama, skor };
+  }).filter(Boolean).sort((x, y) => y.skor - x.skor).slice(0, maks || 5);
+}
+// Siapkan pertanyaan konfirmasi untuk setiap baris barang yang SKU-nya hasil tebakan
+async function p48SiapkanKonfirmasi_(kodeInvoice) {
+  const katalog = await p48Katalog_(), ingat = p48Ingatan_(), adaSku = new Set(katalog.map(p => p.sku.toUpperCase()));
+  P48.katalogCache = katalog;
+  P48.konfirm = [];
+  pmItemsAktif.forEach((it, idx) => {
+    const nama = String(it._namaInvoice || it.nama || '').trim(), kode = String((kodeInvoice && kodeInvoice[idx]) || it._kodeInvoice || '').trim();
+    if (!nama && !kode) return;
+    it._namaInvoice = it._namaInvoice || nama; it._kodeInvoice = kode;
+    const skuNow = String(it.sku || '').trim().toUpperCase();
+    if (skuNow && adaSku.has(skuNow) && !it.skuOtomatis) { it._p48 = 'ok'; return; } // SKU Gudang tertulis jelas di invoice
+    const diingat = (kode && ingat['k:' + p48Norm_(kode)]) || ingat['n:' + p48Norm_(nama)];
+    if (diingat && adaSku.has(String(diingat).toUpperCase())) {
+      const p = katalog.find(x => x.sku.toUpperCase() === String(diingat).toUpperCase());
+      it.sku = p.sku; it.nama = p.nama; it.skuOtomatis = false; it._p48 = 'ok'; it._p48Ingat = true; return;
+    }
+    const kand = p48Kandidat_(nama, katalog, 6);
+    if (skuNow && adaSku.has(skuNow) && !kand.some(c => c.sku.toUpperCase() === skuNow)) { const p = katalog.find(x => x.sku.toUpperCase() === skuNow); kand.unshift({ sku: p.sku, nama: p.nama, skor: 1 }); }
+    if (skuNow && adaSku.has(skuNow)) kand.sort((x, y) => (y.sku.toUpperCase() === skuNow) - (x.sku.toUpperCase() === skuNow));
+    const tebak = kand[0] && (kand[0].skor >= 0.34 || (skuNow && kand[0].sku.toUpperCase() === skuNow)) ? kand[0] : null;
+    if (tebak) { it.sku = tebak.sku; it.nama = tebak.nama; it.skuOtomatis = true; }
+    it._p48 = 'tanya';
+    P48.konfirm.push({ idx, nama, kode, tebak, kandidat: kand, buka: !tebak });
+  });
+  pmRenderItemBody();
+  p48RenderKonfirm_();
+}
+function p48RenderKonfirm_() {
+  let box = el('p48-konfirm');
+  const wrap = document.querySelector('#bel-modal-pembelian-manual .pm-barang-wrap');
+  if (!wrap) return;
+  if (!box) { box = document.createElement('div'); box.id = 'p48-konfirm'; box.className = 'p48-konfirm'; wrap.parentNode.insertBefore(box, wrap); }
+  const sisa = P48.konfirm.filter(q => pmItemsAktif[q.idx] && pmItemsAktif[q.idx]._p48 === 'tanya');
+  if (!sisa.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = `<b>🤔 ${sisa.length} barang perlu dikonfirmasi SKU Gudang-nya</b>` + sisa.map(q => {
+    const i = P48.konfirm.indexOf(q);
+    const tanya = q.tebak ? `Baris ${q.idx + 1} · "${escapeHtml(q.nama)}"<br>Apakah benar ini <b>SKU Gudang ${escapeHtml(q.tebak.sku)}</b>?<small>${escapeHtml(q.tebak.nama)}</small>`
+      : `Baris ${q.idx + 1} · "${escapeHtml(q.nama)}"<br><b>Belum ketemu SKU Gudang yang mirip</b> - pilih produk di bawah.`;
+    return `<div class="p48-tanya" data-p48-q="${i}"><div class="p48-q">${tanya}</div>
+      ${q.tebak ? `<button type="button" class="p48-ya" data-p48-ya="${i}">✓ Iya</button><button type="button" class="p48-bukan" data-p48-bukan="${i}">✗ Bukan</button>` : ''}
+      ${q.buka ? `<div class="p48-pilih"><input type="search" class="web-form-input" data-p48-cari="${i}" placeholder="🔍 Cari SKU / nama produk master..." value="${pgrAttr(q.cari || '')}">
+        <div class="p48-pilih-daftar" data-p48-daftar="${i}">${p48DaftarPilihHtml_(q)}</div></div>` : ''}</div>`;
+  }).join('');
+}
+function p48DaftarPilihHtml_(q) {
+  const kat = P48.katalogCache || [];
+  let daftar;
+  if (q.cari && q.cari.trim()) {
+    const c = q.cari.trim().toLowerCase();
+    daftar = kat.filter(p => p.sku.toLowerCase().includes(c) || p.nama.toLowerCase().includes(c)).slice(0, 30);
+  } else daftar = q.kandidat.filter(k => !q.tebak || k.sku !== q.tebak.sku || !q.ditolak).slice(0, 8);
+  if (!daftar.length) return `<div class="dvn-kecil" style="padding:6px 9px;">${q.cari && q.cari.trim() ? 'Tidak ada produk yang cocok - ketik nama / SKU lain.' : 'Ketik nama / SKU produk master untuk mencari.'}</div>`;
+  return daftar.map(p => `<button type="button" data-p48-pilih="${pgrAttr(p.sku)}"><b>${escapeHtml(p.sku)}</b>${escapeHtml(p.nama)}</button>`).join('');
+}
+function p48Tetapkan_(q, p) {
+  const it = pmItemsAktif[q.idx]; if (!it) return;
+  it.sku = p.sku; it.nama = p.nama; it.skuOtomatis = false; it._p48 = 'ok';
+  p48Ingat_(q.nama, q.kode, p.sku);
+  pmRenderItemBody(); p48RenderKonfirm_();
+}
+document.addEventListener('click', async e => {
+  const t = e.target; if (!t.closest || !t.closest('#p48-konfirm')) return;
+  const ya = t.closest('[data-p48-ya]'), bukan = t.closest('[data-p48-bukan]'), pilih = t.closest('[data-p48-pilih]');
+  if (ya) { const q = P48.konfirm[Number(ya.dataset.p48Ya)]; if (q && q.tebak) p48Tetapkan_(q, q.tebak); return; }
+  if (bukan) { const q = P48.konfirm[Number(bukan.dataset.p48Bukan)]; if (!q) return; P48.katalogCache = await p48Katalog_(); q.buka = true; q.ditolak = true; p48RenderKonfirm_(); const inp = document.querySelector(`[data-p48-cari="${bukan.dataset.p48Bukan}"]`); if (inp) inp.focus(); return; }
+  if (pilih) {
+    const i = Number(pilih.closest('[data-p48-q]').dataset.p48Q), q = P48.konfirm[i];
+    const p = (P48.katalogCache || []).find(x => x.sku === pilih.dataset.p48Pilih) || (q.kandidat || []).find(x => x.sku === pilih.dataset.p48Pilih);
+    if (q && p) p48Tetapkan_(q, p);
+  }
+});
+document.addEventListener('input', e => {
+  const inp = e.target.closest && e.target.closest('[data-p48-cari]'); if (!inp) return;
+  const q = P48.konfirm[Number(inp.dataset.p48Cari)]; if (!q) return;
+  q.cari = inp.value;
+  const d = document.querySelector(`[data-p48-daftar="${inp.dataset.p48Cari}"]`); if (d) d.innerHTML = p48DaftarPilihHtml_(q);
+});
+// Tandai kolom SKU: kuning = menunggu konfirmasi, hijau = sudah dikonfirmasi / diingat
+const p48RenderItemAsli_ = pmRenderItemBody;
+pmRenderItemBody = function () {
+  const h = p48RenderItemAsli_.apply(this, arguments);
+  try {
+    el('pm-item-body').querySelectorAll('tr[data-idx]').forEach(tr => {
+      const it = pmItemsAktif[Number(tr.dataset.idx)], inp = tr.querySelector('td input');
+      if (!it || !inp) return;
+      inp.classList.toggle('p48-sku-tanya', it._p48 === 'tanya');
+      inp.classList.toggle('p48-sku-ok', it._p48 === 'ok' && !!it.sku);
+      if (it._p48 === 'tanya') inp.title = 'Tebakan SKU - konfirmasi di kotak kuning di atas tabel';
+      else if (it._p48Ingat) inp.title = 'SKU diingat dari konfirmasi sebelumnya';
+      if (it._namaInvoice && it._namaInvoice !== it.nama) { const n = tr.querySelectorAll('td input')[1]; if (n) n.title = 'Tertulis di invoice: ' + it._namaInvoice; }
+    });
+  } catch (e) { }
+  return h;
+};
+// Mengetik SKU sendiri di kolom = dianggap sudah dikonfirmasi
+const p48UpdateFieldAsli_ = pmUpdateField;
+pmUpdateField = function (idx, field, value) {
+  const h = p48UpdateFieldAsli_.apply(this, arguments);
+  if (field === 'sku' && pmItemsAktif[idx] && pmItemsAktif[idx]._p48 === 'tanya') { pmItemsAktif[idx]._p48 = 'ok'; pmItemsAktif[idx].skuOtomatis = false; setTimeout(p48RenderKonfirm_, 0); }
+  return h;
+};
+const p48HapusBarisAsli_ = pmHapusBarisItem;
+pmHapusBarisItem = function (idx) {
+  P48.konfirm = P48.konfirm.filter(q => q.idx !== idx).map(q => (q.idx > idx ? Object.assign(q, { idx: q.idx - 1 }) : q));
+  const h = p48HapusBarisAsli_.apply(this, arguments); p48RenderKonfirm_(); return h;
+};
+// Smart Paste teks bawaan juga memakai konfirmasi SKU (tebakan otomatis tidak langsung dianggap benar)
+const p48SmartPasteAsli_ = pmTerapkanSmartPaste;
+pmTerapkanSmartPaste = async function (h) {
+  const r = await p48SmartPasteAsli_.apply(this, arguments);
+  try { pmItemsAktif.forEach((it, i) => { it._namaInvoice = (h.items[i] && h.items[i].nama) || it.nama; }); await p48SiapkanKonfirmasi_(); } catch (e) { }
+  return r;
+};
+const p48BukaModalAsli_ = belBukaModalPembelianManual;
+belBukaModalPembelianManual = async function () {
+  P48.konfirm = []; P48.bacaSeq++;
+  const b = el('p48-konfirm'); if (b) { b.hidden = true; b.innerHTML = ''; }
+  const s = el('p48-baca-status'); if (s) s.remove();
+  return p48BukaModalAsli_.apply(this, arguments);
+};
+const p48SimpanAsli_ = pmSimpanPembelian;
+pmSimpanPembelian = async function () {
+  const sisa = P48.konfirm.filter(q => pmItemsAktif[q.idx] && pmItemsAktif[q.idx]._p48 === 'tanya').length;
+  if (sisa && !confirm(`Masih ada ${sisa} barang yang SKU Gudang-nya belum dikonfirmasi (kolom kuning).\n\nSimpan apa adanya?`)) return;
+  return p48SimpanAsli_.apply(this, arguments);
+};
+
+function p48Status_(html, kelas) {
+  let s = el('p48-baca-status');
+  if (!s) { const z = el('pm-dok-zona'); if (!z) return; s = document.createElement('div'); s.id = 'p48-baca-status'; s.className = 'p48-baca-status status-text'; z.insertAdjacentElement('afterend', s); }
+  s.className = 'p48-baca-status status-text ' + (kelas || ''); s.innerHTML = html;
+}
+async function p48Sidik_(file) {
+  try { const buf = await file.arrayBuffer(); const h = await crypto.subtle.digest('SHA-256', buf); return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join(''); } catch (e) { return ''; }
+}
+async function p48PdfDok_(file) { const lib = await spbMuatPdfJs_(); return lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
+async function p48TeksPdf_(doc) {
+  const hasil = [];
+  for (let p = 1; p <= Math.min(doc.numPages, 4); p++) {
+    const isi = await (await doc.getPage(p)).getTextContent();
+    let baris = [], yLama = null, teks = '';
+    isi.items.forEach(it => { const y = Math.round(it.transform[5]); if (yLama !== null && Math.abs(y - yLama) > 2) { baris.push(teks.trim()); teks = ''; } teks += it.str + ' '; yLama = y; });
+    if (teks.trim()) baris.push(teks.trim());
+    hasil.push(baris.filter(Boolean).join('\n'));
+  }
+  return hasil.join('\n').replace(/[ \t]+/g, ' ').trim();
+}
+// PDF hasil scan (tanpa teks): halaman 1-2 jadi 1 gambar JPEG kecil (lebar 1300 px) - cukup untuk dibaca AI, hemat token
+async function p48GambarPdf_(doc) {
+  const kanvas = [];
+  for (let p = 1; p <= Math.min(doc.numPages, 2); p++) {
+    const pg = await doc.getPage(p), v0 = pg.getViewport({ scale: 1 }), skala = 1300 / v0.width, v = pg.getViewport({ scale: skala });
+    const c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height);
+    await pg.render({ canvasContext: c.getContext('2d'), viewport: v }).promise; kanvas.push(c);
+  }
+  const t = kanvas.reduce((s, c) => s + c.height, 0), g = document.createElement('canvas'); g.width = 1300; g.height = Math.min(t, 3600);
+  const ctx = g.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, g.width, g.height);
+  let y = 0; kanvas.forEach(c => { ctx.drawImage(c, 0, y); y += c.height; });
+  return g.toDataURL('image/jpeg', 0.72).split(',')[1];
+}
+async function p48BacaInvoice(file) {
+  const seq = ++P48.bacaSeq;
+  const bolehTimpa = () => !pmItemsAktif.some(it => String(it.nama || '').trim() || String(it.sku || '').trim());
+  if (!bolehTimpa() && !confirm('Daftar barang sudah terisi. Ganti dengan isi invoice "' + (file.name || 'dokumen') + '"?')) { p48Status_('Invoice dilampirkan tanpa dibaca (daftar barang tidak diubah).'); return; }
+  p48Status_('⏳ Membaca invoice…');
+  try {
+    const pdf = file.type === 'application/pdf';
+    let kirim = null, ringkas = '';
+    if (pdf) {
+      const doc = await p48PdfDok_(file);
+      const teks = await p48TeksPdf_(doc);
+      if (teks.replace(/\s/g, '').length >= 40) {
+        // (1) 0 TOKEN: pembaca bawaan Shopee / Tokopedia + Pola Paste tersimpan
+        const kotak = el('pm-sp-kotak'); if (kotak) kotak.value = teks;
+        let cocok = false; try { cocok = sppProsesPastePembelian(teks); } catch (e) { }
+        if (cocok) {
+          if (seq !== P48.bacaSeq) return;
+          await new Promise(r => setTimeout(r, 60));
+          if (pmItemsAktif.some(it => String(it.nama || '').trim())) { if (!P48.konfirm.length) await p48SiapkanKonfirmasi_(); p48Status_('✓ Invoice terbaca <b>tanpa AI</b> (0 token) dari teks PDF. Periksa lalu Simpan.', 'ok'); return; }
+        }
+        kirim = { teks: teks.slice(0, 9000) }; ringkas = 'teks PDF (' + teks.length + ' huruf)';
+      } else { kirim = { base64: await p48GambarPdf_(doc), mime: 'image/jpeg' }; ringkas = 'gambar PDF hasil scan'; }
+    } else {
+      const f = await rt2KecilkanFoto(file); kirim = { base64: f.base64, mime: f.mime || 'image/jpeg' }; ringkas = 'foto / screenshot';
+    }
+    p48Status_('⏳ AI membaca ' + escapeHtml(ringkas) + '… (model gratis dulu, hemat token)');
+    const r = await postJson(Object.assign({ aksi: 'p48_baca_invoice_pembelian', sidik: await p48Sidik_(file), email: currentUserEmail() }, kirim), 150000);
+    if (seq !== P48.bacaSeq) return;
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal membaca');
+    await p48TerapkanInvoice_(r.hasil);
+    p48Status_(`✓ Invoice terbaca (${r.dariCache ? 'dari simpanan - 0 token' : 'AI ' + escapeHtml(r.sumber === 'ai-teks' ? 'teks' : 'gambar') + ', ' + escapeHtml(r.model || '')}). ${P48.konfirm.length ? 'Konfirmasi SKU di kotak kuning, ' : ''}periksa lalu Simpan.`, 'ok');
+  } catch (err) {
+    if (seq !== P48.bacaSeq) return;
+    p48Status_('✗ Invoice belum bisa dibaca otomatis: ' + escapeHtml(String(err.message || err).replace(/^Error:\s*/, '')) + ' - isi manual / tempel teks invoice.', 'err');
+  }
+}
+async function p48TerapkanInvoice_(h) {
+  h = h || {}; const items = h.items || [];
+  if (!items.length) throw new Error('barang tidak terbaca');
+  if (h.supplier && !el('pm-nama-supplier').value.trim()) {
+    // pakai ejaan nama supplier yang sudah ada di Kontak Pemasok bila mirip
+    const ada = (belKontakCache || []).find(s => p48Norm_(s.nama) === p48Norm_(h.supplier) || (p48Norm_(h.supplier).length > 4 && p48Norm_(s.nama).includes(p48Norm_(h.supplier))));
+    el('pm-nama-supplier').value = ada ? ada.nama : h.supplier; pmUpdateDaftarCabang(); pmCekSupplierBaru();
+  }
+  if (h.noInvoice && !el('pm-no-invoice').value.trim()) el('pm-no-invoice').value = h.noInvoice;
+  if (h.tanggal) { el('pm-tanggal').value = h.tanggal; pmTanggalTransaksiDariPaste = null; }
+  if (h.ongkir) el('pm-ongkos-kirim').value = h.ongkir;
+  if (h.biayaLain) el('pm-biaya-lain').value = h.biayaLain;
+  if (h.diskon) el('pm-diskon').value = h.diskon;
+  pmTotalReferensiDariPaste = h.total || null;
+  pmItemsAktif = items.map(x => ({ sku: x.sku || '', nama: x.nama || x.sku, qty: Number(x.qty) || 1, hargaSatuan: Number(x.harga) || 0, _namaInvoice: x.nama || '', _kodeInvoice: x.sku || '' }));
+  await p48SiapkanKonfirmasi_(items.map(x => x.sku || ''));
+  pmHitungTotal();
+  try { playBeep(); } catch (e) { }
+}
+// Setiap dokumen yang di-upload di zona Pembelian langsung dibaca (sekali per file)
+const p48DokTambahAsli_ = dokTambahFile;
+dokTambahFile = function (zonaId, files, opsi) {
+  const h = p48DokTambahAsli_.apply(this, arguments);
+  try {
+    if (zonaId === 'pm-dok-zona' && files && files.length) {
+      const f = files.find(x => x && (x.type === 'application/pdf' || /^image\//.test(x.type)) && x.size <= DOK_MAKS_MB * 1048576);
+      if (f) setTimeout(() => p48BacaInvoice(f), 0);
+    }
+  } catch (e) { }
+  return h;
+};
+
+/* =====================================================================
+   DN-886: STOCK OPNAME HP PER RAK - rak aktif tampil di atas keranjang, terdeteksi dari scan label rak
+   (RAK-A-01 · RAK A 3 · LORONG B RAK 12 · A-01), 1 memo = 1 rak, setelah Kirim otomatis lanjut ke rak berikutnya.
+   ===================================================================== */
+const P48_RAK_KUNCI = 'p48_rak_opname_v1';
+function p48RakState_() {
+  let s = null; try { s = JSON.parse(localStorage.getItem(P48_RAK_KUNCI) || 'null'); } catch (e) { }
+  s = s || {}; if (!s.lorong) s.lorong = 'A'; if (!(s.no >= 1)) s.no = 1; if (!s.selesai) s.selesai = {}; if (s.aktif === undefined) s.aktif = true;
+  return s;
+}
+function p48RakSimpan_(s) { try { const hari = krTgl(new Date()); Object.keys(s.selesai).forEach(k => { if (k < krTgl(new Date(Date.now() - 7 * 86400000))) delete s.selesai[k]; }); localStorage.setItem(P48_RAK_KUNCI, JSON.stringify(s)); } catch (e) { } }
+function p48RakNama_(s) { return String(s.lorong).toUpperCase() + '-' + String(s.no).padStart(2, '0'); }
+function p48UraiRak_(t) {
+  t = String(t || '').trim().toUpperCase();
+  let m = t.match(/^(?:RAK|R)[\s:_\-\/]*([A-Z]{1,3}|\d{1,2})[\s_\-\/.]*(\d{1,3})$/) || t.match(/^LORONG[\s:_\-]*([A-Z0-9]{1,3})[\s,_\-\/]*RAK[\s:_\-]*(\d{1,3})$/);
+  if (m) return { lorong: m[1], no: parseInt(m[2], 10) };
+  m = t.match(/^([A-Z]{1,2})-(\d{1,3})$/);
+  return m ? { lorong: m[1], no: parseInt(m[2], 10), lemah: true } : null;
+}
+function p48LorongBerikut_(l) { l = String(l || 'A').toUpperCase(); if (/^\d+$/.test(l)) return String(parseInt(l, 10) + 1); const c = l.charCodeAt(l.length - 1); return c < 90 ? l.slice(0, -1) + String.fromCharCode(c + 1) : l + 'A'; }
+function p48RakRender() {
+  const scr = el('screen-memo-gudang'); if (!scr) return;
+  let bar = el('p48-rak');
+  const tampil = mgmTabAktif === 'stockopname';
+  if (!bar) {
+    if (!tampil) return;
+    const acuan = el('mgm-btn-tanpaqr') || el('mgm-input-wrap'); if (!acuan) return;
+    bar = document.createElement('div'); bar.id = 'p48-rak'; bar.className = 'p48-rak';
+    acuan.parentNode.insertBefore(bar, acuan);
+  }
+  bar.hidden = !tampil; if (!tampil) return;
+  const s = p48RakState_(), n = (mgmCarts.stockopname || []).length, hari = (s.selesai[krTgl(new Date())] || []);
+  if (!s.aktif) { bar.innerHTML = `<div class="p48-rak-atas"><span>📍 Mode per rak <b>mati</b></span><span class="p48-sp"></span><button type="button" onclick="p48RakAtur('aktif')">Nyalakan</button></div>`; return; }
+  bar.innerHTML = `<div class="p48-rak-atas">
+      <div class="p48-rak-nama"><small>📍 Rak yang sedang dihitung</small>${escapeHtml(p48RakNama_(s))}</div><span class="p48-sp"></span>
+      <button type="button" onclick="p48RakAtur('mundur')" aria-label="Rak sebelumnya">◀</button>
+      <button type="button" onclick="p48RakAtur('maju')" aria-label="Rak berikutnya">▶</button>
+      <button type="button" onclick="p48RakAtur('lorong')" title="Pindah ke lorong berikutnya (rak 01)">Lorong ▶</button>
+      <button type="button" onclick="p48RakAtur('ubah')" aria-label="Ketik nama rak">✎</button></div>
+    <div class="p48-rak-info">${n ? `<b>${n} SKU</b> di keranjang untuk rak ini · tekan <b>Kirim Memo</b> setelah rak selesai → lanjut otomatis ke ${escapeHtml(p48RakNama_({ lorong: s.lorong, no: s.no + 1 }))}` : 'Mulai dari rak paling atas. Scan label rak (mis. RAK-' + escapeHtml(p48RakNama_(s)) + ') untuk pindah rak.'}
+      <button type="button" style="padding:2px 6px; font-size:10.5px;" onclick="p48RakAtur('mati')">matikan</button></div>
+    ${hari.length ? `<div class="p48-rak-selesai">${hari.slice(-24).map(x => `<span title="${pgrAttr(x.jam + ' · ' + x.n + ' SKU')}">✓ ${escapeHtml(x.rak)}</span>`).join('')}</div>` : ''}`;
+}
+function p48RakAtur(aksi) {
+  const s = p48RakState_(), n = (mgmCarts.stockopname || []).length;
+  if (['mundur', 'maju', 'lorong', 'ubah'].includes(aksi) && n && !confirm(`Keranjang masih berisi ${n} SKU untuk rak ${p48RakNama_(s)}.\nPindah rak sekarang? (SKU di keranjang akan ikut tercatat di rak yang baru)`)) return;
+  if (aksi === 'maju') s.no++;
+  else if (aksi === 'mundur') s.no = Math.max(1, s.no - 1);
+  else if (aksi === 'lorong') { s.lorong = p48LorongBerikut_(s.lorong); s.no = 1; }
+  else if (aksi === 'ubah') { const v = prompt('Nama rak (contoh: A-01 atau Lorong B Rak 3):', p48RakNama_(s)); if (v === null) return; const r = p48UraiRak_(v) || p48UraiRak_('RAK ' + v); if (!r) { pgrToast('Format rak tidak dikenal. Contoh: A-01'); return; } s.lorong = r.lorong; s.no = r.no; }
+  else if (aksi === 'mati') s.aktif = false;
+  else if (aksi === 'aktif') s.aktif = true;
+  p48RakSimpan_(s); p48RakRender();
+}
+const p48TambahInputAsli_ = mgmTambahItemDariInput;
+mgmTambahItemDariInput = async function () {
+  try {
+    const inp = el('mgm-sku-input'), v = inp ? inp.value.trim() : '';
+    const s = p48RakState_();
+    if (mgmTabAktif === 'stockopname' && s.aktif && v) {
+      const r = p48UraiRak_(v);
+      const produkAda = r && r.lemah ? (mgmDaftarProduk() || []).some(p => String(p.sku).toUpperCase() === v.toUpperCase()) : false;
+      if (r && !produkAda) {
+        inp.value = ''; el('mgm-saran').style.display = 'none';
+        const baru = { lorong: r.lorong, no: r.no }, namaBaru = p48RakNama_(baru), n = (mgmCarts.stockopname || []).length;
+        if (namaBaru === p48RakNama_(s)) { pgrToast('📍 Rak ' + namaBaru + ' sudah aktif'); try { playBeep(); } catch (e) { } return; }
+        if (n) { pgrToast(`✗ Kirim dulu memo rak ${p48RakNama_(s)} (${n} SKU) sebelum pindah ke rak ${namaBaru}`); try { playToot(); } catch (e) { } return; }
+        s.lorong = r.lorong; s.no = r.no; p48RakSimpan_(s); p48RakRender();
+        pgrToast('📍 Pindah ke rak ' + namaBaru); try { playBeep(); } catch (e) { }
+        return;
+      }
+    }
+  } catch (e) { }
+  const h = await p48TambahInputAsli_.apply(this, arguments);
+  try { p48RakRender(); } catch (e) { }
+  return h;
+};
+const p48KirimGalAsli_ = galKirimDariKeranjang;
+galKirimDariKeranjang = function (tab) {
+  const s = p48RakState_();
+  if (tab !== 'stockopname' || !s.aktif || !(mgmCarts.stockopname || []).length) return p48KirimGalAsli_.apply(this, arguments);
+  const rak = p48RakNama_(s), tanda = '[Rak ' + rak + ']', cart = mgmCarts.stockopname, jumlah = cart.length;
+  cart.forEach(it => { if (!String(it.catatan || '').startsWith('[Rak ')) it.catatan = (tanda + ' ' + (it.catatan || '')).trim(); });
+  const h = p48KirimGalAsli_.apply(this, arguments);
+  if (!(mgmCarts.stockopname || []).length) {
+    const hari = krTgl(new Date());
+    (s.selesai[hari] = s.selesai[hari] || []).push({ rak, n: jumlah, jam: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) });
+    s.no++; p48RakSimpan_(s);
+    const st = el('mgm-status'); if (st) st.textContent = '📤 Memo rak ' + rak + ' (' + jumlah + ' SKU) dikirim di latar · lanjut ke rak ' + p48RakNama_(s);
+  } else (mgmCarts.stockopname || []).forEach(it => { it.catatan = String(it.catatan || '').replace(tanda, '').trim(); }); // tidak terkirim -> tanda dilepas
+  p48RakRender();
+  return h;
+};
+const p48GantiTabAsli_ = mgmGantiTab;
+mgmGantiTab = function () { const h = p48GantiTabAsli_.apply(this, arguments); try { p48RakRender(); } catch (e) { } return h; };
+const p48RenderCartAsli_ = mgmRenderCart;
+mgmRenderCart = function () { const h = p48RenderCartAsli_.apply(this, arguments); try { if (mgmTabAktif === 'stockopname') p48RakRender(); } catch (e) { } return h; };
 </script>
 
 </body>
