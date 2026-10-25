@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.66';
+  var VERSI = 'v2026.10.67';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -71810,6 +71810,433 @@ const p48GantiTabAsli_ = mgmGantiTab;
 mgmGantiTab = function () { const h = p48GantiTabAsli_.apply(this, arguments); try { p48RakRender(); } catch (e) { } return h; };
 const p48RenderCartAsli_ = mgmRenderCart;
 mgmRenderCart = function () { const h = p48RenderCartAsli_.apply(this, arguments); try { if (mgmTabAktif === 'stockopname') p48RakRender(); } catch (e) { } return h; };
+</script>
+
+<!-- ===================================================================================
+     PAKET 49 (v2026.10.67) - Generate SKU Gudang · Detail Pembelian: Lihat & Edit PDF / foto (tombol memo dihapus)
+     · SKU Mapping di Pembelian · jendela konfirmasi SKU bergambar
+     =================================================================================== -->
+<style>
+  /* ---- DN-451: Generate SKU ---- */
+  .p49-label-baris { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .p49-gen { border: 0; background: none; padding: 0; font: inherit; font-size: 11.5px; font-weight: 700; color: var(--web-accent, #4f46e5); cursor: pointer; white-space: nowrap; }
+  .p49-gen:hover { text-decoration: underline; }
+  .p49-gen-info { font-size: 11px; color: var(--web-text-dim); margin: -4px 0 8px; line-height: 1.45; }
+  .p49-gen-info b { font-family: ui-monospace, monospace; color: var(--web-text); }
+  .p49-gen-info button { border: 0; background: none; padding: 0; font: inherit; color: var(--web-accent, #4f46e5); font-weight: 600; cursor: pointer; text-decoration: underline; }
+  /* ---- DN-757 / DN-685: dokumen pembelian ---- */
+  #mrk-btn-detail { display: none !important; }
+  .p49-dok-btn { display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px; font-weight: 700; padding: 6px 11px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--web-border); background: var(--web-panel); color: var(--web-text); margin-left: 6px; }
+  .p49-dok-btn:hover { border-color: var(--web-accent, #4f46e5); color: var(--web-accent, #4f46e5); }
+  .p49-dok-btn[disabled] { opacity: .5; cursor: not-allowed; }
+  .p49-dok-daftar { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .p49-dok-kartu { border: 1px solid var(--web-border); border-radius: 12px; overflow: hidden; background: var(--web-panel); display: flex; flex-direction: column; }
+  .p49-dok-kartu .p49-pv { height: 120px; display: grid; place-items: center; background: rgba(127,127,127,.08); cursor: pointer; }
+  .p49-dok-kartu .p49-pv img { width: 100%; height: 100%; object-fit: cover; }
+  .p49-dok-kartu .p49-pv span { font-size: 26px; font-weight: 800; color: #dc2626; }
+  .p49-dok-kartu .p49-ak { display: flex; gap: 6px; padding: 8px; font-size: 12px; }
+  .p49-dok-kartu .p49-ak a, .p49-dok-kartu .p49-ak button { flex: 1; text-align: center; border: 1px solid var(--web-border); border-radius: 8px; padding: 5px; color: inherit; text-decoration: none; background: none; font: inherit; font-weight: 600; cursor: pointer; }
+  /* ---- DN-879: jendela konfirmasi SKU ---- */
+  .p48-konfirm.p49-ringkas { display: flex; align-items: center; gap: 10px; }
+  .p48-konfirm.p49-ringkas > b { margin: 0; flex: 1; }
+  .p48-konfirm.p49-ringkas button { font: inherit; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 6px 12px; border: 0; background: #f59e0b; color: #1f1300; cursor: pointer; }
+  .p49-kw { position: fixed; inset: 0; z-index: 420; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .p49-kw-kotak { background: var(--web-panel, #fff); color: var(--web-text); border-radius: 18px; width: 100%; max-width: 720px; max-height: 92vh; overflow: auto; box-shadow: 0 24px 60px rgba(15,23,42,.35); }
+  .p49-kw-kepala { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--web-border); }
+  .p49-kw-kepala h3 { margin: 0; font-size: 15px; flex: 1; }
+  .p49-kw-kepala .p49-prog { font-size: 12px; color: var(--web-text-dim); font-weight: 700; }
+  .p49-kw-kepala button { border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--web-text-dim); }
+  .p49-kw-isi { padding: 16px 18px 18px; }
+  .p49-banding { display: grid; grid-template-columns: 1fr 1.25fr; gap: 14px; align-items: stretch; }
+  @media (max-width: 620px) { .p49-banding { grid-template-columns: 1fr; } }
+  .p49-sisi { border: 1px solid var(--web-border); border-radius: 14px; padding: 12px; }
+  .p49-sisi small { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--web-text-dim); margin-bottom: 6px; }
+  .p49-sisi .p49-nama { font-size: 14px; font-weight: 700; line-height: 1.4; }
+  .p49-sisi .p49-meta { font-size: 12px; color: var(--web-text-dim); margin-top: 6px; }
+  .p49-sisi.calon { border-color: #a5b4fc; background: rgba(79,70,229,.04); display: flex; gap: 12px; }
+  .p49-foto { width: 150px; height: 150px; flex: none; border-radius: 12px; background: rgba(127,127,127,.1) center/cover no-repeat; display: grid; place-items: center; font-size: 34px; color: var(--web-text-dim); }
+  .p49-sku-besar { font-family: ui-monospace, monospace; font-size: 16px; font-weight: 800; color: #4338ca; }
+  .p49-tanya { margin: 16px 0 10px; font-size: 15px; font-weight: 700; text-align: center; }
+  .p49-tombol { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .p49-tombol button { font: inherit; font-size: 14px; font-weight: 800; border-radius: 12px; padding: 11px 22px; cursor: pointer; border: 1.5px solid transparent; }
+  .p49-ya { background: #16a34a; color: #fff; } .p49-bukan { background: #fff; color: #b91c1c; border-color: #fca5a5 !important; } .p49-lewati { background: none; color: var(--web-text-dim); }
+  .p49-alt { margin-top: 14px; }
+  .p49-alt input { width: 100%; box-sizing: border-box; margin: 0 0 10px; }
+  .p49-alt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 330px; overflow: auto; padding: 2px; }
+  .p49-alt-grid button { text-align: left; border: 1px solid var(--web-border); border-radius: 12px; padding: 8px; background: var(--web-panel); color: inherit; cursor: pointer; font: inherit; font-size: 11.5px; }
+  .p49-alt-grid button:hover { border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+  .p49-alt-grid .p49-foto { width: 100%; height: 100px; font-size: 24px; margin-bottom: 6px; }
+  .p49-alt-grid b { display: block; font-family: ui-monospace, monospace; font-size: 11px; color: #4338ca; }
+  .p49-map { margin-top: 12px; border: 1px solid #fcd34d; background: #fffbeb; color: #78350f; border-radius: 12px; padding: 12px; font-size: 13px; line-height: 1.5; }
+  .p49-map .p49-tombol { margin-top: 10px; justify-content: flex-start; }
+  .p49-map .p49-tombol button { font-size: 12.5px; padding: 8px 14px; }
+</style>
+<script>
+/* ============================ PAKET 49 (v2026.10.67) ============================ */
+const P49 = { peta: null, petaT: 0, kat: null, katT: 0, kwI: 0, kwFokus: null, gen: null };
+
+/* ---------- data bersama: katalog (dengan foto) & SKU Mapping (kode -> SKU Gudang) ---------- */
+async function p49Katalog_(paksa) {
+  if (P49.kat && !paksa && Date.now() - P49.katT < 300000) return P49.kat;
+  let daftar = (typeof katalogProdukCache !== 'undefined' && katalogProdukCache && katalogProdukCache.length) ? katalogProdukCache : null;
+  if (!daftar) { try { const d = await postJson({ aksi: 'lihat_katalog_produk', email: currentUserEmail() }, 60000, true); if (d && d.success) daftar = d.daftar || []; } catch (e) { } }
+  if (daftar) { P49.kat = daftar.filter(p => p.sku).map(p => ({ sku: String(p.sku), nama: String(p.nama || ''), foto: p.urlFoto || '', kategori: p.kategori || '', merk: p.merk || p.brand || '', arsip: !!p.arsip, tok: spToken(p.nama) })); P49.katT = Date.now(); }
+  return P49.kat || [];
+}
+async function p49PetaMapping_(paksa) {
+  if (P49.peta && !paksa && Date.now() - P49.petaT < 300000) return P49.peta;
+  const email = currentUserEmail(), peta = {};
+  const [rs, rm] = await Promise.allSettled([
+    postJson({ aksi: 'lihat_sku_supplier_terhubung', email }, 60000, true),
+    postJson({ aksi: 'lihat_sku_marketplace_terhubung', email }, 60000, true)]);
+  const ds = rs.status === 'fulfilled' ? rs.value : null, dm = rm.status === 'fulfilled' ? rm.value : null;
+  if (dm && dm.success) (dm.daftar || []).forEach(d => String(d.skuMarketplace || '').split(/[\s,;]+/).forEach(k => { k = k.trim(); if (k && d.skuJual) peta[k.toUpperCase()] = { sku: String(d.skuJual).trim(), jenis: d.platform || 'Marketplace' }; }));
+  if (ds && ds.success) (ds.daftar || []).forEach(d => String(d.skuSupplier || '').split(/[\s,]+/).forEach(k => { k = k.trim(); if (k && d.skuJual) peta[k.toUpperCase()] = { sku: String(d.skuJual).trim(), jenis: 'Supplier', supplier: d.namaSupplier || '' }; }));
+  if ((ds && ds.success) || (dm && dm.success)) { P49.peta = peta; P49.petaT = Date.now(); }
+  return P49.peta || peta;
+}
+function p49Foto_(url, px) { try { return typeof p43Thumb === 'function' ? p43Thumb(url, px || 300) : url; } catch (e) { return url; } }
+function p49FotoHtml_(p, px) { const u = p && p.foto ? p49Foto_(p.foto, px) : ''; return u ? `<div class="p49-foto" style="background-image:url('${pgrAttr(u)}')"></div>` : '<div class="p49-foto">🖼️</div>'; }
+
+/* =====================================================================
+   DN-619: PEMBELIAN SELALU MEMAKAI SKU MAPPING
+   ===================================================================== */
+const p49SiapkanAsli_ = p48SiapkanKonfirmasi_;
+p48SiapkanKonfirmasi_ = async function (kodeInvoice) {
+  try {
+    const peta = await p49PetaMapping_(), kat = await p49Katalog_(), adaSku = new Map(kat.map(p => [p.sku.toUpperCase(), p]));
+    pmItemsAktif.forEach((it, idx) => {
+      const kode = String((kodeInvoice && kodeInvoice[idx]) || it._kodeInvoice || it.sku || '').trim();
+      if (!kode) return;
+      const m = peta[kode.toUpperCase()];
+      if (m && adaSku.has(m.sku.toUpperCase())) {
+        const p = adaSku.get(m.sku.toUpperCase());
+        it._namaInvoice = it._namaInvoice || it.nama; it._kodeInvoice = kode;
+        it.sku = p.sku; it.nama = p.nama; it.skuOtomatis = false; it._p49Map = kode + ' (' + m.jenis + ')';
+      }
+    });
+  } catch (e) { }
+  const h = await p49SiapkanAsli_.apply(this, arguments);
+  // baris yang dipetakan lewat SKU Mapping = pasti benar (tidak ditanya)
+  pmItemsAktif.forEach(it => { if (it._p49Map) it._p48 = 'ok'; });
+  P48.konfirm = P48.konfirm.filter(q => pmItemsAktif[q.idx] && !pmItemsAktif[q.idx]._p49Map);
+  pmRenderItemBody(); p48RenderKonfirm_();
+  return h;
+};
+// SKU yang diketik manual di kolom SKU: kode Supplier / Marketplace langsung diganti SKU Gudang
+const p49CekSkuAsli_ = pmxCekSku;
+pmxCekSku = async function (idx) {
+  try {
+    const it = pmItemsAktif[idx], kode = String((it && it.sku) || '').trim();
+    if (kode) {
+      const peta = await p49PetaMapping_(), m = peta[kode.toUpperCase()];
+      if (m && m.sku.toUpperCase() !== kode.toUpperCase()) {
+        const kat = await p49Katalog_(), p = kat.find(x => x.sku.toUpperCase() === m.sku.toUpperCase());
+        it._kodeInvoice = it._kodeInvoice || kode; it.sku = m.sku; if (p && !String(it.nama || '').trim()) it.nama = p.nama;
+        it._p48 = 'ok'; it.skuOtomatis = false; it._p49Map = kode + ' (' + m.jenis + ')';
+        pmRenderItemBody();
+        pgrToast(`🔗 ${kode} → SKU Gudang ${m.sku} (dari SKU Mapping ${m.jenis})`);
+      }
+    }
+  } catch (e) { }
+  return p49CekSkuAsli_.apply(this, arguments);
+};
+const p49RenderItemAsli_ = pmRenderItemBody;
+pmRenderItemBody = function () {
+  const h = p49RenderItemAsli_.apply(this, arguments);
+  try {
+    el('pm-item-body').querySelectorAll('tr[data-idx]').forEach(tr => {
+      const it = pmItemsAktif[Number(tr.dataset.idx)], inp = tr.querySelector('td input');
+      if (it && inp && it._p49Map) { inp.title = 'Dari SKU Mapping: ' + it._p49Map + ' → SKU Gudang ' + it.sku; inp.classList.remove('sp-perlu-isi', 'pmx-sku-baru'); }
+    });
+  } catch (e) { }
+  return h;
+};
+
+/* =====================================================================
+   DN-879: KONFIRMASI SKU DI JENDELA SENDIRI (1 per 1, foto besar)
+   ===================================================================== */
+p48RenderKonfirm_ = function () {
+  let box = el('p48-konfirm');
+  const wrap = document.querySelector('#bel-modal-pembelian-manual .pm-barang-wrap');
+  if (!wrap) return;
+  if (!box) { box = document.createElement('div'); box.id = 'p48-konfirm'; wrap.parentNode.insertBefore(box, wrap); }
+  box.className = 'p48-konfirm p49-ringkas';
+  const sisa = p49Sisa_();
+  if (!sisa.length) { box.hidden = true; box.innerHTML = ''; if (P49.kwMode !== 'map') p49KwTutup(); return; }
+  box.hidden = false;
+  box.innerHTML = `<b>🤔 ${sisa.length} barang perlu dikonfirmasi SKU Gudang-nya (kolom kuning)</b><button type="button" onclick="p49KwBuka()">Konfirmasi sekarang</button>`;
+  if (!el('p49-kw') && !P49.kwDitutup) p49KwBuka();
+  else if (el('p49-kw')) p49KwRender_();
+};
+function p49Sisa_() { return P48.konfirm.filter(q => pmItemsAktif[q.idx] && pmItemsAktif[q.idx]._p48 === 'tanya'); }
+function p49KwBuka() {
+  P49.kwDitutup = false;
+  if (!el('p49-kw')) {
+    const w = document.createElement('div'); w.id = 'p49-kw'; w.className = 'p49-kw';
+    w.innerHTML = '<div class="p49-kw-kotak" role="dialog" aria-modal="true" aria-labelledby="p49-kw-judul"><div class="p49-kw-kepala"><h3 id="p49-kw-judul">Konfirmasi SKU Gudang</h3><span class="p49-prog" id="p49-kw-prog"></span><button type="button" onclick="p49KwTutup(true)" aria-label="Tutup">✕</button></div><div class="p49-kw-isi" id="p49-kw-isi"></div></div>';
+    w.addEventListener('mousedown', e => { if (e.target === w) p49KwTutup(true); });
+    document.body.appendChild(w);
+    document.addEventListener('keydown', p49KwTombol_);
+  }
+  P49.kwI = 0; P49.kwMode = 'tanya'; P49.kwCari = '';
+  p49Katalog_().then(() => p49KwRender_());
+  p49KwRender_();
+}
+function p49KwTutup(olehOwner) {
+  const w = el('p49-kw'); if (w) w.remove();
+  document.removeEventListener('keydown', p49KwTombol_);
+  if (olehOwner) P49.kwDitutup = true;
+}
+function p49KwTombol_(e) {
+  if (!el('p49-kw') || P49.kwMode !== 'tanya' || /input|textarea/i.test((e.target && e.target.tagName) || '')) return;
+  if (e.key === 'Enter' || e.key.toLowerCase() === 'y') { e.preventDefault(); const b = document.querySelector('#p49-kw .p49-ya'); if (b) b.click(); }
+  else if (e.key.toLowerCase() === 'n') { e.preventDefault(); const b = document.querySelector('#p49-kw .p49-bukan'); if (b) b.click(); }
+  else if (e.key === 'Escape') p49KwTutup(true);
+}
+function p49KwRender_() {
+  const isi = el('p49-kw-isi'); if (!isi) return;
+  const sisa = p49Sisa_();
+  if (P49.kwMode === 'map' && P49.kwMap) { p49KwRenderMap_(); return; }
+  if (!sisa.length) { p49KwTutup(); return; }
+  if (P49.kwI >= sisa.length) P49.kwI = 0;
+  const q = sisa[P49.kwI], it = pmItemsAktif[q.idx] || {}, kat = P49.kat || [];
+  const calon = q.tebak ? (kat.find(p => p.sku === q.tebak.sku) || { sku: q.tebak.sku, nama: q.tebak.nama }) : null;
+  el('p49-kw-prog').textContent = (P49.kwI + 1) + ' dari ' + sisa.length;
+  const kiri = `<div class="p49-sisi"><small>Tertulis di invoice · baris ${q.idx + 1}</small><div class="p49-nama">${escapeHtml(q.nama || '-')}</div>
+      <div class="p49-meta">${q.kode ? 'Kode: <b>' + escapeHtml(q.kode) + '</b> · ' : ''}${Number(it.qty) || 0} × ${fin2Rp(it.hargaSatuan || 0)}</div></div>`;
+  const kanan = calon ? `<div class="p49-sisi calon">${p49FotoHtml_(calon, 300)}<div><small>Tebakan dari Produk Master</small><div class="p49-sku-besar">${escapeHtml(calon.sku)}</div><div class="p49-nama" style="margin-top:4px;">${escapeHtml(calon.nama)}</div></div></div>`
+    : `<div class="p49-sisi"><small>Tebakan dari Produk Master</small><div class="p49-nama">Belum ada produk yang mirip.</div><div class="p49-meta">Cari &amp; pilih produknya di bawah.</div></div>`;
+  const tampilAlt = P49.kwMode === 'alt' || !calon;
+  isi.innerHTML = `<div class="p49-banding">${kiri}${kanan}</div>
+    ${calon && !tampilAlt ? `<div class="p49-tanya">Apakah benar ini SKU Gudang ${escapeHtml(calon.sku)}?</div>
+      <div class="p49-tombol"><button type="button" class="p49-ya">✓ Iya, benar</button><button type="button" class="p49-bukan">✗ Bukan</button><button type="button" class="p49-lewati">Lewati</button></div>` : ''}
+    ${tampilAlt ? `<div class="p49-alt"><div class="p49-tanya" style="margin-top:4px;">Pilih produk yang benar</div>
+      <input type="search" class="web-form-input" id="p49-kw-cari" placeholder="🔍 Cari SKU / nama produk master..." value="${pgrAttr(P49.kwCari || '')}">
+      <div class="p49-alt-grid" id="p49-kw-grid">${p49KwGridHtml_(q)}</div>
+      <div class="p49-tombol" style="margin-top:12px;">${calon ? '<button type="button" class="p49-lewati" data-p49-kembali="1">← Kembali</button>' : ''}<button type="button" class="p49-lewati">Lewati</button></div></div>` : ''}`;
+  const ya = isi.querySelector('.p49-ya'); if (ya) ya.onclick = () => p49KwPilih_(q, calon);
+  const bk = isi.querySelector('.p49-bukan'); if (bk) bk.onclick = () => { P49.kwMode = 'alt'; q.ditolak = true; p49KwRender_(); setTimeout(() => { const c = el('p49-kw-cari'); if (c) c.focus(); }, 30); };
+  isi.querySelectorAll('.p49-lewati').forEach(b => b.onclick = () => { if (b.dataset.p49Kembali) { P49.kwMode = 'tanya'; } else { P49.kwI++; P49.kwMode = 'tanya'; P49.kwCari = ''; if (P49.kwI >= p49Sisa_().length) { p49KwTutup(true); return; } } p49KwRender_(); });
+  const cari = el('p49-kw-cari');
+  if (cari) cari.oninput = () => { P49.kwCari = cari.value; el('p49-kw-grid').innerHTML = p49KwGridHtml_(q); };
+  isi.querySelectorAll('[data-p49-pilih]').forEach(b => b.onclick = () => p49KwPilih_(q, kat.find(p => p.sku === b.dataset.p49Pilih)));
+  const grid = el('p49-kw-grid');
+  if (grid) grid.onclick = e => { const b = e.target.closest('[data-p49-pilih]'); if (b) p49KwPilih_(q, kat.find(p => p.sku === b.dataset.p49Pilih)); };
+}
+function p49KwGridHtml_(q) {
+  const kat = (P49.kat || []).filter(p => !p.arsip);
+  let daftar;
+  const c = String(P49.kwCari || '').trim().toLowerCase();
+  if (c) daftar = kat.filter(p => p.sku.toLowerCase().includes(c) || p.nama.toLowerCase().includes(c)).slice(0, 40);
+  else daftar = (q.kandidat || []).filter(k => !(q.ditolak && q.tebak && k.sku === q.tebak.sku)).map(k => kat.find(p => p.sku === k.sku) || k).slice(0, 12);
+  if (!daftar.length) return `<div class="dvn-kecil" style="grid-column:1/-1; padding:8px;">${c ? 'Tidak ada produk yang cocok - ketik nama / SKU lain.' : 'Ketik nama / SKU produk master untuk mencari.'}</div>`;
+  return daftar.map(p => `<button type="button" data-p49-pilih="${pgrAttr(p.sku)}">${p49FotoHtml_(p, 200)}<b>${escapeHtml(p.sku)}</b>${escapeHtml(p.nama)}</button>`).join('');
+}
+async function p49KwPilih_(q, p) {
+  if (!q || !p) return;
+  // DN-619: kode dari invoice belum / beda di SKU Mapping -> tawarkan perbarui SKU Mapping (berlaku di semua menu)
+  let map = null;
+  try {
+    const kode = String(q.kode || '').trim(), kat = P49.kat || [];
+    if (kode && !kat.some(x => x.sku.toUpperCase() === kode.toUpperCase())) {
+      const peta = await p49PetaMapping_(), m = peta[kode.toUpperCase()];
+      if (!m || m.sku.toUpperCase() !== p.sku.toUpperCase()) map = { kode, p, lama: m || null, nama: q.nama };
+    }
+  } catch (e) { }
+  P49.kwCari = ''; P49.kwMode = map ? 'map' : 'tanya'; P49.kwMap = map;
+  p48Tetapkan_(q, p); // isi baris + diingat (P48)
+  if (el('p49-kw')) p49KwRender_();
+}
+function p49KwRenderMap_() {
+  const isi = el('p49-kw-isi'), x = P49.kwMap; if (!isi || !x) return;
+  el('p49-kw-prog').textContent = 'SKU Mapping';
+  const sup = (el('pm-nama-supplier') && el('pm-nama-supplier').value.trim()) || '';
+  isi.innerHTML = `<div class="p49-banding"><div class="p49-sisi"><small>Kode di invoice</small><div class="p49-sku-besar">${escapeHtml(x.kode)}</div><div class="p49-meta">${escapeHtml(x.nama || '')}</div></div>
+      <div class="p49-sisi calon">${p49FotoHtml_(x.p, 300)}<div><small>SKU Gudang yang Anda pilih</small><div class="p49-sku-besar">${escapeHtml(x.p.sku)}</div><div class="p49-nama" style="margin-top:4px;">${escapeHtml(x.p.nama)}</div></div></div></div>
+    <div class="p49-map">${x.lama ? `Di <b>SKU Mapping</b>, kode <b>${escapeHtml(x.kode)}</b> saat ini terhubung ke SKU Gudang <b>${escapeHtml(x.lama.sku)}</b> (${escapeHtml(x.lama.jenis)}).<br>Pindahkan ke <b>${escapeHtml(x.p.sku)}</b>?` :
+      `Kode <b>${escapeHtml(x.kode)}</b> belum ada di <b>SKU Mapping</b>.<br>Simpan sebagai SKU Supplier untuk <b>${escapeHtml(x.p.sku)}</b>${sup ? ' (supplier ' + escapeHtml(sup) + ')' : ''}?`}
+      <div style="font-size:11.5px; margin-top:4px;">Perubahan ini ikut berlaku di Katalog (SKU Supplier), Penjualan &amp; Pembelian berikutnya.</div>
+      <div class="p49-tombol"><button type="button" class="p49-ya" id="p49-map-ya">${x.lama ? 'Ya, pindahkan' : 'Ya, simpan ke SKU Mapping'}</button><button type="button" class="p49-bukan" id="p49-map-tidak">Tidak, hanya invoice ini</button></div></div>`;
+  const lanjut = () => { P49.kwMode = 'tanya'; P49.kwMap = null; if (!p49Sisa_().length) p49KwTutup(); else p49KwRender_(); };
+  el('p49-map-tidak').onclick = lanjut;
+  el('p49-map-ya').onclick = async () => {
+    const b = el('p49-map-ya'); b.disabled = true; b.textContent = 'Menyimpan…';
+    try {
+      const r = await postJsonTulis({ aksi: 'p49_mapping_supplier', kode: x.kode, skuGudang: x.p.sku, namaSupplier: sup, harga: 0, email: currentUserEmail() }, 60000, { labelLog: 'SKU Mapping ' + x.kode + ' → ' + x.p.sku });
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
+      if (P49.peta) P49.peta[x.kode.toUpperCase()] = { sku: x.p.sku, jenis: 'Supplier', supplier: sup };
+      try { if (pmx && pmx.skuTerdaftar) pmx.skuTerdaftar.add(pmxNormSku(x.kode)); } catch (e) { }
+      pgrToast('✓ SKU Mapping diperbarui: ' + x.kode + ' → ' + x.p.sku);
+      lanjut();
+    } catch (e) { b.disabled = false; b.textContent = 'Coba lagi'; pgrToast('✗ ' + String(e.message || e)); }
+  };
+}
+const p49BukaPmAsli_ = belBukaModalPembelianManual;
+belBukaModalPembelianManual = async function () { P49.kwDitutup = false; p49KwTutup(); return p49BukaPmAsli_.apply(this, arguments); };
+const p49TutupPmAsli_ = belTutupModalPembelianManual;
+belTutupModalPembelianManual = function () { p49KwTutup(); return p49TutupPmAsli_.apply(this, arguments); };
+
+/* =====================================================================
+   DN-757 / DN-908 / DN-685: Detail Pembelian - Lihat & Edit PDF / foto, tanpa tombol memo
+   ===================================================================== */
+mrkTempelKolomDetail = function () { // DN-908: hanya kumpulkan daftar barang (dipakai fitur lain), tanpa tombol memo per baris
+  const tb = el('detail-inv-item-body'); if (!tb) return;
+  mrkInvoiceItems = [];
+  tb.querySelectorAll('tr').forEach(tr => {
+    const td = tr.querySelectorAll('td'); if (td.length < 5) return;
+    mrkInvoiceItems.push({ sku: td[0].textContent.trim(), nama: td[1].textContent.trim(), qty: parseFloat(td[2].textContent) || 0 });
+  });
+  tb.querySelectorAll('.mrk-ikon-memo').forEach(b => { const c = b.closest('td'); if (c) c.remove(); });
+  const th = tb.closest('table') && tb.closest('table').querySelector('.mrk-th'); if (th) th.remove();
+};
+function p49DokUnduhUrl_(u) {
+  u = String(u || '');
+  if (/\/storage\/v1\/object\/public\//.test(u)) return u + (u.includes('?') ? '&' : '?') + 'download=';
+  const id = typeof lampiranIdDrive === 'function' ? lampiranIdDrive(u) : '';
+  if (id) return 'https://drive.google.com/uc?export=download&id=' + id;
+  return u;
+}
+function p49DokGambar_(u) { return typeof lampiranJenis === 'function' ? lampiranJenis(u) === 'gambar' : /\.(png|jpe?g|webp|gif)(\?|$)/i.test(u); }
+function p49DokTombol_() {
+  const p = mrkInvoiceAktif; const kepala = el('mrk-btn-detail') && el('mrk-btn-detail').parentElement; if (!kepala) return;
+  let a = el('p49-btn-lihat-dok'), b = el('p49-btn-edit-dok');
+  if (!a) { el('mrk-btn-detail').insertAdjacentHTML('afterend', '<button type="button" class="p49-dok-btn" id="p49-btn-lihat-dok" onclick="p49LihatDok()">📄 Lihat PDF / Foto</button><button type="button" class="p49-dok-btn" id="p49-btn-edit-dok" onclick="p49EditDok()">✎ Edit</button>'); a = el('p49-btn-lihat-dok'); b = el('p49-btn-edit-dok'); }
+  const n = (p && p.dokumen || []).length;
+  a.disabled = !n; a.title = n ? n + ' dokumen' : 'Belum ada PDF / foto - klik ✎ Edit untuk upload';
+  a.innerHTML = '📄 Lihat PDF / Foto' + (n > 1 ? ' (' + n + ')' : '');
+  b.title = n ? 'Ganti / tambah / hapus PDF & foto invoice ini' : 'Upload PDF / foto invoice ini';
+}
+const p49DetailAsli_ = window.belBukaModalDetailInvoice || belBukaModalDetailInvoice;
+window.belBukaModalDetailInvoice = belBukaModalDetailInvoice = async function (idx) {
+  const r = p49DetailAsli_.apply(this, arguments);
+  try { mrkInvoiceAktif = (typeof belPembelianManualCache !== 'undefined' && belPembelianManualCache[idx]) || mrkInvoiceAktif; P49.dokIdx = idx; p49DokTombol_(); } catch (e) { }
+  const h = await r;
+  try { p49DokTombol_(); mrkTempelKolomDetail(); } catch (e) { }
+  return h;
+};
+function p49LihatDok() {
+  const p = mrkInvoiceAktif, dok = (p && p.dokumen) || [];
+  if (!dok.length) { p49EditDok(); return; }
+  if (dok.length === 1 && !p49DokGambar_(dok[0])) { /* PDF tunggal: tetap pakai daftar supaya ada tombol unduh */ }
+  omxModal('📄 Dokumen invoice ' + escapeHtml(p.noInvoice), `<div class="p49-dok-daftar">${dok.map((u, i) => `
+    <div class="p49-dok-kartu"><div class="p49-pv" data-p49-buka="${i}" title="Buka">${p49DokGambar_(u) ? `<img src="${pgrAttr(p49Foto_(u, 400))}" alt="" loading="lazy">` : '<span>PDF</span>'}</div>
+      <div class="p49-ak"><button type="button" data-p49-buka="${i}">👁 Buka</button><a href="${pgrAttr(p49DokUnduhUrl_(u))}" target="_blank" rel="noopener" download>⬇ Unduh</a></div></div>`).join('')}</div>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal(); p49EditDok()">✎ Edit dokumen</button><button type="button" class="web-btn-primary" onclick="omxTutupModal()">Tutup</button></div>`, { lebar: true });
+  document.querySelectorAll('#omx-modal [data-p49-buka]').forEach(b => b.onclick = () => lampiranBuka(dok, Number(b.dataset.p49Buka)));
+}
+function p49EditDok() {
+  const p = mrkInvoiceAktif; if (!p) return;
+  omxModal('✎ Edit PDF / foto - ' + escapeHtml(p.noInvoice), `
+    <div class="dvn-kecil" style="margin-bottom:8px;">Hapus dokumen yang salah (✕), lalu klik / seret / tempel PDF atau foto yang benar. Klik Simpan setelah semua ter-upload.</div>
+    <div class="dok-zona" id="p49-dok-zona" tabindex="0" role="button" aria-label="Upload dokumen pembelian"><input type="file" accept="image/*,application/pdf" multiple hidden />
+      <div class="dok-zona-teks"><span class="dok-zona-ikon"><span class="oi oi-clip" aria-hidden="true"></span></span><div><b>Dokumen / screenshot invoice</b><span>Klik untuk pilih · seret file ke sini · Ctrl+V screenshot (gambar / PDF)</span></div></div>
+      <div class="dok-daftar"></div></div>
+    <div class="status-text" id="p49-dok-status" style="text-align:left; margin-top:8px;"></div>
+    <div class="omx-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button><button type="button" class="web-btn-primary" id="p49-dok-simpan">💾 Simpan Dokumen</button></div>`);
+  const z = 'p49-dok-zona';
+  if (DOK[z]) delete DOK[z];
+  dokPasang(z, 'pembelian');
+  DOK[z].files = (p.dokumen || []).map((u, i) => ({ id: 'lama' + i, nama: (p49DokGambar_(u) ? 'Foto ' : 'Dokumen ') + (i + 1), mime: p49DokGambar_(u) ? 'image/jpeg' : 'application/pdf', status: 'ok', url: u, preview: p49DokGambar_(u) ? p49Foto_(u, 200) : '' }));
+  dokRender(z);
+  const zona = el(z);
+  if (zona) zona.addEventListener('paste', e => { const f = dokBerkasDariClipboard(e.clipboardData); if (f.length) { e.preventDefault(); e.stopPropagation(); dokTambahFile(z, f, { tanpaScan: true }); } });
+  el('p49-dok-simpan').onclick = async () => {
+    const b = el('p49-dok-simpan'), st = el('p49-dok-status'); b.disabled = true; st.textContent = 'Menunggu upload selesai…'; st.className = 'status-text';
+    try {
+      const gagal = await dokTungguSelesai(z);
+      if (gagal) throw new Error('Ada dokumen yang gagal di-upload - klik ↻ ulang atau hapus dulu.');
+      const dok = dokLink(z);
+      st.textContent = 'Menyimpan…';
+      const r = await postJsonTulis({ aksi: 'p49_ubah_dokumen_pembelian', noInvoice: p.noInvoice, dokumen: dok, email: currentUserEmail() }, 60000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
+      p.dokumen = r.dokumen || dok;
+      const baris = el('detail-inv-dokumen');
+      if (baris) baris.innerHTML = p.dokumen.length ? '📎 Dokumen: ' + p.dokumen.map((u, i) => `<a href="${pgrAttr(u)}" ${lampiranAttr(p.dokumen, i)}>Dokumen ${i + 1}</a>`).join(' · ') : '';
+      p49DokTombol_();
+      omxTutupModal();
+      omniToast('Dokumen invoice ' + p.noInvoice + ' diperbarui (' + p.dokumen.length + ' file)', 'sukses');
+      try { if (typeof belRenderPembelianManual === 'function') belRenderPembelianManual(); } catch (e) { }
+    } catch (e) { st.textContent = '✗ ' + String(e.message || e).replace(/^Error:\s*/, ''); st.className = 'status-text err'; b.disabled = false; }
+  };
+}
+
+/* =====================================================================
+   DN-451: GENERATE SKU GUDANG mengikuti pola SKU Owner
+   Pola dipelajari dari Produk Master: [angka kategori][3 huruf keluarga][2 nomor urut][2 kode warna], mis. 7RHZ46BK.
+   Keluarga & angka diambil dari produk yang paling mirip namanya; nomor urut = berikutnya yang belum dipakai;
+   kode warna dari nama / kolom Warna (dipelajari dari pasangan warna ↔ kode di SKU lama).
+   ===================================================================== */
+const P49_RE_SKU = /^(\d)([A-Z]{3})([A-Z0-9]{2})([A-Z]{2})$/;
+const P49_WARNA = [[/\b(hitam|black|blk)\b/i, 'BK'], [/\b(putih|white)\b/i, 'WH'], [/\b(silver|perak|stainless|chrome|krom)\b/i, 'SL'], [/\b(merah|red)\b/i, 'RD'],
+  [/\b(biru|blue|navy)\b/i, 'BL'], [/\b(hijau|green)\b/i, 'GR'], [/\b(kuning|yellow)\b/i, 'YL'], [/\b(coklat|cokelat|brown)\b/i, 'BR'], [/\b(abu|abu-abu|grey|gray)\b/i, 'GY'],
+  [/\b(pink|merah muda)\b/i, 'PK'], [/\b(ungu|purple)\b/i, 'PR'], [/\b(oranye|orange|jingga)\b/i, 'OR'], [/\b(emas|gold)\b/i, 'GD'], [/\b(bening|transparan|clear)\b/i, 'CL'],
+  [/\b(cream|krem)\b/i, 'CR'], [/\b(tosca|teal)\b/i, 'TS'], [/\b(kayu|wood)\b/i, 'WD'], [/\b(copper|tembaga|rose gold)\b/i, 'CP']];
+function p49Warna_(teks) { for (const [re, k] of P49_WARNA) if (re.test(teks)) return { kode: k, kata: (String(teks).match(re) || [''])[0] }; return null; }
+function p49B36_(s) { return parseInt(s, 36); }
+function p49Singkat_(nama, merk) {
+  const buang = new Set(['dan', 'untuk', 'dengan', 'isi', 'pcs', 'set', 'the', 'new', 'original', 'ori', 'premium', 'murah', 'baru']);
+  const m = String(merk || '').toLowerCase();
+  const kata = String(nama || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3 && !buang.has(w) && w !== m && !p49Warna_(w));
+  const w = (kata[0] || 'PRD').toUpperCase();
+  const kons = w.slice(1).replace(/[AIUEO]/g, '');
+  let s = (w[0] + kons).slice(0, 3);
+  if (s.length < 3) s = (s + w.slice(1).replace(new RegExp('[' + s + ']', 'g'), '') + 'XX').slice(0, 3);
+  return s;
+}
+async function p49GenerateSku(lagi) {
+  const inp = el('tp-sku'); if (!inp) return;
+  const kat = await p49Katalog_(true), dipakai = new Set(kat.map(p => p.sku.toUpperCase()));
+  const nama = (el('tp-nama') && el('tp-nama').value.trim()) || '', merk = (el('tp-merk') && el('tp-merk').value.trim()) || '';
+  const warnaKolom = (el('tp-warna') && el('tp-warna').value.trim()) || '', kategori = (el('tp-kategori') && el('tp-kategori').value) || '';
+  if (!nama) { pgrToast('Isi Nama Produk dulu supaya SKU bisa dibuat sesuai pola.'); if (el('tp-nama')) el('tp-nama').focus(); return; }
+  if (!lagi && inp.value.trim() && !confirm('SKU Utama sudah terisi (' + inp.value.trim() + '). Ganti dengan SKU baru?')) return;
+  const pola = kat.filter(p => P49_RE_SKU.test(p.sku.toUpperCase()));
+  // 1) keluarga dari produk yang paling mirip
+  const mirip = p48Kandidat_(nama, pola.map(p => ({ sku: p.sku, nama: p.nama, tok: p.tok })), 5).filter(k => k.skor >= 0.3);
+  let digit, huruf, alasan = [];
+  if (mirip.length) { const m = mirip[0].sku.toUpperCase().match(P49_RE_SKU); digit = m[1]; huruf = m[2]; alasan.push('keluarga ' + digit + huruf + ' (mirip ' + mirip[0].nama.slice(0, 40) + ')'); }
+  else {
+    const hitung = {};
+    (kategori ? pola.filter(p => p.kategori === kategori) : pola).forEach(p => { const d = p.sku[0]; hitung[d] = (hitung[d] || 0) + 1; });
+    digit = Object.keys(hitung).sort((a, b) => hitung[b] - hitung[a])[0] || (pola[0] ? pola[0].sku[0] : '7');
+    huruf = p49Singkat_(nama, merk);
+    alasan.push('keluarga baru ' + digit + huruf + ' (singkatan "' + nama.split(/\s+/).slice(0, 2).join(' ') + '")');
+  }
+  // 2) kode warna: kolom Warna / nama; dipelajari dari SKU lama bila ada
+  const belajar = {};
+  pola.forEach(p => { const w = p49Warna_(p.nama); if (w) { const s = p.sku.toUpperCase().slice(-2); (belajar[w.kode] = belajar[w.kode] || {})[s] = ((belajar[w.kode] || {})[s] || 0) + 1; } });
+  const w = p49Warna_(warnaKolom + ' ' + nama);
+  let akhir;
+  if (w) { const b = belajar[w.kode]; akhir = b ? Object.keys(b).sort((x, y) => b[y] - b[x])[0] : w.kode; alasan.push('warna ' + w.kata + ' → ' + akhir); }
+  else if (mirip.length) { akhir = mirip[0].sku.toUpperCase().slice(-2); alasan.push('kode akhir ' + akhir + ' seperti produk mirip'); }
+  else { const h = {}; pola.forEach(p => { const s = p.sku.toUpperCase().slice(-2); h[s] = (h[s] || 0) + 1; }); akhir = Object.keys(h).sort((a, b) => h[b] - h[a])[0] || 'BK'; alasan.push('kode akhir ' + akhir + ' (paling sering dipakai)'); }
+  // 3) nomor urut berikutnya di keluarga ini
+  const keluarga = pola.map(p => p.sku.toUpperCase()).filter(s => s.slice(0, 4) === digit + huruf).map(s => s.slice(4, 6));
+  const semuaAngka = keluarga.every(x => /^\d\d$/.test(x));
+  let n = keluarga.length ? Math.max(...keluarga.map(x => semuaAngka ? parseInt(x, 10) : p49B36_(x))) + 1 : 1;
+  if (lagi && P49.gen && P49.gen.dasar === digit + huruf + '|' + akhir) n = P49.gen.n + 1;
+  let calon = '', batas = 0;
+  do {
+    const urut = semuaAngka && n <= 99 ? String(n).padStart(2, '0') : n.toString(36).toUpperCase().padStart(2, '0').slice(-2);
+    calon = digit + huruf + urut + akhir; n++; batas++;
+  } while (dipakai.has(calon) && batas < 1300);
+  P49.gen = { dasar: digit + huruf + '|' + akhir, n: n - 1, sku: calon };
+  inp.value = calon; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+  let info = el('p49-gen-info');
+  if (!info) { info = document.createElement('div'); info.id = 'p49-gen-info'; info.className = 'p49-gen-info'; inp.insertAdjacentElement('afterend', info); }
+  info.innerHTML = `⚡ <b>${escapeHtml(calon)}</b> = ${escapeHtml(alasan.join(' · '))} · nomor urut berikutnya, belum dipakai. <button type="button" onclick="p49GenerateSku(true)">↻ nomor lain</button>`;
+}
+function p49PasangGenerate_() {
+  const inp = el('tp-sku'); if (!inp) return;
+  const lab = inp.previousElementSibling; if (!lab || lab.tagName !== 'LABEL' || lab.querySelector('.p49-gen')) return;
+  const isi = lab.innerHTML; lab.classList.add('p49-label-baris');
+  lab.innerHTML = `<span>${isi}</span><button type="button" class="p49-gen" onclick="event.preventDefault(); p49GenerateSku(false)" title="Buat SKU Gudang baru sesuai pola SKU Anda (dari nama produk, produk mirip & warna)">⚡ Generate SKU</button>`;
+  inp.addEventListener('input', () => { const i = el('p49-gen-info'); if (i && P49.gen && inp.value.trim() !== P49.gen.sku) i.remove(); });
+}
+p49PasangGenerate_();
+document.addEventListener('DOMContentLoaded', p49PasangGenerate_);
 </script>
 
 </body>
