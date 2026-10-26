@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.69';
+  var VERSI = 'v2026.10.70';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -72882,6 +72882,130 @@ async function p51DvnStatus(id, status) { try { await dvnUbah_(id, { status }); 
 
 try { p51LogTombol_(); galRender(); } catch (e) { }
 document.addEventListener('DOMContentLoaded', () => { try { p51LogTombol_(); } catch (e) { } });
+</script>
+
+<!-- ===================================================================================
+     PAKET 52 (v2026.10.70) - Kelola Pelanggan jadi tab lagi · username internal @wgc / @cnr · profil konteks pelanggan
+     =================================================================================== -->
+<style>
+  .p52-user { display: inline-block; font: 700 10.5px ui-monospace, monospace; color: #4338ca; background: rgba(79,70,229,.08); border: 1px solid rgba(79,70,229,.25);
+    border-radius: 999px; padding: 1px 7px; margin-left: 4px; white-space: nowrap; }
+  .p52-tanpa { font-size: 10.5px; color: var(--web-text-dim); }
+  .p52-profil-btn { border: 0; background: none; padding: 0; margin-left: 6px; font: inherit; font-size: 10.5px; font-weight: 700; color: var(--web-accent, #4f46e5); cursor: pointer; text-decoration: underline; }
+  .p52-ringkas { display: block; font-size: 10.5px; color: var(--web-text-dim); margin-top: 2px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .p52-pf-kepala { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .p52-pf-kepala .p52-user { font-size: 13px; padding: 3px 10px; margin: 0; }
+  .p52-pf-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .p52-pf-kpi div { border: 1px solid var(--web-border); border-radius: 10px; padding: 7px 10px; font-size: 11px; font-weight: 700; color: var(--web-text-dim); }
+  .p52-pf-kpi b { display: block; font-size: 14px; color: var(--web-text); margin-top: 2px; }
+  .p52-pf-sub { font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--web-text-dim); margin: 12px 0 6px; }
+  .p52-pf-produk { display: flex; flex-wrap: wrap; gap: 6px; }
+  .p52-pf-produk span { font-size: 11.5px; border: 1px solid var(--web-border); border-radius: 999px; padding: 3px 9px; }
+  .p52-pf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  @media (max-width: 600px) { .p52-pf-grid { grid-template-columns: 1fr; } }
+  .p52-pf-grid label { display: flex; flex-direction: column; font-size: 11.5px; font-weight: 700; color: var(--web-text-dim); }
+  .p52-pf-grid textarea { margin: 4px 0 0; min-height: 48px; resize: vertical; font: inherit; font-size: 13px; }
+  .p52-pf-konteks { font: 12px/1.5 ui-monospace, monospace; background: rgba(127,127,127,.08); border-radius: 10px; padding: 8px 10px; word-break: break-word; }
+  .p52-pf-aksi { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+</style>
+<script>
+/* ============================ PAKET 52 (v2026.10.70) ============================ */
+const P52 = { p: null };
+
+/* ---------- Kelola Pelanggan kembali jadi TAB (dikembangkan dari panel P43, data & fitur sama) ---------- */
+(function () {
+  const tab = el('wp-gabsub-pelanggan'); if (tab) tab.style.display = '';
+  const b = el('p43-btn-pelanggan'); if (b) b.title = 'Buka tab Kelola Pelanggan';
+})();
+function p52KembalikanView_() {
+  const view = el('wp-gabsub-view-pelanggan'), retur = el('wp-gabsub-view-retur');
+  if (view && retur && view.parentElement !== retur.parentElement) retur.insertAdjacentElement('afterend', view);
+  try { p43TutupPelanggan(); } catch (e) { }
+}
+const p52SubAsli_ = wpGabunganSubTab;
+wpGabunganSubTab = function (sub) {
+  if (sub === 'pelanggan') { p52KembalikanView_(); return p43SubAsli_.call(this, 'pelanggan'); } // versi asli: tab aktif + muat daftar
+  return p52SubAsli_.apply(this, arguments);
+};
+p43BukaPelanggan = function () { wpGabunganSubTab('pelanggan'); };
+
+/* ---------- tabel: username internal + profil ---------- */
+const p52PelRenderAsli_ = wpPelangganRenderHalaman;
+wpPelangganRenderHalaman = function () {
+  const r = p52PelRenderAsli_.apply(this, arguments);
+  try {
+    el('wp-pelanggan-body').querySelectorAll('.wp-pelanggan-row-clickable').forEach(td => {
+      const p = wpPelangganCacheTerbaru.find(x => x.nama === td.dataset.nama); if (!p || !p.usernameInternal || td.querySelector('.p52-user')) return;
+      const tanpa = p.tanpaIdentitas || p.nama === p.usernameInternal;
+      if (tanpa) td.innerHTML = `<span class="p52-user" style="margin:0;">${escapeHtml(p.usernameInternal)}</span> <span class="p52-tanpa">tanpa data pembeli${p.namaTersamar ? ' · ' + escapeHtml(p.namaTersamar) : ''}</span>`;
+      else td.insertAdjacentHTML('beforeend', `<span class="p52-user">${escapeHtml(p.usernameInternal)}</span>`);
+      td.insertAdjacentHTML('beforeend', `<button type="button" class="p52-profil-btn" onclick="event.stopPropagation(); p52BukaProfil(${pgrAttr(JSON.stringify(p.usernameInternal))})">🧠 Profil</button>` +
+        (p.profilRingkas ? `<span class="p52-ringkas" title="${pgrAttr(p.profilRingkas)}">${escapeHtml(p.profilRingkas)}</span>` : ''));
+    });
+  } catch (e) { console.warn('P52 render', e); }
+  return r;
+};
+// cari juga pakai username internal (@wgc2189 / wgc2189)
+const p52FilterAsli_ = wpFilterPelanggan;
+wpFilterPelanggan = function () {
+  const r = p52FilterAsli_.apply(this, arguments);
+  try {
+    const q = (el('wp-pelanggan-search')?.value || '').trim().toLowerCase().replace(/^@/, '');
+    if (q.length >= 3 && /^(wgc|cnr)/.test(q)) {
+      const tambah = wpPelangganCache.filter(p => p.usernameInternal && p.usernameInternal.toLowerCase().includes(q) && !wpPelangganCacheTerbaru.includes(p));
+      if (tambah.length) { wpPelangganCacheTerbaru = wpPelangganCacheTerbaru.concat(tambah); wpPelangganRenderHalaman(); }
+    }
+  } catch (e) { }
+  return r;
+};
+
+/* ---------- jendela profil konteks pelanggan ---------- */
+function p52Cari_(u) { return (wpPelangganCache || []).find(x => x.usernameInternal === u) || null; }
+async function p52BukaProfil(u) {
+  const p = p52Cari_(u); if (!p) { pgrToast('Pelanggan tidak ditemukan - muat ulang daftar.'); return; }
+  P52.p = p;
+  omxModal('🧠 Profil Pelanggan · ' + u, '<div id="p52-pf"><div class="p52-tanpa">Menyiapkan riwayat (tanpa AI)…</div></div>', { lebar: true });
+  await p52Kirim_({});
+}
+async function p52Kirim_(tambahan, tombol) {
+  const p = P52.p; if (!p) return;
+  const st = el('p52-pf-status'); if (st) { st.className = 'status-text'; st.textContent = tambahan.ai ? 'AI sedang membaca riwayat…' : 'Menyimpan…'; }
+  if (tombol) tombol.disabled = true;
+  try {
+    const r = await postJsonTulis(Object.assign({ aksi: 'p52_profil_pelanggan', username: p.usernameInternal, kunci: p.kunciInternal, noHp: p.noHp || '', nama: p.nama,
+      pesanan: (p.pesanan || []).slice(-400), jumlahPesanan: p.jumlahPesanan, totalBelanja: p.totalBelanja, terakhirBeli: p.terakhirBeli, kanal: p.kanal || [], email: currentUserEmail() }, tambahan), 120000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    p.profil = r.profil; p.profilRingkas = ['k', 'i', 'e', 's'].map(f => r.profil[f]).filter(Boolean).join(' · ').slice(0, 160);
+    p52Render_(r);
+    if (r.aiDipakai) omniToast('🧠 Profil diperbarui AI (' + (r.profil.aiModel || 'model gratis') + ')', 'sukses');
+    else if (r.aiInfo) pgrToast(r.aiInfo);
+    else if (tambahan.ubah) omniToast('Profil ' + r.username + ' disimpan', 'sukses');
+  } catch (e) { const s = el('p52-pf-status'); if (s) { s.className = 'status-text err'; s.textContent = '✗ ' + String(e.message || e).replace(/^Error:\s*/, ''); } else el('p52-pf').innerHTML = '<div class="status-text err">✗ ' + escapeHtml(String(e.message || e)) + '</div>'; }
+  finally { if (tombol) tombol.disabled = false; }
+}
+function p52Render_(r) {
+  const w = el('p52-pf'), p = P52.p, pr = r.profil || {}, rw = pr.r || {}; if (!w) return;
+  const ta = (f, label, ph) => `<label>${label}<textarea class="web-form-input" data-p52="${f}" placeholder="${pgrAttr(ph)}">${escapeHtml(pr[f] || '')}</textarea></label>`;
+  w.innerHTML = `<div class="p52-pf-kepala"><span class="p52-user">${escapeHtml(r.username)}</span><b>${escapeHtml(p.tanpaIdentitas ? 'Tanpa data pembeli' : p.nama)}</b>
+      <span class="p52-tanpa">${escapeHtml([p.noHp, (p.kanal || []).join(' / ')].filter(Boolean).join(' · '))}</span></div>
+    <div class="p52-pf-kpi"><div>Pesanan<b>${p.jumlahPesanan || 0}</b></div><div>Total belanja<b>Rp ${Number(p.totalBelanja || 0).toLocaleString('id-ID')}</b></div>
+      <div>Rata-rata<b>Rp ${Number(rw.rata || 0).toLocaleString('id-ID')}</b></div><div>Terakhir beli<b>${escapeHtml(p.terakhirBeli || '-')}</b></div></div>
+    <div class="p52-pf-sub">Riwayat produk (dihitung otomatis, 0 token)</div>
+    <div class="p52-pf-produk">${(pr.produk || []).length ? pr.produk.map(x => `<span>${escapeHtml(x.nama)} <b>×${x.qty}</b></span>`).join('') : '<span class="p52-tanpa" style="border:0;">Rincian barang belum tercatat untuk pesanan pelanggan ini.</span>'}</div>
+    <div class="p52-pf-sub">Konteks pembeli</div>
+    <div class="p52-pf-grid">${ta('k', 'Kebutuhan', 'mis. kertas filter rutin tiap bulan')}${ta('i', 'Keinginan / minat berikutnya', 'mis. ingin upgrade grinder')}
+      ${ta('e', 'Karakter emosional', 'mis. teliti, suka tanya detail')}${ta('s', 'Selera', 'mis. light roast, fruity')}</div>
+    <div class="p52-pf-grid" style="grid-template-columns:1fr; margin-top:8px;">${ta('c', 'Catatan Owner (paling dipercaya AI)', 'mis. langganan cafe, minta invoice PT')}</div>
+    ${pr.rek ? `<div class="p52-pf-sub">Rekomendasi AI</div><div style="font-size:13px;">🎯 ${escapeHtml(pr.rek)}</div>` : ''}
+    <div class="p52-pf-sub">Konteks untuk chatbot AI (1 baris, hemat token)</div><div class="p52-pf-konteks">${escapeHtml(r.konteks || '')}</div>
+    <div class="p52-pf-aksi"><button type="button" class="web-btn-primary" onclick="p52Simpan(this)">💾 Simpan</button>
+      <button type="button" class="web-btn-secondary" onclick="p52Kirim_({ ai: true }, this)" title="AI hanya dipanggil bila ada pesanan baru sejak profil terakhir">🤖 Perbarui dengan AI</button>
+      <span class="status-text" id="p52-pf-status">${pr.aiT ? 'Profil AI terakhir: ' + new Date(pr.aiT).toLocaleDateString('id-ID') : 'Belum dibuat AI - isi manual atau klik Perbarui dengan AI.'}</span></div>`;
+}
+function p52Simpan(tombol) {
+  const ubah = {}; document.querySelectorAll('#p52-pf textarea[data-p52]').forEach(t => { ubah[t.dataset.p52] = t.value.trim(); });
+  p52Kirim_({ ubah }, tombol);
+}
 </script>
 
 </body>
