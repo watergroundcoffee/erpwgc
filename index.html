@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.71';
+  var VERSI = 'v2026.10.72';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -73550,6 +73550,35 @@ async function p53Import(inp) {
     wpFetchPelanggan();
   } catch (e) { omniNotif('Import gagal: ' + String(e.message || e)); }
 }
+</script>
+
+<!-- ===================================================================================
+     PAKET 54 (v2026.10.72) - Pesan staf: edit produk langsung dari Persediaan > Monitor Stok
+     =================================================================================== -->
+<style>
+  .p54-edit { border: 1px solid var(--web-border); background: var(--web-panel); color: var(--web-accent, #4f46e5); font: inherit; font-size: 11px; font-weight: 700;
+    border-radius: 6px; padding: 1px 6px; margin-left: 6px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+  #per-mon-body tr:hover .p54-edit, .p54-edit:focus { opacity: 1; }
+  @media (hover: none) { .p54-edit { opacity: .8; } }
+</style>
+<script>
+/* ============================ PAKET 54 (v2026.10.72) ============================ */
+async function p54EditProduk(sku, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  if (typeof katalogBukaModalEditProduk !== 'function') { pgrToast('Edit Produk belum siap - buka menu Katalog sekali, lalu coba lagi.'); return; }
+  try { await katalogBukaModalEditProduk(sku); }
+  catch (e) { pgrToast('✗ ' + sku + ' belum bisa dibuka: ' + String(e && e.message || e).replace(/^Error:\s*/, '') + ' - daftarkan dulu ke Produk Master.'); }
+}
+function p54HiasMonitor_() {
+  const tb = el('per-mon-body'); if (!tb) return;
+  tb.querySelectorAll('tr').forEach(tr => {
+    if (tr.dataset.p54) return; const td = tr.children[1]; if (!td || tr.children.length < 4) return;
+    const sku = (td.textContent || '').trim().split(/\s+/)[0]; if (!sku || /memuat|gagal/i.test(sku)) return;
+    tr.dataset.p54 = '1';
+    td.insertAdjacentHTML('beforeend', `<button type="button" class="p54-edit" title="Edit nama, harga modal & URL supplier di jendela Produk Master" onclick="p54EditProduk('${pgrAttr(sku)}', event)">✎ Edit</button>`);
+  });
+}
+(function () { const tb = el('per-mon-body'); if (tb) new MutationObserver(p54HiasMonitor_).observe(tb, { childList: true }); p54HiasMonitor_(); })();
 </script>
 
 </body>
