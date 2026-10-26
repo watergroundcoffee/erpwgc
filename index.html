@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.67';
+  var VERSI = 'v2026.10.69';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -72237,6 +72237,651 @@ function p49PasangGenerate_() {
 }
 p49PasangGenerate_();
 document.addEventListener('DOMContentLoaded', p49PasangGenerate_);
+</script>
+
+<!-- ===================================================================================
+     PAKET 50 (v2026.10.68) - Katalog Produk Master (Hapus Permanen, Generate SKU, belajar koreksi, Bundling) ·
+     Kontak Pemasok (nomor cabang, salin, konfirmasi tautan luar, hapus PIC, seret cabang) · panel AI bekerja
+     =================================================================================== -->
+<style>
+  /* ---- DN-874 / DN-360: Generate SKU di dalam kotak SKU Gudang ---- */
+  .p49-label-baris .p49-gen { display: none !important; }
+  .p50-sku-wrap { position: relative; display: block; }
+  .p50-sku-wrap > input { padding-right: 112px; }
+  .p50-gen-in { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 1px solid rgba(79,70,229,.35); background: rgba(79,70,229,.08);
+    color: var(--web-accent, #4f46e5); font: inherit; font-size: 11.5px; font-weight: 700; border-radius: 8px; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+  .p50-gen-in:hover { background: rgba(79,70,229,.16); }
+  .p50-gen-in[hidden] { display: none; }
+  /* ---- DN-404: jendela Bundling ---- */
+  .p50-bdl-info { font-size: 12px; color: var(--web-text-dim); line-height: 1.5; margin-bottom: 10px; }
+  .p50-bdl-baris { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .p50-bdl-baris label { flex: 1 1 200px; display: flex; flex-direction: column; font-size: 11.5px; font-weight: 700; color: var(--web-text-dim); }
+  .p50-bdl-baris input { margin: 4px 0 0; }
+  .p50-bdl-hasil { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; max-height: 260px; overflow: auto; padding: 2px; margin: 6px 0 12px; }
+  .p50-bdl-hasil button { text-align: left; border: 1px solid var(--web-border); border-radius: 10px; padding: 6px; background: var(--web-panel); color: inherit; cursor: pointer; font: inherit; font-size: 11px; }
+  .p50-bdl-hasil button:hover { border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+  .p50-bdl-hasil .p49-foto { width: 100%; height: 80px; font-size: 20px; margin-bottom: 4px; }
+  .p50-bdl-hasil b { display: block; font-family: ui-monospace, monospace; font-size: 10.5px; color: #4338ca; }
+  .p50-bdl-isi { display: flex; flex-direction: column; gap: 6px; }
+  .p50-bdl-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--web-border); border-radius: 10px; padding: 6px 8px; font-size: 12.5px; }
+  .p50-bdl-item .p49-foto { width: 40px; height: 40px; font-size: 16px; border-radius: 8px; }
+  .p50-bdl-item .n { flex: 1; min-width: 0; } .p50-bdl-item .n b { font-family: ui-monospace, monospace; font-size: 11px; color: #4338ca; display: block; }
+  .p50-bdl-item button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--web-border); background: var(--web-panel); color: var(--web-text); cursor: pointer; font-weight: 800; }
+  .p50-bdl-item .qty { min-width: 22px; text-align: center; font-weight: 800; }
+  .p50-bdl-ringkas { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 12px 0; }
+  .p50-bdl-ringkas div { border: 1px solid var(--web-border); border-radius: 10px; padding: 8px 10px; font-size: 11px; color: var(--web-text-dim); font-weight: 700; }
+  .p50-bdl-ringkas b { display: block; font-size: 15px; color: var(--web-text); margin-top: 2px; }
+  /* ---- DN-765 / DN-133: nomor cabang & salin ---- */
+  .p50-nomor { display: inline-flex; align-items: center; gap: 2px; }
+  .p50-salin { border: 0; background: none; cursor: pointer; font-size: 12px; padding: 1px 4px; border-radius: 6px; color: var(--web-text-dim); opacity: 0; transition: opacity .12s; }
+  .p50-nomor:hover .p50-salin, .p50-salin:focus { opacity: 1; }
+  .p50-salin:hover { background: rgba(127,127,127,.15); color: var(--web-text); }
+  @media (hover: none) { .p50-salin { opacity: .7; } }
+  .p50-cabang-kr .p40-kr { margin-top: 3px; font-size: 11.5px; }
+  .p50-cabang-kr .p40-kr-isi a.p40-wa, a.p40-wa.p50-cb-no { background: none !important; border: 0 !important; border-radius: 0 !important; padding: 0 2px !important;
+    color: var(--web-text-dim) !important; text-decoration: underline dotted; text-underline-offset: 3px; font-size: 11.5px; }
+  .p50-cabang-kr .p40-kr-isi a.p40-wa:hover, a.p40-wa.p50-cb-no:hover { color: #15803d !important; }
+  /* ---- DN-223: seret cabang ---- */
+  .p50-cb-baris { cursor: grab; border-radius: 8px; background: var(--web-panel); position: relative; padding-left: 16px !important; }
+  .p50-cb-baris::before { content: '⋮⋮'; position: absolute; left: 2px; top: 50%; transform: translateY(-50%); color: var(--web-text-dim); opacity: .45; font-size: 11px; letter-spacing: -2px; pointer-events: none; }
+  .p50-cb-baris.p48-angkat { box-shadow: 0 10px 24px rgba(15,23,42,.18); position: relative; z-index: 5; cursor: grabbing; }
+  /* ---- DN-344: X merah hapus PIC ---- */
+  .p43-kt { position: relative; }
+  .p43-kt .p43-kt-x { display: none !important; }
+  .p50-kt-x { position: absolute; top: -9px; right: -9px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--web-panel, #fff); background: #dc2626; color: #fff;
+    font-weight: 800; font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; transform: scale(.7); transition: opacity .15s, transform .15s; box-shadow: 0 4px 10px rgba(220,38,38,.35); z-index: 2; }
+  .p43-kt:hover .p50-kt-x, .p50-kt-x:focus { opacity: 1; transform: scale(1); }
+  @media (hover: none) { .p50-kt-x { opacity: 1; transform: scale(.9); } }
+  /* ---- DN-993: panel AI bekerja ---- */
+  .p50-ai { position: relative; display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; margin-top: 8px; color: var(--web-text);
+    background: linear-gradient(var(--web-panel, #fff), var(--web-panel, #fff)) padding-box, linear-gradient(120deg, #6366f1, #06b6d4, #a855f7, #6366f1) border-box;
+    border: 1.5px solid transparent; background-size: 100% 100%, 300% 300%; animation: p50AiBorder 4s linear infinite; overflow: hidden; }
+  .p50-ai::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(99,102,241,.07) 50%, transparent 70%); background-size: 250% 100%; animation: p50AiKilau 1.8s ease-in-out infinite; pointer-events: none; }
+  .p50-ai-orb { flex: none; width: 38px; height: 38px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #c7d2fe, #6366f1 55%, #4338ca); box-shadow: 0 0 0 0 rgba(99,102,241,.45);
+    animation: p50AiDenyut 1.6s ease-out infinite; display: grid; place-items: center; color: #fff; font-size: 17px; }
+  .p50-ai-isi { flex: 1; min-width: 0; }
+  .p50-ai-isi > b { display: block; font-size: 13.5px; letter-spacing: .01em; }
+  .p50-ai-pesan { display: block; font-size: 12px; color: var(--web-text-dim); margin-top: 2px; }
+  .p50-ai-langkah { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .p50-ai-langkah li { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--web-border); color: var(--web-text-dim); }
+  .p50-ai-langkah li.ok { color: #15803d; border-color: rgba(21,128,61,.35); background: rgba(21,128,61,.07); }
+  .p50-ai-langkah li.aktif { color: #4338ca; border-color: rgba(67,56,202,.45); background: rgba(99,102,241,.1); }
+  .p50-ai-langkah li.aktif::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 5px; animation: p50AiKedip 1s ease-in-out infinite; }
+  .p50-ai-waktu { flex: none; font: 700 11.5px ui-monospace, monospace; color: var(--web-text-dim); }
+  .p50-ai-garis { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: linear-gradient(90deg, transparent, #6366f1, #06b6d4, transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: p50AiGaris 1.4s ease-in-out infinite; }
+  .p50-ai-baris { background: linear-gradient(90deg, var(--web-text-dim) 20%, #6366f1 50%, var(--web-text-dim) 80%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: p50AiKilau 1.6s linear infinite; font-weight: 600; }
+  .p50-ai-baris::before { content: '✦ '; color: #6366f1; -webkit-text-fill-color: #6366f1; }
+  @keyframes p50AiBorder { to { background-position: 0 0, 300% 0; } }
+  @keyframes p50AiKilau { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+  @keyframes p50AiDenyut { 0% { box-shadow: 0 0 0 0 rgba(99,102,241,.45); } 100% { box-shadow: 0 0 0 14px rgba(99,102,241,0); } }
+  @keyframes p50AiKedip { 50% { opacity: .25; } }
+  @keyframes p50AiGaris { from { background-position: -60% 0; } to { background-position: 160% 0; } }
+  @media (prefers-reduced-motion: reduce) { .p50-ai, .p50-ai::after, .p50-ai-orb, .p50-ai-garis, .p50-ai-baris, .p50-ai-langkah li.aktif::before { animation: none; } }
+</style>
+<script>
+/* ============================ PAKET 50 (v2026.10.68) ============================ */
+const P50 = { ajar: null, bdl: null, aiMulai: 0, aiTimer: 0 };
+
+/* ---------- DN-725: Hapus Permanen cukup Yakin / Tidak Jadi ---------- */
+p34HapusPermanen = async function (sku) {
+  if (!p34ApakahOwner()) { omniNotif('Hanya Owner yang bisa menghapus permanen.'); return; }
+  const p = katalogProdukCache.find(x => x.sku === sku);
+  const ok = await omniKonfirmasi({ ikon: '!', judul: 'Hapus permanen ' + sku + '?', ya: 'Yakin', tidak: 'Tidak Jadi',
+    pesan: (p ? p.nama + '\n\n' : '') + 'Yang dihapus: baris produk di Produk Master + pemetaan SKU Supplier & SKU Marketplace-nya.\n' +
+      'Yang TETAP ada: riwayat stok, pesanan, memo & laporan keuangan (salinan baris disimpan di sheet "Produk Dihapus Permanen").' });
+  if (!ok) return;
+  try {
+    const data = await postJsonTulis({ aksi: 'hapus_produk_permanen', sku: sku, konfirmasi: sku, toko: currentToko, email: currentUserEmail() });
+    if (!data || !data.success) { omniNotif('Gagal: ' + ((data && data.error) || '')); return; }
+    katalogProdukCache = katalogProdukCache.filter(x => x.sku !== sku);
+    delete katalogSkuTerhubungMap[sku]; delete katalogSkuMarketplaceMap[sku]; delete katalogSkuSupplierDetailMap[sku];
+    try { katalogSimpanCacheLokal(); } catch (e) { }
+    katalogProdukRenderHalaman(); playBeep();
+    pgrToast('✓ ' + sku + ' dihapus permanen' + (data.pemetaanDihapus ? ' (+ ' + data.pemetaanDihapus + ' pemetaan SKU)' : ''));
+  } catch (err) { omniNotif('Gagal terhubung: ' + err.message); }
+};
+
+/* ---------- DN-874 / DN-360: Generate SKU acak 2 huruf + 4 angka, tombol di dalam kotak SKU Gudang ---------- */
+const P50_HURUF = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // tanpa I & O (mirip angka 1 / 0)
+function p50AcakSku_() {
+  const a = new Uint32Array(6); (window.crypto || window.msCrypto).getRandomValues(a);
+  return P50_HURUF[a[0] % P50_HURUF.length] + P50_HURUF[a[1] % P50_HURUF.length] + String(a[2] % 10) + String(a[3] % 10) + String(a[4] % 10) + String(a[5] % 10);
+}
+p49GenerateSku = async function () {
+  const inp = el('tp-sku'); if (!inp) return;
+  const b = el('p50-gen-in'); if (b) b.disabled = true;
+  try {
+    const dipakai = new Set();
+    try { (await p49Katalog_(true)).forEach(p => dipakai.add(p.sku.toUpperCase())); } catch (e) { }
+    try { Object.keys(await p49PetaMapping_()).forEach(k => dipakai.add(k.toUpperCase())); } catch (e) { }
+    let calon = '', n = 0;
+    do { calon = p50AcakSku_(); n++; } while (dipakai.has(calon) && n < 500);
+    inp.value = calon; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+    let info = el('p49-gen-info');
+    const wadah = inp.closest('.p50-sku-wrap') || inp;
+    if (!info) { info = document.createElement('div'); info.id = 'p49-gen-info'; info.className = 'p49-gen-info'; wadah.insertAdjacentElement('afterend', info); }
+    info.innerHTML = `⚡ <b>${escapeHtml(calon)}</b> = acak 2 huruf + 4 angka · belum dipakai SKU Gudang / Supplier / Marketplace mana pun. <button type="button" onclick="p49GenerateSku(true)">↻ acak lagi</button>`;
+    P49.gen = { sku: calon };
+  } finally { if (b) b.disabled = false; p50GenTampil_(); }
+};
+function p50GenTampil_() {
+  const inp = el('tp-sku'), b = el('p50-gen-in'); if (!inp || !b) return;
+  b.hidden = !!inp.value.trim() || inp.disabled || inp.readOnly;
+  const i = el('p49-gen-info'); if (i && !inp.value.trim()) i.remove();
+}
+function p50PasangGenerate_() {
+  const inp = el('tp-sku'); if (!inp || inp.closest('.p50-sku-wrap')) return p50GenTampil_();
+  const w = document.createElement('span'); w.className = 'p50-sku-wrap';
+  inp.parentNode.insertBefore(w, inp); w.appendChild(inp);
+  w.insertAdjacentHTML('beforeend', '<button type="button" id="p50-gen-in" class="p50-gen-in" title="Buat SKU Gudang acak (2 huruf + 4 angka) yang belum dipakai" onclick="event.preventDefault(); p49GenerateSku(false)">⚡ Generate SKU</button>');
+  inp.addEventListener('input', p50GenTampil_);
+  p50GenTampil_();
+}
+p50PasangGenerate_();
+document.addEventListener('DOMContentLoaded', p50PasangGenerate_);
+// nilai SKU diisi program saat jendela dibuka (tanpa event input) -> cek ringan selama jendela terlihat
+setInterval(() => { const inp = el('tp-sku'); if (inp && inp.offsetParent !== null) { p50PasangGenerate_(); } }, 500);
+
+/* ---------- DN-286: belajar dari koreksi Owner atas hasil baca ---------- */
+const P50_AJAR_ID = { merk: 'tp-merk', tipe: 'tp-tipe', material: 'tp-material', volume: 'tp-volume', warna: 'tp-warna' };
+function p50FormAjar_() {
+  const v = {};
+  Object.keys(P50_AJAR_ID).forEach(f => { const e = el(P50_AJAR_ID[f]); v[f] = e ? e.value.trim() : ''; });
+  const a = parseFloat(String((el('tp-berat-angka') || {}).value || '').replace(',', '.')) || 0, sat = (el('tp-berat-satuan') || {}).value || 'Gram';
+  v.berat = a > 0 ? Math.round(sat === 'Kg' ? a * 1000 : a) : 0;
+  v.dimensi = ['p', 'l', 't'].map(x => parseFloat(String((el('tp-dimensi-' + x) || {}).value || '').replace(',', '.')) || 0);
+  return v;
+}
+const p50TerapkanAsli_ = tpIsiAiTerapkan;
+tpIsiAiTerapkan = function (d) {
+  const n = p50TerapkanAsli_.apply(this, arguments);
+  try {
+    const teks = el('tp-ai-teks') ? el('tp-ai-teks').value.trim() : '';
+    const url = (d && d.urlProduk) || (/^https?:\/\/\S+$/i.test(teks) ? teks : '');
+    P50.ajar = { url, teks: url ? '' : teks.slice(0, 20000), awal: p50FormAjar_() };
+    if (d && d.ajarDipakai && d.ajarDipakai.length) setTimeout(() => pgrToast('🧠 Dibaca sesuai koreksi Anda sebelumnya: ' + d.ajarDipakai.slice(0, 3).join(' · ')), 400);
+  } catch (e) { }
+  return n;
+};
+const p50BatalAsli_ = tpIsiAiBatalkan;
+tpIsiAiBatalkan = function () { P50.ajar = null; return p50BatalAsli_.apply(this, arguments); };
+const p50SimpanAsli_ = katalogSimpanProdukBaru;
+katalogSimpanProdukBaru = async function () {
+  try {
+    const aj = P50.ajar; P50.ajar = null;
+    if (aj && (aj.url || aj.teks.length >= 20)) {
+      const akhir = p50FormAjar_(), koreksi = [];
+      Object.keys(P50_AJAR_ID).forEach(f => { if (akhir[f] && akhir[f] !== aj.awal[f]) koreksi.push({ f, akhir: akhir[f] }); });
+      if (akhir.berat && akhir.berat !== aj.awal.berat) koreksi.push({ f: 'berat', gram: akhir.berat });
+      if (akhir.dimensi.every(x => x > 0) && akhir.dimensi.join('x') !== aj.awal.dimensi.join('x')) koreksi.push({ f: 'dimensi', dim: akhir.dimensi });
+      if (koreksi.length) postJson({ aksi: 'p50_ajari_parsing', url: aj.url, teks: aj.teks, koreksi, email: currentUserEmail() }, 60000, true)
+        .then(r => { const ok = r && r.success ? (r.dipelajari || []).filter(x => x.status === 'dipelajari') : []; if (ok.length) pgrToast('🧠 Koreksi dipelajari: ' + ok.map(x => x.f + ' ← "' + x.label + '"').join(' · ')); }).catch(() => { });
+    }
+  } catch (e) { }
+  return p50SimpanAsli_.apply(this, arguments);
+};
+
+/* ---------- DN-404: Jadikan SKU Bundling di jendela (tidak pindah halaman) ---------- */
+p43KeBundling = async function (sku) {
+  try { katalogTutupHubungkanSku(); } catch (e) { }
+  const p = (katalogProdukCache || []).find(x => x.sku === sku) || {};
+  P50.bdl = { kode: String(sku || '').toUpperCase(), nama: p.nama || '', isi: [], cari: '', diMaster: !!p.sku && !p.arsip, hasil: [] };
+  omxModal('📦 Jadikan SKU Bundling · ' + sku, '<div id="p50-bdl">Memuat Produk Master…</div>', { lebar: true });
+  await p49Katalog_();
+  p50BdlRender_();
+};
+function p50Rp_(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function p50BdlRender_() {
+  const w = el('p50-bdl'), b = P50.bdl; if (!w || !b) return;
+  w.innerHTML = `<div class="p50-bdl-info">Pilih SKU Gudang yang menjadi isi paket <b>${escapeHtml(b.kode)}</b>. Kode ini tetap dipakai di marketplace (meski di sana terdaftar sebagai produk biasa);
+      pesanannya memotong stok <b>tiap isi</b>. Stok bundling = isi yang paling sedikit, jadi bila satu isi habis, bundling ikut habis. Harga modal & harga jual mengikuti isinya.</div>
+    <div class="p50-bdl-baris"><label>Kode bundling<input class="web-form-input" value="${pgrAttr(b.kode)}" oninput="P50.bdl.kode=this.value.toUpperCase().replace(/\\s+/g,'')"></label>
+      <label>Nama bundling<input class="web-form-input" value="${pgrAttr(b.nama)}" oninput="P50.bdl.nama=this.value"></label></div>
+    <input type="search" class="web-form-input" id="p50-bdl-cari" style="margin:0;" placeholder="Cari nama / SKU produk isi bundling…" value="${pgrAttr(b.cari)}" oninput="P50.bdl.cari=this.value; p50BdlCari_()">
+    <div class="p50-bdl-hasil" id="p50-bdl-hasil"></div>
+    <div id="p50-bdl-pilihan"></div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px;">
+      <button type="button" class="web-btn-primary" id="p50-bdl-simpan" onclick="p50BdlSimpan()">💾 Simpan bundling</button>
+      <button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button><span class="status-text" id="p50-bdl-status"></span></div>`;
+  p50BdlCari_(); p50BdlPilihan_();
+}
+function p50BdlCari_() {
+  const box = el('p50-bdl-hasil'), b = P50.bdl; if (!box || !b) return;
+  const q = b.cari.trim().toLowerCase(), kode = b.kode.toUpperCase();
+  b.hasil = (P49.kat || []).filter(p => !p.arsip && p.sku.toUpperCase() !== kode && (!q || (p.sku + ' ' + p.nama).toLowerCase().includes(q))).slice(0, 24);
+  box.innerHTML = b.hasil.map((p, i) => `<button type="button" onclick="p50BdlTambah(${i})">${p49FotoHtml_(p, 160)}<b>${escapeHtml(p.sku)}</b>${escapeHtml(p.nama.slice(0, 50))}</button>`).join('')
+    || '<div class="p50-bdl-info">Tidak ada produk yang cocok.</div>';
+}
+function p50BdlTambah(i) {
+  const p = P50.bdl.hasil[i]; if (!p) return;
+  const ada = P50.bdl.isi.find(x => x.sku.toUpperCase() === p.sku.toUpperCase());
+  if (ada) ada.qty++; else P50.bdl.isi.push({ sku: p.sku, nama: p.nama, foto: p.foto, qty: 1 });
+  p50BdlPilihan_();
+}
+function p50BdlQty(i, d) { const x = P50.bdl.isi[i]; if (!x) return; x.qty += d; if (x.qty < 1) P50.bdl.isi.splice(i, 1); p50BdlPilihan_(); }
+function p50BdlPilihan_() {
+  const w = el('p50-bdl-pilihan'), b = P50.bdl; if (!w || !b) return;
+  const kat = new Map((katalogProdukCache || []).map(p => [String(p.sku).toUpperCase(), p]));
+  let modal = 0, jual = 0, lengkapModal = true, lengkapJual = true;
+  b.isi.forEach(x => { const p = kat.get(x.sku.toUpperCase()) || {}; if (p.hargaSupplier > 0) modal += p.hargaSupplier * x.qty; else lengkapModal = false; if (p.hargaDefault > 0) jual += p.hargaDefault * x.qty; else lengkapJual = false; });
+  const unit = b.isi.reduce((s, x) => s + x.qty, 0);
+  w.innerHTML = b.isi.length ? `<div class="p50-bdl-isi">${b.isi.map((x, i) => `<div class="p50-bdl-item">${p49FotoHtml_(x, 80)}<div class="n"><b>${escapeHtml(x.sku)}</b>${escapeHtml(x.nama)}</div>
+      <button type="button" aria-label="Kurangi" onclick="p50BdlQty(${i}, -1)">−</button><span class="qty">${x.qty}</span><button type="button" aria-label="Tambah" onclick="p50BdlQty(${i}, 1)">+</button></div>`).join('')}</div>
+    <div class="p50-bdl-ringkas"><div>Isi paket<b>${unit} barang</b></div><div>Harga modal gabungan<b>${p50Rp_(modal)}${lengkapModal ? '' : ' *'}</b></div>
+      <div>Harga jual normal gabungan<b>${p50Rp_(jual)}${lengkapJual ? '' : ' *'}</b></div><div>Stok bundling<b style="font-size:12px;">= isi paling sedikit</b></div></div>
+    ${lengkapModal && lengkapJual ? '' : '<div class="p50-bdl-info">* ada isi yang belum punya harga di Produk Master.</div>'}`
+    : '<div class="p50-bdl-info">Belum ada isi - klik produk di atas (klik lagi untuk menambah jumlah).</div>';
+  const s = el('p50-bdl-simpan'); if (s) s.disabled = unit < 2;
+}
+async function p50BdlSimpan() {
+  const b = P50.bdl, st = el('p50-bdl-status'), btn = el('p50-bdl-simpan'); if (!b) return;
+  if (b.isi.reduce((s, x) => s + x.qty, 0) < 2) { st.textContent = 'Bundling minimal berisi 2 barang.'; st.className = 'status-text err'; return; }
+  if (b.diMaster && !(await omniKonfirmasi({ ikon: '📦', judul: 'Jadikan ' + b.kode + ' SKU Bundling?', ya: 'Ya, jadikan bundling', tidak: 'Batal',
+    pesan: 'Isi: ' + b.isi.map(x => (x.qty > 1 ? x.qty + 'x ' : '') + x.nama).join(' + ') + '\n\nKode ini dipindah dari produk biasa menjadi bundling: pesanan berikutnya memotong stok isinya, stok & harga mengikuti isinya.' }))) return;
+  btn.disabled = true; st.className = 'status-text'; st.textContent = 'Menyimpan…';
+  try {
+    const r = await postJsonTulis({ aksi: 'bundling_simpan', skuBundle: b.kode, skuLama: '', nama: b.nama, isi: b.isi.map(x => ({ sku: x.sku, qty: x.qty })), ubahDariMaster: b.diMaster, email: currentUserEmail() });
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
+    playBeep();
+    let info = '';
+    try { const d = await postJson({ aksi: 'bundling_daftar', email: currentUserEmail(), segar: true }, 60000); const x = d && d.success && d.daftar.find(z => z.sku.toUpperCase() === String(r.sku).toUpperCase()); if (x) info = ' · stok bisa dijual ' + x.stok + (x.hpp ? ' · HPP ' + p50Rp_(x.hpp) : ''); } catch (e) { }
+    if (r.diarsipkan) { try { katalogProdukCache = katalogProdukCache.filter(p => String(p.sku).toUpperCase() !== String(r.sku).toUpperCase()); katalogProdukRenderHalaman(); } catch (e) { } }
+    omxTutupModal();
+    omniToast('📦 Bundling ' + r.sku + ' tersimpan' + info, 'sukses');
+  } catch (e) { st.textContent = '✗ ' + String(e.message || e).replace(/^Error:\s*/, ''); st.className = 'status-text err'; btn.disabled = false; }
+}
+
+/* ---------- DN-765 / DN-133 / DN-223: daftar Kontak Pemasok ---------- */
+function p50SalinNomor(btn, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const a = btn.previousElementSibling, t = String((a && a.textContent) || '').replace(/[^\d+\s-]/g, '').trim();
+  const selesai = () => { btn.textContent = '✓'; setTimeout(() => { btn.textContent = '⧉'; }, 1200); pgrToast('Nomor ' + t + ' disalin'); };
+  try { navigator.clipboard.writeText(t).then(selesai, () => pgrToast(t)); } catch (e) { pgrToast(t); }
+}
+function p50HiasNomor_(root) {
+  if (!root) return;
+  root.querySelectorAll('a[href*="wa.me/"]:not(.p43-kt-ikon):not([data-p50])').forEach(a => {
+    a.dataset.p50 = '1';
+    const s = document.createElement('span'); s.className = 'p50-nomor';
+    a.parentNode.insertBefore(s, a); s.appendChild(a);
+    s.insertAdjacentHTML('beforeend', '<button type="button" class="p50-salin" title="Salin nomor" aria-label="Salin nomor" onclick="p50SalinNomor(this, event)">⧉</button>');
+  });
+}
+const p50RenderKontakAsli_ = belRenderKontak;
+belRenderKontak = function () {
+  const r = p50RenderKontakAsli_.apply(this, arguments);
+  try {
+    const list = el('bel-kontak-list'); if (!list) return r;
+    list.querySelectorAll('button[onclick^="belBukaCabangIdx("]').forEach(b => {
+      const m = b.getAttribute('onclick').match(/belBukaCabangIdx\((\d+),\s*(-?\d+)\)/); if (!m || m[2] === '-1') return;
+      const baris = b.closest('div[style*="justify-content:space-between"]'); if (!baris) return;
+      baris.classList.add('p50-cb-baris'); baris.dataset.si = m[1]; baris.dataset.ci = m[2];
+      const kiri = baris.firstElementChild; if (!kiri) return;
+      kiri.classList.add('p50-cabang-kr');
+      // nomor lama (kolom Kontak saja) -> bisa diklik ke WhatsApp, gaya cabang
+      Array.from(kiri.children).forEach(x => {
+        if (x.classList.contains('p40-kr') || !/📞/.test(x.textContent)) return;
+        const no = x.textContent.replace('📞', '').trim(), u = p40WaLink_(no);
+        if (u) x.innerHTML = `<a class="p40-wa p50-cb-no" href="${pgrAttr(u)}" target="_blank" rel="noopener" title="Chat WhatsApp">📱 ${escapeHtml(no)}</a>`;
+      });
+    });
+    list.querySelectorAll('.p50-cb-baris').forEach(baris => {
+      const wadah = baris.parentElement; if (!wadah || wadah._p50) return;
+      wadah._p50 = 1;
+      p48Seret(wadah, { item: '.p50-cb-baris', sumbu: 'y', padaUrut: urutan => p50UrutCabang_(wadah, urutan) });
+    });
+    p50HiasNomor_(list);
+  } catch (e) { console.warn('P50 kontak', e); }
+  return r;
+};
+function p50UrutCabang_(wadah, urutan) {
+  const baris = wadah.querySelector('.p50-cb-baris'); if (!baris) return;
+  const sup = belKontakCache[+baris.dataset.si]; if (!sup || !sup.cabang) return;
+  const lama = sup.cabang.slice(), baru = urutan.map(i => lama[i]).filter(Boolean);
+  if (baru.length !== lama.length) return;
+  sup.cabang.splice(0, sup.cabang.length, ...baru);
+  try { belSimpanCacheKontak_(); } catch (e) { }
+  belRenderKontak();
+  postJsonTulis({ aksi: 'p50_urut_cabang', namaSupplier: sup.nama, urutan: baru.map(c => c.namaCabang), email: currentUserEmail() })
+    .then(r => { if (r && r.success) pgrToast('Urutan cabang ' + sup.nama + ' disimpan'); else pgrToast('✗ Urutan cabang belum tersimpan: ' + ((r && r.error) || '')); })
+    .catch(e => pgrToast('✗ Urutan cabang belum tersimpan: ' + e.message));
+}
+
+/* ---------- DN-344 / DN-335: kartu personil (supplier & cabang) ---------- */
+const p50KtRenderAsli_ = p43RenderKontak;
+p43RenderKontak = function (wadahId) {
+  const r = p50KtRenderAsli_.apply(this, arguments);
+  try {
+    const w = el(wadahId);
+    if (w) w.querySelectorAll('.p43-kt').forEach((k, i) => {
+      if (k.querySelector('.p50-kt-x')) return;
+      k.insertAdjacentHTML('afterbegin', `<button type="button" class="p50-kt-x" title="Hapus personil" aria-label="Hapus personil ${i + 1}" onclick="p43KtHapus('${wadahId}', ${i})">✕</button>`);
+    });
+  } catch (e) { }
+  return r;
+};
+p43KtHapus = async function (w, i) {
+  const k = p43Kt_(w).daftar[i]; if (!k) return;
+  const nama = String(k.namaJabatan || '').trim() || ('Personil ' + (i + 1)), no = (k.wa || []).filter(x => String(x).trim()).join(', ');
+  const ya = await omniKonfirmasi({ ikon: '!', judul: 'Hapus ' + nama + '?', pesan: (no ? 'Nomor: ' + no + '\n' : '') + 'Terhapus permanen setelah Anda klik Simpan.', ya: 'Ya', tidak: 'Tidak' });
+  if (!ya) return;
+  p43Kt_(w).daftar.splice(i, 1); p43KtUlang_(w);
+};
+// personil yang baru berisi nama tetap disimpan (nama boleh sama dengan personil lain)
+p43KtBersih_ = function (daftar) {
+  return daftar.map(k => { const wa = (k.wa || []).map(x => String(x || '').trim()).filter(Boolean), email = (k.email || []).map(x => String(x || '').trim().toLowerCase()).filter(Boolean);
+    return { namaJabatan: String(k.namaJabatan || '').trim(), peran: k.peran || '', utama: !!k.utama, noWA: wa[0] || '', wa, email }; }).filter(k => k.wa.length || k.email.length || k.namaJabatan);
+};
+p40KontakUntukSimpan_ = function () { return p43KtBersih_(belSupplierKontakWaAktif); };
+
+/* ---------- DN-825: SEMUA tautan yang membuka tab / aplikasi lain dikonfirmasi dulu ---------- */
+function p50TautanLuar_(href, target) {
+  const h = String(href || '').trim();
+  if (!h || h === '#' || /^(javascript:|blob:|data:|#)/i.test(h)) return false;
+  if (/^(mailto:|tel:|whatsapp:|sms:)/i.test(h)) return true;
+  let u; try { u = new URL(h, location.href); } catch (e) { return false; }
+  if (!/^https?:$/.test(u.protocol)) return false;
+  return u.origin !== location.origin || target === '_blank';
+}
+function p50KonfirmasiTautan_(url) {
+  const h = String(url), wa = /wa\.me\/|whatsapp/i.test(h), mail = /^mailto:/i.test(h);
+  let tujuan = h; try { if (!mail) { const u = new URL(h, location.href); tujuan = u.hostname.replace(/^www\./, '') + (u.pathname.length > 1 ? u.pathname.slice(0, 40) + (u.pathname.length > 40 ? '…' : '') : ''); } } catch (e) { }
+  return omniKonfirmasi({ ikon: wa ? '💬' : (mail ? '✉️' : '↗'), judul: wa ? 'Buka WhatsApp?' : (mail ? 'Buka aplikasi email?' : 'Buka di tab baru?'),
+    pesan: (wa ? 'Chat ke ' + h.replace(/^.*wa\.me\//i, '+').replace(/\?.*$/, '') : tujuan) + '\nAnda akan meninggalkan halaman OmniAI (halaman ini tetap terbuka).', ya: 'Buka', tidak: 'Batal' });
+}
+document.addEventListener('click', e => {
+  const a = e.target && e.target.closest && e.target.closest('a[href]');
+  if (!a || e.defaultPrevented || a.hasAttribute('download') || a.hasAttribute('data-dok') || a.dataset.p50Lolos) return;
+  if (!p50TautanLuar_(a.getAttribute('href'), a.getAttribute('target'))) return;
+  e.preventDefault();
+  const href = a.href, target = a.getAttribute('target');
+  p50KonfirmasiTautan_(href).then(ok => {
+    if (!ok) return;
+    if (/^(mailto:|tel:|sms:|whatsapp:)/i.test(href)) { location.href = href; return; }
+    p50BukaAsli_.call(window, href, target === '_self' ? '_self' : '_blank', 'noopener');
+  });
+}, true);
+const p50BukaAsli_ = window.open;
+window.open = function (url) {
+  if (!url || !p50TautanLuar_(url, '_blank') || /^about:/i.test(String(url))) return p50BukaAsli_.apply(window, arguments);
+  const arg = arguments;
+  p50KonfirmasiTautan_(url).then(ok => { if (ok) p50BukaAsli_.apply(window, arg); });
+  return null;
+};
+
+/* ---------- DN-993: panel "AI sedang bekerja" ---------- */
+const P50_AI_LANGKAH = ['Membuka dokumen', 'Membaca teks / gambar', 'AI menganalisa isi', 'Mencocokkan SKU & supplier'];
+function p50AiPanel_(pesan, langkah) {
+  if (!P50.aiMulai) P50.aiMulai = Date.now();
+  clearInterval(P50.aiTimer);
+  P50.aiTimer = setInterval(() => { const t = document.querySelector('.p50-ai-waktu'); if (!t) { clearInterval(P50.aiTimer); return; } t.textContent = Math.round((Date.now() - P50.aiMulai) / 1000) + ' dtk'; }, 1000);
+  return `<div class="p50-ai" role="status" aria-live="polite"><div class="p50-ai-orb">✦</div><div class="p50-ai-isi"><b>AI sedang bekerja</b><span class="p50-ai-pesan">${pesan}</span>
+    <ol class="p50-ai-langkah">${P50_AI_LANGKAH.map((x, i) => `<li class="${i < langkah ? 'ok' : (i === langkah ? 'aktif' : '')}">${i < langkah ? '✓ ' : ''}${x}</li>`).join('')}</ol></div>
+    <span class="p50-ai-waktu">${Math.round((Date.now() - P50.aiMulai) / 1000)} dtk</span><div class="p50-ai-garis"></div></div>`;
+}
+const p50StatusAsli_ = p48Status_;
+p48Status_ = function (html, kelas) {
+  const h = String(html || '');
+  if (/^⏳/.test(h)) {
+    const pesan = h.replace(/^⏳\s*/, ''), langkah = /AI membaca/i.test(pesan) ? 2 : (/teks|halaman|pdf/i.test(pesan) ? 1 : 0);
+    if (langkah === 0) P50.aiMulai = Date.now();
+    const r = p50StatusAsli_.call(this, p50AiPanel_(pesan, langkah), kelas);
+    const s = el('p48-baca-status'); if (s) s.classList.remove('status-text');
+    return r;
+  }
+  P50.aiMulai = 0; clearInterval(P50.aiTimer);
+  return p50StatusAsli_.apply(this, arguments);
+};
+// status baca di jendela "Isi dengan AI" produk & Smart Paste: teks berkilau selama AI bekerja
+function p50AmatiStatusAi_(id) {
+  const s = el(id); if (!s || s._p50) return; s._p50 = 1;
+  const cek = () => { const t = s.textContent.trim(); s.classList.toggle('p50-ai-baris', /…$|\.\.\.$/.test(t) && !/^[✓✗]/.test(t)); };
+  new MutationObserver(cek).observe(s, { childList: true, characterData: true, subtree: true }); cek();
+}
+['tp-ai-status', 'spp-status', 'spp-baca-status'].forEach(p50AmatiStatusAi_);
+document.addEventListener('DOMContentLoaded', () => ['tp-ai-status', 'spp-status', 'spp-baca-status'].forEach(p50AmatiStatusAi_));
+const p50BukaAiAsli_ = tpIsiAiBuka;
+tpIsiAiBuka = function () { const r = p50BukaAiAsli_.apply(this, arguments); try { p50AmatiStatusAi_('tp-ai-status'); } catch (e) { } return r; };
+</script>
+
+<!-- ===================================================================================
+     PAKET 51 (v2026.10.69) - Memo Gudang HP: Action Log di tombol atas · checklist (batalkan, centang semua, foto kecil) ·
+     invoice sudah dicek tampil bersama + ringkas · Catatan Developer versi HP
+     =================================================================================== -->
+<style>
+  /* ---- DN-134 / DN-451: tombol Action Log ---- */
+  .p51-log-btn { position: relative; }
+  .p51-log-btn .p51-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 800; background: rgba(127,127,127,.25); color: var(--text); }
+  .p51-log-btn .p51-badge.antre { background: #2563eb; color: #fff; }
+  .p51-log-btn .p51-badge.gagal { background: #dc2626; color: #fff; }
+  .p51-log-isi .mso-panel { border: 0; padding: 0; background: none; }
+  .p51-log-kosong { font-size: 12.5px; color: var(--text-dim, #64748b); text-align: center; padding: 18px 0; }
+  /* ---- DN-444: aksi checklist di bawah tombol hijau ---- */
+  .p51-ck-aksi { display: flex; gap: 8px; margin-top: 8px; }
+  .p51-ck-aksi button { flex: 1; font: inherit; font-size: 12.5px; font-weight: 700; padding: 10px 8px; border-radius: 12px; cursor: pointer; border: 1px solid var(--panel-border, #cbd5e1); background: var(--panel, #fff); color: var(--text, #0f172a); }
+  .p51-ck-aksi .p51-ck-semua { border-color: rgba(47,158,110,.55); color: #2f9e6e; }
+  .p51-ck-aksi .p51-ck-batal { border-color: rgba(217,82,79,.5); color: #d9524f; }
+  /* ---- DN-600: foto kecil di checklist (tanpa perbesar) ---- */
+  .p51-foto { pointer-events: none; }
+  /* ---- DN-946: invoice yang sudah dicek ---- */
+  .p51-rw-judul { font-size: 11.5px; font-weight: 800; letter-spacing: .04em; color: var(--text-dim); margin: 14px 2px 6px; text-transform: uppercase; }
+  .p51-rw-kartu { opacity: .5; filter: saturate(.55); border-style: dashed !important; margin-bottom: 8px; cursor: pointer; }
+  .p51-rw-kartu:active { opacity: .8; }
+  .p51-lembar { position: fixed; inset: 0; z-index: 4000; background: rgba(15,23,42,.55); display: flex; align-items: flex-end; justify-content: center; }
+  .p51-lembar-kotak { width: 100%; max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; background: var(--panel, #fff); color: var(--text, #0f172a);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.3); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .p51-lembar-kepala { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; border-bottom: 1px solid var(--panel-border, #e2e8f0); }
+  .p51-lembar-kepala b { flex: 1; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .p51-lembar-kepala button { border: 0; background: rgba(127,127,127,.14); width: 34px; height: 34px; border-radius: 50%; font-size: 16px; cursor: pointer; color: inherit; }
+  .p51-lembar-isi { overflow: auto; padding: 10px 14px 16px; -webkit-overflow-scrolling: touch; }
+  .p51-brg { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--panel-border, #e2e8f0); }
+  .p51-brg img, .p51-brg .p51-tanpa { width: 44px; height: 44px; border-radius: 9px; object-fit: cover; flex: none; background: rgba(127,127,127,.12); display: grid; place-items: center; font-size: 18px; pointer-events: none; }
+  .p51-brg .n { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.35; }
+  .p51-brg .n b { display: block; font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .p51-brg .q { font-size: 17px; font-weight: 800; flex: none; }
+  .p51-kecil { font-size: 11.5px; color: var(--text-dim, #64748b); }
+  /* ---- DN-159: Catatan Developer versi HP ---- */
+  .p51-dvn-filter { display: flex; gap: 6px; overflow-x: auto; padding: 8px 14px 4px; }
+  .p51-dvn-filter button { flex: none; font: inherit; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--panel-border, #cbd5e1); background: none; color: inherit; }
+  .p51-dvn-filter button.aktif { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+  .p51-dvn-cari { margin: 6px 14px 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--panel-border, #cbd5e1); font: inherit; font-size: 14px; background: var(--panel, #fff); color: inherit; }
+  .p51-dvn-kartu { border: 1px solid var(--panel-border, #e2e8f0); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .p51-dvn-kartu.selesai { opacity: .6; }
+  .p51-dvn-atas { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 10.5px; color: var(--text-dim, #64748b); }
+  .p51-dvn-atas b { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text, #0f172a); }
+  .p51-dvn-atas span.pill { padding: 1px 7px; border-radius: 999px; background: rgba(127,127,127,.14); font-weight: 700; }
+  .p51-dvn-isi { font-size: 13.5px; line-height: 1.5; margin: 6px 0; white-space: pre-wrap; word-break: break-word; }
+  .p51-dvn-bawah { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-dim, #64748b); }
+  .p51-dvn-bawah select { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--panel-border, #cbd5e1); background: var(--panel, #fff); color: inherit; margin-left: auto; }
+</style>
+<script>
+/* ============================ PAKET 51 (v2026.10.69) ============================ */
+const P51 = { dvnFilter: 'terbuka', dvnCari: '' };
+function p51Lembar_(judul, isiHtml) {
+  p51TutupLembar();
+  const w = document.createElement('div'); w.className = 'p51-lembar'; w.id = 'p51-lembar';
+  w.innerHTML = `<div class="p51-lembar-kotak" role="dialog" aria-modal="true" aria-label="${pgrAttr(judul)}"><div class="p51-lembar-kepala"><b>${escapeHtml(judul)}</b>
+    <button type="button" aria-label="Tutup" onclick="p51TutupLembar()">✕</button></div><div class="p51-lembar-isi">${isiHtml}</div></div>`;
+  w.addEventListener('click', e => { if (e.target === w) p51TutupLembar(); });
+  document.body.appendChild(w);
+  return w;
+}
+function p51TutupLembar() { const w = el('p51-lembar'); if (w) w.remove(); }
+
+/* ---------- DN-451 / DN-134: Action Log ----------
+   Di bawah tombol Kirim Memo hanya tampil memo yang BELUM berhasil terkirim. Begitu berhasil, memo hilang dari situ dan
+   tersimpan di tombol 🧾 Action Log di sebelah tombol Riwayat (atas). */
+function p51GalHtml_(daftar) {
+  const pn = el('gal-panel'); if (!pn) return '';
+  const simpan = galDaftar, html0 = pn.innerHTML, hid0 = pn.hidden;
+  let html = '';
+  try { galDaftar = daftar; p51GalRenderAsli_(); html = pn.hidden ? '' : pn.innerHTML; }
+  finally { galDaftar = simpan; pn.innerHTML = html0; pn.hidden = hid0; }
+  return html;
+}
+const p51GalRenderAsli_ = galRender;
+galRender = function () {
+  if (!Array.isArray(galDaftar)) return;
+  const semua = galDaftar, belum = semua.filter(x => x.status !== 'terkirim');
+  try { galDaftar = belum; p51GalRenderAsli_.apply(this, arguments); } finally { galDaftar = semua; }
+  try {
+    const pn = el('gal-panel'), b = pn && pn.querySelector('.mso-judul b');
+    if (b && !pn.hidden) b.textContent = '⏳ Belum terkirim · ' + (GAL_LABEL[mgmTabAktif] || '');
+    p51LogTombol_();
+    if (el('p51-log-isi')) p51LogIsi_();
+  } catch (e) { }
+};
+function p51LogTombol_() {
+  const bar = document.querySelector('#screen-memo-gudang .mgm-toolbar'); if (!bar) return;
+  let b = el('p51-btn-log');
+  if (!b) {
+    b = document.createElement('button'); b.type = 'button'; b.id = 'p51-btn-log'; b.className = 'lihat-btn p51-log-btn'; b.onclick = p51BukaLog;
+    const riw = bar.querySelector('button[onclick^="mgmBukaRiwayat"]');
+    if (riw) riw.insertAdjacentElement('afterend', b); else bar.prepend(b);
+  }
+  const jenis = mgmTabAktif, ada = !!GAL_LABEL[jenis];
+  b.style.display = ada ? '' : 'none';
+  if (!ada) return;
+  const tab = (galDaftar || []).filter(x => x.jenis === jenis), gagal = tab.filter(x => x.status === 'gagal').length, antre = tab.filter(x => x.status !== 'terkirim' && x.status !== 'gagal').length;
+  const n = gagal || antre || tab.length;
+  b.innerHTML = `🧾 Action Log${tab.length ? `<span class="p51-badge ${gagal ? 'gagal' : (antre ? 'antre' : '')}">${n}</span>` : ''}`;
+  b.title = tab.length ? `${tab.length} memo · ${antre} antre · ${gagal} gagal` : 'Belum ada memo yang dikirim dari HP ini';
+}
+function p51LogIsi_() {
+  const w = el('p51-log-isi'); if (!w) return;
+  const tab = (galDaftar || []).filter(x => x.jenis === mgmTabAktif);
+  const html = tab.length ? p51GalHtml_(tab) : '';
+  w.innerHTML = html ? `<div class="mso-panel">${html}</div><div class="p51-kecil" style="margin-top:8px;">Menyimpan 10 memo terkirim terakhir di HP ini. Riwayat lengkap ada di tombol Riwayat.</div>`
+    : '<div class="p51-log-kosong">Belum ada memo yang dikirim dari HP ini.</div>';
+}
+function p51BukaLog() {
+  p51Lembar_('🧾 Action Log · ' + (GAL_LABEL[mgmTabAktif] || 'Memo'), '<div id="p51-log-isi" class="p51-log-isi"></div>');
+  p51LogIsi_();
+}
+const p51GantiTabAsli_ = mgmGantiTab;
+mgmGantiTab = function () { const h = p51GantiTabAsli_.apply(this, arguments); try { p51LogTombol_(); p51CkAksi_(); } catch (e) { } return h; };
+
+/* ---------- DN-444: di bawah tombol hijau - Batalkan checklist & Centang semua sesuai invoice ---------- */
+function p51CkAksi_() {
+  const kirim = el('mgm-btn-submit'); if (!kirim) return;
+  let w = el('p51-ck-aksi');
+  const ada = mgmTabAktif === 'barangmasuk' && (mgmCarts.barangmasuk || []).some(it => it.dariChecklist);
+  if (!ada) { if (w) w.remove(); return; }
+  if (!w) {
+    w = document.createElement('div'); w.id = 'p51-ck-aksi'; w.className = 'p51-ck-aksi';
+    w.innerHTML = '<button type="button" class="p51-ck-semua" onclick="p51CentangSemua()">☑ Centang semua sesuai invoice</button><button type="button" class="p51-ck-batal" onclick="p51BatalChecklist()">✕ Batalkan checklist</button>';
+    kirim.insertAdjacentElement('afterend', w);
+  }
+}
+async function p51CentangSemua() {
+  const it = (mgmCarts.barangmasuk || []).filter(x => x.dariChecklist), belum = it.filter(x => (parseFloat(x.qty) || 0) !== Number(x.qtyTarget));
+  if (!belum.length) { pgrToast('Semua item sudah sesuai jumlah invoice.'); return; }
+  const ok = await omniKonfirmasi({ ikon: '☑', judul: 'Centang semua sesuai invoice?', ya: 'Ya, centang semua', tidak: 'Batal',
+    pesan: belum.length + ' SKU diisi sesuai jumlah di invoice. Pastikan barangnya memang sudah dihitung fisik - jumlah masih bisa diubah sebelum Kirim Memo.' });
+  if (!ok) return;
+  belum.forEach(x => { x.qty = Number(x.qtyTarget) || 0; });
+  try { mgmSimpanDraftLokal(); } catch (e) { }
+  mgmRenderCart(); playBeep();
+  pgrToast('☑ ' + belum.length + ' SKU dicentang sesuai invoice');
+}
+async function p51BatalChecklist() {
+  const n = (mgmCarts.barangmasuk || []).filter(x => x.dariChecklist).length;
+  const ok = await omniKonfirmasi({ ikon: '!', judul: 'Batalkan checklist?', ya: 'Ya, batalkan', tidak: 'Tidak',
+    pesan: n + ' SKU dari invoice yang dimuat dihapus dari keranjang. Invoice tetap berstatus Belum Dicek dan bisa dimuat lagi.' });
+  if (!ok) return;
+  mgmCarts.barangmasuk = (mgmCarts.barangmasuk || []).filter(x => !x.dariChecklist);
+  try { mgmChecklistTerpilih = []; } catch (e) { }
+  try { mgmSimpanDraftLokal(); } catch (e) { }
+  mgmRenderCart();
+  pgrToast('Checklist dibatalkan');
+}
+const p51RenderCartAsli_ = mgmRenderCart;
+mgmRenderCart = function () { const h = p51RenderCartAsli_.apply(this, arguments); try { p51CkAksi_(); p51LogTombol_(); } catch (e) { } return h; };
+
+/* ---------- DN-600: foto produk kecil di kartu checklist Barang Masuk (tanpa perbesar) ---------- */
+const p51KartuAsli_ = mgmKartuHtml;
+mgmKartuHtml = function (it) {
+  const h = p51KartuAsli_.apply(this, arguments);
+  if (mgmTabAktif !== 'barangmasuk' || !it || it.tanpaSku || !it.sku) return h;
+  return p43ImgHtml_(it.sku, 'p43-so-foto p51-foto') + h;
+};
+const p51MuatCkAsli_ = mgmMuatChecklistTerpilih;
+mgmMuatChecklistTerpilih = async function () {
+  const r = await p51MuatCkAsli_.apply(this, arguments);
+  try { mgmPastikanKatalog().then(() => { if (mgmTabAktif === 'barangmasuk') mgmRenderCart(); }).catch(() => { }); } catch (e) { }
+  return r;
+};
+
+/* ---------- DN-946: invoice yang sudah dicek tampil bersama (lebih transparan); ketuk = ringkas untuk HP ---------- */
+p34RenderRiwayatChecklist = function (cari) {
+  const wadah = el('mgm-checklist-riwayat'); if (!wadah) return;
+  let daftar = p34ChecklistRiwayat || [];
+  if (cari) daftar = daftar.filter(x => x.noInvoice.toLowerCase().includes(cari) || String(x.inv && x.inv.namaSupplier || '').toLowerCase().includes(cari) || String(x.memo.noMemo || '').toLowerCase().includes(cari));
+  if (!daftar.length) { wadah.innerHTML = ''; return; }
+  const tampil = daftar.slice(0, 60);
+  wadah.innerHTML = `<div class="p51-rw-judul">✓ Sudah dicek (${daftar.length})</div>` + tampil.map(x => {
+    const batal = String(x.memo.status || '').indexOf('Dibatalkan') === 0;
+    return `<div class="section-box mgm-inv-card p51-rw-kartu" role="button" tabindex="0" onclick="p51RingkasMemo('${pgrAttr(x.memo.noMemo)}', '${pgrAttr(x.noInvoice)}')">
+      <div style="display:flex; align-items:center; gap:8px;"><b style="font-size:14px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(x.noInvoice)}</b>
+      <span class="mode-badge" style="background:${batal ? '#dc2626' : '#2f9e6e'}; margin:0; font-size:9.5px;">${batal ? 'Memo dibatalkan' : '✓ Sudah Dicek'}</span></div>
+      ${x.inv ? `<div class="mgm-inv-info"><span class="mgm-inv-sup">${escapeHtml(x.inv.namaSupplier || '-')}</span><span>${escapeHtml(x.inv.tanggal || '')}</span></div>` : ''}
+      <div class="p34-rw-ket">Dicek ${escapeHtml(x.memo.tanggal || '-')}${x.memo.dicatatOleh ? ' oleh ' + escapeHtml(x.memo.dicatatOleh) : ''}</div></div>`;
+  }).join('') + (daftar.length > tampil.length ? '<div class="p34-rw-ket" style="text-align:center;">Menampilkan 60 terbaru - ketik No Invoice / supplier untuk mencari yang lain.</div>' : '');
+};
+function p51ApakahWeb_() { return !!(el('app-web') && el('app-web').style.display === 'block'); }
+async function p51RingkasMemo(noMemo, noInvoice) {
+  if (p51ApakahWeb_()) return mgbBukaDetail(noMemo, 'mobile');
+  p51Lembar_(noInvoice || noMemo, '<div class="p51-kecil" style="text-align:center; padding:20px 0;">Memuat isi memo…</div>');
+  try {
+    const d = await postJson({ aksi: 'lihat_detail_memo_barang_masuk', noMemo, email: currentUserEmail() }, 30000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal memuat');
+    try { await mgmPastikanKatalog(); } catch (e) { }
+    const item = d.item || [], total = item.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+    const isi = el('p51-lembar') && el('p51-lembar').querySelector('.p51-lembar-isi'); if (!isi) return;
+    isi.innerHTML = `<div class="p51-kecil" style="margin-bottom:4px;">${escapeHtml(noMemo)} · ${item.length} SKU · ${total} pcs</div>` +
+      item.map(it => `<div class="p51-brg">${p43ImgHtml_(it.sku, '') || '<span class="p51-tanpa">📦</span>'}<div class="n"><b>${escapeHtml(it.sku || '-')}</b>${escapeHtml(it.nama || '')}</div><div class="q">${Number(it.qty) || 0}</div></div>`).join('')
+      + `<div style="text-align:center; margin-top:12px;"><button type="button" class="mso-btn" onclick="p51TutupLembar(); mgbBukaDetail('${pgrAttr(noMemo)}', 'mobile')">Lihat detail lengkap</button></div>`;
+  } catch (e) {
+    const isi = el('p51-lembar') && el('p51-lembar').querySelector('.p51-lembar-isi');
+    if (isi) isi.innerHTML = '<div class="p51-kecil" style="text-align:center; padding:20px 0; color:#d9524f;">✗ ' + escapeHtml(String(e.message || e)) + '</div>';
+  }
+}
+
+/* ---------- DN-159: Lihat semua Catatan Developer di HP ---------- */
+const p51DvnBukaAsli_ = dvnBukaHalaman;
+dvnBukaHalaman = function () {
+  if (!dvnBoleh_()) { pgrToast('Menu Developer hanya untuk akun Owner.'); return; }
+  if (p51ApakahWeb_()) return p51DvnBukaAsli_.apply(this, arguments);
+  p51DvnBukaHp();
+};
+async function p51DvnBukaHp() {
+  const w = p51Lembar_('📝 Catatan Developer', '<div class="p51-kecil" style="text-align:center; padding:20px 0;">Memuat catatan…</div>');
+  const isi = w.querySelector('.p51-lembar-isi');
+  isi.insertAdjacentHTML('beforebegin', '<div class="p51-dvn-filter" id="p51-dvn-filter"></div><input type="search" class="p51-dvn-cari" id="p51-dvn-cari" placeholder="Cari catatan / halaman / ID…" oninput="P51.dvnCari=this.value.toLowerCase().trim(); p51DvnRender()">');
+  isi.id = 'p51-dvn-isi';
+  try { await dvnMuatDaftar_(true); } catch (e) { }
+  p51DvnRender();
+}
+function p51DvnRender() {
+  const isi = el('p51-dvn-isi'), f = el('p51-dvn-filter'); if (!isi || !f) return;
+  const semua = (typeof DVN !== 'undefined' && DVN.daftar) || [], terbuka = x => x.status === 'Baru' || x.status === 'Dikerjakan';
+  const saring = { terbuka, Selesai: x => x.status === 'Selesai', semua: () => true };
+  f.innerHTML = [['terbuka', 'Terbuka'], ['Selesai', 'Selesai'], ['semua', 'Semua']].map(([k, l]) => `<button type="button" class="${P51.dvnFilter === k ? 'aktif' : ''}" onclick="P51.dvnFilter='${k}'; p51DvnRender()">${l} (${semua.filter(saring[k]).length})</button>`).join('');
+  const q = P51.dvnCari;
+  const rows = semua.filter(saring[P51.dvnFilter] || terbuka).filter(x => !q || (x.catatan + ' ' + x.alamat + ' ' + (x.bagian || '') + ' ' + x.id).toLowerCase().includes(q));
+  isi.innerHTML = rows.length ? rows.map(x => `<div class="p51-dvn-kartu${terbuka(x) ? '' : ' selesai'}">
+      <div class="p51-dvn-atas"><b>${escapeHtml(x.id)}</b><span class="pill">${escapeHtml(x.jenis || '')}</span><span class="pill">${escapeHtml(x.prioritas || '')}</span><span>${escapeHtml(x.alamat || '')}</span></div>
+      <div class="p51-dvn-isi">${escapeHtml(x.catatan || '')}</div>
+      ${x.balasan ? `<div class="p51-kecil">↳ ${escapeHtml(x.balasan)}</div>` : ''}
+      <div class="p51-dvn-bawah"><span>${escapeHtml(x.dibuat || '')}${x.versi ? ' · ' + escapeHtml(x.versi) : ''}</span>
+        <select aria-label="Status ${pgrAttr(x.id)}" onchange="p51DvnStatus('${pgrAttr(x.id)}', this.value)">${['Baru', 'Dikerjakan', 'Selesai', 'Ditolak'].map(s => `<option${s === x.status ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
+    </div>`).join('') : `<div class="p51-kecil" style="text-align:center; padding:20px 0;">${semua.length ? 'Tidak ada catatan untuk filter ini.' : 'Belum ada catatan.'}</div>`;
+}
+async function p51DvnStatus(id, status) { try { await dvnUbah_(id, { status }); } catch (e) { } p51DvnRender(); }
+
+try { p51LogTombol_(); galRender(); } catch (e) { }
+document.addEventListener('DOMContentLoaded', () => { try { p51LogTombol_(); } catch (e) { } });
 </script>
 
 </body>
