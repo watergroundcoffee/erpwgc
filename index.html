@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.72';
+  var VERSI = 'v2026.10.73';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -49801,7 +49801,7 @@ function mgmRenderCart(animasikanItemBaru, flashItemTeratas) {
     lama.delete(k);
     const html = mgmKartuHtml(it, jumlahInvoiceChecklist);
     const sedangKetik = aktif && aktif.tagName === 'INPUT' && n.contains(aktif);
-    if (n._html !== html && !sedangKetik) { n.innerHTML = html; n._html = html; }
+    if (n._html !== html && !sedangKetik) { if (typeof p55PatchKartu_ === 'function') p55PatchKartu_(n, html); else n.innerHTML = html; n._html = html; } // v2026.10.73: foto tidak dimuat ulang
     n.classList.toggle('mgm-ghost', !!(it.dariChecklist && (parseFloat(it.qty) || 0) <= 0));
     if (list.children[idx] !== n) list.insertBefore(n, list.children[idx] || null);
     if (idx === 0 && ((animasikanItemBaru && baru) || flashItemTeratas)) {
@@ -73579,6 +73579,427 @@ function p54HiasMonitor_() {
   });
 }
 (function () { const tb = el('per-mon-body'); if (tb) new MutationObserver(p54HiasMonitor_).observe(tb, { childList: true }); p54HiasMonitor_(); })();
+</script>
+
+
+<!-- ===================================================================================
+     PAKET 55 (v2026.10.73) - Gudang HP: Scan Resi Masuk 2 langkah · Konfirmasi Stok Masuk · klaim kurang ·
+     geser untuk hapus · isi sesuai invoice di dekat Qty · foto tidak dimuat ulang · foto kecil invoice · widget 1 baris
+     =================================================================================== -->
+<style>
+  /* Scan Resi Masuk */
+  #p55-masuk-bar { width: 100%; display: flex; flex-direction: column; gap: 8px; margin: 2px 0 8px; }
+  .p55-langkah { display: flex; gap: 6px; font-size: 11px; color: var(--text-dim); align-items: center; justify-content: center; flex-wrap: wrap; }
+  .p55-langkah span { padding: 2px 9px; border-radius: 999px; border: 1px solid var(--panel-border); }
+  .p55-langkah span.aktif { background: #4f8fc9; border-color: #4f8fc9; color: #fff; font-weight: 700; }
+  .p55-masuk-aksi { display: flex; gap: 8px; }
+  .p55-masuk-aksi button { flex: 1; border-radius: 10px; padding: 10px 8px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid var(--panel-border); background: var(--panel); color: var(--text); }
+  .p55-masuk-aksi button.utama { background: #2f9e6e; border-color: #2f9e6e; color: #fff; }
+  .p55-masuk-manual { background: none; border: 0; color: var(--text-dim); font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer; align-self: center; }
+  .p55-tanya { border: 1px dashed #c99a1f; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; }
+  .p55-tanya b { font-family: ui-monospace, monospace; }
+  .p55-tanya-baris { display: flex; gap: 6px; margin-top: 8px; }
+  .p55-tanya-baris input { flex: 1; min-width: 0; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--panel-border); background: var(--bg, #fff); color: var(--text); font: inherit; }
+  .p55-tanya-baris button, .p55-tanya > button { border-radius: 9px; padding: 8px 12px; font: inherit; font-weight: 700; border: 1px solid var(--panel-border); background: var(--panel); color: var(--text); cursor: pointer; }
+  .p55-tanya > button { margin-top: 6px; width: 100%; font-weight: 600; font-size: 12px; }
+  .p55-info-dlg { font-size: 13px; line-height: 1.5; text-align: left; }
+  .p55-info-dlg div { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px dashed rgba(127,127,127,.25); }
+  .p55-info-dlg small { min-width: 92px; color: var(--web-text-dim, #64748b); }
+  /* kartu keranjang: geser kiri untuk hapus */
+  #mgm-cart-list .mgm-card { overflow: hidden; touch-action: pan-y; }
+  #mgm-cart-list .mgm-card-hapus-kiri { display: none !important; }
+  #mgm-cart-list .mgm-card > *:not(.p55-geser-hapus) { position: relative; z-index: 1; background: var(--panel); transition: transform .18s ease; }
+  #mgm-cart-list .mgm-card.p55-tarik > *:not(.p55-geser-hapus) { transition: none; }
+  #mgm-cart-list .mgm-card.p55-buka > *:not(.p55-geser-hapus) { transform: translateX(-92px); }
+  .p55-geser-hapus { position: absolute; top: 0; right: 0; bottom: 0; width: 92px; z-index: 0; border: 0; background: #dc2626; color: #fff; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
+  @media (hover: hover) and (pointer: fine) {
+    .p55-geser-hapus { top: 6px; right: 6px; bottom: auto; width: auto; height: 24px; padding: 0 9px; border-radius: 7px; font-size: 11px; z-index: 2; opacity: 0; transition: opacity .12s; }
+    #mgm-cart-list .mgm-card:hover .p55-geser-hapus { opacity: 1; }
+  }
+  /* isi sesuai invoice di dekat Qty */
+  .p55-target { cursor: pointer; border-bottom: 1px dashed currentColor; }
+  #p55-ck-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin: 2px 0 6px; width: 100%; box-sizing: border-box; }
+  #p55-ck-bar span { flex: 1; min-width: 0; }
+  #p55-ck-bar button { border: 1px solid #2f9e6e; background: rgba(47,158,110,.1); color: #2f9e6e; border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  #p51-ck-aksi .p51-ck-semua { display: none !important; }
+  /* foto kecil di kartu invoice checklist */
+  .p55-inv-foto { display: flex; gap: 3px; align-items: center; flex: none; pointer-events: none; }
+  .p55-inv-foto span { position: relative; display: inline-block; }
+  .p55-inv-foto img { width: 26px; height: 26px; object-fit: cover; border-radius: 6px; border: 1px solid var(--panel-border); display: block; }
+  .p55-inv-foto i { position: absolute; right: -3px; bottom: -4px; font-style: normal; font-size: 9px; font-weight: 800; background: #111827; color: #fff; border-radius: 6px; padding: 0 3px; line-height: 13px; }
+  .p55-inv-foto em { font-style: normal; font-size: 10px; color: var(--text-dim); }
+  /* klaim barang masuk */
+  .p55-klaim { border: 1px solid #fca5a5; background: rgba(254,226,226,.35); border-radius: 12px; padding: 10px 12px; width: 100%; box-sizing: border-box; font-size: 12.5px; }
+  .p55-klaim h5 { margin: 0 0 6px; font-size: 13px; color: #b91c1c; }
+  .p55-klaim-grup { border-top: 1px dashed rgba(185,28,28,.3); padding: 8px 0 2px; }
+  .p55-klaim-grup:first-of-type { border-top: 0; }
+  .p55-klaim ul { margin: 4px 0 6px; padding-left: 18px; }
+  .p55-klaim-aksi { display: flex; flex-wrap: wrap; gap: 6px; }
+  .p55-klaim-aksi button { border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--panel-border); background: var(--panel); color: var(--text); }
+  .p55-klaim-aksi button.wa { border-color: #25d366; color: #128c4a; }
+  .p55-klaim-aksi button.minus { border-color: #dc2626; color: #b91c1c; }
+  .p55-mgb-ke { display: block; font-size: 10.5px; color: var(--web-text-dim, #64748b); }
+  .p55-mgb-foto { width: 26px; height: 26px; object-fit: cover; border-radius: 5px; vertical-align: middle; margin-right: 6px; }
+  /* widget HP 1 baris + ruang bawah */
+  #p55-dock { position: fixed; left: 10px; bottom: calc(var(--m2-nav, 0px) + 12px + env(safe-area-inset-bottom, 0px)); z-index: 8500; display: flex; gap: 6px; align-items: center; pointer-events: none; max-width: calc(100vw - 20px); }
+  #p55-dock > * { pointer-events: auto; position: static !important; margin: 0 !important; white-space: nowrap; }
+  #p55-dock #dvn-fab { padding: 6px 10px; }
+  #p55-dock #omxlog-pill { padding: 6px 10px; }
+  html.omx-hp #app main::after { content: ''; display: block; height: 72px; }
+</style>
+<script>
+/* ============================ PAKET 55 (v2026.10.73) ============================ */
+const P55 = { tunggu: null, invFotoT: 0 };
+function p55HP_() { return !(typeof p51ApakahWeb_ === 'function' && p51ApakahWeb_()); }
+
+/* ---------- DN-945: qty berubah -> foto tidak dimuat ulang (dipanggil dari mgmRenderCart) ---------- */
+function p55PatchKartu_(n, html) {
+  if (!n.firstChild) { n.innerHTML = html; return; }
+  const t = document.createElement('template'); t.innerHTML = html;
+  const lama = Array.from(n.querySelectorAll('img'));
+  t.content.querySelectorAll('img').forEach(img => {
+    const s = img.getAttribute('src'), i = lama.findIndex(o => o.getAttribute('src') === s);
+    if (i >= 0) { img.replaceWith(lama[i]); lama.splice(i, 1); }
+  });
+  n.replaceChildren(t.content);
+}
+
+/* ---------- DN-720: geser kiri = tombol Hapus (selalu dikonfirmasi) · DN-589: isi sesuai invoice ---------- */
+const p55KartuAsli_ = mgmKartuHtml;
+mgmKartuHtml = function (it) {
+  let h = p55KartuAsli_.apply(this, arguments);
+  if (mgmTabAktif === 'barangmasuk' && it && it.dariChecklist)
+    h = h.replace('<span class="mgm-card-meta', '<span role="button" title="Ketuk = isi sesuai invoice" onclick="p55IsiTarget(this)" class="p55-target mgm-card-meta');
+  return h + '<button type="button" class="p55-geser-hapus" onclick="p55HapusKartu(this)">🗑 Hapus</button>';
+};
+function p55IsiTarget(node) {
+  const idx = mgmIdx(node), it = (mgmCarts[mgmTabAktif] || [])[idx]; if (!it || !it.dariChecklist) return;
+  it.qty = Number(it.qtyTarget) || 0; window.mgmSentuhTerakhir = Date.now();
+  mgmSimpanDraftLokal(); mgmRenderCart();
+}
+async function p55HapusKartu(btn) {
+  const idx = mgmIdx(btn), it = (mgmCarts[mgmTabAktif] || [])[idx]; if (!it) return;
+  const ok = await omniKonfirmasi({ ikon: '🗑', judul: 'Hapus barang ini?', ya: 'Ya, hapus', tidak: 'Batal',
+    pesan: (it.tanpaSku ? it.nama : it.sku + (it.nama && it.nama !== it.sku ? ' · ' + it.nama : '')) + ' (qty ' + (it.qty || 0) + ') dihapus dari daftar.' });
+  const kartu = btn.closest('.mgm-card'); if (kartu) kartu.classList.remove('p55-buka');
+  if (!ok) return;
+  const i2 = (mgmCarts[mgmTabAktif] || []).indexOf(it); if (i2 >= 0) mgmHapusItem(i2);
+}
+(function () {
+  let g = null;
+  const tutupSemua = kec => document.querySelectorAll('#mgm-cart-list .mgm-card.p55-buka').forEach(k => { if (k !== kec) k.classList.remove('p55-buka'); });
+  document.addEventListener('touchstart', e => {
+    const k = e.target.closest && e.target.closest('#mgm-cart-list .mgm-card');
+    if (!k) { tutupSemua(null); return; }
+    if (e.target.closest('input, .p55-geser-hapus')) return;
+    g = { k, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, geser: false, buka: k.classList.contains('p55-buka') };
+    tutupSemua(k);
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!g) return;
+    const dx = e.touches[0].clientX - g.x, dy = e.touches[0].clientY - g.y;
+    if (!g.geser) { if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.3) { if (Math.abs(dy) > 12) g = null; return; } g.geser = true; g.k.classList.add('p55-tarik'); }
+    g.dx = Math.max(-120, Math.min(0, dx + (g.buka ? -92 : 0)));
+    Array.from(g.k.children).forEach(c => { if (!c.classList.contains('p55-geser-hapus')) c.style.transform = 'translateX(' + g.dx + 'px)'; });
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if (!g) return; const k = g.k;
+    if (g.geser) { Array.from(k.children).forEach(c => { c.style.transform = ''; }); k.classList.remove('p55-tarik'); k.classList.toggle('p55-buka', g.dx < -46); }
+    g = null;
+  }, { passive: true });
+})();
+function p55CkBar_() {
+  const list = el('mgm-cart-list'); if (!list) return;
+  let bar = el('p55-ck-bar');
+  const item = (mgmCarts.barangmasuk || []).filter(it => it.dariChecklist);
+  if (mgmTabAktif !== 'barangmasuk' || !item.length) { if (bar) bar.remove(); const p = el('mgm-progres'); if (p) p.style.visibility = ''; return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'p55-ck-bar'; list.parentNode.insertBefore(bar, list); }
+  const disentuh = item.filter(it => (parseFloat(it.qty) || 0) > 0).length, pas = item.filter(it => (parseFloat(it.qty) || 0) === Number(it.qtyTarget)).length;
+  const teks = `Dicek ${disentuh} / ${item.length} SKU${pas === item.length ? ' · semua sesuai ✓' : ''}`;
+  if (bar.dataset.t !== teks) { bar.dataset.t = teks; bar.innerHTML = `<span>${escapeHtml(teks)}</span><button type="button" onclick="p51CentangSemua()" title="Isi semua qty sesuai invoice (dikonfirmasi dulu)">☑ Semua = invoice</button>`; }
+  const p = el('mgm-progres'); if (p) p.style.display = 'none';
+}
+
+/* ---------- DN-266: Konfirmasi Stok Masuk (bukan "Kirim Memo") ---------- */
+function p55LabelTombol_() {
+  const b = el('mgm-btn-submit'); if (!b || typeof mgmTabAktif === 'undefined') return;
+  if (mgmTabAktif === 'barangmasuk') { if (b.textContent !== '✅ Konfirmasi Stok Masuk') b.textContent = '✅ Konfirmasi Stok Masuk'; }
+}
+const p55RenderCartAsli_ = mgmRenderCart;
+mgmRenderCart = function () { const h = p55RenderCartAsli_.apply(this, arguments); try { p55CkBar_(); p55LabelTombol_(); } catch (e) { } return h; };
+const p55GantiTabAsli_ = mgmGantiTab;
+mgmGantiTab = function () { const h = p55GantiTabAsli_.apply(this, arguments); try { p55LabelTombol_(); p55CkBar_(); } catch (e) { } return h; };
+// setelah dikonfirmasi: SEMUA baris checklist (termasuk qty 0 = kurang) ikut selesai -> HP lain diberi tahu selesai
+const p55GalKirimAsli_ = galKirimDariKeranjang;
+galKirimDariKeranjang = function (tab) {
+  const adaCk = tab === 'barangmasuk' && (mgmCarts.barangmasuk || []).some(it => it.dariChecklist && (parseFloat(it.qty) || 0) > 0);
+  const n0 = (galDaftar || []).length;
+  const h = p55GalKirimAsli_.apply(this, arguments);
+  try {
+    if (tab === 'barangmasuk' && (galDaftar || []).length > n0) {
+      if (adaCk) { mgmCarts.barangmasuk = (mgmCarts.barangmasuk || []).filter(it => !it.dariChecklist); mgmSimpanDraftLokal(); mgmRenderCart(); }
+      const st = el('mgm-status'); if (st) { st.textContent = '✅ Stok masuk dicatat - disahkan otomatis di latar. Lanjut bongkar paket berikutnya.'; st.className = 'status-text ok'; }
+    }
+  } catch (e) { }
+  return h;
+};
+const p55KirimAsli_ = kirimKeWebApp;
+kirimKeWebApp = async function (body) {
+  const r = await p55KirimAsli_.apply(this, arguments);
+  try {
+    if (body && body.aksi === 'simpan_memo_barang_masuk' && r && r.success && r.p55) {
+      const p = r.p55;
+      if (p.status === 'disahkan' && p.kurang && p.kurang.length) omniToast(`⚠ ${r.noMemo}: stok masuk, ${p.kurang.length} SKU kurang dicatat sebagai klaim - salin pesan WA di Riwayat.`, 'peringatan');
+      else if (p.status === 'disahkan' || p.status === 'sesuai') pgrToast(`✓ ${r.noMemo}: stok masuk & disahkan${p.status === 'sesuai' ? ' (sesuai invoice)' : ''}`);
+      else if (p.status === 'perluCek') omniToast(`${r.noMemo}: stok masuk, tapi kode SKU invoice berbeda - Owner mencocokkan di web.`, 'peringatan');
+    }
+  } catch (e) { }
+  return r;
+};
+// HP lain: checklist dikonfirmasi orang lain -> langsung selesai juga di HP ini
+const p55BannerAsli_ = p12MSBanner;
+p12MSBanner = function () {
+  const h = p55BannerAsli_.apply(this, arguments);
+  try {
+    const s = p12MS.selesai;
+    if (s && s.perangkat !== P12_PERANGKAT && p12MS.kunci && (mgmCarts.barangmasuk || []).some(it => it.dariChecklist)) {
+      const kunci = p12MS.kunci;
+      mgmCarts.barangmasuk = (mgmCarts.barangmasuk || []).filter(it => !it.dariChecklist);
+      mgmSimpanDraftLokal(); p12MSReset(''); mgmRenderCart();
+      omniToast(`✓ Checklist ${kunci} sudah dikonfirmasi oleh ${s.oleh} - selesai juga di HP ini.`, 'sukses');
+    }
+  } catch (e) { }
+  return h;
+};
+
+/* ---------- DN-900: Riwayat Barang Masuk - status jelas + klaim kurang (Jurnal minus / Salin WA) ---------- */
+const p55RiwayatAsli_ = mgmBukaRiwayat;
+mgmBukaRiwayat = async function () {
+  const jenis = mgmTabAktif;
+  const r = await p55RiwayatAsli_.apply(this, arguments);
+  if (jenis !== 'barangmasuk') return r;
+  try {
+    document.querySelectorAll('#mgm-riwayat-list .mode-badge').forEach(b => {
+      const t = b.textContent.trim();
+      if (t === 'Menunggu Verifikasi' || t === 'Menunggu') { b.textContent = '✓ Stok masuk · menunggu invoice'; b.style.background = '#3f7fc9'; b.title = 'Stok sudah bertambah. Dicocokkan otomatis begitu invoice pembeliannya diinput.'; }
+      else if (t === 'Selesai (Klaim)') b.textContent = '✓ Selesai · ada klaim';
+    });
+    await p55KlaimRender_();
+  } catch (e) { }
+  return r;
+};
+let p55KlaimData = null;
+async function p55KlaimRender_() {
+  const list = el('mgm-riwayat-list'); if (!list) return;
+  const d = await postJson({ aksi: 'p55_bm_klaim_daftar', email: currentUserEmail() }, 30000, true);
+  if (!d || !d.success) return;
+  p55KlaimData = d;
+  let w = el('p55-klaim'); if (w) w.remove();
+  if (!d.wa || !d.wa.length) return;
+  const per = {}; (d.daftar || []).forEach(k => { const g = k.supplier + '|' + k.noInvoice; (per[g] = per[g] || []).push(k); });
+  const html = d.wa.map((g, i) => {
+    const isi = per[g.supplier + '|' + g.noInvoice] || [];
+    return `<div class="p55-klaim-grup"><b>${escapeHtml(g.supplier || 'Supplier')}</b> · ${escapeHtml(g.noInvoice || '-')}
+      <ul>${isi.map(k => `<li>${escapeHtml(k.nama || k.sku)} <small>(${escapeHtml(k.sku)})</small> - kurang <b>${k.qty}</b></li>`).join('')}</ul>
+      <div class="p55-klaim-aksi"><button type="button" class="wa" onclick="p55KlaimSalin(${i})">📋 Salin pesan klaim WA</button>
+      ${d.bolehSelesaikan ? `<button type="button" class="minus" onclick="p55KlaimSelesai(${i}, 'jurnal')">Catat ke Jurnal (minus)</button><button type="button" onclick="p55KlaimSelesai(${i}, 'diganti')">Sudah diganti supplier</button>` : ''}</div></div>`;
+  }).join('');
+  list.insertAdjacentHTML('afterbegin', `<div class="p55-klaim" id="p55-klaim"><h5>⚠ Barang kurang - menunggu klaim (${(d.daftar || []).length} SKU)</h5>${html}</div>`);
+  if (el('mgm-riwayat-empty')) el('mgm-riwayat-empty').style.display = 'none';
+}
+async function p55KlaimSalin(i) {
+  const g = p55KlaimData && p55KlaimData.wa[i]; if (!g) return;
+  try { await navigator.clipboard.writeText(g.teks); pgrToast('✓ Pesan klaim disalin - tempel di chat WhatsApp supplier'); }
+  catch (e) { omniDialog({ judul: 'Salin pesan klaim', isiHtml: `<textarea style="width:100%; min-height:160px;" readonly>${escapeHtml(g.teks)}</textarea>` }); }
+}
+async function p55KlaimSelesai(i, cara) {
+  const g = p55KlaimData && p55KlaimData.wa[i]; if (!g) return;
+  const ok = await omniKonfirmasi({ ikon: cara === 'jurnal' ? '−' : '✓', ya: cara === 'jurnal' ? 'Ya, catat minus' : 'Ya, sudah diganti', tidak: 'Batal',
+    judul: cara === 'jurnal' ? 'Catat kekurangan ke Jurnal Penyesuaian?' : 'Kekurangan sudah diganti supplier?',
+    pesan: cara === 'jurnal' ? 'Kekurangan dari ' + (g.supplier || 'supplier') + ' (' + g.noInvoice + ') dicatat sebagai kerugian (Penyesuaian Negatif). Stok tidak berubah lagi.' : 'Klaim ditutup. Barang pengganti dicatat lewat Barang Masuk seperti biasa.' });
+  if (!ok) return;
+  const r = await postJsonTulis({ aksi: 'p55_bm_klaim_selesaikan', ids: g.ids, cara, email: currentUserEmail() }, 60000);
+  if (!r || !r.success) { omniNotif('Gagal: ' + ((r && r.error) || '')); return; }
+  pgrToast('✓ Klaim ' + r.status); p55KlaimRender_();
+}
+
+/* ---------- DN-200454 & DN-413: detail memo - tanpa pesan "ID kirim", nama & foto lewat SKU mapping ---------- */
+const p55DetailAsli_ = mgbBukaDetail;
+mgbBukaDetail = async function () {
+  const r = await p55DetailAsli_.apply(this, arguments);
+  try {
+    document.querySelectorAll('#mgb-isi .mgb-catatan').forEach(c => { if (/^\s*[a-z]{2,4}-[a-z0-9]{6,}-[a-z0-9]{4,}\s*$/i.test(c.textContent)) c.remove(); });
+    try { if (!P49.peta) await p49PetaMapping_(); } catch (e) { }
+    try { if (typeof mgmPastikanKatalog === 'function') await mgmPastikanKatalog(); } catch (e) { }
+    document.querySelectorAll('#mgb-isi .mgb-tabel tbody tr').forEach(tr => {
+      const td = tr.children; if (td.length < 3 || tr.dataset.p55) return;
+      const sku = (td[0].textContent || '').trim(); if (!sku || /^total$/i.test(sku)) return;
+      const p = p53ProdukDariKode_(sku); if (!p) return; tr.dataset.p55 = '1';
+      const nama = (td[1].textContent || '').trim();
+      if (!nama || nama === '-' || nama === sku) td[1].textContent = p.nama || nama;
+      if (String(p.sku).toUpperCase() !== sku.toUpperCase()) td[0].insertAdjacentHTML('beforeend', `<span class="p55-mgb-ke">→ ${escapeHtml(p.sku)}</span>`);
+      const f = p.foto || p.urlFoto; if (f) td[1].insertAdjacentHTML('afterbegin', `<img class="p55-mgb-foto" src="${pgrAttr(p43Thumb(f, 60))}" alt="" loading="lazy">`);
+    });
+  } catch (e) { }
+  return r;
+};
+
+/* ---------- DN-329: foto kecil barang di kartu invoice checklist ---------- */
+const p55DaftarCkAsli_ = mgmRenderDaftarChecklist;
+mgmRenderDaftarChecklist = function () {
+  const h = p55DaftarCkAsli_.apply(this, arguments);
+  try {
+    const peta = {}; (mgmChecklistDaftarInvoice || []).forEach(inv => { peta[inv.noInvoice] = inv; });
+    let perluKatalog = false;
+    document.querySelectorAll('#mgm-checklist-list .mgm-inv-card[data-no-invoice]').forEach(k => {
+      const inv = peta[k.dataset.noInvoice]; if (!inv || !Array.isArray(inv.p55Item) || k.querySelector('.p55-inv-foto')) return;
+      const grup = new Map();
+      inv.p55Item.forEach(([sku, q]) => { const f = p43FotoSku_(sku); if (!f) { perluKatalog = true; return; } const g = grup.get(f) || { f, q: 0 }; g.q += Number(q) || 0; grup.set(f, g); });
+      if (!grup.size) return;
+      const isi = Array.from(grup.values()), tampil = isi.slice(0, 4);
+      const baris = k.firstElementChild; if (!baris) return;
+      baris.insertAdjacentHTML('beforeend', `<span class="p55-inv-foto">${tampil.map(g => `<span><img src="${pgrAttr(p43Thumb(g.f, 60))}" alt="" loading="lazy">${g.q > 1 ? `<i>x${g.q}</i>` : ''}</span>`).join('')}${isi.length > 4 ? `<em>+${isi.length - 4}</em>` : ''}</span>`);
+    });
+    if (perluKatalog && Date.now() - P55.invFotoT > 20000) {
+      P55.invFotoT = Date.now();
+      Promise.all([typeof mgmPastikanKatalog === 'function' ? mgmPastikanKatalog() : null, P49.peta ? null : p49PetaMapping_()]).then(() => { try { if (el('screen-memo-gudang-checklist').style.display !== 'none') p55DaftarCkAsli_ && mgmRenderDaftarChecklist(); } catch (e) { } }).catch(() => { });
+    }
+  } catch (e) { }
+  return h;
+};
+
+/* ---------- DN-682: Scan Resi Masuk 2 langkah (Terima Paket -> Bongkar Paket -> Konfirmasi) ---------- */
+modeConfig.masuk = { label: 'RESI MASUK', color: '#4f8fc9' };
+const p55SubmenuAsli_ = showSubmenu;
+showSubmenu = function () { startScan('masuk'); };
+function p55MasukBar_() {
+  const scr = el('screen-scan'); if (!scr) return;
+  let bar = el('p55-masuk-bar');
+  if (currentMode !== 'masuk') { if (bar) bar.style.display = 'none'; return; }
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'p55-masuk-bar';
+    const badge = el('scan-mode-badge'); badge.insertAdjacentElement('afterend', bar);
+  }
+  bar.style.display = '';
+  const tahap = P55.tunggu ? 1 : 1;
+  bar.innerHTML = `<div class="p55-langkah"><span class="aktif">1 Terima Paket</span>›<span>2 Bongkar Paket</span>›<span>3 Konfirmasi</span></div>
+    <div id="p55-tanya-wadah"></div>
+    <div class="p55-masuk-aksi"><button type="button" class="utama" onclick="p55BongkarManual()" title="Buka checklist barang masuk (juga bila lupa scan resi)">📦 Bongkar Paket</button></div>
+    <button type="button" class="p55-masuk-manual" onclick="P55.tunggu=null; p55SubmenuAsli_()">Pilih jenis manual (Retur / Pembelian)</button>`;
+  p55TanyaRender_();
+}
+const p55StartAsli_ = startScan;
+startScan = function (mode) {
+  if (mode !== 'masuk') P55.tunggu = null;
+  const h = p55StartAsli_.apply(this, arguments);
+  try { p55MasukBar_(); } catch (e) { }
+  return h;
+};
+function p55TanyaRender_() {
+  const w = el('p55-tanya-wadah'); if (!w) return;
+  const t = P55.tunggu;
+  w.innerHTML = !t ? '' : `<div class="p55-tanya">Resi <b>${escapeHtml(t.resi)}</b> belum dikenal sistem.<br>Scan / ketik <b>ID pesanan</b> yang tertulis di label paket.
+    <div class="p55-tanya-baris"><input id="p55-id-pesanan" placeholder="ID pesanan / No Invoice" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault(); p55CekPesananDariInput();}"><button type="button" onclick="p55CekPesananDariInput()">Cek</button></div>
+    <button type="button" onclick="p55TanpaId()">Tidak ada ID pesanan → checklist kosong</button></div>`;
+}
+function p55CekPesananDariInput() { const v = (el('p55-id-pesanan') && el('p55-id-pesanan').value || '').trim(); if (v && P55.tunggu) p55CekPesanan(P55.tunggu.resi, v); }
+function p55TanpaId() { const t = P55.tunggu; if (!t) return; P55.tunggu = null; p55TanyaRender_(); p55MulaiPembelian(t.resi, [], null, false); }
+function p55Status_(teks, kelas) { const s = el('last-status'); if (s) { s.textContent = teks; s.className = 'status-text ' + (kelas || ''); } }
+const p55MasukAntreanAsli_ = scanMasukAntrean;
+scanMasukAntrean = function (kode) {
+  if (currentMode !== 'masuk' || scanPendingModeAktif) return p55MasukAntreanAsli_.apply(this, arguments);
+  kode = String(kode || '').trim(); if (!kode) return;
+  if (P55.tunggu && !resiSama(P55.tunggu.resi, kode)) { p55CekPesanan(P55.tunggu.resi, kode); return; }
+  p55TerimaResi(kode);
+};
+async function p55Cek_(body) {
+  const r = await postJson(Object.assign({ aksi: 'p55_resi_masuk_cek', email: currentUserEmail() }, body), 30000, true);
+  if (!r || !r.success) throw new Error((r && r.error) || 'Tidak ada jawaban server');
+  return r;
+}
+async function p55TerimaResi(resi) {
+  if (P55.sibuk) return; P55.sibuk = true;
+  try {
+    playBeep(); p55Status_('🔎 Memeriksa resi ' + resi + '…');
+    const r = await p55Cek_({ noResi: resi });
+    if (r.jenis === 'retur') return await p55DialogRetur(resi, r);
+    if (r.jenis === 'pembelian') return await p55MulaiPembelian(resi, r.noInvoices || [], r.pembelian, r.sudahStock);
+    P55.tunggu = { resi, sudahStock: r.sudahStock }; p55TanyaRender_();
+    p55Status_('Resi ' + resi + ' belum dikenal - scan ID pesanan di label paket.', 'dup');
+    setTimeout(() => { const i = el('p55-id-pesanan'); if (i && inputMode !== 'manual') i.focus(); }, 150);
+  } catch (e) { playToot(); p55Status_('✗ ' + (e.message || e), 'err'); }
+  finally { P55.sibuk = false; }
+}
+async function p55CekPesanan(resi, id) {
+  if (P55.sibuk) return; P55.sibuk = true;
+  try {
+    p55Status_('🔎 Mencari ID pesanan ' + id + '…');
+    const r = await p55Cek_({ noResi: resi, noPesanan: id });
+    P55.tunggu = null; p55TanyaRender_();
+    if (r.jenis === 'retur') return await p55DialogRetur(resi, r, id);
+    if (r.jenis === 'pembelian') return await p55MulaiPembelian(resi, r.noInvoices || [], r.pembelian, r.sudahStock);
+    pgrToast('ID ' + id + ' tidak ada di pesanan maupun pembelian - dibuat checklist kosong.');
+    return await p55MulaiPembelian(resi, [], null, r.sudahStock);
+  } catch (e) { playToot(); p55Status_('✗ ' + (e.message || e), 'err'); }
+  finally { P55.sibuk = false; }
+}
+async function p55CatatScan_(tipe, resi) {
+  const d = await postJsonTulis({ aksi: 'scan', tipe, noResi: resi, email: currentUserEmail() }, 60000);
+  if (d && (d.success || d.duplicate)) return d;
+  throw new Error((d && d.error) || 'Gagal menyimpan resi');
+}
+async function p55DialogRetur(resi, r, idPesanan) {
+  const rt = r.retur || {}, ps = r.pesanan || {};
+  const baris = [['Jenis', '↩ Retur customer'], ['Marketplace', rt.sumber || ps.sumber], ['No Pesanan', rt.orderId || ps.noInvoice || idPesanan], ['Pembeli', ps.pembeli],
+    ['Isi barang', rt.produk], ['Alasan', rt.alasan], ['Status', rt.status || ps.status], ['Resi', resi]].filter(x => x[1]);
+  const dl = await omniDialog({ judul: 'Paket retur', ikon: '↩',
+    isiHtml: `<div class="p55-info-dlg">${baris.map(x => `<div><small>${escapeHtml(x[0])}</small><b>${escapeHtml(String(x[1]))}</b></div>`).join('')}</div>${r.sudahRetur || rt.sudahDiterima ? '<p style="color:#b45309; font-size:12px;">Resi ini sudah pernah dicatat diterima.</p>' : ''}`,
+    tombol: [{ label: 'Batal', nilai: 'batal', kelas: 'web-btn-secondary' }, { label: '✓ Paket diterima', nilai: 'ok', kelas: 'web-btn-primary' }] });
+  if (!dl || dl.nilai !== 'ok') { p55Status_('Dibatalkan - resi belum dicatat.'); return; }
+  const d = await p55CatatScan_('retur', resi);
+  playBeep(); if (navigator.vibrate) navigator.vibrate(80);
+  p55Status_(d.duplicate ? '⚠ Resi retur sudah tercatat sebelumnya: ' + resi : (d.returTikTokCocok ? '✓ Retur diterima & ditandai di ' + (rt.sumber || 'marketplace') + ': ' + resi : '✓ Retur diterima: ' + resi), d.duplicate ? 'dup' : 'ok');
+}
+async function p55MulaiPembelian(resi, noInvoices, pb, sudahStock) {
+  if (!sudahStock) { try { await p55CatatScan_('stock', resi); } catch (e) { omniNotif('Resi ' + resi + ' belum tersimpan: ' + (e.message || e)); return; } }
+  playBeep();
+  const sudahDicek = pb && pb.statusDicek && pb.statusDicek !== 'Belum Dicek';
+  const ket = noInvoices.length ? `Pembelian <b>${escapeHtml(noInvoices.join(', '))}</b>${pb && pb.supplier ? ' · ' + escapeHtml(pb.supplier) : ''}${sudahDicek ? '<br><span style="color:#b45309;">Invoice ini sudah pernah dicek.</span>' : ''}` : 'Tidak ada invoice yang cocok - checklist dibuat <b>kosong</b>, scan barangnya satu per satu.';
+  p55Status_('✓ Paket pembelian diterima: ' + resi, 'ok');
+  const dl = await omniDialog({ judul: 'Paket pembelian diterima', ikon: '📦', isiHtml: `<div style="font-size:13px; line-height:1.5;">Resi <b>${escapeHtml(resi)}</b> tercatat.<br>${ket}</div>`,
+    tombol: [{ label: 'Nanti', nilai: 'nanti', kelas: 'web-btn-secondary' }, { label: '📦 Bongkar sekarang', nilai: 'ok', kelas: 'web-btn-primary' }] });
+  if (!dl || dl.nilai !== 'ok') return;
+  await p55Bongkar(resi, sudahDicek ? [] : noInvoices);
+}
+async function p55Bongkar(resi, noInvoices) {
+  const sisa = (mgmCarts.barangmasuk || []).filter(it => (parseFloat(it.qty) || 0) > 0).length;
+  if (sisa && !(await omniKonfirmasi({ ikon: '!', judul: 'Masih ada barang belum dikonfirmasi', pesan: sisa + ' SKU di Barang Masuk belum dikonfirmasi dan akan diganti checklist paket ini. Lanjut?', ya: 'Lanjut', tidak: 'Batal' }))) return;
+  bukaMemoGudangMobile(); mgmGantiTab('barangmasuk');
+  if (noInvoices && noInvoices.length) {
+    P39.resiStock = resi; mgmChecklistTerpilih = noInvoices.slice();
+    await mgmMuatChecklistTerpilih();
+  } else {
+    mgmCarts.barangmasuk = []; mgmSimpanDraftLokal(); mgmRenderCart();
+    const sj = el('mgm-no-sj'); if (sj) { sj.value = resi; try { localStorage.setItem('mgm_no_sj', resi); } catch (e) { } }
+    pgrToast('Checklist kosong - scan / ketik barang yang ada di paket ' + resi);
+  }
+}
+async function p55BongkarManual() { bukaMemoGudangMobile(); mgmGantiTab('barangmasuk'); await mgmBukaChecklist(); }
+
+/* ---------- DN-218: widget HP 1 baris, hanya muncul saat perlu, tidak menutup tombol bawah ---------- */
+function p55Dock_() {
+  if (!document.documentElement.classList.contains('omx-hp') || !p55HP_()) {
+    const d = el('p55-dock'); if (d) { Array.from(d.children).forEach(c => document.body.appendChild(c)); d.remove(); } return;
+  }
+  let d = el('p55-dock'); if (!d) { d = document.createElement('div'); d.id = 'p55-dock'; document.body.appendChild(d); }
+  ['dvn-fab', 'omxlog-pill'].forEach(id => { const x = el(id); if (x && x.parentNode !== d) d.appendChild(x); });
+  const pill = el('omxlog-pill');
+  if (pill && !pill.hidden && !pill.classList.contains('jalan') && !pill.classList.contains('gagal')) {
+    if (!pill.dataset.p55t) pill.dataset.p55t = String(Date.now());
+    if (Date.now() - Number(pill.dataset.p55t) > 4000) pill.hidden = true; // "Semua tersimpan" cukup kilas sebentar
+  } else if (pill) delete pill.dataset.p55t;
+}
+setInterval(() => { try { p55Dock_(); } catch (e) { } }, 1500); setTimeout(p55Dock_, 600);
 </script>
 
 </body>
