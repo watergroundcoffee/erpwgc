@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.98';
+  var VERSI = 'v2026.10.99';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -82232,6 +82232,108 @@ async function p79SoLatar_() {
     if (total) { pgrToast(`✓ ${total} memo Stock Opname diterapkan ke stok`); P79.soJalan = true; await p79BmmMuatAsli_(true, true); }
   } finally { P79.soJalan = false; }
 }
+</script>
+
+<style>
+  /* ============ PAKET 80 (v2026.10.99) ============ */
+  .p80-toko { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; }
+  .p80-toko b { font-weight: 600; color: var(--web-text-dim, #64748b); }
+  .p80-toko button { border: 1.5px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); border-radius: 999px; padding: 4px 12px; font: inherit; font-weight: 600; cursor: pointer; color: var(--web-text, #0f172a); }
+  .p80-toko button.aktif[data-toko="Waterground"] { background: #14532d; border-color: #14532d; color: #fff; }
+  .p80-toko button.aktif[data-toko="Conner"] { background: #4c1d95; border-color: #4c1d95; color: #fff; }
+  .p80-nama-mp { font-size: 11px; color: var(--web-text-dim, #64748b); margin: -2px 0 8px; }
+  .p80-nama-mp b { color: var(--web-text, #0f172a); }
+  .p79-pf[disabled] { opacity: .45; cursor: not-allowed; }
+</style>
+<script>
+/* ============================ PAKET 80 (v2026.10.99) ============================ */
+const P80 = { toko: (typeof currentToko !== 'undefined' && /conner/i.test(currentToko)) ? 'Conner' : 'Waterground', tokoUpload: null, koneksi: null };
+
+/* ---------- DN-847: pilih toko tujuan upload (satu toko saja) ---------- */
+function p80Pasang_() {
+  const sak = document.querySelector('#p79-mp .p79-sakelar'); if (!sak || el('p80-toko')) return;
+  sak.insertAdjacentHTML('beforebegin', `<div class="p80-toko" id="p80-toko" role="radiogroup" aria-label="Toko tujuan upload"><b>Toko:</b>${['Waterground', 'Conner'].map(t => `<button type="button" role="radio" data-toko="${t}" onclick="p80PilihToko('${t}')">${t}</button>`).join('')}</div>`);
+  sak.insertAdjacentHTML('afterend', '<div class="p80-nama-mp" id="p80-nama-mp"></div>');
+  ['tp-nama', 'tp-merk'].forEach(id => { const i = el(id); if (i) i.addEventListener('input', p80NamaMp_); });
+  p80TokoRender_(); p80NamaMp_();
+}
+function p80TokoRender_() {
+  document.querySelectorAll('#p80-toko button').forEach(b => { const a = b.dataset.toko === P80.toko; b.classList.toggle('aktif', a); b.setAttribute('aria-checked', String(a)); });
+  const k = P80.koneksi && P80.koneksi[P80.toko];
+  document.querySelectorAll('#p79-mp .p79-pf').forEach(b => {
+    const ok = !k || !!k[b.dataset.pf];
+    b.disabled = !ok; b.title = ok ? '' : `${P79_LABEL[b.dataset.pf]} toko ${P80.toko} belum terhubung (Pengaturan > Otorisasi Marketplace)`;
+    if (!ok && P79.aktif[b.dataset.pf]) p79Sakelar(b.dataset.pf);
+  });
+}
+function p80PilihToko(t) {
+  if (P80.toko === t) return;
+  P80.toko = t;
+  ['shopee', 'tiktok'].forEach(pf => { P79.d[pf] = null; if (P79.aktif[pf]) p79Siapkan(pf); });
+  p80TokoRender_();
+}
+async function p80MuatKoneksi_() {
+  if (P80.koneksi) return;
+  try { const r = await postJson({ aksi: 'p80_mp_koneksi', email: currentUserEmail() }, 30000, true); if (r && r.success) { P80.koneksi = r.koneksi; p80TokoRender_(); } } catch (e) { }
+}
+/* ---------- DN-996: nama listing = Merek + nama produk ---------- */
+function p80NamaMp_() {
+  const box = el('p80-nama-mp'); if (!box) return;
+  const nama = (el('tp-nama').value || '').trim(), m = (el('tp-merk').value || '').trim();
+  const pakai = m && !/^no ?brand$/i.test(m) && nama.toLowerCase().indexOf(m.toLowerCase()) !== 0 ? m + ' ' + nama : nama;
+  box.innerHTML = nama ? `Nama di marketplace: <b>${p79E(pakai)}</b>${m && !/^no ?brand$/i.test(m) ? '' : ' <span title="Isi Merk / Brand agar tampil di depan nama listing">· tanpa merek</span>'}` : '';
+}
+/* toko ikut dikirim ke aksi upload */
+const p80PostAsli_ = postJson, p80TulisAsli_ = postJsonTulis;
+function p80Toko_(b) { if (b && /^p79_mp_/.test(b.aksi || '') && !b.toko) b.toko = b.aksi === 'p79_mp_upload' ? (P80.tokoUpload || P80.toko) : P80.toko; return b; }
+postJson = function (body) { arguments[0] = p80Toko_(body); return p80PostAsli_.apply(this, arguments); };
+postJsonTulis = function (body) { arguments[0] = p80Toko_(body); return p80TulisAsli_.apply(this, arguments); };
+const p80SimpanAsli_ = katalogSimpanProdukBaru;
+katalogSimpanProdukBaru = async function () { P80.tokoUpload = P80.toko; return p80SimpanAsli_.apply(this, arguments); };
+const p80SakelarAsli_ = p79Sakelar;
+p79Sakelar = function (pf) { p80MuatKoneksi_(); return p80SakelarAsli_.apply(this, arguments); };
+p80Pasang_();
+
+/* ---------- DN-187: hasil upload menyebut toko & SKU Mapping ---------- */
+const p80ModalAsli_ = omxModal;
+omxModal = function (judul, isi, opsi) {
+  if (/^Upload Marketplace · /.test(String(judul || ''))) {
+    judul = judul + ' · Toko ' + (P80.tokoUpload || P80.toko);
+    isi = String(isi).replace('listing otomatis terhubung ke produk ini.', 'listing otomatis terhubung ke produk ini dan langsung tercatat di SKU Mapping (SKU Marketplace).');
+  }
+  return p80ModalAsli_.call(this, judul, isi, opsi);
+};
+
+/* ---------- DN-844: kartu Shopee sedang diskon -> lepas promo & naikkan harga ---------- */
+const p80SyncAsli_ = hargaLiveSyncSku;
+hargaLiveSyncSku = async function (sku, kanal) {
+  try {
+    if (kanal === 'shopee' && typeof omxApakahOwner_ === 'function' && omxApakahOwner_()) {
+      const diskon = (hargaLiveMap[sku] || []).filter(r => r.platform === 'Shopee' && (r.promo || (Number(r.hargaList) > 0 && Number(r.hargaLive) > 0 && Number(r.hargaLive) < Number(r.hargaList))));
+      for (const r of diskon) {
+        let target = Number(r.hargaErp) || 0;
+        if (!target) { const it = katalogHargaCache.find(p => p.sku === sku); target = it ? Number(it.hargaShopee) || 0 : 0; }
+        if (!(target > 0)) continue;
+        const ya = await omniKonfirm_(`Shopee ${r.kodeMp || sku} sedang diskon${r.promo ? ' (' + r.promo + ')' : ''}: tayang ${ocRp(Number(r.hargaLive) || 0)}, normal ${ocRp(Number(r.hargaList) || 0)}.\n\nLepas promo diskon toko & pasang harga ERP ${ocRp(target)}?\n(Promo Campaign / Flash Sale Shopee tidak bisa dilepas lewat API.)`);
+        if (!ya) continue;
+        const h = await postJsonTulis({ aksi: 'p80_shopee_lepas_promo', sku, kodeMp: r.kodeMp || sku, harga: target, toko: typeof currentToko !== 'undefined' ? currentToko : '', email: currentUserEmail() }, 120000);
+        if (!h || !h.success) pgrToast('✗ ' + String((h && h.error) || 'Gagal melepas promo').replace(/^Error:\s*/, ''));
+        else pgrToast(`✓ ${h.dilepas} diskon dilepas, harga Shopee ${ocRp(h.harga)}` + (h.promoLain.length ? ' · masih ada: ' + h.promoLain.join(', ') : '') + (h.gagal.length ? ' · ' + h.gagal.join(' | ') : ''));
+      }
+    }
+  } catch (e) { pgrToast('✗ ' + (e.message || e)); }
+  return p80SyncAsli_.apply(this, arguments);
+};
+
+/* ---------- DN-847: Otorisasi Marketplace dikelompokkan per toko (Waterground / Conner) ---------- */
+const p80IntRenderAsli_ = intRender;
+intRender = function () {
+  if (!Array.isArray(intKoneksi) || !intKoneksi.length) return p80IntRenderAsli_.apply(this, arguments);
+  const asli = intKoneksi;
+  intKoneksi = asli.map(k => { const c = /conner/i.test(JSON.stringify([k.tokoNama, k.tokoId, k.slot, k.namaMarketplace, k.id, k.idKoneksi])); return Object.assign({}, k, { tokoId: c ? 'conner' : 'waterground', tokoNama: c ? 'Conner' : 'Waterground' }); })
+    .sort((a, b) => (a.tokoId === b.tokoId ? 0 : a.tokoId === 'waterground' ? -1 : 1));
+  try { return p80IntRenderAsli_.apply(this, arguments); } finally { intKoneksi = asli; }
+};
 </script>
 
 </body>
