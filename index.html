@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.100';
+  var VERSI = 'v2026.10.101';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -82410,6 +82410,80 @@ omxModal = function (judul, isi, opsi) {
 };
 const p81ResetAsli_ = p79Reset_;
 p79Reset_ = function () { P81.mode = { shopee: '', tiktok: '' }; P81.kat = { shopee: false, tiktok: false }; return p81ResetAsli_.apply(this, arguments); };
+</script>
+
+<style>
+  /* ============ PAKET 82 (v2026.10.101) ============ */
+  .p82-ai { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; }
+  .p82-ai button { border: 1px solid rgba(124,92,217,.45); background: rgba(124,92,217,.08); color: #6d28d9; border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+  .p82-ai button[disabled] { opacity: .55; cursor: progress; }
+  .p82-ai .p82-st { font-size: 11px; color: var(--web-text-dim, #64748b); align-self: center; }
+  .p82-terisi { box-shadow: 0 0 0 2px rgba(124,92,217,.45) !important; }
+</style>
+<script>
+/* ============================ PAKET 82 (v2026.10.101) ============================ */
+const P82 = { auto: {} };
+(function () { const b = document.querySelector('#p79-mp .p79-pf[data-pf="tiktok"]'); if (!b) return; [...b.childNodes].forEach(n => { if (n.nodeType === 3 && /TikTok Shop/.test(n.nodeValue)) n.nodeValue = 'TikTok Shop + Tokopedia'; }); b.title = 'Upload ke TikTok Shop otomatis ikut tayang di Tokopedia'; })();
+function p82Spek_() {
+  return [...document.querySelectorAll('#tp-spesifikasi-dinamis-list [id^="tp-spesdin-row-"]')].map(r => ({ label: (r.querySelector('.tp-spesdin-nama') || {}).value || '', nilai: (r.querySelector('.tp-spesdin-nilai') || {}).value || '' }))
+    .concat([['Tipe / Model', 'tp-tipe'], ['Material', 'tp-material'], ['Volume', 'tp-volume'], ['Warna', 'tp-warna']].map(([l, id]) => ({ label: l, nilai: (el(id) || {}).value || '' })))
+    .filter(s => s.label.trim() && s.nilai.trim());
+}
+async function p82AiIsi(pf, rapikan, otomatis) {
+  const d = P79.d[pf], k = el('p79-kartu-' + pf); if (!d || !k) return;
+  const st = k.querySelector('.p82-st'), btn = k.querySelectorAll('.p82-ai button');
+  btn.forEach(b => b.disabled = true); if (st) st.textContent = '⏳ AI membaca produk' + ((el('tp-url-supplier') || {}).value ? ' & halaman supplier' : '') + '…';
+  try {
+    const kat = el('p79-kat-' + pf), opt = kat && kat.options[kat.selectedIndex];
+    const r = await postJson({ aksi: 'p82_ai_isi', platform: pf, kategoriNama: opt ? opt.text : '', nama: (el('tp-nama').value || '').trim(), merk: (el('tp-merk').value || '').trim(),
+      deskripsi: (el('tp-deskripsi').value || '').trim(), spek: p82Spek_(), urlSupplier: (el('tp-url-supplier') || {}).value || '', rapikanDeskripsi: !!rapikan,
+      atribut: (d.atribut || []).map(a => ({ id: a.id, nama: a.nama, wajib: a.wajib, bebas: a.bebas, nilai: (a.nilai || []).map(v => ({ id: v.id, nama: v.nama })) })), email: currentUserEmail() }, 120000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'AI gagal');
+    let n = 0;
+    (r.atribut || []).forEach(x => {
+      const inp = k.querySelector(`[data-p79a="${x.id}"]`); if (!inp) return;
+      if (inp.tagName === 'SELECT') {
+        if (x.nilaiId !== undefined) inp.value = String(x.nilaiId);
+        else if (x.teks && inp.querySelector('option[value="__lain"]')) { inp.value = '__lain'; const t = inp.parentNode.querySelector('[data-p79t]'); if (t) { t.hidden = false; t.value = x.teks; } }
+        else return;
+      } else inp.value = x.teks || x.nama || '';
+      inp.classList.remove('p79-kosong'); inp.classList.add('p82-terisi'); n++;
+      const det = inp.closest('details'); if (det) det.open = true;
+    });
+    if (rapikan && r.deskripsi) { el('tp-deskripsi').value = r.deskripsi; el('tp-deskripsi').classList.add('p82-terisi'); }
+    if (st) st.textContent = `✓ ${n} atribut diisi AI${r.sumberSupplier ? ' (pakai halaman supplier)' : ''}${rapikan && r.deskripsi ? ' · deskripsi dirapikan' : ''} - periksa sebelum upload.`;
+  } catch (e) { if (st) st.textContent = (otomatis ? '' : '✗ ') + String(e.message || e).replace(/^Error:\s*/, ''); }
+  finally { btn.forEach(b => b.disabled = false); }
+}
+const p82RenderAsli_ = p79Render_;
+p79Render_ = function (pf) {
+  const r = p82RenderAsli_.apply(this, arguments);
+  try {
+    const k = el('p79-kartu-' + pf), d = P79.d[pf]; if (!k || !d) return r;
+    if (pf === 'tiktok') { const h5 = k.querySelector('h5'); if (h5) [...h5.childNodes].forEach(n => { if (n.nodeType === 3 && /TikTok Shop/.test(n.nodeValue)) n.nodeValue = 'TikTok Shop + Tokopedia'; }); }
+    const pos = k.querySelector('.p81-ganti') || k.querySelector('h5');
+    pos.insertAdjacentHTML('afterend', `<div class="p82-ai"><button type="button" onclick="p82AiIsi('${pf}')" title="AI mengisi atribut dari nama, deskripsi, spesifikasi & halaman URL Supplier - memakai istilah yang dicari pembeli">✦ Isi atribut dengan AI</button><button type="button" onclick="p82AiIsi('${pf}', true)" title="AI merapikan Deskripsi Produk (kata kunci di awal, poin keunggulan) - bisa diedit lagi">✦ Rapikan deskripsi</button><span class="p82-st"></span></div>`);
+    const kunci = pf + ':' + d.kategoriId;
+    if ((d.atribut || []).length && !P82.auto[kunci]) { P82.auto[kunci] = 1; p82AiIsi(pf, false, true); }
+  } catch (e) { }
+  return r;
+};
+/* DN-189: SKU Mapping hasil upload langsung tampil di Katalog */
+const p82TulisAsli_ = postJsonTulis;
+postJsonTulis = async function (body) {
+  const r = await p82TulisAsli_.apply(this, arguments);
+  try {
+    if (body && /^(p79_mp_upload|p81_mp_perbarui)$/.test(body.aksi) && r && r.success) {
+      const sku = String(body.sku || '').trim(), daftar = katalogSkuMarketplaceMap[sku] = (katalogSkuMarketplaceMap[sku] || []).slice();
+      const tambah = pf => { if (!daftar.some(m => m.skuMarketplace === sku && m.platform === pf)) daftar.push({ skuMarketplace: sku, platform: pf }); };
+      tambah(body.platform === 'shopee' ? 'Shopee' : 'TikTok Shop'); if (r.tokopedia) tambah('Tokopedia');
+      clearTimeout(P82.tSegar); P82.tSegar = setTimeout(() => { try { katalogFetchProduk({ segar: true }); } catch (e) { } }, 1500);
+    }
+  } catch (e) { }
+  return r;
+};
+const p82ResetAsli_ = p79Reset_;
+p79Reset_ = function () { P82.auto = {}; return p82ResetAsli_.apply(this, arguments); };
 </script>
 
 </body>
