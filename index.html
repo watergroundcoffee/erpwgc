@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.97';
+  var VERSI = 'v2026.10.98';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -13619,7 +13619,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               </div>
               <input type="file" accept="image/*" id="katalog-detail-foto-file-input" style="display:none;" />
 
-              <div id="katalog-detail-galeri-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-top:6px;"></div>
+              <div id="katalog-detail-galeri-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin-top:6px;"></div>
               <input type="file" accept="image/*" id="katalog-detail-galeri-file-input" style="display:none;" />
 
               <div class="web-panel" style="margin-top:14px;">
@@ -31845,7 +31845,7 @@ document.addEventListener('paste', async function (e) {
 });
 
 /* ===== Galeri Foto Produk - 5 kotak, upload/drag/paste per kotak, multi-upload sekaligus ===== */
-let katalogFotoGaleri = [null, null, null, null, null]; // isi tiap kotak: null (kosong) atau URL foto
+let katalogFotoGaleri = Array(10).fill(null); // v2026.10.98 (DN-713): 10 foto seperti marketplace // isi tiap kotak: null (kosong) atau URL foto
 const KATALOG_FOTO_DRAG_TIPE = 'application/x-omniai-foto-idx';
 let katalogFotoDragDari = null;
 
@@ -31859,7 +31859,7 @@ function katalogPindahUrutanFoto(dari, ke) {
   const posAsal = terisi.indexOf(urlDipindah);
   terisi.splice(posAsal, 1);
   terisi.splice(Math.min(ke, terisi.length), 0, urlDipindah); // kotak kosong di ujung = taruh paling akhir
-  katalogFotoGaleri = [0, 1, 2, 3, 4].map(i => terisi[i] || null);
+  katalogFotoGaleri = Array.from({ length: 10 }, (_, i) => terisi[i] || null);
   katalogSinkronFotoHidden();
   katalogRenderFotoGrid();
   const baru = document.querySelector(`.tp-foto-box[data-idx="${katalogFotoGaleri.indexOf(urlDipindah)}"]`);
@@ -31992,7 +31992,7 @@ function katalogSinkronFotoHidden() {
 
 function katalogKosongkanFotoGrid() {
   if (typeof katalogFotoBuangTundaTakTerpakai === 'function') katalogFotoBuangTundaTakTerpakai(katalogFotoGaleri.slice());
-  katalogFotoGaleri = [null, null, null, null, null];
+  katalogFotoGaleri = Array(10).fill(null);
   katalogSinkronFotoHidden();
   katalogRenderFotoGrid();
   if (el('tp-foto-batas-status')) el('tp-foto-batas-status').textContent = '';
@@ -32000,8 +32000,8 @@ function katalogKosongkanFotoGrid() {
 
 // Isi galeri dari data produk (mode Edit): kotak 1 dari urlFoto lama, kotak 2-5 dari galeriFotoTambahan
 function katalogMuatFotoGrid(urlFoto, galeriFotoTambahan) {
-  katalogFotoGaleri = [urlFoto || null, null, null, null, null];
-  (galeriFotoTambahan || []).forEach((url, i) => { if (i < 4) katalogFotoGaleri[i + 1] = url; });
+  katalogFotoGaleri = [urlFoto || null].concat(Array(9).fill(null));
+  (galeriFotoTambahan || []).filter(Boolean).forEach((url, i) => { if (i < 9) katalogFotoGaleri[i + 1] = url; });
   katalogSinkronFotoHidden();
   katalogRenderFotoGrid();
 }
@@ -32087,9 +32087,9 @@ async function katalogUploadFotoMultiKeKotakKosong(files) {
   if (statusEl) statusEl.textContent = '';
 
   let filesFinal = files;
-  if (files.length > 5) {
-    filesFinal = files.slice(0, 5);
-    if (statusEl) statusEl.textContent = 'Maksimal 5 foto per produk master. Hanya 5 foto pertama yang dimuat.';
+  if (files.length > 10) {
+    filesFinal = files.slice(0, 10);
+    if (statusEl) statusEl.textContent = 'Maksimal 10 foto per produk (sama seperti marketplace). Hanya 10 foto pertama yang dimuat.';
   }
 
   const idxKosong = [];
@@ -34010,7 +34010,7 @@ async function katalogHapusFotoUtamaDetail() {
 
 function katalogRenderDetailGaleriGrid(galeriFotoTambahan) {
   const gridEl = el('katalog-detail-galeri-grid');
-  gridEl.innerHTML = [0, 1, 2, 3].map(i => {
+  gridEl.innerHTML = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => {
     const url = galeriFotoTambahan[i] || '';
     return `
       <div class="katalog-detail-galeri-box" data-slot="${i}" tabindex="0" title="Klik / tarik / paste buat ${url ? 'ganti' : 'tambah'} Foto ${i + 2}"
@@ -54449,7 +54449,7 @@ function katalogFotoBuangBlob(blob) {
   if (i >= 0 && katalogFotoModalTerbuka()) { katalogHapusFotoGeser(i); return; }
   if (i >= 0) {
     var terisi = katalogFotoGaleri.filter(function (u) { return u && u !== blob; });
-    katalogFotoGaleri = [0, 1, 2, 3, 4].map(function (k) { return terisi[k] || null; });
+    katalogFotoGaleri = Array.from({ length: 10 }, function (_, k) { return terisi[k] || null; });
     katalogSinkronFotoHidden();
   }
   katalogFotoBatalkanUpload(blob);
@@ -54468,7 +54468,7 @@ function katalogHapusFotoGeser(idx) {
   var hemat = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   function lanjut() {
     var terisi = katalogFotoGaleri.filter(function (u, i) { return u && i !== idx; });
-    katalogFotoGaleri = [0, 1, 2, 3, 4].map(function (k) { return terisi[k] || null; });
+    katalogFotoGaleri = Array.from({ length: 10 }, function (_, k) { return terisi[k] || null; });
     katalogFotoBatalkanUpload(urlHapus);
     katalogSinkronFotoHidden();
     katalogRenderFotoGrid();
@@ -82010,6 +82010,228 @@ p75RenderUntungRugi_ = function () {
   try { if (typeof omxApakahOwner_ !== 'function' || omxApakahOwner_()) p78AuditRender_(); } catch (e) { }
   return r;
 };
+</script>
+
+<style>
+  /* ============ PAKET 79 (v2026.10.98) ============ */
+  /* DN-719: lampiran - satu tanda X, jendela putih */
+  #lampiran-modal .lamp-tutup[data-p66] { font-size: 0 !important; display: inline-flex; align-items: center; justify-content: center; }
+  #lampiran-modal .lamp-tutup[data-p66] svg { width: 16px; height: 16px; }
+  #lampiran-modal.p69-lihat:not(.p66-foto) .lamp-panel { background: #fff; }
+  #lampiran-modal.p69-lihat:not(.p66-foto) .lamp-kepala { color: #1e293b; border-bottom: 1px solid #e2e8f0; background: #fff; }
+  #lampiran-modal.p69-lihat:not(.p66-foto) .lamp-kepala b { color: #1e293b; }
+  #lampiran-modal.p69-lihat:not(.p66-foto) .p69-lamp-lain { color: #475569; }
+  /* DN-713: 10 foto = 2 baris x 5 */
+  #tp-foto-grid { grid-template-columns: repeat(5, 1fr) !important; }
+  /* DN-664: upload ke marketplace */
+  .p79-mp { margin: 6px 0 12px; padding-top: 10px; border-top: 1px solid var(--web-border, #e2e8f0); }
+  .p79-mp-judul { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .p79-mp-judul small { font-weight: 400; color: var(--web-text-dim, #64748b); }
+  .p79-sakelar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .p79-pf { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 12px; border: 1.5px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--web-text, #0f172a); }
+  .p79-pf .p79-tgl { margin-left: auto; width: 32px; height: 18px; border-radius: 999px; background: #cbd5e1; position: relative; transition: background .15s; flex: none; }
+  .p79-pf .p79-tgl::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .p79-pf[aria-pressed="true"] { border-color: #ee4d2d; background: rgba(238,77,45,.06); }
+  .p79-pf[data-pf="tiktok"][aria-pressed="true"] { border-color: #0f172a; background: rgba(15,23,42,.05); }
+  .p79-pf[aria-pressed="true"] .p79-tgl { background: #16a34a; }
+  .p79-pf[aria-pressed="true"] .p79-tgl::after { left: 16px; }
+  .p79-kartu { margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--web-border, #e2e8f0); background: var(--web-bg-soft, #f8fafc); }
+  .p79-kartu h5 { margin: 0 0 6px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .p79-kartu label { font-size: 11.5px; font-weight: 600; display: block; margin-bottom: 2px; }
+  .p79-kartu .web-form-input { margin-bottom: 8px; font-size: 12.5px; }
+  .p79-baris { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .p79-kat { display: flex; gap: 6px; } .p79-kat select { flex: 1; }
+  .p79-kat button { margin: 0 0 8px; padding: 0 10px; }
+  .p79-wajib::after { content: ' *'; color: var(--web-danger, #dc2626); }
+  .p79-info { font-size: 10.5px; color: var(--web-text-dim, #64748b); margin: -4px 0 8px; }
+  .p79-err { font-size: 11.5px; color: var(--web-danger, #dc2626); margin: 2px 0 6px; }
+  .p79-kartu details summary { font-size: 11.5px; cursor: pointer; color: var(--web-text-dim, #64748b); margin-bottom: 6px; }
+  .p79-kartu .p79-kosong { outline: 2px solid rgba(220,38,38,.5); }
+  .p79-hasil { font-size: 13px; line-height: 1.6; }
+  .p79-hasil .ok { color: #059669; font-weight: 700; } .p79-hasil .gagal { color: #dc2626; font-weight: 700; }
+</style>
+<script>
+/* ============================ PAKET 79 (v2026.10.98) ============================ */
+const P79 = { aktif: { shopee: false, tiktok: false }, d: { shopee: null, tiktok: null }, muat: {}, param: null, margin: null, soJalan: false };
+const p79E = s => escapeHtml(String(s == null ? '' : s));
+const P79_LABEL = { shopee: 'Shopee', tiktok: 'TikTok Shop' };
+
+/* ---------- DN-664 / DN-713: Upload ke Marketplace di jendela Tambah / Edit Produk ---------- */
+function p79Pasang_() {
+  const btn = el('tp-btn-simpan'); if (!btn || el('p79-mp')) return;
+  btn.insertAdjacentHTML('beforebegin', `<div class="p79-mp" id="p79-mp">
+    <div class="p79-mp-judul">🛒 Upload ke Marketplace <small>· pilih satu atau keduanya</small></div>
+    <div class="p79-sakelar">${['shopee', 'tiktok'].map(pf => `<button type="button" class="p79-pf" data-pf="${pf}" aria-pressed="false" onclick="p79Sakelar('${pf}')">${(typeof omniLogoPlatformHtml === 'function' && omniLogoPlatformHtml(P79_LABEL[pf], 18)) || ''}${P79_LABEL[pf]}<span class="p79-tgl" aria-hidden="true"></span></button>`).join('')}</div>
+    <div class="p79-kartu" id="p79-kartu-shopee" hidden></div><div class="p79-kartu" id="p79-kartu-tiktok" hidden></div>
+  </div>`);
+  const nama = el('tp-nama'); if (nama) nama.addEventListener('change', () => ['shopee', 'tiktok'].forEach(pf => { if (P79.aktif[pf] && !(P79.d[pf] && P79.d[pf].manual)) p79Siapkan(pf); }));
+  const hpp = el('tp-harga-supplier'); if (hpp) hpp.addEventListener('input', () => ['shopee', 'tiktok'].forEach(p79IsiHarga_));
+}
+function p79Reset_() {
+  P79.aktif = { shopee: false, tiktok: false }; P79.d = { shopee: null, tiktok: null };
+  ['shopee', 'tiktok'].forEach(pf => { const k = el('p79-kartu-' + pf); if (k) { k.hidden = true; k.innerHTML = ''; } });
+  document.querySelectorAll('#p79-mp .p79-pf').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  p79LabelTombol_();
+}
+function p79LabelTombol_() {
+  const btn = el('tp-btn-simpan'); if (!btn) return;
+  const pfs = ['shopee', 'tiktok'].filter(pf => P79.aktif[pf]).map(pf => P79_LABEL[pf]);
+  btn.innerHTML = '<span class="oi oi-save" aria-hidden="true"></span> ' + (pfs.length ? 'Simpan & Upload ke ' + pfs.join(' + ') : 'Simpan');
+}
+function p79Sakelar(pf) {
+  P79.aktif[pf] = !P79.aktif[pf];
+  const b = document.querySelector(`#p79-mp .p79-pf[data-pf="${pf}"]`); if (b) b.setAttribute('aria-pressed', String(P79.aktif[pf]));
+  const k = el('p79-kartu-' + pf); if (k) k.hidden = !P79.aktif[pf];
+  p79LabelTombol_();
+  if (P79.aktif[pf] && !P79.d[pf]) p79Siapkan(pf);
+}
+async function p79Siapkan(pf, kategoriId) {
+  const k = el('p79-kartu-' + pf), nama = (el('tp-nama').value || '').trim();
+  if (!k) return;
+  if (!nama && !kategoriId) { k.innerHTML = `<div class="p79-err">Isi Nama Produk dulu - kategori ${P79_LABEL[pf]} dipilih otomatis dari nama.</div>`; return; }
+  const id = (P79.muat[pf] || 0) + 1; P79.muat[pf] = id;
+  k.innerHTML = `<div class="p79-info">⏳ Mencari kategori & atribut ${P79_LABEL[pf]}…</div>`;
+  try {
+    const r = await postJson({ aksi: 'p79_mp_siapkan', platform: pf, nama, kategoriId: kategoriId || '', denganParam: !P79.param, email: currentUserEmail() }, 90000, true);
+    if (P79.muat[pf] !== id) return;
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal memuat');
+    if (r.paramBiaya) { P79.param = r.paramBiaya; P79.margin = r.marginGlobal; }
+    const lama = P79.d[pf];
+    if (kategoriId && lama) r.kandidat = lama.kandidat;
+    r.manual = !!kategoriId;
+    r.hargaManual = lama && lama.hargaManual; r.harga = lama && lama.harga; r.stok = lama ? lama.stok : 0;
+    P79.d[pf] = r; p79Render_(pf);
+  } catch (e) {
+    if (P79.muat[pf] !== id) return;
+    k.innerHTML = `<div class="p79-err">✗ ${p79E(String(e.message || e).replace(/^Error:\s*/, ''))}</div><button type="button" class="web-btn-secondary" style="margin:0;" onclick="p79Siapkan('${pf}')">Coba lagi</button>`;
+  }
+}
+function p79Rekom_(pf) {
+  const hpp = parseFloat(el('tp-harga-supplier').value) || 0;
+  if (!(hpp > 0) || typeof hargaRekomendasiChannel !== 'function') return 0;
+  try {
+    const margin = katalogMarginDefaultCache !== null && katalogMarginDefaultCache !== undefined ? katalogMarginDefaultCache : (P79.margin != null ? P79.margin : 30);
+    const param = P79.param ? hargaSalinParam(P79.param) : hargaParamDipakai();
+    const r = hargaRekomendasiChannel(pf === 'shopee' ? 'shopee' : 'tiktok', hpp, margin, param);
+    return r && r.status === 'ok' ? Math.round(r.harga) : 0;
+  } catch (e) { return 0; }
+}
+function p79IsiHarga_(pf) {
+  const d = P79.d[pf], inp = el('p79-harga-' + pf); if (!d || !inp || d.hargaManual) return;
+  const rek = p79Rekom_(pf) || Math.round(parseFloat(el('tp-harga').value) || 0);
+  d.harga = rek; inp.value = rek || '';
+  const info = el('p79-harga-info-' + pf); if (info) info.textContent = rek ? 'Rekomendasi ' + P79_LABEL[pf] + ' (HPP + margin + biaya platform, sama dengan Katalog > Harga).' : 'Isi Harga Beli / HPP untuk menghitung rekomendasi.';
+}
+function p79AtributHtml_(pf, a) {
+  const idB = `p79-a-${pf}-${a.id}`, label = `<label for="${idB}" class="${a.wajib ? 'p79-wajib' : ''}">${p79E(a.nama)}</label>`;
+  if (a.nilai && a.nilai.length) return `<div>${label}<select id="${idB}" class="web-form-input" data-p79a="${a.id}" data-pf="${pf}" onchange="p79AtributBerubah(this)"><option value="">- Pilih -</option>${a.nilai.map(v => `<option value="${p79E(v.id)}">${p79E(v.nama)}</option>`).join('')}${a.bebas ? '<option value="__lain">Lainnya (ketik)…</option>' : ''}</select><input type="text" class="web-form-input" data-p79t="${a.id}" placeholder="Ketik ${p79E(a.nama)}" hidden></div>`;
+  return `<div>${label}<input id="${idB}" type="text" class="web-form-input" data-p79a="${a.id}" data-pf="${pf}" data-bebas="1" placeholder="${p79E(a.nama)}${a.satuan && a.satuan.length ? ' (' + p79E(a.satuan[0]) + ')' : ''}"></div>`;
+}
+function p79AtributBerubah(sel) { const t = sel.parentNode.querySelector('[data-p79t]'); if (t) { t.hidden = sel.value !== '__lain'; if (!t.hidden) t.focus(); } sel.classList.remove('p79-kosong'); }
+function p79Render_(pf) {
+  const k = el('p79-kartu-' + pf), d = P79.d[pf]; if (!k || !d) return;
+  const wajib = (d.atribut || []).filter(a => a.wajib), opsi = (d.atribut || []).filter(a => !a.wajib).slice(0, 20);
+  const kand = d.kandidat || [], adaPilih = kand.some(x => String(x.id) === String(d.kategoriId));
+  k.innerHTML = `<h5>${(typeof omniLogoPlatformHtml === 'function' && omniLogoPlatformHtml(P79_LABEL[pf], 16)) || ''}${P79_LABEL[pf]}</h5>
+    <label class="p79-wajib">Kategori</label>
+    <div class="p79-kat"><select class="web-form-input" id="p79-kat-${pf}" onchange="p79Siapkan('${pf}', this.value)">${kand.map(x => `<option value="${p79E(x.id)}"${String(x.id) === String(d.kategoriId) ? ' selected' : ''}>${p79E(x.nama)}</option>`).join('')}${!adaPilih && d.kategoriId ? `<option value="${p79E(d.kategoriId)}" selected>Kategori ${p79E(d.kategoriId)}</option>` : ''}${!kand.length && !d.kategoriId ? '<option value="">Kategori tidak ditemukan - perjelas nama produk</option>' : ''}</select>
+    <button type="button" class="web-btn-secondary" title="Cari ulang kategori dari nama produk" onclick="P79.d['${pf}'].manual=false; p79Siapkan('${pf}')">↻</button></div>
+    ${wajib.length ? `<div class="p79-baris">${wajib.map(a => p79AtributHtml_(pf, a)).join('')}</div>` : '<div class="p79-info">Tidak ada atribut wajib untuk kategori ini.</div>'}
+    ${opsi.length ? `<details><summary>Atribut opsional (${opsi.length}) - membantu produk mudah ditemukan</summary><div class="p79-baris">${opsi.map(a => p79AtributHtml_(pf, a)).join('')}</div></details>` : ''}
+    <div class="p79-baris">
+      <div><label class="p79-wajib" for="p79-harga-${pf}">Harga jual di ${P79_LABEL[pf]}</label><input id="p79-harga-${pf}" type="number" class="web-form-input" oninput="P79.d['${pf}'].hargaManual=true; P79.d['${pf}'].harga=+this.value||0"></div>
+      <div><label for="p79-stok-${pf}">Stok awal</label><input id="p79-stok-${pf}" type="number" min="0" class="web-form-input" value="${Number(d.stok) || 0}" oninput="P79.d['${pf}'].stok=Math.max(0,+this.value||0)"></div>
+    </div>
+    <div class="p79-info" id="p79-harga-info-${pf}"></div>
+    ${pf === 'shopee' && d.logistik && d.logistik.length ? `<div class="p79-info" title="${pgrAttr(d.logistik.join('\n'))}">🚚 ${d.logistik.length} jasa kirim aktif Shopee ikut dipasang.</div>` : ''}
+    <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="p79-paksa-${pf}"> Unggah lagi meskipun SKU ini pernah diunggah</label>`;
+  if (d.hargaManual && d.harga) el('p79-harga-' + pf).value = d.harga; else p79IsiHarga_(pf);
+}
+function p79Kumpulkan_(pf) {
+  const d = P79.d[pf], k = el('p79-kartu-' + pf), salah = [];
+  if (!d) return { salah: ['data ' + P79_LABEL[pf] + ' belum termuat'] };
+  const kat = el('p79-kat-' + pf), katId = kat ? kat.value : d.kategoriId;
+  if (!katId) salah.push('kategori ' + P79_LABEL[pf]);
+  const atribut = [];
+  (d.atribut || []).forEach(a => {
+    const inp = k.querySelector(`[data-p79a="${a.id}"]`); if (!inp) return;
+    let nilai = [];
+    if (inp.tagName === 'SELECT') {
+      if (inp.value === '__lain') { const t = (k.querySelector(`[data-p79t="${a.id}"]`).value || '').trim(); if (t) nilai = [{ nama: t }]; }
+      else if (inp.value) nilai = [{ id: inp.value }];
+    } else { const t = (inp.value || '').trim(); if (t) nilai = [{ nama: t, satuan: (a.satuan && a.satuan[0]) || '' }]; }
+    inp.classList.toggle('p79-kosong', a.wajib && !nilai.length);
+    if (a.wajib && !nilai.length) salah.push(a.nama + ' (' + P79_LABEL[pf] + ')');
+    if (nilai.length) atribut.push({ id: a.id, nilai });
+  });
+  const harga = Math.round(+el('p79-harga-' + pf).value || 0); if (!(harga >= 100)) salah.push('harga jual ' + P79_LABEL[pf]);
+  const opt = kat && kat.options[kat.selectedIndex];
+  return { salah, cfg: { platform: pf, kategoriId: katId, kategoriNama: opt ? opt.text : '', atribut, harga, stok: Math.max(0, Math.round(+el('p79-stok-' + pf).value || 0)), paksa: !!(el('p79-paksa-' + pf) || {}).checked } };
+}
+const p79SimpanAsli_ = katalogSimpanProdukBaru;
+katalogSimpanProdukBaru = async function () {
+  const pfs = ['shopee', 'tiktok'].filter(pf => P79.aktif[pf]);
+  if (!pfs.length) return p79SimpanAsli_.apply(this, arguments);
+  const st = el('tp-status'), salah = [], cfg = [];
+  pfs.forEach(pf => { const r = p79Kumpulkan_(pf); salah.push(...r.salah); if (r.cfg) cfg.push(r.cfg); });
+  if (!katalogFotoGaleri.some(Boolean)) salah.push('minimal 1 foto');
+  if (!(parseFloat(el('tp-berat-angka').value) > 0)) salah.push('berat');
+  if (!['p', 'l', 't'].every(x => parseFloat(el('tp-dimensi-' + x).value) > 0)) salah.push('dimensi P x L x T');
+  if (salah.length) { st.className = 'status-text err'; st.textContent = 'Untuk upload ke marketplace, lengkapi: ' + salah.join(', ') + '.'; if (typeof playToot === 'function') playToot(); return; }
+  const sku = (el('tp-sku').value || '').trim();
+  const r = await p79SimpanAsli_.apply(this, arguments);
+  if (el('katalog-modal-tambah-produk').style.display === 'none') p79UploadLatar_(sku, cfg); // modal tertutup = tersimpan
+  return r;
+};
+async function p79UploadLatar_(sku, cfg) {
+  const hasil = [];
+  pgrToast(`⏳ Mengunggah ${sku} ke ${cfg.map(c => P79_LABEL[c.platform]).join(' + ')}… (bisa sampai 1-2 menit, boleh lanjut kerja)`);
+  for (const c of cfg) {
+    let r = null;
+    for (let i = 0; i < 8; i++) {
+      try { r = await postJsonTulis(Object.assign({ aksi: 'p79_mp_upload', sku, email: currentUserEmail() }, c), 280000); }
+      catch (e) { r = { success: false, error: e.message || String(e) }; }
+      if (r && !r.success && (r.kode === 'BELUM_ADA' || r.kode === 'FOTO')) { await new Promise(s => setTimeout(s, 5000)); continue; }
+      break;
+    }
+    hasil.push(Object.assign({ platform: P79_LABEL[c.platform] }, r || {}));
+  }
+  const html = hasil.map(h => h.success
+    ? `<div><span class="ok">✓ ${p79E(h.platform)}</span> - listing dibuat (ID ${p79E(h.id)}, ${h.foto} foto). ${h.link ? `<a href="${pgrAttr(h.link)}" target="_blank" rel="noopener">Buka di Seller Center ↗</a>` : ''}${h.peringatan ? `<div class="p79-info">${p79E(h.peringatan)}</div>` : ''}${h.catatanFoto ? `<div class="p79-info">${p79E(h.catatanFoto)}</div>` : ''}</div>`
+    : `<div><span class="gagal">✗ ${p79E(h.platform)}</span> - ${p79E(String(h.error || 'gagal').replace(/^Error:\s*/, ''))}</div>`).join('');
+  omxModal('Upload Marketplace · ' + sku, `<div class="p79-hasil">${html}<div class="p79-info" style="margin-top:10px;">SKU penjual = ${p79E(sku)}, jadi listing otomatis terhubung ke produk ini. Riwayat tersimpan di sheet "Upload Marketplace".</div></div>`);
+  if (hasil.some(h => h.success)) { try { katalogHargaCache = []; } catch (e) { } if (typeof playBeep === 'function') playBeep(); }
+}
+const p79TutupAsli_ = katalogTutupModalTambahProduk;
+katalogTutupModalTambahProduk = function () { const r = p79TutupAsli_.apply(this, arguments); try { p79Reset_(); } catch (e) { } return r; };
+p79Pasang_();
+
+/* ---------- DN-799 / DN-240: memo gudang web lengkap + SO diterapkan di latar ---------- */
+const p79BmmMuatAsli_ = bmmMuat;
+bmmMuat = async function (paksa, senyap) {
+  const r = await p79BmmMuatAsli_.apply(this, arguments);
+  try {
+    if (!bmm._lain && bmm.sudah) { // daftar memo lain gagal / habis waktu -> coba sekali lagi
+      const c = await postJson({ aksi: 'lihat_memo_gudang_lain_pembelian', email: currentUserEmail() }, 90000, true).catch(() => null);
+      if (c && c.success && c.memos) { bmm._lain = c.memos; bmm.memos = bmm.memos.filter(m => m.jenis === 'mintastock').concat(c.memos).sort((a, b) => (b.ms || 0) - (a.ms || 0)); bmmRenderBadge(); if (!el('bmm-latar').hidden) bmmRender(); }
+    }
+    const nSo = (bmm.memos || []).filter(m => m.jenis === 'stockopname' && m.kelompok === 'menunggu').length;
+    if (nSo && !P79.soJalan && typeof omxApakahOwner_ === 'function' && omxApakahOwner_()) p79SoLatar_();
+  } catch (e) { }
+  return r;
+};
+async function p79SoLatar_() {
+  P79.soJalan = true; let total = 0;
+  try {
+    for (let i = 0; i < 8; i++) {
+      const r = await postJsonTulis({ aksi: 'p79_so_terapkan', email: currentUserEmail() }, 90000).catch(() => null);
+      if (!r || !r.success) break;
+      total += r.diterapkan || 0;
+      if (!r.sisa || !r.diterapkan) break;
+    }
+    if (total) { pgrToast(`✓ ${total} memo Stock Opname diterapkan ke stok`); P79.soJalan = true; await p79BmmMuatAsli_(true, true); }
+  } finally { P79.soJalan = false; }
+}
 </script>
 
 </body>
