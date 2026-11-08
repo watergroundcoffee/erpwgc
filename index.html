@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.101';
+  var VERSI = 'v2026.10.103';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -8725,6 +8725,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
 .dvn-err { font-size: 11px; color: #b91c1c; margin-top: 4px; font-family: ui-monospace, monospace; word-break: break-word; }
 </style>
 
+<script>/* Paket 83: tampilan baru (default) - ?tampilan=lama untuk kembali */(function(){try{var q=/[?&]tampilan=(lama|baru)/.exec(location.search);if(q)localStorage.setItem('p83_tampilan',q[1]);if(localStorage.getItem('p83_tampilan')!=='lama')document.documentElement.classList.add('p83-ui');}catch(e){document.documentElement.classList.add('p83-ui');}})();</script>
 </head>
 <body class="tema-terang">
 <script>
@@ -82485,6 +82486,636 @@ postJsonTulis = async function (body) {
 const p82ResetAsli_ = p79Reset_;
 p79Reset_ = function () { P82.auto = {}; return p82ResetAsli_.apply(this, arguments); };
 </script>
+
+<style>
+  /* ============ PAKET 83 (v2026.10.102) ============ */
+  .p83-saldo { margin-top: 6px; font-size: 11.5px; color: var(--web-text-dim, #64748b); line-height: 1.5; }
+  .p83-saldo b { color: var(--web-text, #0f172a); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .p83-bln { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0 12px; }
+  .p83-bln small { font-size: 11.5px; color: var(--web-text-dim, #64748b); margin-right: 2px; }
+  .p83-bln button { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #0f172a); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+  .p83-bln button.aktif { background: #334155; border-color: #334155; color: #fff; }
+  .p83-rumus { font-size: 12.5px; line-height: 1.7; flex: 1; min-width: 240px; }
+  .p83-kanal { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+  .p83-kanal th, .p83-kanal td { padding: 6px 8px; border-bottom: 1px solid var(--web-border, #e2e8f0); text-align: right; white-space: nowrap; }
+  .p83-kanal th:first-child, .p83-kanal td:first-child { text-align: left; }
+  .p83-kanal th { font-weight: 600; color: var(--web-text-dim, #64748b); font-size: 11px; }
+  .p83-kanal tfoot td { font-weight: 700; }
+  .p83-kanal-wrap { overflow-x: auto; }
+  .p83-ket { font-size: 11.5px; color: var(--web-text-dim, #64748b); margin-top: 8px; }
+</style>
+<script>
+/* ============================ PAKET 83 (v2026.10.102) ============================ */
+const P83 = { blnK: '', blnR: '' };
+const P83_BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+function p83Bulan_(ms) { if (!ms) return ''; const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function p83LabelBulan_(b) { const [y, m] = b.split('-'); return P83_BLN[Number(m) - 1] + ' ' + y; }
+function p83BarBulan_(msList, aktif, fn) {
+  const daftar = [...new Set(msList.map(p83Bulan_).filter(Boolean))].sort().reverse().slice(0, 12);
+  return `<small>Bulan kirim:</small><button type="button" class="${!aktif ? 'aktif' : ''}" onclick="${fn}('')">Semua</button>` +
+    daftar.map(b => `<button type="button" class="${aktif === b ? 'aktif' : ''}" onclick="${fn}('${b}')">${p83LabelBulan_(b)}</button>`).join('');
+}
+
+/* ---------- DN-882 / DN-123: Beranda - iklan bersama omzet, saat dibuka & tiap 1 jam ---------- */
+const P83_BS_T = 'p83_bs_t';
+let p83BsJalan = false;
+async function p83BerandaSegar_(jedaMs) {
+  if (p83BsJalan || typeof currentUser === 'undefined' || !currentUser) return;
+  if (typeof ovxBolehJual === 'function' && !ovxBolehJual()) return;
+  let t = 0; try { t = Number(localStorage.getItem(P83_BS_T)) || 0; } catch (e) { }
+  if (Date.now() - t < jedaMs) return;
+  p83BsJalan = true;
+  try { localStorage.setItem(P83_BS_T, String(Date.now())); } catch (e) { }
+  try {
+    const d = await postJson({ aksi: 'p83_beranda_segar', email: currentUserEmail() }, 120000, true);
+    if (!d || !d.success) return;
+    iklanData = Object.assign({}, d, { _t: Date.now() });
+    try { localStorage.setItem(IKLAN_LOKAL, JSON.stringify(iklanData)); } catch (e) { }
+    if (d.p83 && d.p83.rekap === 'ok') { try { await ovAmbilRekap(); } catch (e) { } }
+    if (typeof ovDasborSedangTerlihat === 'function' && ovDasborSedangTerlihat()) ovRenderDariRekap();
+  } catch (e) { } finally { p83BsJalan = false; }
+}
+const p83FdAsli_ = window.fetchDashboardWeb;
+window.fetchDashboardWeb = async function () {
+  const r = await p83FdAsli_.apply(this, arguments);
+  p83BerandaSegar_(15 * 60000);
+  return r;
+};
+setInterval(() => { try { if (!document.hidden && ovDasborSedangTerlihat()) p83BerandaSegar_(60 * 60000); } catch (e) { } }, 5 * 60000);
+// Tombol Live: seragam 1 jam sekali
+const p83LiveAsli_ = ovxToggleLive;
+ovxToggleLive = function () {
+  const r = p83LiveAsli_.apply(this, arguments);
+  if (ovxLiveAktif) { clearInterval(ovxLiveTimer); ovxLiveTimer = setInterval(() => { if (ovDasborSedangTerlihat() && !document.hidden) ovxLiveTarik(); }, 60 * 60000); }
+  return r;
+};
+// Hari ini: kumulatif per jam terbaru menggantikan angka harian yang lebih lama; tanpa data per jam -> total harian berjalan
+const p83HitungAsli_ = ovxHitung;
+ovxHitung = function (mulai, akhir, opsi) {
+  const R = p83HitungAsli_.apply(this, arguments);
+  try {
+    if (!iklanData || R.iklan === null || R.iklan === undefined) return R;
+    const hari = ovTglLokal(); if (hari < mulai || hari > akhir) return R;
+    const tambah = (p, v) => { R.iklan += v; R.per.iklan[p] = (R.per.iklan[p] || 0) + v; };
+    const rows = (iklanData.perJam || []).filter(r => r.tanggal === hari);
+    if (opsi && opsi.sampaiJam !== undefined && mulai === akhir) {
+      if (!rows.length) (iklanData.harian || []).forEach(r => { if (r.tanggal === hari) tambah(r.platform, Number(r.biaya) || 0); });
+      return R;
+    }
+    const akhirJam = {}; rows.forEach(r => { const k = r.toko + '|' + r.platform; if (!akhirJam[k] || r.jam > akhirJam[k].jam) akhirJam[k] = r; });
+    Object.keys(akhirJam).forEach(k => {
+      const x = akhirJam[k], har = (iklanData.harian || []).filter(r => r.tanggal === hari && r.platform === x.platform && r.toko === x.toko).reduce((s, r) => s + (Number(r.biaya) || 0), 0);
+      const sel = (Number(x.kumulatif) || 0) - har; if (sel > 0) tambah(x.platform, sel);
+    });
+  } catch (e) { }
+  return R;
+};
+// Saldo iklan di bawah total Belanja Iklan
+function p83SaldoHtml_() {
+  const s = (iklanData && iklanData.saldo) || [];
+  const isi = s.filter(x => x.api !== null && x.api !== undefined || x.totalTopup > 0).map(x => {
+    const api = x.api !== null && x.api !== undefined, nama = String(x.platform || '').replace(' Shop', '');
+    return `<span title="${pgrAttr(api ? 'Saldo dari API ' + x.platform + (x.apiWaktu ? ' · ' + new Date(x.apiWaktu).toLocaleString('id-ID') : '') : 'Perkiraan: total top up − pemakaian iklan tercatat (' + x.platform + ' belum menyediakan saldo lewat API)')}">${ovxEsc(nama)} <b>${api ? '' : '≈'}${omxRp(api ? x.api : x.estimasi)}</b></span>`;
+  });
+  return `<div class="p83-saldo">Saldo iklan: ${isi.length ? isi.join(' · ') : '<span title="Catat top up di Promosi > Iklan & Saldo">belum ada data</span>'}</div>`;
+}
+const p83KpiAsli_ = ovRenderKpiGrid;
+ovRenderKpiGrid = function () {
+  const r = p83KpiAsli_.apply(this, arguments);
+  try {
+    const k = document.querySelector('#ov-kpi-grid-utama .ovx-kartu[data-ovx="iklan"]');
+    if (k && !k.querySelector('.p83-saldo') && iklanData) { const b = k.querySelector('.ovx-banding'); if (b) b.insertAdjacentHTML('afterend', p83SaldoHtml_()); }
+  } catch (e) { }
+  return r;
+};
+
+/* ---------- DN-169: filter bulan Pengiriman Kilat ---------- */
+function p83KilatBulan_(fn) {
+  return function () {
+    if (!P83.blnK || !klData || !Array.isArray(klData.items)) return fn.apply(this, arguments);
+    const asli = klData;
+    klData = Object.assign({}, asli, { items: asli.items.filter(it => p83Bulan_(it.msDibuat || 0) === P83.blnK) });
+    try { return fn.apply(this, arguments); } finally { klData = asli; }
+  };
+}
+function p83KilatBar_() {
+  const w = el('p83-blnk'); if (!w) return;
+  w.innerHTML = p83BarBulan_(((klData && klData.items) || []).map(it => it.msDibuat || 0), P83.blnK, 'p83KilatPilih');
+}
+function p83KilatPilih(b) { P83.blnK = b; p83KilatBar_(); try { p72KkRender(); } catch (e) { } try { cckRender(); } catch (e) { } }
+p72KkRender = p83KilatBulan_(p72KkRender);
+cckRender = p83KilatBulan_(cckRender);
+const p83KilatBukaAsli_ = ccBukaKilat;
+ccBukaKilat = function () {
+  const r = p83KilatBukaAsli_.apply(this, arguments);
+  try {
+    const tab = el('p72-kk-tab');
+    if (tab && !el('p83-blnk')) { tab.insertAdjacentHTML('afterend', '<div class="p83-bln" id="p83-blnk"></div>'); p83KilatBar_(); }
+    if (!klData) Promise.resolve(klMuat(false)).then(p83KilatBar_).catch(() => { });
+  } catch (e) { }
+  return r;
+};
+
+/* ---------- DN-169: Rangkuman Reguler (non Kilat) - Nilai keluar = Berhasil + Dalam pengiriman + Retur/Hilang ---------- */
+const P83_REG = {
+  berhasil: ['💰 Transaksi berhasil', '#16a34a', 'sukses', 'Pesanan selesai - uang masuk saldo penghasilan'],
+  jalan: ['🚚 Dalam pengiriman', '#3b82f6', 'proses', 'Dipantau, belum ada kepastian'],
+  retur: ['↩️ Retur / Hilang', '#7c3aed', 'retur', 'Kembali ke gudang atau hilang dikompensasi']
+};
+const P83_SUB = { jalan: 'Dipantau (masih wajar)', masalah: 'Bermasalah - siapkan komplain', belum: 'Belum terhubung ke pesanan', retur: 'Diretur', hilang: 'Hilang / rusak dikompensasi' };
+function p83RegKelas_(d) {
+  const h = (d._cc || {}).h;
+  if (h === 'sukses') return ['berhasil', ''];
+  if (h === 'retur') return ['retur', 'retur'];
+  if (h === 'kompensasi') return ['retur', 'hilang'];
+  if (!d.noInvoice) return ['jalan', 'belum'];
+  return ['jalan', h === 'gantung' ? 'masalah' : 'jalan'];
+}
+function p83RegBuka() {
+  const w = omxModal('📊 Rangkuman Reguler · Barang terkirim (scan resi keluar, tanpa Pengiriman Kilat)', '<div class="p83-bln" id="p83-blnr"></div><div id="p83-reg"></div>', { lebar: true });
+  const m = w && w.querySelector && w.querySelector('.omx-modal'); if (m) m.classList.add('cc-modal-xl');
+  p83RegRender();
+  if (wpPengirimanRiwayatCache === null || wpPengirimanAktifCache === null) Promise.resolve(ccMuat(false)).then(p83RegRender).catch(p83RegRender);
+}
+function p83RegPilih(b) { P83.blnR = b; p83RegRender(); }
+function p83RegSaring(h) { omxTutupModal(); ccState.hasil = h; ccPag.page = 1; ccRender(); }
+function p83RegRender() {
+  const w = el('p83-reg'), bar = el('p83-blnr'); if (!w) return;
+  const semua = (typeof ccSemua === 'function' ? ccSemua() : []).filter(d => d.jenis !== 'transfer');
+  if (bar) bar.innerHTML = p83BarBulan_(semua.map(d => d.ms || 0), P83.blnR, 'p83RegPilih');
+  if (!semua.length) { w.innerHTML = '<div class="fin2-kosong">Memuat data resi keluar…</div>'; return; }
+  const daftar = P83.blnR ? semua.filter(d => p83Bulan_(d.ms) === P83.blnR) : semua;
+  const nol = () => ({ n: 0, v: 0 }), g = { total: nol(), berhasil: nol(), jalan: nol(), retur: nol() }, sub = {}, kanal = {};
+  let tanpaNilai = 0, adaNilai = false;
+  daftar.forEach(d => {
+    const [k, s] = p83RegKelas_(d), nv = typeof ccNilai === 'function' ? ccNilai(d) : null, v = nv ? Number(nv.v) || 0 : 0;
+    if (nv) adaNilai = true; else tanpaNilai++;
+    [g.total, g[k]].forEach(x => { x.n++; x.v += v; });
+    if (s) { const x = sub[s] || (sub[s] = nol()); x.n++; x.v += v; }
+    const kn = d.sumber || 'Belum terhubung', y = kanal[kn] || (kanal[kn] = { total: nol(), berhasil: nol(), jalan: nol(), retur: nol() });
+    [y.total, y[k]].forEach(x => { x.n++; x.v += v; });
+  });
+  const harga = adaNilai, T = g.total, S = k => sub[k] || nol();
+  const nilai = x => harga ? `<div class="v">${omxRp(x.v)}</div>` : '';
+  const jumN = g.berhasil.n + g.jalan.n + g.retur.n, jumV = g.berhasil.v + g.jalan.v + g.retur.v;
+  const balance = jumN === T.n && Math.round(jumV) === Math.round(T.v);
+  const subLi = (ks, kartu) => '<ul>' + ks.filter(k => S(k).n).map(k => `<li><span>${P83_SUB[k]}</span><b>${S(k).n}</b></li>`).join('') + '</ul>';
+  const kartu = (k, ks) => { const x = g[k], c = P83_REG[k]; return `<button type="button" class="p72-kk-kartu" style="border-left-color:${c[1]}" onclick="p83RegSaring('${c[2]}')" title="${pgrAttr(c[3] + ' - klik untuk melihat daftarnya di Control Center')}"><div class="j"><span>${c[0]}</span><span>${T.n ? Math.round(x.n / T.n * 100) : 0}%</span></div><div class="n">${x.n}</div>${nilai(x)}${ks ? subLi(ks) : ''}</button>`; };
+  const batang = ['berhasil', 'jalan', 'retur'].map(k => g[k].n ? `<i style="width:${g[k].n / Math.max(1, T.n) * 100}%; background:${P83_REG[k][1]}" title="${pgrAttr(P83_REG[k][0] + ': ' + g[k].n)}"></i>` : '').join('');
+  const sel = (x) => harga ? `${x.n}<br><small>${omxRp(x.v)}</small>` : x.n;
+  const urut = Object.keys(kanal).sort((a, b) => kanal[b].total.n - kanal[a].total.n);
+  const tabel = `<div class="p83-kanal-wrap"><table class="p83-kanal"><thead><tr><th>Channel</th><th>Keluar</th><th>Berhasil</th><th>Dalam pengiriman</th><th>Retur / Hilang</th><th>% berhasil</th></tr></thead><tbody>
+    ${urut.map(k => { const y = kanal[k]; return `<tr><td>${typeof ovxLogo === 'function' && k !== 'Belum terhubung' ? ovxLogo(k) + ' ' : ''}${escapeHtml(k)}</td><td>${sel(y.total)}</td><td>${sel(y.berhasil)}</td><td>${sel(y.jalan)}</td><td>${sel(y.retur)}</td><td>${y.total.n ? Math.round(y.berhasil.n / y.total.n * 100) : 0}%</td></tr>`; }).join('')}
+    </tbody><tfoot><tr><td>Total</td><td>${sel(T)}</td><td>${sel(g.berhasil)}</td><td>${sel(g.jalan)}</td><td>${sel(g.retur)}</td><td>${T.n ? Math.round(g.berhasil.n / T.n * 100) : 0}%</td></tr></tfoot></table></div>`;
+  const terlama = semua.reduce((m, d) => d.ms && (!m || d.ms < m) ? d.ms : m, 0);
+  w.innerHTML = `<div class="p72-kk-atas"><div><small>Nilai pesanan keluar ${P83.blnR ? '· ' + p83LabelBulan_(P83.blnR) : ''}</small><div class="besar">${T.n} paket</div>${nilai(T)}</div><div class="p72-kk-sama">=</div>
+      <div class="p83-rumus">Transaksi berhasil <b>${g.berhasil.n}</b> + Dalam pengiriman <b>${g.jalan.n}</b> + Retur / Hilang <b>${g.retur.n}</b>${harga ? `<br><small>${omxRp(g.berhasil.v)} + ${omxRp(g.jalan.v)} + ${omxRp(g.retur.v)}</small>` : ''}</div></div>
+    <div class="p72-kk-batang" aria-hidden="true">${batang}</div>
+    <div class="p72-kk-grid">${kartu('berhasil')}${kartu('jalan', ['jalan', 'masalah', 'belum'])}${kartu('retur', ['retur', 'hilang'])}</div>
+    <div class="p72-kk-cek ${balance ? 'ok' : 'no'}">${balance ? '✓ Balance - setiap paket keluar berada di tepat satu kelompok.' : `⚠ Tidak balance: selisih ${T.n - jumN} paket${harga ? ' / ' + omxRp(T.v - jumV) : ''}.`}
+      ${S('masalah').n ? `<span>· ⚠ ${S('masalah').n} bermasalah (lewat 14 hari reguler / 2 hari instan) - siapkan komplain</span>` : ''}${S('belum').n ? `<span>· ${S('belum').n} resi belum terhubung ke pesanan</span>` : ''}
+      ${harga && tanpaNilai ? `<span>· ${tanpaNilai} paket belum punya nilai pesanan (dihitung Rp 0)</span>` : ''}</div>
+    ${tabel}
+    <div class="p83-ket">Data: ${semua.length} resi keluar yang sudah dimuat${terlama ? ' (sejak ' + new Date(terlama).toLocaleDateString('id-ID') + ')' : ''}. Bulan = tanggal scan resi keluar. Klik kartu untuk melihat daftarnya.</div>`;
+}
+(function () {
+  const a = document.querySelector('#web-tab-pengiriman .cc-head-aksi'); if (!a || el('p83-btn-reg')) return;
+  a.insertAdjacentHTML('afterbegin', '<button type="button" class="cc-kapsul" id="p83-btn-reg" onclick="p83RegBuka()" title="Rangkuman pesanan reguler (non Kilat): Nilai keluar = Transaksi berhasil + Dalam pengiriman + Retur / Hilang">📊 Rangkuman Reguler</button>');
+})();
+</script>
+
+<style>
+  /* ============ PAKET 83 LANJUTAN (v2026.10.103) - fitur ============ */
+  .p83-info { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; color: var(--web-text-dim, #64748b); background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; padding: 8px 12px; margin: 0 0 12px; }
+  .p83-info b { color: var(--web-text, #0f172a); }
+  .p83-info .ok { color: #16a34a; } .p83-info .no { color: #dc2626; }
+  .p83-info button { margin-left: auto; }
+  .p83-rekon { margin-top: 10px; border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; background: var(--web-panel, #fff); }
+  .p83-rekon details { margin-top: 6px; } .p83-rekon li { margin: 2px 0; }
+  .p83-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .p83-tbl th, .p83-tbl td { padding: 6px 7px; border-bottom: 1px solid var(--web-border, #e2e8f0); vertical-align: middle; text-align: left; }
+  .p83-tbl th { font-size: 11px; font-weight: 600; color: var(--web-text-dim, #64748b); }
+  .p83-tbl td.r, .p83-tbl th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .p83-tbl input, .p83-tbl select { width: 100%; box-sizing: border-box; border: 1px solid var(--web-garis-input, #cbd5e1); border-radius: 8px; padding: 5px 7px; font: inherit; font-size: 12.5px; background: var(--web-panel, #fff); color: var(--web-text, #0f172a); }
+  .p83-tbl .hapus { border: 0; background: none; color: #dc2626; cursor: pointer; font-size: 15px; }
+  .p83-wrap { overflow-x: auto; }
+  .p83-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .p83-form label { font-size: 11.5px; color: var(--web-text-dim, #64748b); display: flex; flex-direction: column; gap: 4px; }
+  .p83-form input { border: 1px solid var(--web-garis-input, #cbd5e1); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13px; background: var(--web-panel, #fff); color: var(--web-text, #0f172a); }
+  .p83-foto { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border: 1.5px dashed var(--web-garis-input, #cbd5e1); border-radius: 12px; padding: 10px; margin-bottom: 12px; }
+  .p83-foto img { max-height: 90px; border-radius: 8px; }
+  .p83-aksi { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 12px; align-items: center; }
+  .p83-aksi .kiri { margin-right: auto; font-size: 12px; color: var(--web-text-dim, #64748b); }
+  .p83-total { font-weight: 700; }
+  .p83-beda { color: #d97706; font-size: 12px; }
+  .p83-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .p83-kpi > div { border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; padding: 10px 12px; background: var(--web-panel, #fff); }
+  .p83-kpi small { display: block; font-size: 11px; color: var(--web-text-dim, #64748b); }
+  .p83-kpi b { font-size: 17px; font-variant-numeric: tabular-nums; }
+  .p83-alur { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 11.5px; margin-bottom: 12px; color: var(--web-text-dim, #64748b); }
+  .p83-alur span { border: 1px solid var(--web-border, #e2e8f0); border-radius: 999px; padding: 3px 10px; background: var(--web-panel, #fff); cursor: help; }
+  .p83-st { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .p83-st.s-ok { background: #dcfce7; color: #166534; } .p83-st.s-tunggu { background: #fef3c7; color: #92400e; } .p83-st.s-rugi { background: #fee2e2; color: #991b1b; }
+  .p83-st.s-info { background: #e0e7ff; color: #3730a3; } .p83-st.s-abu { background: #f1f5f9; color: #475569; }
+  .p83-neg { color: #dc2626; } .p83-pos { color: #16a34a; }
+  .p83-pin-btn { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #0f172a); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12px; cursor: pointer; margin: 6px 0 2px; }
+  .p83-pin-btn:hover { border-color: #a5b4fc; }
+  .p83-peta { height: 320px; border-radius: 12px; border: 1px solid var(--web-border, #e2e8f0); margin: 10px 0; background: #eef2f7; }
+  .p83-hasil { max-height: 170px; overflow-y: auto; border: 1px solid var(--web-border, #e2e8f0); border-radius: 10px; }
+  .p83-hasil button { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--web-border, #e2e8f0); background: none; padding: 7px 10px; font: inherit; font-size: 12.5px; cursor: pointer; color: var(--web-text, #0f172a); }
+  .p83-hasil button:hover { background: rgba(79,70,229,.06); }
+  .p83-alamat-baru { font-size: 12.5px; background: rgba(79,70,229,.06); border-radius: 10px; padding: 8px 10px; }
+  .p83-tampilan { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .p83-tampilan button { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: var(--web-text, #0f172a); border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 13px; cursor: pointer; }
+  .p83-tampilan button.aktif { background: #334155; color: #fff; border-color: #334155; }
+</style>
+<script>
+/* ============================ PAKET 83 LANJUTAN (v2026.10.103) ============================ */
+P83.uang = null; P83.rekon = null;
+function p83E_(v) { return escapeHtml(v == null ? '' : String(v)); }
+function p83BacaFile_(file, maks) {
+  return new Promise((res, rej) => {
+    if (!file) return rej(new Error('Tidak ada file'));
+    if (!/^image\//.test(file.type)) { const fr = new FileReader(); fr.onload = () => res({ b64: String(fr.result).split(',')[1], mime: file.type || 'application/octet-stream', url: '' }); fr.onerror = rej; fr.readAsDataURL(file); return; }
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { const s = Math.min(1, (maks || 1800) / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); const d = c.toDataURL('image/jpeg', 0.85); URL.revokeObjectURL(u); res({ b64: d.split(',')[1], mime: 'image/jpeg', url: d }); };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Gambar tidak bisa dibaca')); }; img.src = u;
+  });
+}
+
+/* ---------- DN-513: Mutasi berjalan + rekonfirmasi CSV + uang masuk per pesanan ---------- */
+let p83MutJalan = false;
+async function p83MutasiSegar_(paksa) {
+  const w = el('fmk-akun'); if (!w) return;
+  let info = el('p83-mut-info'); if (!info) { w.insertAdjacentHTML('beforebegin', '<div class="p83-info" id="p83-mut-info"></div>'); info = el('p83-mut-info'); }
+  let t = 0; try { t = Number(localStorage.getItem('p83_mut_t')) || 0; } catch (e) { }
+  if (p83MutJalan || (!paksa && Date.now() - t < 15 * 60000 && P83.mutStatus)) { p83MutInfo_(); return; }
+  p83MutJalan = true; info.innerHTML = '<span>⏳ Memperbarui mutasi saldo Shopee & TikTok Shop…</span>';
+  try {
+    const r = await postJson({ aksi: 'p83_mutasi_segar', paksa: !!paksa, email: currentUserEmail() }, 300000, true);
+    if (r && r.success) { P83.mutStatus = r.mpStatus || {}; P83.mutBaru = r.baru || 0; try { localStorage.setItem('p83_mut_t', String(Date.now())); } catch (e) { } if (r.baru) { try { fmkMuat(true, true); } catch (e) { } } }
+    else P83.mutErr = (r && r.error) || 'gagal';
+  } catch (e) { P83.mutErr = e.message; } finally { p83MutJalan = false; p83MutInfo_(); }
+}
+function p83MutInfo_() {
+  const info = el('p83-mut-info'); if (!info) return;
+  const st = P83.mutStatus || {}, jam = x => x && x.waktu ? new Date(x.waktu).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-';
+  const pf = (n, x) => `<span title="${pgrAttr(x && x.pesan ? x.pesan : 'Mutasi saldo ' + n + ' ditarik dari API')}">${n}: <b class="${x && x.ok === false ? 'no' : 'ok'}">${x && x.ok === false ? '✗ gagal' : '✓ ' + jam(x)}</b></span>`;
+  info.innerHTML = `<span>🔄 <b>Mutasi berjalan</b></span>${pf('Saldo Shopee', st.shopee)}${pf('Saldo TikTok Shop', st.tiktok)}<span>Otomatis tiap jam & saat halaman ini dibuka${P83.mutBaru ? ' · ' + P83.mutBaru + ' baris baru' : ''}${P83.mutErr ? ' · ' + p83E_(P83.mutErr) : ''}</span>
+    <button type="button" class="web-btn-secondary fin2-btn-kecil" onclick="p83MutasiSegar_(true)" title="Tarik mutasi saldo marketplace sekarang">⟳ Perbarui sekarang</button>`;
+}
+const p83FmkBukaAsli_ = fmkBuka;
+fmkBuka = function () { const r = p83FmkBukaAsli_.apply(this, arguments); setTimeout(() => p83MutasiSegar_(false), 300); return r; };
+const p83TulisAsli2_ = postJsonTulis;
+postJsonTulis = async function (body) {
+  const r = await p83TulisAsli2_.apply(this, arguments);
+  try { if (body && body.aksi === 'fin_impor_mutasi_bank' && r && r.success && r.rekonfirmasi) { (P83.rekon = P83.rekon || []).push(Object.assign({ akun: body.akun, file: body.namaFile, baru: r.baru, dobel: r.dobel }, r.rekonfirmasi)); clearTimeout(P83.tRekon); P83.tRekon = setTimeout(p83RekonRender_, 400); } } catch (e) { }
+  return r;
+};
+function p83RekonRender_() {
+  const st = el('fmk-csv-status'); if (!st || !P83.rekon || !P83.rekon.length) return;
+  let w = el('p83-rekon'); if (!w) { st.insertAdjacentHTML('afterend', '<div class="p83-rekon" id="p83-rekon"></div>'); w = el('p83-rekon'); }
+  w.innerHTML = '<b>🔁 Rekonfirmasi dengan data yang sudah ada</b>' + P83.rekon.map(x => `<div style="margin-top:6px;">${p83E_(x.akun)} · ${p83E_(x.file || '')} (${p83E_(x.dari)} s/d ${p83E_(x.sampai)}): <b>${x.baru || 0}</b> baris baru, <b class="p83-pos">${x.dikonfirmasi}</b> baris lama terkonfirmasi${x.sudahPernah ? ` (${x.sudahPernah} sudah pernah)` : ''}${x.tidakAdaDiFile ? `, <b class="p83-neg">${x.tidakAdaDiFile}</b> baris di sistem tidak ada di file - cek ulang` : ', semua cocok ✓'}
+    ${x.contoh && x.contoh.length ? `<details><summary>Lihat baris yang tidak ada di file</summary><ul>${x.contoh.map(c => `<li>${p83E_(c.t)} · ${p83E_(c.ket)} · ${c.masuk ? '+' + omxRp(c.masuk) : '−' + omxRp(c.keluar)}</li>`).join('')}</ul></details>` : ''}</div>`).join('');
+  P83.rekon = [];
+}
+// Rangkuman Reguler: uang masuk per pesanan berhasil
+function p83RegBerhasil_() {
+  const semua = (typeof ccSemua === 'function' ? ccSemua() : []).filter(d => d.jenis !== 'transfer' && (!P83.blnR || p83Bulan_(d.ms) === P83.blnR));
+  return semua.filter(d => p83RegKelas_(d)[0] === 'berhasil' && d.noInvoice);
+}
+async function p83RegMuatUang_() {
+  if (P83.uangMuat || (P83.uang && Date.now() - P83.uangT < 10 * 60000)) return;
+  const daftar = [...new Set((typeof ccSemua === 'function' ? ccSemua() : []).filter(d => d.jenis !== 'transfer' && d.noInvoice && p83RegKelas_(d)[0] === 'berhasil').map(d => String(d.noInvoice)))];
+  if (!daftar.length) return;
+  P83.uangMuat = true;
+  try { const r = await postJson({ aksi: 'p83_uang_masuk', daftar, email: currentUserEmail() }, 60000, true); if (r && r.success) { P83.uang = r.peta || {}; P83.uangT = Date.now(); } }
+  catch (e) { } finally { P83.uangMuat = false; if (el('p83-reg')) p83RegRender(); }
+}
+function p83KunciNo_(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+const p83RegRenderAsli_ = p83RegRender;
+p83RegRender = function () {
+  const r = p83RegRenderAsli_.apply(this, arguments);
+  try {
+    const kartu = document.querySelector('#p83-reg .p72-kk-kartu'); if (!kartu) return r;
+    if (!P83.uang) { kartu.insertAdjacentHTML('beforeend', '<ul><li><span>⏳ Mencocokkan uang masuk…</span></li></ul>'); p83RegMuatUang_(); return r; }
+    let n = 0, v = 0, belum = 0;
+    p83RegBerhasil_().forEach(d => { const x = P83.uang[p83KunciNo_(d.noInvoice)]; if (x) { n++; v += x[0]; } else belum++; });
+    kartu.insertAdjacentHTML('beforeend', `<ul title="Dicocokkan dengan mutasi Saldo Shopee (per No Pesanan) & dana TikTok Shop per pesanan"><li><span>✓ Uang masuk tercatat di mutasi</span><b>${n}</b></li>${v ? `<li><span>Dana bersih diterima</span><b>${omxRp(v)}</b></li>` : ''}<li><span>Belum terlihat di mutasi</span><b>${belum}</b></li></ul>`);
+  } catch (e) { }
+  return r;
+};
+
+/* ---------- DN-120: Klaim Reimburse Gudang ---------- */
+const P83R = { baris: [], foto: null, total: 0, simpanId: '' };
+function p83RmbDraft_(simpan) { try { if (simpan) localStorage.setItem('p83_rmb_draft', JSON.stringify({ baris: P83R.baris, admin: (el('p83r-admin') || {}).value || '', periode: (el('p83r-periode') || {}).value || '', total: P83R.total })); else return JSON.parse(localStorage.getItem('p83_rmb_draft') || 'null'); } catch (e) { } return null; }
+function p83RmbKat_() { return ((typeof fin2 !== 'undefined' && fin2.kategori) || []).map(k => ({ akun: k.akun, label: k.label || k.akun })); }
+(function () {
+  const z = el('p77-slip-btn') || el('fin2-dok-zona'); if (!z || el('p83-rmb-btn')) return;
+  z.insertAdjacentHTML(z.id === 'p77-slip-btn' ? 'afterend' : 'beforebegin', ' <button type="button" class="web-btn-secondary p77-slip-btn" id="p83-rmb-btn" onclick="p83RmbBuka()" title="Tagihan bulanan admin gudang (catatan tulisan tangan): dibaca AI, kategori per baris, ID Reimburse anti dobel, struk 58 mm">🧾 Klaim Reimburse Gudang</button>');
+})();
+function p83RmbBuka() {
+  const d = p83RmbDraft_(false) || {}, bln = new Date(); bln.setDate(0);
+  P83R.baris = d.baris || []; P83R.total = d.total || 0; P83R.foto = null; P83R.simpanId = '';
+  let admin = d.admin || ''; if (!admin) { try { admin = localStorage.getItem('p83_rmb_admin') || ''; } catch (e) { } }
+  const w = omxModal('🧾 Klaim Reimburse Gudang', `
+    <div class="p83-foto" id="p83r-foto"><button type="button" class="web-btn-secondary" onclick="el('p83r-file').click()">📷 Foto / pilih nota tulisan tangan</button><input type="file" id="p83r-file" accept="image/*" capture="environment" hidden onchange="p83RmbFoto(this)" /><span id="p83r-foto-ket" style="font-size:12px;color:var(--web-text-dim,#64748b);">AI membaca tanggal, keterangan, nominal & menebak kategori tiap baris.</span></div>
+    <div class="p83-form"><label>Admin gudang (yang menalangi)<input id="p83r-admin" value="${pgrAttr(admin)}" placeholder="Nama admin" oninput="p83RmbDraft_(true)" /></label>
+      <label>Periode tagihan<input type="month" id="p83r-periode" value="${pgrAttr(d.periode || (bln.getFullYear() + '-' + String(bln.getMonth() + 1).padStart(2, '0')))}" onchange="p83RmbDraft_(true)" /></label>
+      <label>Total tertulis di nota<input id="p83r-total" inputmode="numeric" value="${P83R.total || ''}" placeholder="opsional, untuk cek selisih" oninput="P83R.total=Number(this.value.replace(/\\D/g,''))||0; p83RmbHitung_(); p83RmbDraft_(true)" /></label></div>
+    <div class="p83-wrap"><table class="p83-tbl"><thead><tr><th style="width:130px;">Tanggal</th><th>Keterangan</th><th style="width:200px;">Kategori</th><th class="r" style="width:120px;">Nominal</th><th style="width:28px;"></th></tr></thead><tbody id="p83r-body"></tbody></table></div>
+    <div class="p83-aksi"><button type="button" class="web-btn-secondary fin2-btn-kecil kiri-btn" onclick="p83RmbTambah()">＋ Tambah baris</button><span class="kiri" id="p83r-ringkas"></span>
+      <button type="button" class="web-btn-secondary" onclick="p83RmbCetak()" title="Struk thermal 58 mm">🖨 Cetak 58 mm</button>
+      <button type="button" class="web-btn-primary" id="p83r-simpan" onclick="p83RmbSimpan(false)">Simpan & catat sebagai biaya</button></div>
+    <div class="status-text" id="p83r-status" style="text-align:left;margin-top:8px;"></div>
+    <details style="margin-top:10px;font-size:12px;" ontoggle="if(this.open) p83RmbRiwayat()"><summary>Riwayat reimburse</summary><div id="p83r-riwayat">Memuat…</div></details>`, { lebar: true });
+  const m = w && w.querySelector && w.querySelector('.omx-modal'); if (m) m.classList.add('cc-modal-xl');
+  if (!P83R.baris.length) p83RmbTambah(); else p83RmbRender_();
+}
+function p83RmbTambah() { P83R.baris.push({ tanggal: '', keterangan: '', akun: '', jumlah: 0 }); p83RmbRender_(); }
+function p83RmbRender_() {
+  const b = el('p83r-body'); if (!b) return;
+  const kat = p83RmbKat_();
+  b.innerHTML = P83R.baris.map((x, i) => `<tr><td><input type="date" value="${pgrAttr(x.tanggal)}" onchange="p83RmbUbah(${i},'tanggal',this.value)" /></td>
+    <td><input value="${pgrAttr(x.keterangan)}" placeholder="mis. Lakban 2 roll" oninput="p83RmbUbah(${i},'keterangan',this.value)" /></td>
+    <td><select onchange="p83RmbUbah(${i},'akun',this.value)"><option value="">- pilih kategori -</option>${kat.map(k => `<option value="${pgrAttr(k.akun)}" ${k.akun === x.akun ? 'selected' : ''}>${p83E_(k.label)}</option>`).join('')}</select></td>
+    <td class="r"><input inputmode="numeric" style="text-align:right;" value="${x.jumlah ? Number(x.jumlah).toLocaleString('id-ID') : ''}" oninput="p83RmbUbah(${i},'jumlah',Number(this.value.replace(/\\D/g,''))||0)" onblur="this.value=this.value?Number(this.value.replace(/\\D/g,'')).toLocaleString('id-ID'):''" /></td>
+    <td><button type="button" class="hapus" title="Hapus baris" onclick="P83R.baris.splice(${i},1); p83RmbRender_(); p83RmbDraft_(true)">×</button></td></tr>`).join('');
+  p83RmbHitung_();
+}
+function p83RmbUbah(i, f, v) { if (!P83R.baris[i]) return; P83R.baris[i][f] = v; p83RmbHitung_(); p83RmbDraft_(true); }
+function p83RmbHitung_() {
+  const s = el('p83r-ringkas'); if (!s) return;
+  const tot = P83R.baris.reduce((a, b) => a + (Number(b.jumlah) || 0), 0);
+  s.innerHTML = `${P83R.baris.length} baris · <span class="p83-total">${omxRp(tot)}</span>${P83R.total && P83R.total !== tot ? ` <span class="p83-beda">⚠ beda ${omxRp(tot - P83R.total)} dari total nota</span>` : (P83R.total ? ' ✓ sama dengan nota' : '')}`;
+}
+async function p83RmbFoto(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  const ket = el('p83r-foto-ket'), st = el('p83r-status');
+  try {
+    P83R.foto = await p83BacaFile_(f, 1800);
+    const box = el('p83r-foto'); if (box && P83R.foto.url) { const lama = box.querySelector('img'); if (lama) lama.remove(); box.insertAdjacentHTML('afterbegin', `<img src="${P83R.foto.url}" alt="nota" />`); }
+    ket.textContent = '⏳ AI membaca nota…';
+    const kat = p83RmbKat_(), r = await postJson({ aksi: 'p83_reimburse_baca', base64: P83R.foto.b64, mime: P83R.foto.mime, kategori: kat.map(k => k.label), tahun: new Date().getFullYear(), email: currentUserEmail() }, 120000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'gagal membaca');
+    const d = r.data || {}, perLabel = {}; kat.forEach(k => perLabel[k.label] = k.akun);
+    P83R.baris = (d.baris || []).map(x => ({ tanggal: /^\d{4}-\d{2}-\d{2}$/.test(x.tanggal) ? x.tanggal : '', keterangan: x.keterangan || '', akun: perLabel[x.kategori] || '', jumlah: Number(x.jumlah) || 0 }));
+    if (!P83R.baris.length) P83R.baris.push({ tanggal: '', keterangan: '', akun: '', jumlah: 0 });
+    if (d.total) { P83R.total = Number(d.total) || 0; if (el('p83r-total')) el('p83r-total').value = P83R.total; }
+    if (d.admin && el('p83r-admin') && !el('p83r-admin').value) el('p83r-admin').value = d.admin;
+    if (/^\d{4}-\d{2}$/.test(d.periode || '') && el('p83r-periode')) el('p83r-periode').value = d.periode;
+    p83RmbRender_(); p83RmbDraft_(true);
+    ket.textContent = `✓ ${P83R.baris.length} baris terbaca - periksa & koreksi bila perlu sebelum disimpan.`;
+  } catch (e) { ket.textContent = '✗ ' + e.message + ' - isi baris secara manual.'; }
+}
+async function p83RmbSimpan(tetap) {
+  const st = el('p83r-status'), btn = el('p83r-simpan'), admin = (el('p83r-admin').value || '').trim();
+  if (!P83R.foto && !tetap) { st.className = 'status-text err'; st.textContent = 'Lampirkan foto nota sebagai bukti.'; return; }
+  btn.disabled = true; st.className = 'status-text'; st.textContent = '⏳ Menyimpan…';
+  try {
+    const r = await postJsonTulis({ aksi: 'p83_reimburse_simpan', admin, periode: el('p83r-periode').value, baris: P83R.baris, fotoBase64: P83R.foto ? P83R.foto.b64 : '', fotoMime: P83R.foto ? P83R.foto.mime : '', tetapSimpan: !!tetap, email: currentUserEmail() }, 180000);
+    if (r && r.perluKonfirmasi) { st.className = 'status-text err'; st.innerHTML = '⚠ ' + p83E_(r.error) + ' <button type="button" class="web-btn-secondary fin2-btn-kecil" onclick="p83RmbSimpan(true)">Tetap simpan</button>'; return; }
+    if (!r || !r.success) throw new Error((r && r.error) || 'gagal');
+    P83R.simpanId = r.id; try { localStorage.setItem('p83_rmb_admin', admin); localStorage.removeItem('p83_rmb_draft'); localStorage.setItem('p76_biaya_t', String(Date.now())); } catch (e) { }
+    const gagal = (r.hasil || []).filter(h => !h.ok);
+    st.className = 'status-text ok'; st.innerHTML = `✓ Tersimpan <b>${p83E_(r.id)}</b> · ${omxRp(r.total)} · tercatat sebagai biaya talangan (Rembes) ${p83E_(admin)}${gagal.length ? ` · ⚠ ${gagal.length} baris gagal: ${gagal.map(g => 'baris ' + g.baris + ' (' + p83E_(g.error) + ')').join(', ')}` : ''} <button type="button" class="web-btn-secondary fin2-btn-kecil" onclick="p83RmbCetak()">🖨 Cetak 58 mm</button>`;
+    try { if (typeof fin2MuatBiaya === 'function') fin2MuatBiaya(true); } catch (e) { }
+  } catch (e) { st.className = 'status-text err'; st.textContent = '✗ ' + e.message; } finally { btn.disabled = false; }
+}
+function p83RmbCetak() {
+  const kat = {}; p83RmbKat_().forEach(k => kat[k.akun] = k.label);
+  const admin = (el('p83r-admin') || {}).value || '', per = (el('p83r-periode') || {}).value || '', id = P83R.simpanId || 'DRAFT - belum disimpan';
+  const tot = P83R.baris.reduce((a, b) => a + (Number(b.jumlah) || 0), 0), rp = v => Math.round(Number(v) || 0).toLocaleString('id-ID');
+  const grup = {}; P83R.baris.forEach(b => { const k = kat[b.akun] || 'Tanpa kategori'; grup[k] = (grup[k] || 0) + (Number(b.jumlah) || 0); });
+  const baris = P83R.baris.map(b => `<div class="b"><div>${p83E_((b.tanggal || '').slice(8, 10) + '/' + (b.tanggal || '').slice(5, 7))} ${p83E_(b.keterangan)}</div><div class="k"><span>${p83E_(kat[b.akun] || '-')}</span><span>${rp(b.jumlah)}</span></div></div>`).join('');
+  const w = window.open('', '_blank', 'width=360,height=640'); if (!w) { alert('Izinkan pop-up untuk mencetak.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${p83E_(id)}</title><style>@page{size:58mm auto;margin:0}body{width:58mm;margin:0;padding:3mm 3mm 6mm;box-sizing:border-box;font:11px/1.35 'Courier New',monospace;color:#000}h1{font-size:13px;text-align:center;margin:0 0 2px}.c{text-align:center}.g{border-top:1px dashed #000;margin:5px 0}.b{margin:3px 0}.k{display:flex;justify-content:space-between;gap:6px}.k span:first-child{font-size:10px}.t{display:flex;justify-content:space-between;font-weight:bold;font-size:12px}.ttd{display:flex;justify-content:space-between;margin-top:22px;font-size:10px}.ttd div{width:45%;border-top:1px solid #000;text-align:center;padding-top:2px}</style></head><body>
+    <h1>REIMBURSE GUDANG</h1><div class="c">Waterground Coffee & Roastery</div><div class="g"></div>
+    <div>ID : <b>${p83E_(id)}</b></div><div>Admin : ${p83E_(admin)}</div><div>Periode: ${p83E_(per)}</div><div>Cetak : ${new Date().toLocaleString('id-ID')}</div><div class="g"></div>
+    ${baris}<div class="g"></div>${Object.keys(grup).map(k => `<div class="k"><span>${p83E_(k)}</span><span>${rp(grup[k])}</span></div>`).join('')}<div class="g"></div>
+    <div class="t"><span>TOTAL</span><span>Rp ${rp(tot)}</span></div>${P83R.total && P83R.total !== tot ? `<div>Total nota: Rp ${rp(P83R.total)}</div>` : ''}
+    <div class="ttd"><div>Admin</div><div>Owner</div></div><script>setTimeout(function(){window.print()},300)<\/script></body></html>`);
+  w.document.close();
+}
+async function p83RmbRiwayat() {
+  const w = el('p83r-riwayat'); if (!w) return;
+  try {
+    const r = await postJson({ aksi: 'p83_reimburse_daftar', email: currentUserEmail() }, 30000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'gagal');
+    w.innerHTML = r.daftar.length ? `<table class="p83-tbl"><thead><tr><th>ID</th><th>Admin</th><th>Periode</th><th class="r">Total</th><th>Status</th><th>Dibuat</th></tr></thead><tbody>${r.daftar.map(x => `<tr><td><b>${p83E_(x.id)}</b></td><td>${p83E_(x.admin)}</td><td>${p83E_(x.periode)}</td><td class="r">${omxRp(x.total)}</td><td>${p83E_(x.status)}</td><td>${p83E_(x.dibuat)}</td></tr>`).join('')}</tbody></table><div class="p83-ket">Pembayaran ke admin ditandai lewat Rembes (Input Biaya) seperti biasa.</div>` : 'Belum ada reimburse.';
+  } catch (e) { w.textContent = '✗ ' + e.message; }
+}
+
+/* ---------- DN-727: Buku Retur & Penyesuaian ---------- */
+const P83B = { bulan: '', data: null, saring: '' };
+const P83_STKEU = { 'Selesai · stok kembali': 's-ok', 'Ditutup kompensasi': 's-ok', 'Penjualan berhasil': 's-ok', 'Menunggu keputusan marketplace': 's-tunggu', 'Perlu diajukan klaim': 's-tunggu', 'Kerugian final': 's-rugi', 'Belum dicek gudang': 's-abu' };
+const P83_TAHAP = ['Belum diajukan', 'Diajukan', 'Diminta data tambahan', 'Disetujui', 'Ditolak', 'Retur batal - dana diterima'];
+(function () {
+  const ref = el('p72-kap-kilat') || el('rt2-filter-status'); if (!ref || el('p83-btn-buku')) return;
+  ref.insertAdjacentHTML('afterend', ' <button type="button" class="web-chart-toggle-btn" id="p83-btn-buku" onclick="p83BukuBuka()" title="Semua retur, komplain, hasil cek gudang & banding beserta dampaknya di keuangan (Jurnal Penyesuaian)">📒 Buku Retur & Penyesuaian</button>');
+})();
+function p83BukuBuka() {
+  const w = omxModal('📒 Buku Retur & Penyesuaian', `<div class="p83-alur">
+      <span title="Paket retur discan masuk gudang (Kelola Resi Retur)">1 · Retur tiba</span>→<span title="Gudang mencocokkan isi: Baik masuk stok utama; Rusak / Kurang / Salah kirim tidak masuk stok dan dicatat NEGATIF di Jurnal Penyesuaian Stok senilai HPP">2 · Cek gudang</span>→<span title="Kerugian diajukan ke marketplace (Pusat Resolusi) - termasuk banding ongkir retur">3 · Klaim / banding</span>→<span title="Disetujui = Pendapatan Klaim (7-102) menutup kerugian · Ditolak = kerugian final (beban) · Retur batal = penjualan berhasil">4 · Keputusan</span>→<span title="Dampak bersih = kompensasi − kerugian HPP − ongkir retur">5 · Tercatat di keuangan</span></div>
+    <div class="p83-bln" id="p83b-bln"></div><div id="p83b-isi"><div class="fin2-kosong">Memuat…</div></div>`, { lebar: true });
+  const m = w && w.querySelector && w.querySelector('.omx-modal'); if (m) m.classList.add('cc-modal-xl');
+  p83BukuBarBulan_(); p83BukuMuat();
+}
+function p83BukuBarBulan_() {
+  const b = el('p83b-bln'); if (!b) return; const d = new Date(), out = [];
+  for (let i = 0; i < 6; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push(x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0')); }
+  b.innerHTML = `<small>Bulan retur:</small><button type="button" class="${!P83B.bulan ? 'aktif' : ''}" onclick="P83B.bulan=''; p83BukuBarBulan_(); p83BukuMuat()">Semua</button>` + out.map(x => `<button type="button" class="${P83B.bulan === x ? 'aktif' : ''}" onclick="P83B.bulan='${x}'; p83BukuBarBulan_(); p83BukuMuat()">${p83LabelBulan_(x)}</button>`).join('');
+}
+async function p83BukuMuat() {
+  const w = el('p83b-isi'); if (!w) return; w.innerHTML = '<div class="fin2-kosong">Memuat…</div>';
+  try {
+    const r = await postJson({ aksi: 'p83_retur_buku', bulan: P83B.bulan, email: currentUserEmail() }, 90000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'gagal');
+    P83B.data = r; p83BukuRender_();
+  } catch (e) { w.innerHTML = `<div class="fin2-kosong">✗ ${p83E_(e.message)}</div>`; }
+}
+function p83BukuRender_() {
+  const w = el('p83b-isi'), r = P83B.data; if (!w || !r) return;
+  const T = r.total, rp = v => omxRp(v), sgn = v => `<span class="${v < 0 ? 'p83-neg' : v > 0 ? 'p83-pos' : ''}">${v < 0 ? '−' : ''}${omxRp(Math.abs(v))}</span>`;
+  const kasus = P83B.saring ? r.kasus.filter(x => x.statusKeu === P83B.saring) : r.kasus;
+  const kap = Object.keys(T.perStatus).map(s => `<button type="button" class="${P83B.saring === s ? 'aktif' : ''}" onclick="P83B.saring=P83B.saring==='${s}'?'':'${s}'; p83BukuRender_()">${p83E_(s)} ${T.perStatus[s]}</button>`).join('');
+  w.innerHTML = `<div class="p83-kpi"><div><small>Kasus retur</small><b>${T.n}</b></div><div title="Nilai HPP barang rusak / kurang / tidak kembali (Jurnal Penyesuaian Stok - Negatif)"><small>Kerugian barang (HPP)</small><b class="p83-neg">${rp(T.kerugian)}</b></div>
+      <div title="Ongkos kirim retur yang dibebankan ke penjual"><small>Ongkir retur</small><b class="p83-neg">${rp(T.ongkir)}</b></div><div title="Klaim disetujui marketplace - Pendapatan Klaim (7-102)"><small>Kompensasi diterima</small><b class="p83-pos">${rp(T.kompensasi)}</b></div>
+      <div title="Kerugian yang masih bisa dipulihkan lewat klaim"><small>Masih bisa diklaim</small><b style="color:#d97706;">${rp(T.menunggu)}</b></div><div title="Kompensasi − kerugian − ongkir"><small>Dampak bersih</small><b>${sgn(T.net)}</b></div></div>
+    <div class="p83-bln"><small>Status keuangan:</small>${kap || '-'}</div>
+    <div class="p83-wrap"><table class="p83-tbl"><thead><tr><th>Tanggal</th><th>Resi / Pesanan</th><th>Hasil cek gudang</th><th class="r">Kerugian HPP</th><th class="r">Ongkir</th><th style="width:170px;">Tahap klaim</th><th class="r">Kompensasi</th><th class="r">Dampak</th><th>Status keuangan</th></tr></thead><tbody>
+    ${kasus.length ? kasus.map((x, i) => `<tr><td>${p83E_(x.tanggal)}</td><td><b>${p83E_(x.resi)}</b>${x.pesanan ? `<br><small>${p83E_(x.pesanan)}</small>` : ''}</td>
+      <td title="${pgrAttr((x.rincian || []).map(it => it.qty + '× ' + it.nama + ' · ' + it.tindakan + ' · ' + omxRp(it.nilai)).join('\n'))}">${p83E_(x.statusCek || (x.dicek ? '-' : 'Belum dicek'))}${(x.rincian || []).length ? ` <small>(${x.rincian.length} item)</small>` : ''}</td>
+      <td class="r">${x.kerugian ? rp(x.kerugian) : '-'}</td><td class="r">${x.ongkir ? rp(x.ongkir) : '-'}</td>
+      <td><select onchange="p83BukuTahap(${r.kasus.indexOf(x)}, this)" ${!(x.kerugian || x.ongkir) && x.tahap === 'Belum diajukan' ? 'title="Tidak ada kerugian - klaim tidak perlu"' : ''}>${P83_TAHAP.map(t => `<option ${t === x.tahap ? 'selected' : ''}>${t}</option>`).join('')}</select>${x.noKlaim ? `<br><small>No ${p83E_(x.noKlaim)}</small>` : ''}</td>
+      <td class="r">${x.kompensasi ? rp(x.kompensasi) : '-'}</td><td class="r">${sgn(x.net)}</td><td><span class="p83-st ${P83_STKEU[x.statusKeu] || 's-info'}">${p83E_(x.statusKeu)}</span></td></tr>`).join('') : '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--web-text-dim);">Tidak ada retur pada pilihan ini.</td></tr>'}
+    </tbody></table></div>
+    <div class="p83-ket">Jurnal otomatis: Diterima Baik → stok & HPP dibalik · Rusak/Kurang/Salah kirim → Jurnal Penyesuaian Stok (Negatif) · Klaim Disetujui → Pendapatan Klaim (7-102) · Ditolak → kerugian final. Ubah tahap klaim langsung di tabel.${r.nKasus > r.kasus.length ? ' Ditampilkan ' + r.kasus.length + ' dari ' + r.nKasus + ' kasus.' : ''}</div>`;
+}
+async function p83BukuTahap(i, sel) {
+  const x = P83B.data && P83B.data.kasus[i]; if (!x) return;
+  const tahap = sel.value; let nilai = x.nilaiKlaim || 0;
+  if (tahap === 'Disetujui') {
+    const v = prompt('Nilai ganti rugi yang disetujui marketplace (Rp):', String(nilai || x.kerugian || '')); if (v === null) { sel.value = x.tahap; return; }
+    nilai = Number(String(v).replace(/\D/g, '')) || 0; if (!(nilai > 0)) { sel.value = x.tahap; alert('Nilai harus lebih dari 0.'); return; }
+  }
+  sel.disabled = true;
+  try {
+    const r = await postJsonTulis({ aksi: 'retur_klaim_simpan', noResi: x.resi, tahap, nilai, noKlaim: x.noKlaim, catatan: x.catatan, kanal: x.kanal, email: currentUserEmail() }, 60000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'gagal');
+    p83BukuMuat();
+  } catch (e) { alert('Gagal menyimpan: ' + e.message); sel.value = x.tahap; sel.disabled = false; }
+}
+
+/* ---------- DN-509: cari alamat & pinpoint peta (OpenStreetMap / Nominatim, tanpa API key) ---------- */
+const P83P = { id: '', peta: null, penanda: null, lat: null, lng: null, alamat: '', t: 0 };
+['wp-b-alamat', 'wp-e-alamat', 'inv-alamat', 'detail-alamat', 'kst-edit-alamat'].forEach(id => {
+  const t = el(id); if (!t || t.dataset.p83pin) return; t.dataset.p83pin = '1';
+  t.insertAdjacentHTML('afterend', `<button type="button" class="p83-pin-btn" onclick="p83PinBuka('${id}')" title="Cari alamat lalu tentukan titik tepatnya di peta (geser penanda)">📍 Cari & pin di peta</button>`);
+});
+function p83Leaflet_() {
+  if (window.L && window.L.map) return Promise.resolve();
+  if (P83P.janji) return P83P.janji;
+  P83P.janji = new Promise((res, rej) => {
+    const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(c);
+    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.onload = () => res(); s.onerror = () => { P83P.janji = null; rej(new Error('Peta gagal dimuat (cek koneksi internet)')); }; document.head.appendChild(s);
+  });
+  return P83P.janji;
+}
+function p83PinFormat_(a, nama) {
+  if (!a) return nama || '';
+  const jalan = [a.road, a.house_number ? 'No ' + a.house_number : ''].filter(Boolean).join(' ');
+  return [a.amenity || a.building || a.shop || a.office || '', jalan, a.neighbourhood || a.hamlet || '', a.village || a.suburb ? 'Kel. ' + (a.village || a.suburb) : '', a.city_district ? 'Kec. ' + a.city_district : '', a.city || a.county || a.town || a.regency || '', a.state || '', a.postcode || '']
+    .filter((x, i, arr) => x && arr.indexOf(x) === i).join(', ');
+}
+function p83PinBuka(id) {
+  P83P.id = id; P83P.lat = null; P83P.lng = null; P83P.alamat = '';
+  const awal = ((el(id) || {}).value || '').split('\n')[0].trim();
+  omxModal('📍 Cari alamat & pinpoint', `<input type="search" id="p83p-cari" class="web-form-input" placeholder="Ketik nama jalan, gedung, kelurahan…" value="${pgrAttr(awal)}" oninput="p83PinCariTunda()" style="width:100%;box-sizing:border-box;" autocomplete="off" />
+    <div class="p83-hasil" id="p83p-hasil" hidden></div><div class="p83-peta" id="p83p-peta"></div>
+    <div class="p83-alamat-baru" id="p83p-alamat">Pilih hasil pencarian atau klik / geser penanda di peta.</div>
+    <div class="p83-form" style="margin-top:10px;"><label>Detail tambahan (nama gedung, blok, RT/RW, patokan)<input id="p83p-detail" placeholder="opsional" /></label></div>
+    <label style="font-size:12.5px;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="p83p-link" checked /> Tambahkan link titik peta di akhir alamat (untuk kurir)</label>
+    <div class="p83-aksi"><span class="kiri" id="p83p-st"></span><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button><button type="button" class="web-btn-primary" id="p83p-pakai" disabled onclick="p83PinPakai()">Pakai alamat ini</button></div>`, { lebar: true });
+  p83Leaflet_().then(() => {
+    const box = el('p83p-peta'); if (!box) return;
+    P83P.peta = L.map(box).setView([-6.2, 106.82], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(P83P.peta);
+    P83P.peta.on('click', e => p83PinSet_(e.latlng.lat, e.latlng.lng, true));
+    setTimeout(() => P83P.peta && P83P.peta.invalidateSize(), 200);
+    if (awal && awal !== '-') p83PinCari();
+  }).catch(e => { const s = el('p83p-st'); if (s) s.textContent = '✗ ' + e.message; });
+}
+function p83PinCariTunda() { clearTimeout(P83P.tc); P83P.tc = setTimeout(p83PinCari, 650); }
+async function p83PinCari() {
+  const q = ((el('p83p-cari') || {}).value || '').trim(), h = el('p83p-hasil'); if (!h || q.length < 4) return;
+  const st = el('p83p-st'); if (st) st.textContent = '⏳ Mencari…';
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=id&limit=6&accept-language=id&q=' + encodeURIComponent(q));
+    const d = await r.json(); P83P.hasil = d || [];
+    h.hidden = !P83P.hasil.length;
+    h.innerHTML = P83P.hasil.map((x, i) => `<button type="button" onclick="p83PinPilih(${i})">${p83E_(p83PinFormat_(x.address, x.display_name))}</button>`).join('');
+    if (st) st.textContent = P83P.hasil.length ? '' : 'Tidak ditemukan - coba kata lain atau klik langsung di peta.';
+  } catch (e) { if (st) st.textContent = '✗ Pencarian gagal: ' + e.message; }
+}
+function p83PinPilih(i) { const x = P83P.hasil[i]; if (!x) return; el('p83p-hasil').hidden = true; P83P.alamat = p83PinFormat_(x.address, x.display_name); p83PinSet_(Number(x.lat), Number(x.lon), false); }
+function p83PinSet_(lat, lng, cariAlamat) {
+  P83P.lat = lat; P83P.lng = lng;
+  if (P83P.peta) {
+    if (!P83P.penanda) { P83P.penanda = L.marker([lat, lng], { draggable: true }).addTo(P83P.peta); P83P.penanda.on('dragend', e => { const p = e.target.getLatLng(); p83PinSet_(p.lat, p.lng, true); }); }
+    else P83P.penanda.setLatLng([lat, lng]);
+    P83P.peta.setView([lat, lng], Math.max(P83P.peta.getZoom(), 16));
+  }
+  if (cariAlamat) p83PinBalik_(lat, lng); else p83PinTampil_();
+}
+async function p83PinBalik_(lat, lng) {
+  const t = ++P83P.t, st = el('p83p-st'); if (st) st.textContent = '⏳ Membaca alamat titik ini…';
+  try { const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&accept-language=id&lat=${lat}&lon=${lng}`), d = await r.json(); if (t !== P83P.t) return; P83P.alamat = p83PinFormat_(d.address, d.display_name); if (st) st.textContent = ''; }
+  catch (e) { if (st) st.textContent = '✗ ' + e.message; }
+  p83PinTampil_();
+}
+function p83PinTampil_() {
+  const a = el('p83p-alamat'), b = el('p83p-pakai'); if (!a) return;
+  a.innerHTML = `<b>${p83E_(P83P.alamat || '(alamat belum terbaca)')}</b><br><small>Titik: ${P83P.lat.toFixed(6)}, ${P83P.lng.toFixed(6)} · geser penanda untuk memperbaiki</small>`;
+  if (b) b.disabled = false;
+}
+function p83PinPakai() {
+  const t = el(P83P.id); if (!t || P83P.lat === null) return;
+  const det = ((el('p83p-detail') || {}).value || '').trim(), link = el('p83p-link') && el('p83p-link').checked;
+  t.value = [det, P83P.alamat].filter(Boolean).join(', ') + (link ? `\n📍 https://maps.google.com/?q=${P83P.lat.toFixed(6)},${P83P.lng.toFixed(6)}` : '');
+  t.dataset.lat = P83P.lat; t.dataset.lng = P83P.lng;
+  t.dispatchEvent(new Event('input', { bubbles: true })); t.dispatchEvent(new Event('change', { bubbles: true }));
+  omxTutupModal(); P83P.peta = null; P83P.penanda = null;
+}
+
+/* ---------- Tampilan baru: sakelar di Pengaturan > Tampilan ---------- */
+function p83TampilanSet(mode) {
+  try { localStorage.setItem('p83_tampilan', mode); } catch (e) { }
+  document.documentElement.classList.toggle('p83-ui', mode !== 'lama');
+  document.querySelectorAll('#p83-tampilan button').forEach(b => b.classList.toggle('aktif', b.dataset.m === mode));
+}
+(function () {
+  const g = document.querySelector('#web-tab-pengaturan [data-pgtgroup="tampilan"]'); if (!g || el('p83-tampilan')) return;
+  const mode = document.documentElement.classList.contains('p83-ui') ? 'baru' : 'lama';
+  g.insertAdjacentHTML('beforebegin', `<div class="web-panel" data-pgtgroup="tampilan" style="margin-bottom:16px;"><div class="web-panel-header"><span>🎨 Gaya tampilan aplikasi</span></div>
+    <div class="p83-tampilan" id="p83-tampilan"><button type="button" data-m="baru" class="${mode === 'baru' ? 'aktif' : ''}" onclick="p83TampilanSet('baru')">✨ Tampilan baru</button><button type="button" data-m="lama" class="${mode === 'lama' ? 'aktif' : ''}" onclick="p83TampilanSet('lama')">Tampilan lama</button>
+    <small style="color:var(--web-text-dim);">Hanya mengubah gaya (warna, jarak, kartu). Semua fungsi & menu tetap sama. Di HP: buka alamat dengan <b>?tampilan=lama</b> untuk kembali.</small></div></div>`);
+})();
+</script>
+<style>
+  /* ================= PAKET 83 · TAMPILAN BARU (html.p83-ui) =================
+     Lapisan GAYA saja - struktur HTML, menu & fungsi tidak berubah. Sakelar: Pengaturan > Tampilan / ?tampilan=lama */
+  html.p83-ui body:not(.tema-gelap) #app-web, html.p83-ui body:not(.tema-gelap) {
+    --web-bg: #f3f5f9; --web-panel: #ffffff; --web-border: #e3e7ee; --web-text: #0f172a; --web-text-dim: #5b6576; --web-garis-input: #d3d9e3;
+    --p83-th: #f7f9fc; --p83-bayang: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05); --p83-hover: rgba(79,70,229,.045);
+  }
+  html.p83-ui body.tema-gelap { --p83-th: rgba(255,255,255,.035); --p83-bayang: 0 1px 2px rgba(0,0,0,.3); --p83-hover: rgba(255,255,255,.04); }
+  html.p83-ui #app-web { -webkit-font-smoothing: antialiased; color: var(--web-text); }
+  /* Header halaman: judul jelas, latar menyatu */
+  html.p83-ui #app-web .web-topbar { background: color-mix(in srgb, var(--web-panel) 88%, transparent); backdrop-filter: saturate(1.4) blur(8px); }
+  html.p83-ui #app-web #web-page-title { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+  /* Sidebar: kartu putih, menu aktif bergaris aksen di kiri */
+  html.p83-ui #app-web .web-sidebar { background: var(--web-panel); border-right: 1px solid var(--web-border); box-shadow: 1px 0 0 rgba(15,23,42,.02); }
+  html.p83-ui #app-web .web-nav-item { border-radius: 10px; font-weight: 500; color: var(--web-text-dim); }
+  html.p83-ui #app-web .web-nav-item:hover { background: var(--p83-hover); color: var(--web-text); }
+  html.p83-ui #app-web .web-nav-item.active { background: var(--gm-aksen-lembut); color: var(--gm-aksen-teks); font-weight: 650; box-shadow: inset 3px 0 0 var(--gm-aksen); }
+  html.p83-ui #app-web .web-nav-sub { font-size: 12.6px; }
+  /* Kartu & panel: sudut seragam 14 px, bayangan lembut */
+  html.p83-ui #app-web .web-panel, html.p83-ui #app-web .fin2-kartu, html.p83-ui #app-web .ovx-kartu, html.p83-ui #app-web .web-kpi-card,
+  html.p83-ui .p72-kk-kartu, html.p83-ui .p83-kpi > div { border-radius: 14px; border-color: var(--web-border); box-shadow: var(--p83-bayang); }
+  html.p83-ui #app-web .web-panel-header { font-weight: 700; font-size: 14.5px; color: var(--web-text); padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid var(--web-border); }
+  html.p83-ui #app-web .app-header-submenu { font-weight: 700; color: var(--web-text); }
+  html.p83-ui #ov-view-dashboard .ovx-kartu .ovx-nilai { font-size: 24px; }
+  html.p83-ui #ov-view-dashboard .ovx-kartu .ovx-label { text-transform: none; font-size: 12.5px; }
+  /* Tabel: kepala tabel tenang, baris mudah diikuti */
+  html.p83-ui #app-web table thead th, html.p83-ui .omx-modal table thead th { background: var(--p83-th); color: var(--web-text-dim); font-weight: 600; font-size: 11.8px; letter-spacing: .01em; }
+  html.p83-ui #app-web table tbody tr:hover > td, html.p83-ui .omx-modal table tbody tr:hover > td { background: var(--p83-hover); }
+  html.p83-ui #app-web td, html.p83-ui #app-web th { font-variant-numeric: tabular-nums; }
+  /* Isian: tinggi seragam, fokus jelas */
+  html.p83-ui #app-web .web-form-input, html.p83-ui #app-web input[type="text"], html.p83-ui #app-web input[type="search"], html.p83-ui #app-web input[type="number"],
+  html.p83-ui #app-web input[type="date"], html.p83-ui #app-web input[type="month"], html.p83-ui #app-web select, html.p83-ui #app-web textarea { border-radius: 10px; border-color: var(--web-garis-input); }
+  html.p83-ui #app-web .web-form-input:focus, html.p83-ui #app-web input:focus, html.p83-ui #app-web select:focus, html.p83-ui #app-web textarea:focus,
+  html.p83-ui .omx-modal input:focus, html.p83-ui .omx-modal select:focus, html.p83-ui .omx-modal textarea:focus { outline: none; border-color: var(--gm-aksen, #4f46e5); box-shadow: 0 0 0 3px var(--gm-aksen-lembut, #eef2ff); }
+  /* Tombol: lebih tegas & mudah diklik */
+  html.p83-ui #app-web .web-btn-primary, html.p83-ui #app-web .web-btn-secondary, html.p83-ui .omx-modal .web-btn-primary, html.p83-ui .omx-modal .web-btn-secondary { font-weight: 600; min-height: 34px; }
+  html.p83-ui #app-web .web-chart-toggle-btn { border-radius: 999px; font-weight: 500; }
+  html.p83-ui #app-web .web-chart-toggle-btn.active { font-weight: 650; }
+  html.p83-ui #app-web :focus-visible, html.p83-ui .omx-modal :focus-visible { outline: 2px solid var(--gm-aksen, #4f46e5); outline-offset: 2px; }
+  /* Jendela (modal): sudut besar, judul terpisah */
+  html.p83-ui .omx-modal { border-radius: 16px; box-shadow: 0 24px 60px rgba(15,23,42,.22); }
+  /* Status & kapsul: kontras cukup */
+  html.p83-ui #app-web .status-text.ok { font-weight: 600; } html.p83-ui #app-web .status-text.err { font-weight: 600; }
+  /* Scrollbar tipis */
+  html.p83-ui #app-web *::-webkit-scrollbar { width: 10px; height: 10px; }
+  html.p83-ui #app-web *::-webkit-scrollbar-thumb { background: rgba(100,116,139,.35); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+  html.p83-ui #app-web *::-webkit-scrollbar-thumb:hover { background-color: rgba(100,116,139,.55); }
+  /* HP: target sentuh 44 px, kartu lebih jelas */
+  html.p83-ui.omni-mobile .menu-btn { border-radius: 16px; }
+  html.p83-ui.omni-mobile button, html.p83-ui.omni-mobile .btn { min-height: 40px; }
+  html.p83-ui.omni-mobile #list-items .rc-item { border-radius: 14px; }
+  html.p83-ui.omni-mobile .title { letter-spacing: -.01em; }
+  @media (prefers-reduced-motion: reduce) { html.p83-ui * { transition: none !important; animation-duration: .01ms !important; } }
+</style>
 
 </body>
 </html>
