@@ -56,7 +56,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.108';
+  var VERSI = 'v2026.10.109';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
@@ -16317,10 +16317,13 @@ function drpPosisikan() {
   const kotak = pop.getBoundingClientRect();
   const skala = pop.offsetWidth ? kotak.width / pop.offsetWidth : 1;
   const w = kotak.width, vw = document.documentElement.clientWidth, jarak = 8;
-  if (tombol.right - w >= jarak) return;                     // rata kanan muat
+  // v2026.10.109 (DN-304): batas kiri = tepi kanan sidebar (pop-up tidak lagi tertutup menu samping)
+  const sb = document.querySelector('#app-web .web-shell:not(.web-menu-top) .web-sidebar');
+  const kiri = sb && sb.offsetParent ? sb.getBoundingClientRect().right + jarak : jarak;
+  if (tombol.right - w >= kiri) return;                      // rata kanan muat
   pop.classList.add('drp-kiri');
-  if (tombol.left + w <= vw - jarak) return;                 // rata kiri muat
-  pop.style.left = ((jarak - tombol.left) / skala) + 'px';   // geser hingga utuh
+  if (tombol.left >= kiri && tombol.left + w <= vw - jarak) return; // rata kiri muat
+  pop.style.left = ((Math.max(kiri, Math.min(tombol.left, vw - jarak - w)) - tombol.left) / skala) + 'px'; // geser hingga utuh
 }
 
 function drpTutup() {
@@ -25151,6 +25154,7 @@ async function wpMuatLaporan() {
 
 /* ===== WEB: saran pembeli + panel Riwayat Pembelian (Repeat Order) di form Buat Pesanan ===== */
 let wpBRiwayat = [], wpBRiwayatKunci = '';
+const p89RepeatDari = new Set(); // No Invoice lama yang sudah digabung ke keranjang (DN-956)
 let wpSaranData = [], wpSaranIdx = -1, wpSaranTimer = null, wpSaranSeq = 0;
 let wpSaranTerkunci = false; // true setelah nama pembeli dipilih/terisi -> dropdown tidak muncul lagi sampai diketik ulang
 // Dropdown hanya muncul saat kolom DIKLIK (kosong) atau DIKETIK - tidak saat jendela baru dibuka / fokus otomatis
@@ -25279,16 +25283,25 @@ function wpBRenderRiwayat() {
 async function wpBRepeatOrder(i) {
   const o = wpBRiwayat[i];
   if (!o) return;
-  if (wpCart.length && !(await omniKonfirm_('Keranjang berisi ' + wpCart.length + ' produk. Ganti dengan isi pesanan ' + o.noInvoice + '?'))) return;
-  wpCart = o.items.map(it => ({ sku: it.sku, nama: it.nama || it.sku, qty: it.qty, harga: it.harga }));
-  const opsi = Array.from(el('wp-b-kurir').options).map(x => x.value);
-  if (o.kurir) el('wp-b-kurir').value = opsi.includes(o.kurir) ? o.kurir : 'Lainnya';
-  el('wp-b-ongkir').value = o.ongkosKirim || '';
-  el('wp-b-biaya').value = o.biayaLainnya || '';
+  // v2026.10.109 (DN-956): Repeat Order MENAMBAH ke keranjang -> bisa gabungan banyak pesanan lama (Kosongkan untuk mulai ulang)
+  const kosong = !wpCart.length;
+  if (kosong) p89RepeatDari.clear();
+  o.items.forEach(it => {
+    const ada = wpCart.find(x => it.sku ? String(x.sku || '').toUpperCase() === String(it.sku).toUpperCase() : (!x.sku && x.nama === (it.nama || '')));
+    if (ada) ada.qty = (Number(ada.qty) || 0) + (Number(it.qty) || 0);
+    else wpCart.push({ sku: it.sku, nama: it.nama || it.sku, qty: Number(it.qty) || 1, harga: it.harga });
+  });
+  p89RepeatDari.add(o.noInvoice);
+  if (kosong) {
+    const opsi = Array.from(el('wp-b-kurir').options).map(x => x.value);
+    if (o.kurir) el('wp-b-kurir').value = opsi.includes(o.kurir) ? o.kurir : 'Lainnya';
+    el('wp-b-ongkir').value = o.ongkosKirim || '';
+    el('wp-b-biaya').value = o.biayaLainnya || '';
+  }
   if (o.alamat && !el('wp-b-alamat').value.trim()) el('wp-b-alamat').value = o.alamat;
   wpRenderCart();
   playBeep();
-  el('wp-b-sku-status').textContent = '✓ Repeat Order dari ' + o.noInvoice + ' - produk & ongkir disalin, masih bisa diubah.';
+  el('wp-b-sku-status').textContent = p89RepeatDari.size > 1 ? `✓ Ditambahkan dari ${o.noInvoice} - keranjang gabungan ${p89RepeatDari.size} pesanan lama.` : '✓ Repeat Order dari ' + o.noInvoice + ' - produk & ongkir disalin, masih bisa diubah.';
 }
 
 /* ===== Buat Pesanan Baru ===== */
@@ -25596,25 +25609,33 @@ async function wpTambahItemCart() {
 
 // Tabel "Daftar Barang" bergaya formulir Pembelian: Qty & Harga Satuan bisa diedit langsung, subtotal per baris
 function wpRenderCart() {
+  // v2026.10.109: satu definisi (pegangan geser DN-406, nama & SKU bisa diubah DN-527, Qty − angka + DN-405)
   let total = 0;
+  const bisaGeser = !wpEditingRow && wpCart.length > 1;
   el('wp-b-cart-body').innerHTML = wpCart.length ? wpCart.map((it, idx) => {
     const sub = (Number(it.harga) || 0) * (Number(it.qty) || 0);
     total += sub;
+    const st = !it.sku ? '<span class="p89-st kosong" title="Tanpa SKU - stok tidak dipotong">tanpa SKU</span>'
+      : it.baru ? '<span class="p89-st baru" title="SKU baru - didaftarkan ke Produk Master saat pesanan disimpan">＋ Produk Master</span>'
+      : '<span class="p89-st ok" title="Tersambung ke Produk Master">✓</span>';
     return `
-      <tr>
-        <td><div class="wpb-produk-sel">${wpbThumbHtml(it)}<div><div class="wpb-nama">${escapeHtml(it.nama)}</div>${it.sku ? `<span class="wpb-sku">${escapeHtml(it.sku)}</span>` : '<span class="wpb-sku tanpa">tanpa SKU - stok tidak dipotong</span>'}</div></div></td>
-        <td><input type="number" class="web-form-input" value="${it.qty}" min="1" onchange="wpUpdateQtyCart(${idx}, this.value)" aria-label="Qty ${pgrAttr(it.nama)}" /></td>
+      <tr data-idx="${idx}">
+        <td><div class="wpb-produk-sel">${bisaGeser ? `<span class="p89-geser" draggable="true" data-idx="${idx}" title="Geser untuk ubah urutan" aria-label="Geser urutan">⋮⋮</span>` : ''}${wpbThumbHtml(it)}<div class="p89-isi">
+          <input class="p89-nama" data-idx="${idx}" value="${pgrAttr(it.nama)}" aria-label="Nama produk" />
+          <div class="p89-sku-baris"><input class="p89-sku" data-idx="${idx}" value="${pgrAttr(it.sku || '')}" placeholder="SKU" aria-label="SKU" list="p89-sku-list" />${st}${it.sku ? '' : `<button type="button" class="p89-buatsku" data-idx="${idx}" title="Buatkan SKU baru & daftarkan ke Produk Master">Buat SKU</button>`}</div></div></div></td>
+        <td><div class="p87-qty"><button type="button" onclick="wpUpdateQtyCart(${idx}, ${Math.max(1, (Number(it.qty) || 1) - 1)})" aria-label="Kurangi">−</button><input type="number" class="web-form-input" value="${it.qty}" min="1" onchange="wpUpdateQtyCart(${idx}, this.value)" aria-label="Qty ${pgrAttr(it.nama)}" /><button type="button" onclick="wpUpdateQtyCart(${idx}, ${(Number(it.qty) || 0) + 1})" aria-label="Tambah">+</button></div></td>
         <td><input type="number" class="web-form-input" value="${Number(it.harga) || 0}" min="0" onchange="wpUpdateHargaCart(${idx}, this.value)" aria-label="Harga satuan ${pgrAttr(it.nama)}" /></td>
         <td class="pm-sub">Rp ${sub.toLocaleString('id-ID')}</td>
         <td><button type="button" class="is-hapus-btn" onclick="wpHapusItemCart(${idx})" aria-label="Hapus ${pgrAttr(it.nama)}">✕</button></td>
       </tr>`;
-  }).join('') : '<tr><td colspan="5" class="wpb-kosong">Belum ada barang - ketik / scan SKU di atas lalu Enter.</td></tr>';
+  }).join('') : '<tr><td colspan="5" class="wpb-kosong">Belum ada barang - pilih kartu produk, ketik / scan SKU, Repeat Order, atau Upload PO.</td></tr>';
   const ongkir = parseFloat(el('wp-b-ongkir').value) || 0;
   const biaya = parseFloat(el('wp-b-biaya').value) || 0;
   const diskon = parseFloat(el('wp-b-diskon').value) || 0;
   const pajak = parseFloat(el('wp-b-pajak').value) || 0;
   el('wp-b-subtotal').textContent = 'Rp ' + total.toLocaleString('id-ID');
   el('wp-b-total').textContent = 'Rp ' + (total + ongkir + biaya - diskon + pajak).toLocaleString('id-ID');
+  try { p89CartPasang_(); } catch (e) { }
 }
 
 function wpUpdateQtyCart(idx, val) {
@@ -25676,6 +25697,7 @@ async function wpSimpanPesananBaru() {
   if (wpCart.length === 0) { statusEl.textContent = '⚠️ Belum ada produk ditambahkan'; statusEl.className = 'status-text err'; return; }
 
   const sedangEdit = !!wpEditingRow;
+  try { p89DaftarkanSkuBaru_(); } catch (e) { } // DN-527: SKU baru di keranjang -> Produk Master (latar)
   return wpSimpanLatar({ nama, alamat, noHp, namaPembeli, noHpPembeli, sedangEdit });
   setLoadingDots(statusEl, sedangEdit ? 'Menyimpan perubahan' : 'Menyimpan');
   try {
@@ -61983,7 +62005,7 @@ function dvnPerbaruiFab_() {
   const a = dvnAlamat_().alamat;
   const n = (DVN.daftar || []).filter(x => x.alamat === a && (x.status === 'Baru' || x.status === 'Dikerjakan')).length;
   // v2026.10.108 (DN-272): ikon ringkas, sama di web & HP; penjelasan lewat tooltip
-  const isi = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6.5A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V11"/><path d="M8 8h4M8 12h3M8 16h6"/><path d="m15.5 9.5 5-5a1.4 1.4 0 0 1 2 2l-5 5-2.6.6z"/></svg>${n ? `<span class="dvn-n">${n}</span>` : ''}`;
+  const isi = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6.5A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V11"/><path d="M8 8h4M8 12h3M8 16h6"/><path d="m15.5 9.5 5-5a1.4 1.4 0 0 1 2 2l-5 5-2.6.6z"/></svg><span class="p89-lbl">Catatan Developer</span>${n ? `<span class="dvn-n">${n}</span>` : ''}`;
   if (fab.innerHTML !== isi) fab.innerHTML = isi;
   fab.setAttribute('aria-label', 'Catatan Developer' + (n ? ` (${n} terbuka di halaman ini)` : ''));
   fab.title = 'Catatan Developer: catat permintaan / bug untuk halaman ini' + (n ? ` · ${n} terbuka` : '');
@@ -62032,10 +62054,10 @@ function dvnBukaWidget(lanjut) {
     ${errHalaman.length ? `<label class="dvn-kecil" style="display:flex; gap:6px; align-items:center; margin-top:10px;"><input type="checkbox" id="dvn-err" ${d.sertakanError ? 'checked' : ''}> Sertakan ${errHalaman.length} error terakhir di halaman ini</label>` : ''}
     <div class="dvn-baris-aksi">
       <button type="button" class="web-btn-primary" id="dvn-simpan" onclick="dvnSimpan()">Simpan Catatan</button>
-      <button type="button" class="web-btn-secondary" onclick="omxTutupModal(); dvnBukaHalaman()">Lihat semua catatan →</button>
+      <button type="button" class="web-btn-secondary" onclick="p89DvnTutup_(); dvnBukaHalaman()">Lihat semua catatan →</button>
     </div>
     ${lama.length ? `<div class="dvn-lama"><span class="dvn-label">Catatan di halaman ini</span>${lama.map(x => `<div class="dvn-lama-item"><b>${escapeHtml(x.status)}</b> · ${escapeHtml(x.jenis)} · ${escapeHtml(x.catatan.slice(0, 140))}${x.catatan.length > 140 ? '…' : ''}</div>`).join('')}</div>` : ''}`;
-  const w = omxModal('📝 Catatan Developer', html);
+  const w = p89DvnJendela_('📝 Catatan Developer', html);
   w.querySelectorAll('[data-dvn-jenis]').forEach(b => b.onclick = () => { dvnSimpanDrafKetik_(); DVN.draf.jenis = b.dataset.dvnJenis; w.querySelectorAll('[data-dvn-jenis]').forEach(x => x.classList.toggle('aktif', x === b)); });
   w.querySelectorAll('[data-dvn-prioritas]').forEach(b => b.onclick = () => { dvnSimpanDrafKetik_(); DVN.draf.prioritas = b.dataset.dvnPrioritas; w.querySelectorAll('[data-dvn-prioritas]').forEach(x => x.classList.toggle('aktif', x === b)); });
   if (!DVN.daftar) dvnMuatDaftar_().then(() => { dvnPerbaruiFab_(); });
@@ -62049,7 +62071,7 @@ function dvnSimpanDrafKetik_() {
 // 📍 Tunjuk bagian halaman: jendela ditutup sementara, bagian yang diklik dicatat (id terdekat + teks singkat)
 function dvnMulaiTunjuk() {
   dvnSimpanDrafKetik_();
-  omxTutupModal();
+  p89DvnTutup_();
   document.body.classList.add('dvn-memilih');
   dvnPerbaruiFab_();
   const kotak = document.createElement('div'); kotak.className = 'dvn-sorot'; kotak.id = 'dvn-sorot';
@@ -62104,7 +62126,7 @@ async function dvnSimpan() {
     if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
     if (DVN.daftar) DVN.daftar.unshift(r.catatan);
     DVN.draf = null;
-    omxTutupModal();
+    p89DvnTutup_();
     omniToast('Catatan tersimpan untuk ' + info.alamat, 'sukses');
     dvnPerbaruiFab_();
     if (typeof tabWebAktif !== 'undefined' && tabWebAktif === 'devnote') dvnRender();
@@ -74050,13 +74072,20 @@ function p55Dock_() {
   const fab = el('dvn-fab'); if (!fab) return;
   if (fab.parentNode !== document.body) document.body.appendChild(fab);
   const web = !!(el('app-web') && el('app-web').style.display === 'block');
-  const induk = web ? el('omtb-profil') : document.querySelector('#app > header .header-right');
+  // v2026.10.109 (DN-116): web = baris paling bawah menu samping (selalu terlihat, sticky); menu atas / tanpa sidebar = kanan profil
+  const nav = web && document.querySelector('#app-web .web-shell:not(.web-menu-top) .web-sidebar .web-nav');
+  const navTampil = !!(nav && nav.offsetParent);
+  const induk = !web ? document.querySelector('#app > header .header-right') : (navTampil ? nav : el('omtb-profil'));
   let t = el('p88-dvn-tempat');
   if (induk) {
     if (!t) { t = document.createElement('span'); t.id = 'p88-dvn-tempat'; t.className = 'p88-dvn-tempat'; t.setAttribute('aria-hidden', 'true'); }
-    if (web) { if (induk.nextElementSibling !== t) induk.after(t); }
+    if (web && navTampil) { if (t.parentNode !== nav || nav.lastElementChild !== t) nav.appendChild(t); }
+    else if (web) { if (induk.nextElementSibling !== t) induk.after(t); }
     else if (t.parentNode !== induk) induk.insertBefore(t, induk.querySelector('.clock, #clock') || null);
+    t.classList.toggle('p89-sb', !!(web && navTampil));
   }
+  fab.classList.toggle('p89-sb', !!(web && navTampil));
+  fab.classList.toggle('p89-lipat', !!document.querySelector('#app-web .web-shell.web-sidebar-lipat'));
   p88DvnPosisi_();
 }
 function p88DvnPosisi_() {
@@ -74066,8 +74095,12 @@ function p88DvnPosisi_() {
   if (!tampil) return;
   const r = t && t.offsetParent ? t.getBoundingClientRect() : null;
   fab.classList.toggle('p88-dvn-sudut', !r);
-  if (r) { fab.style.left = Math.round(r.left) + 'px'; fab.style.top = Math.round(Math.max(8, r.top + (r.height - fab.offsetHeight) / 2)) + 'px'; }
+  const sb = fab.classList.contains('p89-sb');
+  fab.style.width = sb && r ? Math.round(r.width) + 'px' : ''; fab.style.height = sb && r ? Math.round(r.height) + 'px' : '';
+  if (r) { fab.style.left = Math.round(r.left) + 'px'; fab.style.top = Math.round(sb ? r.top : Math.max(8, r.top + (r.height - fab.offsetHeight) / 2)) + 'px'; }
   else { fab.style.left = ''; fab.style.top = ''; }
+  // tetap bisa diklik tanpa menutup jendela / pop-up yang sedang terbuka (DN-304)
+  if (!fab.dataset.p89) { fab.dataset.p89 = '1'; ['pointerdown', 'mousedown', 'touchstart'].forEach(ev => fab.addEventListener(ev, e => e.stopPropagation())); fab.addEventListener('click', e => { e.stopPropagation(); }); }
 }
 setInterval(() => { try { p55Dock_(); } catch (e) { } }, 1500); setTimeout(p55Dock_, 600);
 setInterval(() => { try { p88DvnPosisi_(); } catch (e) { } }, 400);
@@ -76479,8 +76512,6 @@ function p63GantiManual_() {
   body *::-webkit-scrollbar-thumb { background: rgba(127,127,127,.32); border-radius: 99px; }
   body *::-webkit-scrollbar-thumb:hover { background: rgba(127,127,127,.55); }
   body *::-webkit-scrollbar-track, body *::-webkit-scrollbar-corner { background: transparent; }
-  .omx-modal-head .p64-min { margin-left: auto; margin-right: 4px; border: 0; background: transparent; font-size: 18px; line-height: 1; cursor: pointer; color: var(--web-text-dim, #64748b); padding: 2px 8px; border-radius: 8px; }
-  .omx-modal-head .p64-min:hover { background: rgba(127,127,127,.12); }
   /* DN-618: jendela Detail Invoice lebih besar & bisa diubah ukurannya */
   #bel-modal-detail-invoice > .web-panel { width: min(1280px, 96vw) !important; max-width: 96vw !important; max-height: 92vh !important; resize: both; overflow: auto; box-sizing: border-box; }
   /* DN-847: penampil dokumen layar penuh */
@@ -76565,21 +76596,10 @@ const P64 = { profil: null, staffRow: null, foto: undefined };
 const P63_LOGO_WA_URL_FE = 'https://images.seeklogo.com/logo-png/37/1/whatsapp-business-logo-png_seeklogo-371915.png';
 
 /* ---------- DN-157: Catatan Developer - tulisan tidak hilang saat ditutup / diklik di luar; tombol – = simpan ---------- */
-const p64TutupModalAsli_ = omxTutupModal;
-omxTutupModal = function () {
-  try { if (el('dvn-teks') && typeof dvnSimpanDrafKetik_ === 'function') { dvnSimpanDrafKetik_(); if (DVN.draf && String(DVN.draf.catatan || '').trim()) P64.dvnSimpan = true; } } catch (e) { }
-  return p64TutupModalAsli_.apply(this, arguments);
-};
 const p64DvnBukaAsli_ = dvnBukaWidget;
-dvnBukaWidget = function (lanjut) {
+dvnBukaWidget = function (lanjut) { // v2026.10.109: draf tetap dipakai saat dibuka lagi (jendela Catatan Dev sendiri, lihat p89DvnTutup_)
   const pakaiDraf = lanjut || (P64.dvnSimpan && DVN.draf && String(DVN.draf.catatan || '').trim());
-  const h = p64DvnBukaAsli_.call(this, pakaiDraf ? true : lanjut);
-  try {
-    const head = document.querySelector('#omx-modal .omx-modal-head');
-    if (head && el('dvn-teks') && !head.querySelector('.p64-min')) head.querySelector('.omx-x').insertAdjacentHTML('beforebegin', '<button type="button" class="p64-min" title="Simpan & tutup - tulisan tetap tersimpan" aria-label="Simpan dan tutup" onclick="omxTutupModal()">–</button>');
-    const x = head && head.querySelector('.omx-x'); if (x) x.title = 'Tutup (tulisan tetap tersimpan)';
-  } catch (e) { }
-  return h;
+  return p64DvnBukaAsli_.call(this, pakaiDraf ? true : lanjut);
 };
 const p64DvnSimpanAsli_ = dvnSimpan;
 dvnSimpan = async function () {
@@ -78192,8 +78212,6 @@ p59GmPakai = function () {
   .p67-kilat { background: rgba(124,58,237,.12) !important; color: #6d28d9 !important; border-color: rgba(124,58,237,.32) !important; }
 
   /* DN-273: Catatan Developer melayang di atas popup lain, popup di bawahnya tetap bisa diklik */
-  .omx-modal-latar.p69-dvn { background: transparent; pointer-events: none; z-index: 99990; align-items: flex-end; justify-content: flex-start; padding: 14px; }
-  .omx-modal-latar.p69-dvn > .omx-modal { pointer-events: auto; max-width: 400px; max-height: min(78vh, 640px); box-shadow: 0 18px 50px rgba(15,23,42,.35); border: 1px solid var(--web-border, #e2e8f0); }
 
   /* DN-708: geser lebar jendela tanpa macet */
   html.p69-rs *, html.p69-rs *::before, html.p69-rs *::after { transition: none !important; animation: none !important; }
@@ -78268,29 +78286,7 @@ const P69 = { manual: false, manualHm: 0, urlKunci: new Set(), isiUrl: false, te
   lama.classList.add('p69-pindah');
 })();
 
-/* ---------- DN-273: Catatan Developer tidak menutup popup yang sedang tampil ---------- */
-const p69DvnBukaAsli_ = dvnBukaWidget;
-dvnBukaWidget = function () {
-  const ada = el('omx-modal');
-  if (ada && !ada.classList.contains('p69-dvn')) {
-    ada.id = 'p69-modal-bawah'; P69.dvnBawah = ada;
-    const x = ada.querySelector('.omx-x'); if (x) { x._p69 = x.onclick; } if (x) x.onclick = () => { ada.remove(); if (P69.dvnBawah === ada) P69.dvnBawah = null; };
-    if (!ada.dataset.p69) ada.dataset.p69 = '1', ada.addEventListener('mousedown', e => { if (e.target === ada && P69.dvnBawah === ada) { e.stopImmediatePropagation(); ada.remove(); P69.dvnBawah = null; } }, true);
-  }
-  P69.membuka = true;
-  let h; try { h = p69DvnBukaAsli_.apply(this, arguments); } finally { P69.membuka = false; }
-  try { const w = el('omx-modal'); if (w && el('dvn-teks')) w.classList.add('p69-dvn'); } catch (e) { }
-  return h;
-};
-const p69TutupAsli_ = omxTutupModal;
-omxTutupModal = function () {
-  const r = p69TutupAsli_.apply(this, arguments);
-  try {
-    const b = P69.dvnBawah;
-    if (b && !P69.membuka && !el('omx-modal')) { P69.dvnBawah = null; if (b.isConnected) { b.id = 'omx-modal'; const x = b.querySelector('.omx-x'); if (x && x._p69) x.onclick = x._p69; document.addEventListener('keydown', omxEscModal_); } }
-  } catch (e) { }
-  return r;
-};
+/* DN-273 (Catatan Dev tidak menutup popup) kini ditangani jendela sendiri p89DvnJendela_ (v2026.10.109) */
 
 /* ---------- DN-708: saat lebar jendela diubah, animasi dimatikan sementara (tidak macet) ---------- */
 (function () {
@@ -81505,7 +81501,7 @@ cckRender = function () { const r = p77CckAsli_.apply(this, arguments); try { p7
 
 /* ---------- DN-393: Tunjuk banyak bagian (klik / tahan & seret) ---------- */
 dvnMulaiTunjuk = function () {
-  dvnSimpanDrafKetik_(); omxTutupModal();
+  dvnSimpanDrafKetik_(); p89DvnTutup_();
   document.body.classList.add('dvn-memilih'); dvnPerbaruiFab_();
   const daftar = [], tanda = [];
   const kotak = document.createElement('div'); kotak.className = 'dvn-sorot'; kotak.id = 'dvn-sorot';
@@ -84257,7 +84253,7 @@ function p85BuatSiapkan() {
           <div class="p85-peta" id="p85-peta"></div><div class="p85-peta-info"><span id="p85-peta-st">Klik peta atau geser penanda untuk menentukan titik.</span><span id="p85-peta-koord"></span></div></div></div>
       <div id="p85-slot-lama" class="p85-sembunyi"></div></div>
     <div class="p85-kartu"><div class="p85-judul"><span class="no">3</span>Produk, Pengiriman &amp; Keranjang</div>
-      <div class="p85-2kol"><div><div class="p85-kol-judul">Pilih produk <span id="p85-katalog-n"></span></div><div id="p85-slot-cari"></div><div class="p85-katalog-grid" id="p85-katalog"></div></div>
+      <div class="p85-2kol p89-produk"><div><div class="p85-kol-judul">Pilih produk <span id="p85-katalog-n"></span></div><div id="p85-slot-cari"></div><div class="p85-katalog-grid" id="p85-katalog"></div></div>
         <div class="p85-sisi-kanan"><div class="p85-kol-judul">Pengiriman</div><div class="p85-kirim" id="p85-slot-kirim"></div><div class="p85-kol-judul">Keranjang</div><div id="p85-slot-cart"></div></div></div></div>`;
   const pindah = (slot, node) => { if (node && el(slot)) el(slot).appendChild(node); };
   pindah('p85-slot-nama', el('wp-b-nama-pembeli').closest('.wp-b-nama-wrap') || el('wp-b-nama-pembeli'));
@@ -84291,6 +84287,7 @@ function p85BuatSiapkan() {
   // Katalog kartu
   el('p85-katalog').addEventListener('click', async e => {
     const b = e.target.closest('.p85-produk'); if (!b) return;
+    if (b.dataset.riw) { p89TambahRiwayat_(b.dataset.riw); return; } // v2026.10.109 (DN-527): harga riwayat pembeli ini, tanpa panggil server
     const inp = el('wp-b-sku-input'), q = inp.value; inp.value = b.dataset.sku;
     try { await wpTambahItemCart(); } catch (er) { }
     inp.value = q && q !== b.dataset.sku ? q : ''; p85KatalogRender();
@@ -85015,23 +85012,38 @@ function p86BuatPasang() {
   ['p85a-link', 'p85a-ambil'].forEach(id => { const c = el(id); if (c) { c.removeEventListener('change', p86SusunAsli_); c.addEventListener('change', () => p85AlamatSusun()); } });
   const cp = el('p85-cari-peta'); if (cp) { cp.placeholder = '🔍 Cari kota / tempat (seluruh Indonesia & dunia) atau tempel link Google Maps / shareloc…'; cp.addEventListener('paste', () => setTimeout(p85CariPeta, 30)); }
 }
-// DN-271: default katalog = produk yang biasa dibeli pembeli ini
+// DN-271 / DN-527 (v2026.10.109): tanpa kata cari = SEMUA barang yang pernah dibeli pembeli ini + harga terakhirnya
+function p89RiwayatProduk_() {
+  const peta = {}, urut = [];
+  (typeof wpBRiwayat !== 'undefined' ? wpBRiwayat : []).forEach(o => {
+    if (o.status === 'Dibatalkan') return;
+    (o.items || []).forEach(it => {
+      const k = it.sku ? 'S:' + String(it.sku).toUpperCase() : 'N:' + String(it.nama || '').toLowerCase().trim(); if (k.length < 3) return;
+      let x = peta[k];
+      if (!x) { x = peta[k] = { k, sku: it.sku || '', nama: it.nama || it.sku, harga: Number(it.harga) || 0, tgl: o.tanggal || '', kali: 0, qty: 0 }; urut.push(x); }
+      x.kali++; x.qty += Number(it.qty) || 0; // riwayat urut terbaru dulu -> harga pertama = harga terakhir
+    });
+  });
+  return urut.sort((a, b) => b.kali - a.kali);
+}
 p85KatalogRender = function () {
   const g = el('p85-katalog'); if (!g) return;
   const q = (el('wp-b-sku-input') || {}).value ? el('wp-b-sku-input').value.trim() : '';
   const semua = (typeof produkRingan !== 'undefined' && produkRingan && produkRingan.d) || [];
   if (!semua.length) { g.innerHTML = '<div class="p84-redup">Memuat katalog…</div>'; try { produkRinganSiap().then(d => { if (d && d.length) p85KatalogRender(); }); } catch (e) { } return; }
-  const qty = {}; try { (typeof wpCart !== 'undefined' ? wpCart : []).forEach(it => { const k = String(it.sku).toUpperCase(); qty[k] = (qty[k] || 0) + (Number(it.qty) || 0); }); } catch (e) { }
+  const qty = {}; try { (typeof wpCart !== 'undefined' ? wpCart : []).forEach(it => { const k = String(it.sku || it.nama).toUpperCase(); qty[k] = (qty[k] || 0) + (Number(it.qty) || 0); }); } catch (e) { }
   const peta = {}; semua.forEach(p => { peta[String(p.sku).toUpperCase()] = p; });
-  let list = [], sering = {};
-  if (q) { try { list = produkCariLokal(q, 60); } catch (e) { } el('p85-katalog-n').textContent = list.length + ' hasil'; }
-  else {
-    (typeof wpBRiwayat !== 'undefined' ? wpBRiwayat : []).forEach(o => (o.items || []).forEach(it => { const k = String(it.sku || '').toUpperCase(); if (!k) return; sering[k] = (sering[k] || 0) + 1; }));
-    list = Object.keys(sering).sort((a, b) => sering[b] - sering[a]).map(k => peta[k] || { sku: k, nama: k }).slice(0, 40);
-    el('p85-katalog-n').textContent = list.length ? '· sering dibeli pembeli ini' : '';
+  const kartu = (p, riw) => { const k = String(p.sku || p.nama).toUpperCase(), n = qty[k], m = peta[String(p.sku || '').toUpperCase()] || {}, foto = m.foto || p.foto;
+    return `<button type="button" class="p85-produk${riw ? ' p89-riw' : ''}" data-sku="${p85A(p.sku || '')}"${riw ? ` data-riw="${p85A(riw.k)}"` : ''} title="${p85A((p.nama || '') + (riw ? `\nTerakhir dibeli ${riw.tgl} · ${riw.kali}× pesanan` : '') + '\nKlik untuk masukkan ke keranjang')}">${n ? `<span class="qty">${n}</span>` : ''}${foto ? `<img loading="lazy" src="${p85A(foto)}" alt="" />` : '<span class="tanpa">☕</span>'}<b>${p85E(p.nama || p.sku)}</b><small>${p85E(p.sku || 'tanpa SKU')}</small>${riw ? `<span class="harga">${p84Rp(riw.harga)}</span><small class="p89-kali">${riw.kali}× dibeli</small>` : (m.harga ? `<span class="harga">${p84Rp(m.harga)}</span>` : '')}</button>`; };
+  if (q) {
+    let list = []; try { list = produkCariLokal(q, 60); } catch (e) { }
+    el('p85-katalog-n').textContent = list.length + ' hasil';
+    g.innerHTML = list.length ? list.map(p => kartu(p)).join('') : '<div class="p86-katalog-kosong">Produk tidak ditemukan - tekan Enter untuk cari SKU di server.</div>';
+    return;
   }
-  if (!list.length) { g.innerHTML = q ? '<div class="p86-katalog-kosong">Produk tidak ditemukan - tekan Enter untuk cari SKU di server.</div>' : '<div class="p86-katalog-kosong">Pilih pembeli untuk melihat produk yang biasa dia pesan,<br>atau ketik nama / SKU produk di kotak cari.</div>'; return; }
-  g.innerHTML = list.map(p => { const k = String(p.sku).toUpperCase(), n = qty[k], s = sering[k]; return `<button type="button" class="p85-produk" data-sku="${p85A(p.sku)}" title="Klik untuk masukkan ke keranjang">${s ? `<span class="p86-sering">${s}× dibeli</span>` : ''}${n ? `<span class="qty">${n}</span>` : ''}${p.foto ? `<img loading="lazy" src="${p85A(p.foto)}" alt="" />` : '<span class="tanpa">☕</span>'}<b>${p85E(p.nama)}</b><small>${p85E(p.sku)}</small><span class="harga">${p.harga ? p84Rp(p.harga) : ''}</span></button>`; }).join('');
+  P89K.riw = p89RiwayatProduk_();
+  el('p85-katalog-n').textContent = P89K.riw.length ? '· ' + P89K.riw.length + ' barang pernah dibeli pembeli ini' : '';
+  g.innerHTML = P89K.riw.length ? P89K.riw.map(r => kartu(r, r)).join('') : '<div class="p86-katalog-kosong">Pilih pembeli untuk melihat semua barang yang pernah dia pesan,<br>atau ketik nama / SKU produk di kotak cari.</div>';
 };
 // DN-745: foto produk utama di rincian tagihan
 function p86FotoSku_(sku, nama) {
@@ -85572,25 +85584,6 @@ async function p87BuatDariListing(i) {
   setTimeout(() => { if (el('tp-sku')) el('tp-sku').value = x.sku; if (el('tp-nama') && !el('tp-nama').value) el('tp-nama').value = x.nama; try { p80PilihToko(x.toko); } catch (e) { } }, 400);
 }
 
-/* ---------- DN-405: Qty − angka + ---------- */
-if (typeof wpRenderCart === 'function') {
-  const p87CartAsli = wpRenderCart;
-  wpRenderCart = function () {
-    const r = p87CartAsli.apply(this, arguments);
-    try {
-      document.querySelectorAll('#wp-b-cart-body input[onchange^="wpUpdateQtyCart"]').forEach(inp => {
-        if (inp.parentElement.classList.contains('p87-qty')) return;
-        const idx = Number((/wpUpdateQtyCart\((\d+)/.exec(inp.getAttribute('onchange')) || [])[1]);
-        const w = document.createElement('div'); w.className = 'p87-qty'; inp.parentNode.insertBefore(w, inp);
-        w.innerHTML = '<button type="button" aria-label="Kurangi">−</button>'; w.appendChild(inp); w.insertAdjacentHTML('beforeend', '<button type="button" aria-label="Tambah">+</button>');
-        const [kurang, tambah] = w.querySelectorAll('button');
-        const set = v => { inp.value = Math.max(1, v); wpUpdateQtyCart(idx, inp.value); };
-        kurang.onclick = () => set((parseInt(inp.value, 10) || 1) - 1); tambah.onclick = () => set((parseInt(inp.value, 10) || 0) + 1);
-      });
-    } catch (e) { }
-    return r;
-  };
-}
 
 /* ---------- DN-539 / DN-910: maskot vektor di tombol AI, favicon maskot tanpa kotak ---------- */
 function p87Maskot_() {
@@ -85751,7 +85744,7 @@ async function p87CariDariAlamat() {
 }
 // DN-856: Alamat Lengkap = pencarian pintar sambil mengetik
 async function p87SaranAlamat_() {
-  const j = el('p85a-jalan'), q = j ? j.value.trim() : ''; if (!j || q.length < 4 || j.readOnly) { p87SaranTutup_(); return; }
+  const j = (typeof P89A !== 'undefined' && P89A.aktif) || el('p85a-jalan'), q = j ? j.value.trim() : ''; if (!j || q.length < 4 || j.readOnly) { p87SaranTutup_(); return; }
   const seq = ++P87.tSaran; P87.sesi = P87.sesi || ('s' + Date.now());
   let daftar = [], sumber = 'OpenStreetMap';
   const g = await p87Geo_({ mode: 'cari', q, sesi: P87.sesi });
@@ -85775,7 +85768,8 @@ async function p87PilihSaran(i) {
   const st = el('p85-peta-st'); if (st) st.textContent = 'Mengisi alamat…';
   let h = s.osm || null;
   if (s.placeId) { const g = await p87Geo_({ mode: 'detail', placeId: s.placeId, sesi: P87.sesi }); P87.sesi = ''; if (g && g.hasil) h = g.hasil; }
-  const j = el('p85a-jalan'); j.value = [s.utama, s.sub].filter(Boolean).join(', '); delete j.dataset.edit; p86Kunci_(j);
+  const j = (typeof P89A !== 'undefined' && P89A.aktif) || el('p85a-jalan'); j.value = [s.utama, s.sub].filter(Boolean).join(', ');
+  if (j.id === 'p85a-jalan') { delete j.dataset.edit; p86Kunci_(j); } else p89BarisSync_(); // DN-967: baris alamat
   p87IsiSemua_(h || {});
   if (h && h.lat !== null && h.lat !== undefined) { await p85PetaSiapkan(); P85B.seq++; p85PinSet(+h.lat, +h.lng, false); }
   if (st) st.textContent = 'Alamat & titik terisi dari saran - tambahkan nomor rumah / patokan bila perlu.';
@@ -85808,7 +85802,8 @@ function p87BuatPasang_() {
     const bantu = document.querySelector('#wp-view-buat .p86-alamat-bantu');
     if (bantu && (typeof omxApakahOwner_ !== 'function' || omxApakahOwner_())) bantu.insertAdjacentHTML('beforeend', ' · <button type="button" class="p87-gkunci" onclick="p87GoogleKunci()">⚙ Google Maps</button>');
   }
-  const a = el('p87-gmaps'); if (a) { const ada = P85B.lat !== null; a.classList.toggle('mati', !ada); if (ada) a.href = `https://www.google.com/maps?q=${P85B.lat.toFixed(6)},${P85B.lng.toFixed(6)}`; }
+  // DN-741 (v2026.10.109): Google Maps = pencarian dengan alamat lengkap yang diisi (koordinat diambil dari sana, tempel di kotak cari)
+  const a = el('p87-gmaps'); if (a) { const q = String((el('wp-b-alamat') || {}).value || '').replace(/\n?📍[\s\S]*$/, '').trim(); const ada = q.length > 3 && q !== '-'; a.classList.toggle('mati', !ada); a.href = ada ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q) : '#'; a.title = ada ? 'Cari alamat ini di Google Maps - salin koordinat titiknya lalu tempel di kotak cari peta' : 'Isi alamat dulu'; }
 }
 
 /* ---------- Pasang ---------- */
@@ -86011,5 +86006,365 @@ async function p88DeteksiBiaya() {
   finally { btn.disabled = false; btn.textContent = teks; }
 }
 </script>
+
+<!-- ===================================================================================
+     PAKET 89 (v2026.10.109) - Catatan Dev di menu samping & jendelanya sendiri, rentang tanggal tidak tertutup,
+     Buat Pesanan: riwayat produk + harga, kartu sempit, SKU/nama bisa diubah, geser urutan, Repeat Order gabungan,
+     peta semi terkunci, alamat banyak baris, Google Maps cari alamat, Upload PO
+     =================================================================================== -->
+<style>
+  /* ---------- DN-116: Catatan Dev = baris paling bawah menu samping ---------- */
+  .p88-dvn-tempat.p89-sb { display: block; width: auto; height: 40px; margin: 6px 0 0; position: sticky; bottom: 0; border-radius: 10px;
+    background: linear-gradient(180deg, rgba(25,21,18,0), #1d1815 35%); }
+  .dvn-fab.p88-dvn .p89-lbl { display: none; }
+  .dvn-fab.p88-dvn.p89-sb { justify-content: flex-start; gap: 10px; padding: 0 12px !important; border-radius: 10px !important; background: rgba(255,255,255,.04) !important;
+    color: #d8d0c7 !important; border: 1px solid rgba(255,255,255,.08) !important; box-shadow: none !important; font: inherit; font-size: 13px; font-weight: 600; }
+  .dvn-fab.p88-dvn.p89-sb:hover { color: #fff !important; border-color: rgba(245,158,11,.55) !important; background: rgba(245,158,11,.08) !important; }
+  .dvn-fab.p88-dvn.p89-sb .p89-lbl { display: inline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dvn-fab.p88-dvn.p89-sb .dvn-n { position: static; margin-left: auto; border-color: transparent; }
+  .dvn-fab.p88-dvn.p89-sb.p89-lipat { justify-content: center; padding: 0 !important; }
+  .dvn-fab.p88-dvn.p89-sb.p89-lipat .p89-lbl { display: none; }
+  .dvn-fab.p88-dvn.p89-sb.p89-lipat .dvn-n { position: absolute; top: -5px; right: -5px; margin: 0; }
+  /* Jendela Catatan Dev sendiri - di atas jendela lain, tanpa menutupnya */
+  .p89-dvn-latar { position: fixed; inset: 0; z-index: 2147482600; background: transparent; pointer-events: none; display: flex; align-items: flex-end; justify-content: flex-start; padding: 16px 16px 64px; }
+  .p89-dvn-latar .omx-modal { pointer-events: auto; margin: 0; max-width: 420px; width: 100%; max-height: min(80vh, 660px); overflow: auto; box-shadow: 0 18px 50px rgba(25,21,18,.35); }
+  html.omni-mobile .p89-dvn-latar { align-items: flex-end; justify-content: center; padding: 8px 8px calc(var(--m2-nav, 0px) + 12px); }
+
+  /* ---------- DN-527: kolom produk sempit di kiri, keranjang lebar ---------- */
+  #wp-view-buat .p85-2kol.p89-produk { grid-template-columns: minmax(250px, 31%) minmax(0, 1fr); align-items: start; }
+  #wp-view-buat .p89-produk .p85-katalog-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); max-height: 560px; }
+  #wp-view-buat .p89-produk .p85-produk b { font-size: 11.5px; }
+  .p85-produk.p89-riw { border-color: rgba(180,83,9,.28); }
+  .p85-produk .p89-kali { color: #b45309; font-weight: 600; }
+  .p89-kolom-alat { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; }
+  .p89-kolom-alat button, .p89-cart-alat button { border: 1px solid var(--web-border); background: var(--web-panel); color: var(--web-text); border-radius: 9px; padding: 5px 10px;
+    font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .p89-kolom-alat button:hover, .p89-cart-alat button:hover { border-color: rgba(180,83,9,.45); color: #92400e; }
+  .p89-cart-alat { display: flex; justify-content: flex-end; gap: 6px; margin: -4px 0 6px; }
+  @media (max-width: 860px) { #wp-view-buat .p85-2kol.p89-produk { grid-template-columns: 1fr; } }
+  /* Keranjang: nama & SKU bisa diubah, pegangan geser */
+  #wp-b-cart-body .p89-isi { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  #wp-b-cart-body .p89-nama { border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 3px 6px; font: inherit; font-weight: 600; font-size: 13px; color: var(--web-text); width: 100%; min-width: 140px; }
+  #wp-b-cart-body .p89-nama:hover, #wp-b-cart-body .p89-nama:focus { border-color: var(--web-border); background: var(--web-panel); outline: none; }
+  .p89-sku-baris { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  #wp-b-cart-body .p89-sku { width: 130px; border: 1px solid var(--web-border); background: var(--web-panel); border-radius: 7px; padding: 2px 6px; font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--web-text); }
+  .p89-st { font-size: 10.5px; font-weight: 700; border-radius: 99px; padding: 1px 7px; }
+  .p89-st.ok { background: rgba(47,158,110,.14); color: #23845a; }
+  .p89-st.baru { background: rgba(245,158,11,.16); color: #b45309; }
+  .p89-st.kosong { background: rgba(120,113,108,.12); color: var(--web-text-dim); }
+  .p89-buatsku { border: 0; background: none; color: #b45309; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; padding: 0; }
+  .p89-geser { cursor: grab; color: var(--web-text-dim); font-weight: 800; letter-spacing: -2px; padding: 4px 4px 4px 0; user-select: none; flex: none; }
+  #wp-b-cart-body tr.p89-tarik { opacity: .45; }
+  #wp-b-cart-body tr.p89-sasaran-atas td { box-shadow: inset 0 2px 0 #b45309; }
+  #wp-b-cart-body tr.p89-sasaran-bawah td { box-shadow: inset 0 -2px 0 #b45309; }
+
+  /* ---------- DN-984: peta semi terkunci ---------- */
+  .p89-peta-kunci { position: absolute; inset: 0; z-index: 1001; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 12px; cursor: pointer; background: transparent; border: 0; }
+  .p89-peta-kunci span { background: rgba(29,24,21,.78); color: #fff; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 99px; pointer-events: none; }
+  .p89-peta-kunci[hidden] { display: none; }
+
+  /* ---------- DN-967: alamat banyak baris ---------- */
+  .p89-alamat-baris { display: flex; flex-direction: column; gap: 6px; }
+  .p89-baris { position: relative; display: flex; gap: 6px; align-items: center; }
+  .p89-baris input { flex: 1; }
+  .p89-baris .hapus { border: 0; background: none; color: var(--web-text-dim); font-size: 15px; cursor: pointer; padding: 2px 4px; }
+  .p89-baris .hapus:hover { color: var(--web-danger, #b91c1c); }
+  #wp-view-buat .p89-jalan-asli { display: none !important; }
+
+  /* ---------- DN-621: Upload PO ---------- */
+  .omx-modal:has(#p89-po-isi) { max-width: min(1120px, 95vw) !important; width: 95vw; }
+  .p89-po { font-size: 12.5px; }
+  .p89-po-info { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--web-text-dim); margin-bottom: 8px; }
+  .p89-po-info b { color: var(--web-text); }
+  .p89-po table { width: 100%; border-collapse: collapse; }
+  .p89-po th { text-align: left; font-size: 11px; color: var(--web-text-dim); font-weight: 600; padding: 6px; border-bottom: 1px solid var(--web-border); }
+  .p89-po td { padding: 7px 6px; border-bottom: 1px solid var(--web-border); vertical-align: top; }
+  .p89-po td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .p89-po tr.baris { cursor: pointer; }
+  .p89-po tr.baris:hover td { background: rgba(245,158,11,.05); }
+  .p89-po tr.baris.buka td { background: rgba(245,158,11,.07); }
+  .p89-po .pilih b { display: block; }
+  .p89-po .pilih small, .p89-po .asal small { color: var(--web-text-dim); display: block; }
+  .p89-po .yakin { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 99px; padding: 0 6px; margin-top: 2px; }
+  .p89-po .yakin.t { background: rgba(47,158,110,.14); color: #23845a; } .p89-po .yakin.s { background: rgba(245,158,11,.16); color: #b45309; } .p89-po .yakin.r { background: rgba(185,28,28,.1); color: #b91c1c; }
+  .p89-po input.harga { width: 104px; text-align: right; }
+  .p89-po .detail td { background: var(--p83-th, #faf8f5); }
+  .p89-po .calon { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+  .p89-po .calon button { text-align: left; border: 1px solid var(--web-border); background: var(--web-panel); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 12px; cursor: pointer; color: var(--web-text); }
+  .p89-po .calon button.aktif { border-color: #b45309; box-shadow: inset 3px 0 0 #b45309; }
+  .p89-po .riw { margin-top: 6px; color: var(--web-text-dim); }
+  .p89-po .aksi { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 12px; }
+</style>
+<script>
+/* ============================ PAKET 89 (v2026.10.109) ============================ */
+const P89K = { riw: [] };
+const P89A = { aktif: null, sinkron: null, siap: false };
+
+/* ---------- Catatan Dev: jendela sendiri (tidak menutup jendela lain) ---------- */
+function p89DvnJendela_(judul, isiHtml) {
+  p89DvnTutup_();
+  const w = document.createElement('div'); w.id = 'p89-dvn-jendela'; w.className = 'p89-dvn-latar';
+  w.innerHTML = `<div class="omx-modal" role="dialog" aria-modal="true" aria-label="${pgrAttr(judul)}"><div class="omx-modal-head"><b>${escapeHtml(judul)}</b><button type="button" class="omx-x" aria-label="Tutup" onclick="p89DvnTutup_()">✕</button></div><div class="omx-modal-isi">${isiHtml}</div></div>`;
+  const kartu = w.firstElementChild; ['pointerdown', 'mousedown', 'click', 'touchstart'].forEach(ev => kartu.addEventListener(ev, e => e.stopPropagation())); // jendela lain tidak ikut tertutup
+  document.body.appendChild(w); document.addEventListener('keydown', p89DvnEsc_, true);
+  setTimeout(() => { const f = w.querySelector('textarea, input:not([type=hidden])'); if (f) f.focus(); }, 40);
+  return w;
+}
+function p89DvnEsc_(e) { if (e.key === 'Escape' && el('p89-dvn-jendela')) { e.stopPropagation(); p89DvnTutup_(); } }
+function p89DvnTutup_() {
+  const w = el('p89-dvn-jendela'); if (!w) return;
+  try { if (el('dvn-teks')) { dvnSimpanDrafKetik_(); if (DVN.draf && String(DVN.draf.catatan || '').trim()) P64.dvnSimpan = true; } } catch (e) { } // tulisan tidak hilang
+  w.remove(); document.removeEventListener('keydown', p89DvnEsc_, true);
+}
+
+/* ---------- DN-527: kartu riwayat -> keranjang dengan harga terakhir pembeli ini ---------- */
+function p89TambahRiwayat_(k) {
+  const r = (P89K.riw || []).find(x => x.k === k); if (!r) return;
+  const ada = wpCart.find(x => r.sku ? String(x.sku || '').toUpperCase() === String(r.sku).toUpperCase() : (!x.sku && x.nama === r.nama));
+  if (ada) ada.qty = (Number(ada.qty) || 0) + 1; else wpCart.push({ sku: r.sku, nama: r.nama, qty: 1, harga: r.harga });
+  playBeep(); wpRenderCart();
+  const st = el('wp-b-sku-status'); if (st) st.textContent = `✓ ${r.nama} - harga terakhir pembeli ini ${p84Rp(r.harga)}`;
+}
+function p89Master_(sku) { const d = (typeof produkRingan !== 'undefined' && produkRingan && produkRingan.d) || [], k = String(sku || '').trim().toUpperCase(); return k ? d.find(p => String(p.sku).toUpperCase() === k) : null; }
+function p89SkuBuat_(nama) {
+  const inisial = String(nama || 'PRODUK').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 4).map(w => /^\d/.test(w) ? w.slice(0, 3) : w[0]).join('') || 'PRD';
+  for (let i = 0; i < 20; i++) { const s = inisial + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(); if (!p89Master_(s) && !wpCart.some(x => String(x.sku).toUpperCase() === s)) return s; }
+  return inisial + '-' + Date.now().toString(36).toUpperCase();
+}
+function p89SkuTerapkan_(idx, nilai) {
+  const it = wpCart[idx]; if (!it) return;
+  const v = String(nilai || '').trim(), m = p89Master_(v);
+  if (!v) { it.sku = ''; it.baru = false; }
+  else if (m) { it.sku = m.sku; it.baru = false; it.nama = m.nama; } // SKU terdaftar = produk itu (nama mengikuti Produk Master, tetap bisa diubah)
+  else { it.sku = v.toUpperCase().replace(/\s+/g, '-'); it.baru = true; }
+  wpRenderCart(); try { p85KatalogRender(); } catch (e) { }
+}
+// SKU baru di keranjang -> Produk Master (latar, 1 permintaan per SKU, saat pesanan disimpan)
+function p89DaftarkanSkuBaru_() {
+  const baru = wpCart.filter(x => x.baru && x.sku && !p89Master_(x.sku));
+  baru.forEach(async it => {
+    try {
+      const r = await postJsonTulis({ aksi: 'tambah_produk_baru', sku: it.sku, namaProduk: it.nama, hargaSupplier: 0, harga: Number(it.harga) || 0, kategori: '', merk: '', deskripsi: '', tampilWebsite: false, toko: el('wp-b-toko') ? el('wp-b-toko').value : currentToko, email: currentUserEmail() }, 60000);
+      if (r && (r.success || /udah dipakai/i.test(String(r.error || '')))) { it.baru = false; try { if (produkRingan && produkRingan.d) produkRingan.d.push({ sku: it.sku, nama: it.nama, harga: it.harga }); } catch (e) { } omniToast(`${it.sku} didaftarkan ke Produk Master`, 'sukses'); }
+      else throw new Error((r && r.error) || 'gagal');
+    } catch (e) { omniToast(`SKU ${it.sku} belum masuk Produk Master: ${e.message} - daftarkan dari Katalog`, 'peringatan'); }
+  });
+}
+// Keranjang: event sekali pasang (nama, SKU, Buat SKU, geser urutan)
+function p89CartPasang_() {
+  const tb = el('wp-b-cart-body'); if (!tb || tb.dataset.p89) return; tb.dataset.p89 = '1';
+  tb.addEventListener('change', e => {
+    const t = e.target, i = Number(t.dataset.idx); if (!wpCart[i]) return;
+    if (t.classList.contains('p89-nama')) { wpCart[i].nama = t.value.trim() || wpCart[i].nama; t.value = wpCart[i].nama; }
+    if (t.classList.contains('p89-sku')) p89SkuTerapkan_(i, t.value);
+  });
+  tb.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.p89-nama, .p89-sku')) { e.preventDefault(); e.target.blur(); } });
+  tb.addEventListener('input', e => { if (e.target.classList.contains('p89-sku')) p89SkuSaran_(e.target.value); });
+  tb.addEventListener('click', e => { const b = e.target.closest('.p89-buatsku'); if (b) { const i = Number(b.dataset.idx); p89SkuTerapkan_(i, p89SkuBuat_(wpCart[i] && wpCart[i].nama)); wpCart[i] && (wpCart[i].baru = true); wpRenderCart(); } });
+  let dari = -1;
+  tb.addEventListener('dragstart', e => { const h = e.target.closest && e.target.closest('.p89-geser'); if (!h || wpEditingRow) { e.preventDefault(); return; } dari = Number(h.dataset.idx); const tr = h.closest('tr'); tr.classList.add('p89-tarik'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(dari)); e.dataTransfer.setDragImage(tr, 20, 20); } catch (x) { } });
+  tb.addEventListener('dragover', e => { if (dari < 0) return; const tr = e.target.closest('tr[data-idx]'); if (!tr) return; e.preventDefault(); const r = tr.getBoundingClientRect(), atas = e.clientY < r.top + r.height / 2; tb.querySelectorAll('tr').forEach(x => x.classList.remove('p89-sasaran-atas', 'p89-sasaran-bawah')); tr.classList.add(atas ? 'p89-sasaran-atas' : 'p89-sasaran-bawah'); });
+  tb.addEventListener('drop', e => {
+    if (dari < 0) return; e.preventDefault(); const tr = e.target.closest('tr[data-idx]'); if (!tr) return;
+    let ke = Number(tr.dataset.idx) + (tr.classList.contains('p89-sasaran-bawah') ? 1 : 0); const [x] = wpCart.splice(dari, 1); if (ke > dari) ke--; wpCart.splice(ke, 0, x); dari = -1; wpRenderCart();
+  });
+  tb.addEventListener('dragend', () => { dari = -1; tb.querySelectorAll('tr').forEach(x => x.classList.remove('p89-tarik', 'p89-sasaran-atas', 'p89-sasaran-bawah')); });
+}
+function p89SkuSaran_(q) {
+  let dl = el('p89-sku-list'); if (!dl) { dl = document.createElement('datalist'); dl.id = 'p89-sku-list'; document.body.appendChild(dl); }
+  let h = []; try { h = q && q.length >= 2 ? produkCariLokal(q, 12) : []; } catch (e) { }
+  dl.innerHTML = h.map(p => `<option value="${pgrAttr(p.sku)}">${escapeHtml(p.nama || '')}</option>`).join('');
+}
+function p89Kosongkan() { if (!wpCart.length) return; wpCart = []; p89RepeatDari.clear(); wpRenderCart(); try { p85KatalogRender(); } catch (e) { } const st = el('wp-b-sku-status'); if (st) st.textContent = 'Keranjang dikosongkan.'; }
+
+/* ---------- DN-984: peta semi terkunci ---------- */
+function p89PetaKunci_(kunci) {
+  const m = P85B.peta, box = el('p85-peta'); if (!m || !box) return;
+  ['dragging', 'scrollWheelZoom', 'doubleClickZoom', 'touchZoom', 'boxZoom', 'keyboard'].forEach(h => { try { if (m[h]) m[h][kunci ? 'disable' : 'enable'](); } catch (e) { } });
+  try { if (P85B.pin && P85B.pin.dragging) P85B.pin.dragging[kunci ? 'disable' : 'enable'](); } catch (e) { }
+  let o = el('p89-peta-kunci');
+  if (!o) { box.insertAdjacentHTML('beforeend', '<button type="button" class="p89-peta-kunci" id="p89-peta-kunci" title="Klik untuk menggeser, zoom & memindah titik"><span>Klik untuk mengubah peta</span></button>'); o = el('p89-peta-kunci'); o.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); p89PetaKunci_(false); }); }
+  o.hidden = !kunci; P89A.petaKunci = kunci;
+}
+document.addEventListener('pointerdown', e => { if (P89A.petaKunci === false && el('p85-peta') && !el('p85-peta').contains(e.target)) p89PetaKunci_(true); }, true);
+
+/* ---------- DN-967: alamat banyak baris (bertambah sendiri) ---------- */
+const P89_PH = ['Nama tempat / gedung / toko', 'Jalan & nomor rumah', 'Komplek / perumahan / blok · RT/RW', 'Detail lain (lantai, unit, patokan)'];
+function p89BarisNilai_() { return Array.from(document.querySelectorAll('#p89-alamat-baris .p89-baris input')).map(x => x.value.trim()).filter(Boolean); }
+function p89BarisSync_() {
+  const j = el('p85a-jalan'); if (!j) return;
+  const v = p89BarisNilai_().join(', '); P89A.sinkron = v;
+  if (j.value !== v) { j.value = v; j.dataset.edit = '1'; j.readOnly = false; p85AlamatSusun(); delete j.dataset.edit; }
+  const ins = document.querySelectorAll('#p89-alamat-baris .p89-baris input');
+  if (ins.length < 10 && ins[ins.length - 1] && ins[ins.length - 1].value.trim()) p89BarisTambah_('');
+  document.querySelectorAll('#p89-alamat-baris .p89-baris').forEach((r, i, a) => { const h = r.querySelector('.hapus'); if (h) h.hidden = a.length < 2; });
+}
+function p89BarisTambah_(nilai, fokus) {
+  const w = el('p89-alamat-baris'); if (!w) return null;
+  const n = w.children.length, r = document.createElement('div'); r.className = 'p89-baris';
+  r.innerHTML = `<input class="web-form-input" autocomplete="off" placeholder="${pgrAttr(P89_PH[n] || 'Baris tambahan (opsional)')}" aria-label="Baris alamat ${n + 1}" /><button type="button" class="hapus" title="Hapus baris" aria-label="Hapus baris">×</button>`;
+  w.appendChild(r);
+  const inp = r.querySelector('input'); inp.value = nilai || '';
+  inp.addEventListener('focus', () => { P89A.aktif = inp; P89A.awal = inp.value; });
+  inp.addEventListener('input', () => { p89BarisSync_(); clearTimeout(P87.tS); P87.tS = setTimeout(p87SaranAlamat_, 350); });
+  inp.addEventListener('paste', e => { const t = (e.clipboardData || window.clipboardData).getData('text') || ''; if (!/\n/.test(t)) return; e.preventDefault(); const bag = t.split(/\r?\n/).map(x => x.trim()).filter(Boolean); inp.value = bag.shift() || ''; let ref = r; bag.forEach(b => { const nb = p89BarisTambah_(b); if (nb) ref.after(nb.closest('.p89-baris')), ref = nb.closest('.p89-baris'); }); p89BarisSync_(); p86LengkapiAlamat(); });
+  inp.addEventListener('keydown', e => {
+    const box = el('p87-saran-alamat');
+    if (box && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); const b = box.querySelectorAll('button'); P87.saranIdx = (P87.saranIdx + (e.key === 'ArrowDown' ? 1 : -1) + b.length) % b.length; b.forEach((x, i) => x.classList.toggle('aktif', i === P87.saranIdx)); return; }
+    if (box && e.key === 'Enter' && P87.saranIdx >= 0) { e.preventDefault(); p87PilihSaran(P87.saranIdx); return; }
+    if (e.key === 'Escape') p87SaranTutup_();
+    if (e.key === 'Enter') { e.preventDefault(); const nx = r.nextElementSibling && r.nextElementSibling.querySelector('input'); if (nx) nx.focus(); }
+  });
+  inp.addEventListener('blur', () => { setTimeout(p87SaranTutup_, 200); if (inp.value.trim() !== (P89A.awal || '')) p86LengkapiAlamat(); });
+  r.querySelector('.hapus').addEventListener('click', () => { if (w.children.length < 2) { inp.value = ''; } else r.remove(); p89BarisSync_(); });
+  if (fokus) inp.focus();
+  return inp;
+}
+function p89BarisDariTeks_(teks) {
+  const w = el('p89-alamat-baris'); if (!w) return; w.innerHTML = '';
+  const bag = String(teks || '').split(/\r?\n|,\s*/).map(x => x.trim()).filter(Boolean).slice(0, 9);
+  bag.forEach(b => p89BarisTambah_(b)); p89BarisTambah_(''); P89A.sinkron = String(teks || '');
+  document.querySelectorAll('#p89-alamat-baris .p89-baris').forEach((r, i, a) => { const h = r.querySelector('.hapus'); if (h) h.hidden = a.length < 2; });
+}
+function p89AlamatPasang_() {
+  const j = el('p85a-jalan'); if (!j || el('p89-alamat-baris')) return;
+  const lbl = j.closest('label'); if (!lbl) return;
+  j.classList.add('p89-jalan-asli'); const gb = lbl.querySelector('.p86-gembok'); if (gb) gb.classList.add('p89-jalan-asli');
+  lbl.insertAdjacentHTML('beforeend', '<div class="p89-alamat-baris" id="p89-alamat-baris"></div>');
+  const box = el('p89-alamat-baris'); ['click', 'mousedown'].forEach(ev => box.addEventListener(ev, e => { if (e.target.tagName !== 'INPUT') e.preventDefault(); })); // label tidak memfokus kolom tersembunyi
+  p89BarisDariTeks_(j.value);
+}
+
+/* ---------- DN-621: Upload PO -> keranjang ---------- */
+const P89PO = { d: null, buka: -1 };
+function p89Kata_(s) { return String(s || '').toLowerCase().replace(/(\d)\s*(x|×)\s*(\d)/g, '$1x$3').replace(/[^a-z0-9x]+/g, ' ').split(' ').filter(w => w.length > 1 || /\d/.test(w)); }
+function p89Skor_(a, b) {
+  const A = new Set(p89Kata_(a)), B = new Set(p89Kata_(b)); if (!A.size || !B.size) return 0;
+  let sama = 0, angka = 0, angkaBeda = 0; A.forEach(w => { if (B.has(w)) { sama++; if (/\d/.test(w)) angka++; } else if (/\d/.test(w)) angkaBeda++; });
+  return Math.max(0, sama / Math.min(A.size, B.size) * 0.7 + sama / Math.max(A.size, B.size) * 0.3 + angka * 0.05 - angkaBeda * 0.12);
+}
+function p89PoCalon_(b) {
+  const semua = (typeof produkRingan !== 'undefined' && produkRingan && produkRingan.d) || [], riw = p89RiwayatProduk_(), out = {};
+  const tambah = (sku, nama, skor, asal) => { if (!sku) return; const k = String(sku).toUpperCase(); if (!out[k] || out[k].skor < skor) out[k] = { sku, nama: nama || sku, skor: Math.min(1, skor), asal }; };
+  if (b.kode) { const m = p89Master_(b.kode); if (m) tambah(m.sku, m.nama, 1, 'kode PO'); }
+  const dip = P89PO.d && P89PO.d.dipelajari && P89PO.d.dipelajari[b.nama]; if (dip) { const m = p89Master_(dip); tambah(dip, m ? m.nama : dip, 0.99, 'pilihan sebelumnya'); }
+  riw.forEach(r => { if (r.sku) tambah(r.sku, r.nama, p89Skor_(b.nama, r.nama) + 0.15, 'riwayat pembeli'); });
+  semua.forEach(p => { const s = p89Skor_(b.nama, p.nama + ' ' + p.sku); if (s > 0.25) tambah(p.sku, p.nama, s, 'katalog'); });
+  return Object.values(out).sort((x, y) => y.skor - x.skor).slice(0, 8);
+}
+function p89HargaRiwayat_(sku) {
+  const h = []; (typeof wpBRiwayat !== 'undefined' ? wpBRiwayat : []).forEach(o => (o.items || []).forEach(it => { if (sku && String(it.sku || '').toUpperCase() === String(sku).toUpperCase()) h.push({ harga: Number(it.harga) || 0, tgl: o.tanggal, inv: o.noInvoice, qty: it.qty }); }));
+  return h;
+}
+function p89PoPilih_(i, sku, sumber) {
+  const b = P89PO.d.baris[i]; if (!b) return;
+  const m = sku ? p89Master_(sku) : null, c = (b.calon || []).find(x => String(x.sku).toUpperCase() === String(sku || '').toUpperCase());
+  b.sku = sku || ''; b.namaSistem = m ? m.nama : (c ? c.nama : ''); b.yakin = sumber || (c ? c.skor : 1);
+  const r = p89HargaRiwayat_(b.sku); b.hargaBiasa = r.length ? r[0].harga : 0;
+  if (!b.hargaUbah) b.hargaPakai = b.harga || b.hargaBiasa || (m && m.harga) || 0;
+}
+function p89PoRender_() {
+  const d = P89PO.d, w = el('p89-po-isi'); if (!d || !w) return;
+  const rp = n => p84Rp(n || 0), yk = b => !b.sku ? '<span class="yakin r">belum cocok</span>' : (b.yakin === 'manual' ? '<span class="yakin t">dipilih manual</span>' : b.yakin === 'ai' ? '<span class="yakin s">dipilih AI</span>' : b.yakin >= 0.8 ? '<span class="yakin t">cocok</span>' : '<span class="yakin s">perlu dicek</span>');
+  w.innerHTML = `<div class="p89-po-info">${d.noPO ? `<span>No PO <b>${p85E(d.noPO)}</b></span>` : ''}${d.tanggal ? `<span>Tanggal <b>${p85E(d.tanggal)}</b></span>` : ''}${d.pemesan ? `<span>Pemesan <b>${p85E(d.pemesan)}</b></span>` : ''}<span>${d.baris.length} baris · klik baris untuk SKU & harga biasa</span></div>
+    <div class="web-table-wrap"><table><thead><tr><th>Di PO</th><th class="n">Qty</th><th class="n">Harga PO</th><th>Produk sistem</th><th class="n">Harga biasa</th><th class="n">Harga dipakai</th></tr></thead><tbody>
+    ${d.baris.map((b, i) => `<tr class="baris${P89PO.buka === i ? ' buka' : ''}" data-i="${i}"><td class="asal"><b>${p85E(b.nama)}</b>${b.kode ? `<small>kode ${p85E(b.kode)}</small>` : ''}</td><td class="n">${b.qty}${b.satuan ? ' ' + p85E(b.satuan) : ''}</td><td class="n">${b.harga ? rp(b.harga) : '-'}</td>
+      <td class="pilih">${b.sku ? `<b>${p85E(b.namaSistem || b.sku)}</b><small>${p85E(b.sku)}</small>` : '<small>tanpa SKU - pakai nama PO</small>'}${yk(b)}</td>
+      <td class="n" title="Harga terakhir untuk pembeli ini">${b.hargaBiasa ? rp(b.hargaBiasa) : '-'}</td>
+      <td class="n"><input class="web-form-input harga" type="number" min="0" data-i="${i}" value="${Math.round(b.hargaPakai || 0)}" aria-label="Harga dipakai" /></td></tr>
+      ${P89PO.buka === i ? `<tr class="detail"><td colspan="6">
+        <div class="calon">${(b.calon || []).map(c => `<button type="button" data-i="${i}" data-sku="${p85A(c.sku)}" class="${String(c.sku).toUpperCase() === String(b.sku).toUpperCase() ? 'aktif' : ''}">${p85E(c.nama)} <small>· ${p85E(c.sku)} · ${c.asal} · ${Math.round(c.skor * 100)}%</small></button>`).join('') || '<span class="p84-redup">Tidak ada calon yang mirip.</span>'}
+          <button type="button" data-i="${i}" data-sku="" class="${!b.sku ? 'aktif' : ''}">Tanpa SKU (pakai nama PO)</button></div>
+        <input class="web-form-input" data-cari="${i}" placeholder="Cari produk lain (nama / SKU)…" autocomplete="off" />
+        <div class="riw">${b.sku ? (p89HargaRiwayat_(b.sku).slice(0, 6).map(r => `${p85E(r.tgl || '')} · ${p85E(r.inv || '')} · ${r.qty}× ${rp(r.harga)}`).join('<br>') || 'Belum pernah dibeli pembeli ini.') : ''}</div></td></tr>` : ''}`).join('')}
+    </tbody></table></div>
+    <div class="aksi"><button type="button" class="web-btn-secondary" id="p89-po-ai" title="Minta AI memilih SKU untuk baris yang belum yakin">✨ Cocokkan dengan AI</button><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button><button type="button" class="web-btn-primary" id="p89-po-masuk">Masukkan ${d.baris.length} baris ke keranjang</button></div>`;
+}
+function p89PoPasangEvent_(w) {
+  w.addEventListener('click', e => {
+    const c = e.target.closest('.calon button'); if (c) { p89PoPilih_(Number(c.dataset.i), c.dataset.sku, 'manual'); p89PoRender_(); return; }
+    if (e.target.closest('#p89-po-ai')) { p89PoAi_(); return; }
+    if (e.target.closest('#p89-po-masuk')) { p89PoMasuk_(); return; }
+    const tr = e.target.closest('tr.baris'); if (tr && !e.target.closest('input')) { const i = Number(tr.dataset.i); P89PO.buka = P89PO.buka === i ? -1 : i; p89PoRender_(); }
+  });
+  w.addEventListener('change', e => { const t = e.target; if (t.classList.contains('harga')) { const b = P89PO.d.baris[Number(t.dataset.i)]; b.hargaPakai = Math.max(0, Number(t.value) || 0); b.hargaUbah = true; } });
+  w.addEventListener('input', e => {
+    const t = e.target; if (t.dataset.cari === undefined) return; const i = Number(t.dataset.cari), b = P89PO.d.baris[i];
+    let h = []; try { h = t.value.trim().length >= 2 ? produkCariLokal(t.value.trim(), 8) : []; } catch (x) { }
+    const lama = (b.calon || []).filter(c => c.asal !== 'pencarian');
+    b.calon = h.map(p => ({ sku: p.sku, nama: p.nama, skor: p89Skor_(b.nama, p.nama), asal: 'pencarian' })).concat(lama).slice(0, 10);
+    const box = t.previousElementSibling; if (box) { const tmp = document.createElement('div'); P89PO.buka = i; p89PoRender_(); const ni = w.querySelector(`[data-cari="${i}"]`); if (ni) { ni.value = t.value; ni.focus(); } }
+  });
+}
+async function p89PoAi_() {
+  const d = P89PO.d, btn = el('p89-po-ai'); if (!d) return;
+  const soal = d.baris.map((b, i) => ({ i, nama: b.nama + (b.kode ? ' (kode ' + b.kode + ')' : ''), calon: (b.calon || []).map(c => ({ sku: c.sku, nama: c.nama })) })).filter((q, i) => q.calon.length && !(d.baris[i].yakin === 'manual') && !(d.baris[i].yakin >= 0.8));
+  if (!soal.length) { omniToast('Semua baris sudah cocok / dipilih manual.', 'info'); return; }
+  btn.disabled = true; btn.textContent = 'AI mencocokkan…';
+  try {
+    const r = await postJson({ aksi: 'p89_po_ajar', mode: 'ai', soal, email: currentUserEmail() }, 90000);
+    if (!r || !r.success) throw new Error((r && r.error) || 'gagal');
+    (r.pilih || []).forEach(p => { if (p.sku) p89PoPilih_(p.i, p.sku, 'ai'); });
+    p89PoRender_(); omniToast(`AI memilih ${(r.pilih || []).filter(p => p.sku).length} dari ${soal.length} baris - periksa sebelum masuk keranjang`, 'sukses');
+  } catch (e) { omniToast('AI gagal mencocokkan: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = '✨ Cocokkan dengan AI'; } }
+}
+function p89PoMasuk_() {
+  const d = P89PO.d; if (!d) return;
+  d.baris.forEach(b => {
+    const ada = b.sku ? wpCart.find(x => String(x.sku || '').toUpperCase() === b.sku.toUpperCase() && Number(x.harga) === Number(b.hargaPakai)) : null;
+    if (ada) ada.qty = (Number(ada.qty) || 0) + b.qty;
+    else wpCart.push({ sku: b.sku || '', nama: b.namaSistem || b.nama, qty: b.qty, harga: Math.round(b.hargaPakai || 0) });
+  });
+  omxTutupModal(); wpRenderCart(); playBeep();
+  const st = el('wp-b-sku-status'); if (st) st.textContent = `✓ ${d.baris.length} baris dari PO ${d.noPO || ''} masuk keranjang - periksa qty & harga.`;
+  if (d.alamatKirim && el('wp-b-alamat') && !el('wp-b-alamat').value.trim()) el('wp-b-alamat').value = d.alamatKirim;
+  const pas = d.baris.filter(b => b.sku && (b.yakin === 'manual' || b.yakin === 'ai' || b.yakin >= 0.8)).map(b => ({ nama: b.nama, kode: b.kode, sku: b.sku }));
+  if (pas.length) postJsonTulis({ aksi: 'p89_po_ajar', pembeli: (el('wp-b-nama-pembeli') || {}).value || d.pemesan, pasangan: pas, email: currentUserEmail() }, 30000).catch(() => { });
+}
+async function p89PoUpload(f) {
+  if (!f) return;
+  const st = el('wp-b-sku-status'); if (st) st.textContent = '⏳ Membaca PO ' + f.name + '…';
+  try {
+    const kirim = { aksi: 'p89_po_baca', pembeli: (el('wp-b-nama-pembeli') || {}).value || '', email: currentUserEmail() };
+    const b64 = () => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(f); });
+    if (/\.(xlsx|xls|xlsm|csv)$/i.test(f.name)) {
+      if (/\.csv$/i.test(f.name)) kirim.teks = await f.text();
+      else { await impMuatXlsx(); const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' }); kirim.teks = wb.SheetNames.slice(0, 3).map(n => XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n'); }
+    } else if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+      let t = ''; try { const doc = await p48PdfDok_(f); t = await p48TeksPdf_(doc); } catch (e) { }
+      if (t.replace(/\s/g, '').length >= 40) kirim.teks = t; else { kirim.fotoBase64 = await b64(); kirim.fotoMimeType = 'application/pdf'; }
+    } else { kirim.fotoBase64 = await b64(); kirim.fotoMimeType = f.type || 'image/jpeg'; }
+    if (kirim.teks) kirim.teks = kirim.teks.slice(0, 15000);
+    const d = await postJson(kirim, 150000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'PO tidak terbaca');
+    if (!d.baris.length) throw new Error('Tidak ada baris barang di PO');
+    P89PO.d = d; P89PO.buka = -1;
+    d.baris.forEach((b, i) => { b.calon = p89PoCalon_(b); const c = b.calon[0]; p89PoPilih_(i, c && c.skor >= 0.5 ? c.sku : '', c && c.skor >= 0.5 ? c.skor : 0); });
+    if (d.pemesan && el('wp-b-nama-pembeli') && !el('wp-b-nama-pembeli').value.trim()) { el('wp-b-nama-pembeli').value = d.pemesan; el('wp-b-nama-pembeli').dispatchEvent(new Event('input')); }
+    const w = omxModal('Pesanan dari PO' + (d.noPO ? ' ' + d.noPO : ''), '<div class="p89-po" id="p89-po-isi"></div>', { lebar: true });
+    p89PoRender_(); p89PoPasangEvent_(el('p89-po-isi'));
+    if (st) st.textContent = `PO terbaca: ${d.baris.length} baris${d.model ? ' (' + d.model + ')' : ''}.`;
+  } catch (e) { if (st) st.textContent = '⚠️ ' + e.message; omniToast('Upload PO gagal: ' + e.message, 'error'); }
+}
+
+/* ---------- Pasang (ringan, hanya saat Buat Pesanan tampil) ---------- */
+function p89BuatPasang_() {
+  if (typeof P85B === 'undefined' || !P85B.siap) return;
+  const v = el('wp-view-buat'); if (!v || !v.offsetParent) return;
+  const kol = el('p85-slot-cari');
+  if (kol && !el('p89-kolom-alat')) {
+    kol.insertAdjacentHTML('afterend', '<div class="p89-kolom-alat" id="p89-kolom-alat"><button type="button" onclick="el(\'p89-po-file\').click()" title="Upload PO pembeli (PDF, foto, Excel) - dibaca AI lalu dicocokkan ke SKU & harga biasa pembeli ini">📄 Upload PO</button><input type="file" id="p89-po-file" accept=".pdf,image/*,.xlsx,.xls,.csv" hidden /></div>');
+    el('p89-po-file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; p89PoUpload(f); });
+  }
+  const cart = el('p85-slot-cart');
+  if (cart && !el('p89-cart-alat')) cart.insertAdjacentHTML('afterbegin', '<div class="p89-cart-alat" id="p89-cart-alat"><button type="button" onclick="p89Kosongkan()" title="Kosongkan keranjang (mis. sebelum menggabungkan Repeat Order lain)">Kosongkan</button></div>');
+  p89AlamatPasang_();
+  const j = el('p85a-jalan');
+  if (j && el('p89-alamat-baris') && j.value !== P89A.sinkron && document.activeElement && !document.activeElement.closest('#p89-alamat-baris')) p89BarisDariTeks_(j.value);
+  if (P85B.peta && P89A.petaKunci === undefined) p89PetaKunci_(true);
+}
+setInterval(() => { try { p89BuatPasang_(); } catch (e) { } }, 600);
+</script>
+
 </body>
 </html>
