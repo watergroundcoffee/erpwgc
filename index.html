@@ -2,6 +2,32 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
+<style id="p90-pra">
+  /* v2026.10.110 (DN-733): layar pembuka - tampilan lama tidak pernah terlihat sekilas saat aplikasi dimuat */
+  html.p90-tunggu { background: #f5f4f1; }
+  html.p90-tunggu body { visibility: hidden !important; }
+  html.p90-tunggu::before { content: ''; position: fixed; left: 50%; top: 46%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 3px solid rgba(180,83,9,.18); border-top-color: #b45309; animation: p90Putar .8s linear infinite; z-index: 2147483647; }
+  html.p90-tunggu::after { content: 'goodang.id'; position: fixed; left: 0; right: 0; top: calc(46% + 38px); text-align: center; font: 700 15px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: .02em; color: #221c18; z-index: 2147483647; }
+  @keyframes p90Putar { to { transform: rotate(360deg); } }
+</style>
+<script>
+(function () {
+  var html = document.documentElement, t0 = Date.now(), tDom = 0;
+  html.classList.add('p90-tunggu');
+  function selesai() { html.classList.remove('p90-tunggu'); }
+  function cek() {
+    if (!html.classList.contains('p90-tunggu')) return;
+    if (!tDom) { if (Date.now() - t0 > 15000) return selesai(); return setTimeout(cek, 80); }
+    var w = document.getElementById('ovs-wrap');
+    var loaderPenuh = w && w.classList.contains('fase-1') && !w.classList.contains('keluar') && w.offsetParent !== null;
+    if (!loaderPenuh || Date.now() - tDom > 6000) requestAnimationFrame(function () { requestAnimationFrame(selesai); });
+    else setTimeout(cek, 80);
+  }
+  document.addEventListener('DOMContentLoaded', function () { tDom = Date.now(); setTimeout(cek, 30); });
+  setTimeout(cek, 80);
+  setTimeout(selesai, 20000); // pengaman
+})();
+</script>
 <script>
 /* PAKET 23 (v2026.10.39) - Pengaman penyimpanan browser: bila localStorage penuh (QuotaExceededError, tercatat di statistik),
    cache lama (snapshot halaman & cache baca) dibuang otomatis lalu disimpan ulang - aplikasi tidak pernah error karena storage penuh. */
@@ -56,9 +82,10 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.109';
+  var VERSI = 'v2026.10.110';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
-  var KIRIM_TIAP_MS = 5 * 60000, KIRIM_TIAP_JUMLAH = 50, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
+  // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
+  var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
   var A = {
     antre: new Map(), tulisBuf: [], hapusBuf: [], db: null, dbSiap: null, tulisTimer: 0,
     sedangKirim: false, terakhirKirim: Date.now(), gagalBeruntun: 0, jedaSampai: 0, n: 0,
@@ -624,7 +651,8 @@
       if (h) h.terlihatSejak = 0;
       simpanKonteks();
       tulisDb();
-      kirimBeacon();
+      // v2026.10.110: aplikasi hanya disembunyikan (pindah tab / app) -> catatan tetap di IndexedDB; dikirim bila sudah banyak / sudah lama
+      if (belumTerkirim() >= 150 || sekarang() - A.terakhirKirim >= KIRIM_TIAP_MS) kirimBeacon();
     } else if (h) {
       h.terlihatSejak = sekarang(); h.mulai = sekarang();
     }
@@ -46345,6 +46373,51 @@ async function postJsonKeServer_(body, timeoutMs, silent) {
   }
 }
 
+/* ============ PAKET 90 (v2026.10.110): dipasang SEDINI mungkin supaya permintaan awal halaman ikut hemat ============ */
+/* ---------- HEMAT PANGGILAN SERVER: data pengaturan yang jarang berubah disimpan di browser ---------- */
+const P90_STATIS = { lihat_logo: 12, p63_logo_wa: 24, p75_warna_toko: 12, lihat_profil_perusahaan: 12, p57_kamus: 6, p84_staff_nama: 2, lihat_daftar_toko: 6 }; // jam
+const P90_KUNCI_DASAR = { aksi: 1, email: 1, sessionToken: 1, perangkat: 1, toko: 1 };
+function p90StatisKunci_(b) { return 'p90_sc|' + b.aksi + '|' + String((b.email || (typeof currentUserEmail === 'function' ? currentUserEmail() : '')) || '').toLowerCase() + '|' + String(b.toko || ''); }
+function p90StatisBersih_(aksi) {
+  try { Object.keys(localStorage).forEach(k => { if (k.indexOf('p90_sc|') === 0 && (!aksi || k.indexOf('p90_sc|' + aksi + '|') === 0)) localStorage.removeItem(k); }); } catch (e) { }
+}
+const p90PostAsli_ = postJson;
+postJson = function (body) {
+  const b = body || {}, aksi = String(b.aksi || '');
+  const polos = aksi && Object.keys(b).every(k => P90_KUNCI_DASAR[k] || (k === 'segar' && !b[k]));
+  const kunciC = P90_STATIS[aksi] ? p90StatisKunci_(b) : ''; // dihitung SEBELUM dikirim (lapisan lain menambah field ke body)
+  if (P90_STATIS[aksi] && polos) {
+    try {
+      const c = JSON.parse(localStorage.getItem(kunciC) || 'null');
+      if (c && c.d && Date.now() - c.t < P90_STATIS[aksi] * 3600000) return Promise.resolve(JSON.parse(JSON.stringify(c.d)));
+    } catch (e) { }
+  } else if (P90_STATIS[aksi]) p90StatisBersih_(aksi);        // segar / simpan / ajar -> cache aksi ini dibuang
+  else if (/simpan|ubah|hapus|upload|tambah|edit|update|set_/i.test(aksi) && /logo|profil|warna|toko|staff|kamus/i.test(aksi)) p90StatisBersih_(); // hanya aksi yang MENGUBAH pengaturan
+  return p90PostAsli_.apply(this, arguments).then(d => {
+    try {
+      if (P90_STATIS[aksi] && polos && d && d.success) { const t = JSON.stringify({ t: Date.now(), d }); if (t.length < 400000) localStorage.setItem(kunciC, t); }
+      // Antrean baca label / OCR yang kosong: cek lagi 20 menit kemudian (dulu 8 menit) - hanya proses latar
+      if (d && d.success && Array.isArray(d.daftar) && !d.daftar.length && !d.sisa) {
+        setTimeout(() => {
+          try {
+            if (aksi === 'ttb_label_antrean') localStorage.setItem('p35_lbl_t_v1', String(Date.now() + 18 * 60000));
+            if (aksi === 'spbl_antrean') localStorage.setItem('p36_spbl_t_v1', String(Date.now() + 18 * 60000));
+            if (aksi === 'spb_ocr_antrean') localStorage.setItem('spb_ocr_terakhir_v1', String(Date.now() + 15 * 60000));
+          } catch (e) { }
+        }, 0);
+      }
+    } catch (e) { }
+    return d;
+  });
+};
+const p90TulisAsli_ = postJsonTulis;
+postJsonTulis = function (body) {
+  try { const a = String((body && body.aksi) || ''); if (P90_STATIS[a]) p90StatisBersih_(a); else if (/logo|profil|warna|toko|staff|kamus|akses/i.test(a)) p90StatisBersih_(); } catch (e) { }
+  return p90TulisAsli_.apply(this, arguments);
+};
+
+
+
 /* ===== Overlay spinner di area konten - dipasangkan sama loading bar, tapi dikasih jeda (delay)
    sebelum keliatan, biar nggak "kedip" kalau requestnya kebetulan cepet banget (<260ms). ===== */
 let webContentLoaderCount = 0;
@@ -86364,6 +86437,558 @@ function p89BuatPasang_() {
   if (P85B.peta && P89A.petaKunci === undefined) p89PetaKunci_(true);
 }
 setInterval(() => { try { p89BuatPasang_(); } catch (e) { } }, 600);
+</script>
+<style>
+  /* ============ PAKET 90 (v2026.10.110) ============ */
+  /* DN-635: detail penjualan = 1 jendela besar */
+  body.p90-dj-buka { overflow: hidden; }
+  .p90-dj-latar { position: fixed; inset: 0; z-index: 2400; background: rgba(25,21,18,.42); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: flex-start; justify-content: center; padding: 3vh 18px 18px; overflow-y: auto; }
+  .p90-dj-latar[hidden] { display: none; }
+  .p90-dj-kotak { width: min(1320px, 96vw); background: var(--web-bg, #f5f4f1); color: var(--web-text, #1f2937); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.3); display: flex; flex-direction: column; max-height: 94vh; overflow: hidden; }
+  .p90-dj-kepala { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--web-border, #e6e1da); background: var(--web-panel, #fff); }
+  .p90-dj-kepala b { font-size: 15px; }
+  .p90-dj-kepala small { color: var(--web-text-dim, #64748b); font-size: 12px; }
+  .p90-dj-kepala .x { margin-left: auto; border: 0; background: transparent; font-size: 18px; cursor: pointer; color: inherit; width: 34px; height: 34px; border-radius: 10px; }
+  .p90-dj-kepala .x:hover { background: rgba(0,0,0,.06); }
+  .p90-dj-isi { padding: 6px 18px 18px; overflow-y: auto; }
+  .p90-dj-isi #wp-view-detail > .web-back-link { display: none !important; }
+  .p90-dj-media { margin-top: 14px; }
+  .p90-dj-media h5 { margin: 0 0 8px; font-size: 12.5px; }
+  .p90-dj-media .p90-media { display: flex; flex-wrap: wrap; gap: 10px; }
+  .p90-dj-media a { display: flex; flex-direction: column; gap: 4px; width: 148px; text-decoration: none; color: inherit; font-size: 11.5px; }
+  .p90-dj-media img, .p90-dj-media .p90-pdf { width: 148px; height: 148px; object-fit: cover; border-radius: 10px; border: 1px solid var(--web-border, #e6e1da); background: #fff; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+  body.p90-dj-buka .wdoc-latar, body.p90-dj-buka .kr-latar { z-index: 2450 !important; }
+
+  /* DN-420 / DN-667: pratinjau bukti besar + editor */
+  .p90-pv { margin-top: 8px; border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; overflow: hidden; background: rgba(127,127,127,.06); }
+  .p90-pv[hidden] { display: none; }
+  .p90-pv-gbr { position: relative; display: flex; justify-content: center; cursor: zoom-in; background: #0f0d0b0d; }
+  .p90-pv-gbr img { max-width: 100%; max-height: 260px; object-fit: contain; display: block; }
+  .p90-pv-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 11.5px; flex-wrap: wrap; }
+  .p90-pv-bar button { border: 1px solid var(--web-border, #e2e8f0); background: var(--web-panel, #fff); color: inherit; border-radius: 8px; padding: 4px 9px; font: inherit; font-size: 11.5px; cursor: pointer; }
+  .p90-pv-bar .p90-pv-info { margin-left: auto; color: var(--web-text-dim, #64748b); }
+  .p90-ed { position: fixed; inset: 0; z-index: 9700; background: rgba(12,10,8,.82); display: flex; flex-direction: column; }
+  .p90-ed-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; flex-wrap: wrap; color: #fff; }
+  .p90-ed-bar button { border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; border-radius: 9px; padding: 6px 11px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .p90-ed-bar button.aktif { background: #f59e0b; border-color: #f59e0b; color: #1c1512; }
+  .p90-ed-bar button.utama { background: #16a34a; border-color: #16a34a; }
+  .p90-ed-bar .sela { flex: 1; }
+  .p90-ed-bar .p90-ed-ket { font-size: 11.5px; opacity: .75; }
+  .p90-ed-panggung { flex: 1; position: relative; overflow: hidden; touch-action: none; }
+  .p90-ed-panggung canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* Jendela resi */
+  .p90r-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
+  .p90r-grid label { font-size: 12px; font-weight: 600; display: flex; flex-direction: column; gap: 3px; }
+  .p90r-grid input { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--web-border, #cbd5e1); background: transparent; color: inherit; }
+  .p90r-grid input#p90r-resi { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; letter-spacing: .03em; }
+  .p90r-grid input.cek { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.18); }
+  .p90r-ai { margin-top: 8px; font-size: 12px; padding: 7px 10px; border-radius: 10px; background: rgba(100,116,139,.08); }
+  .p90r-ai:empty { display: none; }
+  .p90r-ai .ok { color: #15803d; font-weight: 600; } .p90r-ai .cek { color: #b45309; font-weight: 600; }
+  .p90r-ai button { border: 1px solid var(--web-border, #e2e8f0); background: transparent; color: inherit; border-radius: 999px; padding: 1px 8px; font: inherit; font-size: 11.5px; cursor: pointer; margin: 2px 4px 0 0; font-family: ui-monospace, monospace; }
+  .p90-link { background: none; border: 0; padding: 0; color: var(--web-accent, #b45309); text-decoration: underline; cursor: pointer; font: inherit; font-size: 12px; }
+  /* DN-956: nama supplier bisa diubah */
+  .p57-stok .p63-stok-judul b { cursor: pointer; border-radius: 4px; }
+  .p57-stok .p63-stok-judul b:hover { background: rgba(245,158,11,.14); }
+  .p57-stok .p63-stok-judul b::after { content: ' ✎'; font-weight: 400; opacity: 0; }
+  .p57-stok .p63-stok-judul b:hover::after { opacity: .7; }
+  .p90-sn { position: fixed; z-index: 9800; width: 270px; background: var(--web-panel, #fff); color: var(--web-text, #111); border: 1px solid var(--web-border, #ddd); border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.2); padding: 10px; font-size: 12px; }
+  .p90-sn input { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--web-border, #cbd5e1); margin: 4px 0 8px; background: transparent; color: inherit; }
+  .p90-sn .aksi { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+  .p90-sn .aksi button { border: 1px solid var(--web-border, #e2e8f0); background: transparent; color: inherit; border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  .p90-sn .aksi button.utama { background: #b45309; color: #fff; border-color: #b45309; }
+  .p90-sn small { color: var(--web-text-dim, #64748b); }
+  /* DN-751 (Buat Pesanan): tombol Batalkan invoice */
+  .p90-batal-inv { margin-left: auto; margin-right: 8px; border: 1px solid #fca5a5; color: #b91c1c; background: transparent; border-radius: 9px; padding: 5px 11px; font: inherit; font-size: 12px; cursor: pointer; }
+  .p90-batal-inv:hover { background: #fee2e2; }
+  .p90-draf-info { font-size: 11.5px; color: #92400e; background: #fdf3e6; border-radius: 8px; padding: 3px 9px; margin-left: 8px; }
+  @media (max-width: 760px) { .p90r-grid { grid-template-columns: 1fr; } }
+</style>
+<script>
+/* ============================ PAKET 90 (v2026.10.110) ============================ */
+const P90 = { djAsal: null, byrSeq: 0, rekapUlang: 0 };
+function p90E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+/* ---------- DN-664: Beranda - rekap yang sedang dihitung di latar tidak dianggap gagal ---------- */
+if (typeof ovPerbaruiRekap === 'function') {
+  const p90OvPerbaruiAsli_ = ovPerbaruiRekap;
+  ovPerbaruiRekap = async function (manual) {
+    const r = await p90OvPerbaruiAsli_.apply(this, arguments);
+    try {
+      const st = el('ov-status-data'), teks = st ? st.textContent : '';
+      const sibuk = (typeof ovRekap !== 'undefined' && ovRekap && ovRekap.sedangDiperbarui) || /sedang diperbarui proses lain/i.test(teks);
+      if (sibuk && P90.rekapUlang < 3) {
+        P90.rekapUlang++;
+        if (/Gagal memperbarui/i.test(teks)) ovSetStatusData('⏳ Rekap sedang dihitung di latar - diperbarui otomatis sebentar lagi' + (ovRekap ? ' · menampilkan ' + ovTeksUmur(ovRekap).toLowerCase() : ''), 'info', true);
+        setTimeout(() => { try { if (ovDasborSedangTerlihat()) ovPerbaruiRekap(false); } catch (e) { } }, 25000);
+      } else if (!sibuk) P90.rekapUlang = 0;
+    } catch (e) { }
+    return r;
+  };
+}
+
+/* ---------- DN-635: Detail penjualan = 1 jendela besar ---------- */
+function p90DjPastikan_() {
+  let m = el('p90-dj'); if (m) return m;
+  m = document.createElement('div'); m.id = 'p90-dj'; m.className = 'p90-dj-latar'; m.hidden = true;
+  m.innerHTML = `<div class="p90-dj-kotak" role="dialog" aria-modal="true" aria-labelledby="p90-dj-judul">
+      <div class="p90-dj-kepala"><b id="p90-dj-judul">Detail Penjualan</b><small id="p90-dj-sub"></small><button type="button" class="x" onclick="p90DjTutup()" aria-label="Tutup" data-p45-tip="Tutup (Esc)">✕</button></div>
+      <div class="p90-dj-isi" id="p90-dj-isi"><div id="p90-dj-tempat"></div><div class="p90-dj-media" id="p90-dj-media" hidden></div></div>
+    </div>`;
+  (el('app-web') || document.body).appendChild(m);
+  m.addEventListener('mousedown', e => { if (e.target === m) p90DjTutup(); });
+  return m;
+}
+function p90DjTerbuka_() { const m = el('p90-dj'); return !!(m && !m.hidden); }
+function p90DjBuka_() {
+  const m = p90DjPastikan_(), d = el('wp-view-detail'); if (!d) return;
+  if (d.parentElement !== el('p90-dj-tempat')) {
+    if (!P90.djAsal) { P90.djAsal = document.createComment('p90-wp-view-detail'); d.parentNode.insertBefore(P90.djAsal, d); }
+    el('p90-dj-tempat').appendChild(d);
+  }
+  d.style.display = 'block';
+  m.hidden = false; document.body.classList.add('p90-dj-buka');
+}
+function p90DjTutup() {
+  const m = el('p90-dj'), d = el('wp-view-detail');
+  if (m) m.hidden = true;
+  document.body.classList.remove('p90-dj-buka');
+  if (d) { d.style.display = 'none'; if (P90.djAsal && P90.djAsal.parentNode) P90.djAsal.parentNode.insertBefore(d, P90.djAsal.nextSibling); }
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !p90DjTerbuka_()) return;
+  if ((el('omxm-latar') && !el('omxm-latar').hidden) || document.querySelector('.omx-modal-latar') || document.querySelector('.p90-ed') ||
+      (el('wbp-modal') && el('wbp-modal').style.display === 'flex') || (el('wp-po-modal') && el('wp-po-modal').style.display === 'flex')) return;
+  const w = document.querySelector('.wdoc-latar'); if (w && w.offsetParent !== null) return;
+  p90DjTutup();
+});
+function p90DjMedia_(o) {
+  const box = el('p90-dj-media'); if (!box) return;
+  let media = []; try { media = (typeof p77CariMedia_ === 'function' && o) ? p77CariMedia_(o) : []; } catch (e) { media = []; }
+  if (!media.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="web-panel"><h5>Bukti resi &amp; pembayaran</h5><div class="p90-media">${media.map(m => `<a href="${pgrAttr(m.url)}" target="_blank" rel="noopener">${/\.pdf(\?|$)/i.test(m.url) ? '<span class="p90-pdf">📄</span>' : `<img src="${pgrAttr(typeof p43Thumb === 'function' ? p43Thumb(m.url, 320) : m.url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`}<span>${p90E(m.label)}</span></a>`).join('')}</div></div>`;
+}
+const p90BukaDetailAsli_ = wpBukaDetail;
+wpBukaDetail = function (row) {
+  const lihat = ['wp-view-posales', 'wp-view-semua-gabungan', 'wp-view-pelanggan'].map(id => [id, el(id) ? el(id).style.display : null]);
+  const janji = p90BukaDetailAsli_.apply(this, arguments);
+  // Halaman daftar tetap di belakang; detail tampil di jendela besar
+  lihat.forEach(([id, v]) => { const x = el(id); if (x && v !== null) x.style.display = v; });
+  const adaDaftar = lihat.some(([, v]) => v && v !== 'none');
+  if (adaDaftar || p90DjTerbuka_()) p90DjBuka_();
+  else { const d = el('wp-view-detail'); if (d) d.style.display = 'block'; } // dibuka dari tempat lain tanpa daftar -> perilaku lama
+  return janji;
+};
+const p90RenderDetailAsli_ = wpRenderDetail_;
+wpRenderDetail_ = function (o) {
+  const r = p90RenderDetailAsli_.apply(this, arguments);
+  try {
+    const j = el('p90-dj-judul'), s = el('p90-dj-sub');
+    if (j) j.textContent = 'Detail Penjualan · ' + (o && o.noInvoice ? o.noInvoice : '');
+    if (s) s.textContent = o ? [o.namaPenerima, o.tanggal, o.status || 'Belum Dikirim'].filter(Boolean).join(' · ') : '';
+    p90DjMedia_(o);
+  } catch (e) { }
+  return r;
+};
+const p90KembaliAsli_ = wpKembaliKeList;
+wpKembaliKeList = function () {
+  if (p90DjTerbuka_()) { p90DjTutup(); return; }
+  return p90KembaliAsli_.apply(this, arguments);
+};
+const p90EditCartAsli_ = wpEditPesananKeCart;
+wpEditPesananKeCart = function () {
+  if (p90DjTerbuka_()) { const m = el('p90-dj'); if (m) m.hidden = true; document.body.classList.remove('p90-dj-buka'); }
+  // formulir dipakai untuk mengubah pesanan lama -> draf pesanan baru (sudah tersimpan di browser) dipulihkan lagi nanti
+  try { if (P90.draf) { if (P90.draf.ada) p90DrafSimpan_(); P90.draf.ada = false; P90.draf.pulihCek = false; } } catch (e) { }
+  return p90EditCartAsli_.apply(this, arguments);
+};
+// Tombol "Lihat" di daftar = jendela besar yang sama (dulu jendela ringkas terpisah)
+p77LihatManual = function (row) { return wpBukaDetail(row); };
+
+/* ---------- DN-667 / DN-420: pratinjau besar + editor (perbesar, geser, potong, potong otomatis) ---------- */
+function p90MuatGambar_(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Gambar tidak bisa dibaca')); i.src = src; }); }
+async function p90Potong_(src, x, y, w, h) {
+  const img = await p90MuatGambar_(src);
+  const sx = Math.max(0, Math.round(x)), sy = Math.max(0, Math.round(y)), sw = Math.min(img.width - sx, Math.round(w)), sh = Math.min(img.height - sy, Math.round(h));
+  const r = Math.min(1, 2000 / Math.max(sw, sh)), c = document.createElement('canvas'); c.width = Math.round(sw * r); c.height = Math.round(sh * r);
+  c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.88);
+}
+async function p90PotongOtomatis_(obj) {
+  const k = obj && obj.kotak; if (!k || !obj.fotoAsli || /pdf/i.test(obj.mime || '')) return false;
+  if (k.w * k.h > 85 * 85) return false; // area bukti hampir seluruh gambar -> tidak perlu dipotong
+  const img = await p90MuatGambar_(obj.fotoAsli), m = 2;
+  const x = Math.max(0, k.x - m), y = Math.max(0, k.y - m), w = Math.min(100 - x, k.w + 2 * m), h = Math.min(100 - y, k.h + 2 * m);
+  obj.fotoData = await p90Potong_(obj.fotoAsli, x / 100 * img.width, y / 100 * img.height, w / 100 * img.width, h / 100 * img.height);
+  obj.mime = 'image/jpeg'; obj.dipotong = 'otomatis';
+  return true;
+}
+function p90Pratinjau_(obj, idWadah) {
+  const w = el(idWadah); if (!w) return;
+  if (!obj || !obj.fotoData) { w.hidden = true; w.innerHTML = ''; return; }
+  w.hidden = false;
+  if (/pdf/i.test(obj.mime || '')) { w.innerHTML = `<div class="p90-pv-bar">📄 PDF terlampir<span class="p90-pv-info">PDF tidak bisa dipotong</span></div>`; return; }
+  const info = obj.dipotong === 'otomatis' ? '✂ Dipotong otomatis' : obj.dipotong ? '✂ Dipotong' : 'Klik gambar untuk memperbesar';
+  w.innerHTML = `<div class="p90-pv-gbr" data-p90-ed="1" data-p45-tip="Perbesar / potong"><img src="${obj.fotoData}" alt="Bukti"></div>
+    <div class="p90-pv-bar"><button type="button" data-p90-ed="1">🔍 Perbesar / ✂ Potong</button>${obj.dipotong && obj.fotoAsli ? '<button type="button" data-p90-asli="1">↺ Gambar asli</button>' : ''}<span class="p90-pv-info">${info}</span></div>`;
+  w.querySelectorAll('[data-p90-ed]').forEach(b => b.onclick = () => p90EditorBuka(obj, () => p90Pratinjau_(obj, idWadah)));
+  const ba = w.querySelector('[data-p90-asli]'); if (ba) ba.onclick = () => { obj.fotoData = obj.fotoAsli; obj.mime = obj.mimeAsli || 'image/jpeg'; obj.dipotong = ''; p90Pratinjau_(obj, idWadah); p90PratinjauKecil_(obj); };
+  p90PratinjauKecil_(obj);
+}
+function p90PratinjauKecil_(obj) { // ikon kecil di kotak file ikut berubah
+  try { if (obj === byr && el('byr-file-pratinjau') && obj.fotoData && !/pdf/i.test(obj.mime || '')) el('byr-file-pratinjau').innerHTML = `<img src="${obj.fotoData}" alt="Bukti" />`; } catch (e) { }
+  try { if (obj === P90.resi && el('p90r-kecil') && obj.fotoData && !/pdf/i.test(obj.mime || '')) el('p90r-kecil').innerHTML = `<img src="${obj.fotoData}" alt="Bukti" style="width:54px;height:54px;object-fit:cover;border-radius:8px;" />`; } catch (e) { }
+}
+async function p90EditorBuka(obj, selesai) {
+  if (!obj || !obj.fotoData) return;
+  const asli = obj.fotoAsli || obj.fotoData;
+  let img; try { img = await p90MuatGambar_(asli); } catch (e) { omxToast(e.message, 'error'); return; }
+  const ed = document.createElement('div'); ed.className = 'p90-ed';
+  ed.innerHTML = `<div class="p90-ed-bar">
+      <button type="button" data-m="potong" class="aktif" data-p45-tip="Tarik kotak di gambar untuk memilih bagian yang dipakai">✂ Pilih area</button>
+      <button type="button" data-m="geser" data-p45-tip="Tarik untuk menggeser gambar">✋ Geser</button>
+      <button type="button" data-z="-1">−</button><button type="button" data-z="1">＋</button><button type="button" data-z="0">Pas layar</button>
+      ${obj.kotak ? '<button type="button" data-otomatis="1" data-p45-tip="Pilih area bukti yang ditemukan AI">✨ Potong otomatis</button>' : ''}
+      <button type="button" data-hapus="1">Hapus pilihan</button>
+      <span class="sela"></span><span class="p90-ed-ket">Roda mouse = zoom · Esc = batal</span>
+      <button type="button" data-batal="1">Batal</button><button type="button" class="utama" data-pakai="1">✓ Pakai</button></div>
+    <div class="p90-ed-panggung"><canvas></canvas></div>`;
+  document.body.appendChild(ed);
+  const pg = ed.querySelector('.p90-ed-panggung'), cv = pg.querySelector('canvas'), cx = cv.getContext('2d');
+  const S = { s: 1, ox: 0, oy: 0, mode: 'potong', sel: null, tarik: null };
+  // pilihan awal = potongan yang sedang dipakai (bila ada) supaya bisa disesuaikan
+  if (obj.potongan) S.sel = Object.assign({}, obj.potongan);
+  function ukur() { const r = pg.getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; cx.setTransform(d, 0, 0, d, 0, 0); return r; }
+  function pas() { const r = ukur(); S.s = Math.min(r.width / img.width, r.height / img.height) * 0.94; S.ox = (r.width - img.width * S.s) / 2; S.oy = (r.height - img.height * S.s) / 2; gambar(); }
+  function gambar() {
+    const d = window.devicePixelRatio || 1, W = cv.width / d, H = cv.height / d;
+    cx.setTransform(d, 0, 0, d, 0, 0); cx.clearRect(0, 0, W, H);
+    cx.save(); cx.translate(S.ox, S.oy); cx.scale(S.s, S.s); cx.imageSmoothingQuality = 'high'; cx.drawImage(img, 0, 0); cx.restore();
+    if (S.sel && S.sel.w > 2 && S.sel.h > 2) {
+      const x = S.ox + S.sel.x * S.s, y = S.oy + S.sel.y * S.s, w = S.sel.w * S.s, h = S.sel.h * S.s;
+      cx.fillStyle = 'rgba(0,0,0,.55)'; cx.beginPath(); cx.rect(0, 0, W, H); cx.rect(x, y, w, h); cx.fill('evenodd');
+      cx.strokeStyle = '#f59e0b'; cx.lineWidth = 2; cx.setLineDash([6, 4]); cx.strokeRect(x, y, w, h); cx.setLineDash([]);
+    }
+  }
+  function keGambar(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left - S.ox) / S.s, y: (e.clientY - r.top - S.oy) / S.s }; }
+  function batasi(p) { return { x: Math.max(0, Math.min(img.width, p.x)), y: Math.max(0, Math.min(img.height, p.y)) }; }
+  function zoom(f, cxp, cyp) { const r = cv.getBoundingClientRect(); const px = cxp == null ? r.width / 2 : cxp, py = cyp == null ? r.height / 2 : cyp; const ns = Math.max(0.05, Math.min(12, S.s * f)); S.ox = px - (px - S.ox) * ns / S.s; S.oy = py - (py - S.oy) * ns / S.s; S.s = ns; gambar(); }
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    if (S.mode === 'geser' || e.button === 1) S.tarik = { jenis: 'geser', x: e.clientX, y: e.clientY, ox: S.ox, oy: S.oy };
+    else { const p = batasi(keGambar(e)); S.tarik = { jenis: 'potong', x: p.x, y: p.y }; S.sel = { x: p.x, y: p.y, w: 0, h: 0 }; }
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!S.tarik) return;
+    if (S.tarik.jenis === 'geser') { S.ox = S.tarik.ox + e.clientX - S.tarik.x; S.oy = S.tarik.oy + e.clientY - S.tarik.y; }
+    else { const p = batasi(keGambar(e)); S.sel = { x: Math.min(p.x, S.tarik.x), y: Math.min(p.y, S.tarik.y), w: Math.abs(p.x - S.tarik.x), h: Math.abs(p.y - S.tarik.y) }; }
+    gambar();
+  });
+  cv.addEventListener('pointerup', () => { S.tarik = null; if (S.sel && (S.sel.w < 8 || S.sel.h < 8)) S.sel = null; gambar(); });
+  cv.addEventListener('wheel', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  const tutup = () => { window.removeEventListener('resize', pas); document.removeEventListener('keydown', kunciEsc, true); ed.remove(); };
+  const kunciEsc = e => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); tutup(); } };
+  document.addEventListener('keydown', kunciEsc, true);
+  window.addEventListener('resize', pas);
+  ed.querySelector('.p90-ed-bar').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.m) { S.mode = b.dataset.m; ed.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('aktif', x === b)); cv.style.cursor = S.mode === 'geser' ? 'grab' : 'crosshair'; }
+    if (b.dataset.z !== undefined) { const z = +b.dataset.z; if (z === 0) pas(); else zoom(z > 0 ? 1.3 : 1 / 1.3); }
+    if (b.dataset.otomatis) { const k = obj.kotak, m = 2; S.sel = { x: Math.max(0, k.x - m) / 100 * img.width, y: Math.max(0, k.y - m) / 100 * img.height, w: Math.min(100, k.w + 2 * m) / 100 * img.width, h: Math.min(100, k.h + 2 * m) / 100 * img.height }; S.sel.w = Math.min(S.sel.w, img.width - S.sel.x); S.sel.h = Math.min(S.sel.h, img.height - S.sel.y); gambar(); }
+    if (b.dataset.hapus) { S.sel = null; gambar(); }
+    if (b.dataset.batal) tutup();
+    if (b.dataset.pakai) {
+      try {
+        if (!obj.fotoAsli) { obj.fotoAsli = obj.fotoData; obj.mimeAsli = obj.mime; }
+        if (S.sel && S.sel.w >= 8 && S.sel.h >= 8) { obj.fotoData = await p90Potong_(asli, S.sel.x, S.sel.y, S.sel.w, S.sel.h); obj.mime = 'image/jpeg'; obj.dipotong = 'manual'; obj.potongan = Object.assign({}, S.sel); }
+        else { obj.fotoData = obj.fotoAsli; obj.mime = obj.mimeAsli || 'image/jpeg'; obj.dipotong = ''; obj.potongan = null; }
+      } catch (er) { omxToast(String(er.message || er), 'error'); }
+      tutup(); if (selesai) selesai();
+    }
+  });
+  cv.style.cursor = 'crosshair';
+  requestAnimationFrame(pas);
+}
+
+/* Bukti bayar: AI membaca + kotak area -> dipotong otomatis (tampilan hasil baca sama seperti Paket 77) */
+const p90ByrPilihAsli_ = byrPilihFile;
+byrPilihFile = async function (inp) {
+  const r = await p90ByrPilihAsli_.apply(this, arguments);
+  try {
+    let w = el('p90-pv-byr');
+    if (!w) { const lab = document.querySelector('#omxm label.byr-file'); if (lab) { lab.insertAdjacentHTML('afterend', '<div class="p90-pv" id="p90-pv-byr" hidden></div>'); w = el('p90-pv-byr'); } }
+    p90Pratinjau_(byr, 'p90-pv-byr');
+  } catch (e) { }
+  return r;
+};
+p77ByrBaca_ = async function () {
+  const k = byr; if (!k || !k.fotoData) return;
+  // dipanggil tepat setelah file baru dipilih -> file ini menjadi gambar asli (untuk potong & kembalikan)
+  k.fotoAsli = k.fotoData; k.mimeAsli = k.mime; k.dipotong = ''; k.kotak = null; k.potongan = null;
+  const seq = ++P77.byrSeq; k.metaBukti = null;
+  let box = el('p77-byr-ai');
+  if (!box) { const anc = el('p90-pv-byr') || document.querySelector('label.byr-file'); if (!anc) return; anc.insertAdjacentHTML('afterend', '<div id="p77-byr-ai" class="p77-byr-ai"></div>'); box = el('p77-byr-ai'); }
+  box.innerHTML = '<i class="dok-spin"></i> AI Smart OCR membaca bukti transfer…';
+  try {
+    const d = await postJson({ aksi: 'p90_baca_bukti', jenis: 'bayar', base64: k.fotoAsli || k.fotoData, mime: k.mimeAsli || k.mime || 'image/jpeg', email: currentUserEmail() }, 90000, true);
+    if (seq !== P77.byrSeq) return;
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    const x = d.data || {}; k.metaBukti = Object.assign({ dibaca: Date.now(), model: d.model || '' }, x);
+    k.kotak = d.kotak || null;
+    if (k.kotak && !k.dipotong) { try { if (await p90PotongOtomatis_(k)) p90Pratinjau_(k, 'p90-pv-byr'); } catch (e) { } }
+    const total = Number(k.order && (k.order.total || k.order.totalTagihan)) || 0, nom = Number(x.nominal) || 0, cocok = total > 0 && Math.abs(nom - total) < 1;
+    const baris = [['Nominal', nom ? 'Rp ' + nom.toLocaleString('id-ID') : ''], ['Dari', [x.pengirim, x.bank, x.rekPengirim].filter(Boolean).join(' · ')], ['Ke', [x.penerima, x.bankPenerima, x.rekPenerima].filter(Boolean).join(' · ')],
+      ['Waktu', [x.tanggal, x.jam].filter(Boolean).join(' ')], ['No Ref', x.noRef], ['Berita', x.berita], ['Status', x.status]].filter(r => r[1]);
+    box.innerHTML = `<div class="p77-byr-grid">${baris.map(([l, v]) => `<span>${l}</span><b>${p77E(v)}</b>`).join('')}</div>` +
+      (total ? `<div class="p77-byr-cek ${cocok ? 'ok' : 'beda'}">${cocok ? '✓ Nominal sama dengan total tagihan' : '⚠ Nominal berbeda dari total tagihan Rp ' + total.toLocaleString('id-ID')}</div>` : '') +
+      '<div class="p77-byr-gagal" style="font-size:11px; margin-top:4px;">Data ini ikut disimpan saat konfirmasi - dipakai mencocokkan mutasi bank.</div>';
+  } catch (e) { if (seq === P77.byrSeq) box.innerHTML = `<span class="p77-byr-gagal">AI belum bisa membaca bukti (${p77E(String(e.message || e).replace(/^Error:\s*/, ''))}). Konfirmasi tetap bisa dilanjutkan.</span>`; }
+};
+
+/* ---------- DN-420: jendela Kirim Pesanan dengan bukti resi (AI isi No Resi & kurir, bisa dikoreksi, dipelajari) ---------- */
+function p90ResiBuka(k) {
+  const o = k.order || {};
+  P90.resi = { fotoData: '', mime: '', fotoAsli: '', mimeAsli: '', kotak: null, dibaca: '', diketik: false, seq: 0, k };
+  omxmModal(`<div class="omxm-kepala">Kirim Pesanan · Bukti Resi<small>${omxEsc(o.noInvoice || '')} · ${omxEsc(o.namaPenerima || o.namaPembeli || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
+    <div class="omxm-isi">
+      <label class="byr-file" for="p90r-file" data-p13-drop="p90r" tabindex="0" id="p90r-zona"><span id="p90r-kecil">📎</span><span><b>Bukti resi (wajib)</b><br><small style="opacity:.7;">Foto label / screenshot resi / PDF. Klik, tarik dari WhatsApp ke sini, atau Ctrl+V.</small></span></label>
+      <input type="file" id="p90r-file" accept="image/*,application/pdf" hidden onchange="p90ResiFile(this.files && this.files[0]); this.value='';" />
+      <div class="p90-pv" id="p90-pv-resi" hidden></div>
+      <div class="p90r-ai" id="p90r-ai"></div>
+      <div class="p90r-grid">
+        <label>No Resi *<input id="p90r-resi" autocomplete="off" placeholder="Terisi otomatis dari bukti" oninput="P90.resi.diketik = true; this.classList.remove('cek');" onkeydown="if(event.key==='Enter'){event.preventDefault();p90ResiKirim();}"></label>
+        <label>Kurir<input id="p90r-kurir" autocomplete="off" value="${pgrAttr(o.kurir || '')}" placeholder="JNE / J&T / SiCepat ..." oninput="P90.resi.kurirDiketik = true;"></label>
+      </div>
+      ${k.dariDetail ? '' : `<div style="margin-top:10px;"><button type="button" class="p90-link" onclick="omxModalTutup(); wpBukaDetail(${Number(k.row) || 0});">Lihat detail pesanan</button></div>`}
+    </div>
+    <div class="omxm-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Batal</button><button type="button" class="omxm-btn utama" onclick="p90ResiKirim()">🚚 Kirim pesanan</button></div>`);
+  setTimeout(() => { const z = el('p90r-zona'); if (z) z.focus(); }, 60);
+}
+async function p90ResiFile(f) {
+  const R = P90.resi; if (!f || !R) return;
+  try {
+    if (/pdf/i.test(f.type || '')) {
+      if (f.size > 3.5 * 1024 * 1024) throw new Error('PDF maksimal 3,5 MB');
+      R.fotoData = await new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => j(new Error('Gagal baca file')); fr.readAsDataURL(f); });
+      R.mime = 'application/pdf'; const kc = el('p90r-kecil'); if (kc) kc.textContent = '📄';
+    } else {
+      if (!/^image\//.test(f.type || '')) throw new Error('Pilih foto (JPG/PNG) atau PDF.');
+      R.fotoData = await omxKompres(f, 1600, 0.85); R.mime = 'image/jpeg';
+    }
+    R.fotoAsli = R.fotoData; R.mimeAsli = R.mime; R.dipotong = ''; R.kotak = null; R.potongan = null;
+    p90Pratinjau_(R, 'p90-pv-resi');
+    p90ResiBaca_();
+  } catch (e) { omxToast(String(e.message || e), 'error'); }
+}
+async function p90ResiBaca_() {
+  const R = P90.resi; if (!R || !R.fotoAsli) return;
+  const seq = ++R.seq, box = el('p90r-ai');
+  if (box) box.innerHTML = '<i class="dok-spin"></i> AI membaca No Resi & kurir…';
+  try {
+    const d = await postJson({ aksi: 'p90_baca_bukti', jenis: 'resi', base64: R.fotoAsli, mime: R.mimeAsli || 'image/jpeg', noInvoice: (R.k.order || {}).noInvoice || '', email: currentUserEmail() }, 90000, true);
+    if (seq !== R.seq || P90.resi !== R) return;
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    const x = d.data || {};
+    R.dibaca = x.noResi || x.dibaca || ''; R.kotak = d.kotak || null;
+    const ir = el('p90r-resi'), ik = el('p90r-kurir');
+    if (ir && (!R.diketik || !ir.value.trim()) && x.noResi) { ir.value = x.noResi; ir.classList.toggle('cek', !!x.perluCek); R.diketik = false; }
+    if (ik && x.kurir && (!R.kurirDiketik || !ik.value.trim())) ik.value = x.kurir; // bacaan AI dari bukti lebih tepat daripada kurir rencana di pesanan
+    if (R.kotak && !R.dipotong) { try { if (await p90PotongOtomatis_(R)) p90Pratinjau_(R, 'p90-pv-resi'); } catch (e) { } }
+    const lain = (x.kandidat || []).map(n => `<button type="button" onclick="const i=el('p90r-resi'); i.value='${pgrAttr(n)}'; P90.resi.diketik=true; i.classList.remove('cek');">${p90E(n)}</button>`).join('');
+    if (box) box.innerHTML = (x.noResi ? (x.perluCek ? '<span class="cek">⚠ Periksa No Resi</span> - formatnya berbeda dari resi kurir ini sebelumnya.' : '<span class="ok">✓ No Resi terbaca</span>') : '<span class="cek">No Resi tidak terbaca</span> - ketik manual.') +
+      ([x.kurir, x.layanan, x.penerima ? 'penerima ' + x.penerima : ''].filter(Boolean).length ? ' · ' + p90E([x.kurir, x.layanan, x.penerima ? 'penerima ' + x.penerima : ''].filter(Boolean).join(' · ')) : '') +
+      (lain ? `<div style="margin-top:4px;">Nomor lain di gambar: ${lain}</div>` : '') +
+      '<div style="font-size:11px; opacity:.7; margin-top:3px;">Koreksi Anda dipelajari untuk bacaan berikutnya.</div>';
+  } catch (e) { if (seq === R.seq && box) box.innerHTML = `<span class="cek">AI belum bisa membaca bukti</span> (${p90E(String(e.message || e).replace(/^Error:\s*/, ''))}). Ketik No Resi manual.`; }
+}
+function p90ResiKirim() {
+  const R = P90.resi; if (!R) return;
+  const k = R.k, o = k.order || {};
+  const noResi = String((el('p90r-resi') || {}).value || '').trim(), kurir = String((el('p90r-kurir') || {}).value || '').trim();
+  if (!R.fotoData) { omxToast('Lampirkan bukti resi dulu (foto label / screenshot / PDF).', 'error'); const z = el('p90r-zona'); if (z) z.focus(); return; }
+  if (!noResi) { omxToast('Isi No Resi.', 'error'); const i = el('p90r-resi'); if (i) i.focus(); return; }
+  omxModalTutup();
+  const row = k.row, inv = o.noInvoice || '';
+  omxSimpanInstan({ aksi: 'kirim_pesanan', row, noResi, noInvoice: inv, base64: R.fotoData, mime: R.mime || 'image/jpeg', wajibBukti: true, noResiDibaca: R.dibaca || '', kurirResi: kurir }, {
+    label: 'Kirim pesanan · ' + inv, timeout: 150000,
+    berhasil: d => {
+      try { playBeep(); } catch (e) { }
+      try { p13PatchList(inv, { status: d.status || p13StatusSetelahKirim(o), noResi }); } catch (e) { }
+      if (d.peringatanBukti) omxToast(d.peringatanBukti, 'error'); else omxToast('✓ ' + inv + ' dikirim · resi ' + noResi);
+      try { wpDetailCache.delete(row); } catch (e) { }
+      if (k.onSelesai) { try { k.onSelesai(d); } catch (e) { } }
+    }
+  });
+  P90.resi = null;
+}
+const p90TerimaFileAsli_ = p13TerimaFile_;
+p13TerimaFile_ = async function (jenis, f) {
+  if (jenis === 'p90r') return p90ResiFile(f);
+  return p90TerimaFileAsli_.apply(this, arguments);
+};
+// Tempel gambar saat kursor di kotak No Resi / Kurir juga diterima (teks tetap ditempel biasa)
+document.addEventListener('paste', async e => {
+  if (!P90.resi || !el('p90r-zona')) return;
+  const akt = document.activeElement; if (!(akt && /^(INPUT|TEXTAREA)$/.test(akt.tagName) && akt.closest('#omxm'))) return;
+  const fs = Array.from(((e.clipboardData || {}).files) || []).filter(f => /^image\/|pdf/.test(f.type || ''));
+  if (!fs.length) return;
+  e.preventDefault(); p90ResiFile(fs[0]);
+}, true);
+// Kapsul Resi / Bukti Bayar di daftar = langsung jendela upload
+const p90DokAksiAsli_ = p36DokAksi;
+p36DokAksi = function (noInvoice, jenis) {
+  const it = (wpListCache || []).find(x => x.noInvoice === noInvoice); if (!it) return p90DokAksiAsli_.apply(this, arguments);
+  const izin = (currentUser && currentUser.izin) || {}, owner = omxApakahOwner_();
+  const segar = () => { try { wpRenderListRows(); } catch (e) { } };
+  if (jenis === 'bayar' && (owner || izin.buatInvoice)) return byrBuka({ row: it.row, order: it, render: segar, onSelesai: () => { try { wpFetchList(); } catch (e) { } } });
+  if (jenis !== 'bayar' && (owner || izin.kirimResi || izin.buatInvoice)) {
+    if (/kurir toko/i.test(it.kurir || '')) return kftBuka({ row: it.row, noInvoice: it.noInvoice, nama: it.namaPenerima, onSelesai: () => { try { wpFetchList(); } catch (e) { } } });
+    return p90ResiBuka({ row: it.row, order: it, onSelesai: () => { try { wpFetchList(); } catch (e) { } } });
+  }
+  return p90DokAksiAsli_.apply(this, arguments);
+};
+// Tombol "Input No Resi" di detail = jendela yang sama
+wpToggleInputResi = function () {
+  const o = wpCurrentDetailOrder, row = wpCurrentDetailRow; if (!o || !row) return;
+  p90ResiBuka({ row, order: o, dariDetail: true, onSelesai: () => { try { wpDetailCache.delete(row); } catch (e) { } if (el('wp-view-detail') && el('wp-view-detail').style.display !== 'none' && wpCurrentDetailRow === row) wpBukaDetail(row); } });
+};
+
+/* ---------- DN-751: Buat Pesanan - isian tidak hilang sampai disimpan / dibatalkan ---------- */
+const P90D_KUNCI = 'p90_draf_pesanan_v1';
+P90.draf = { ada: false, menyimpan: false, pulihCek: false };
+function p90DrafIsi_() {
+  const v = el('wp-view-buat'); if (!v) return false;
+  if ((typeof wpCart !== 'undefined' && wpCart && wpCart.length)) return true;
+  return ['wp-b-nama-pembeli', 'wp-b-nohp-pembeli', 'wp-b-nama', 'wp-b-alamat', 'wp-b-nohp', 'p85a-jalan'].some(id => el(id) && String(el(id).value || '').trim());
+}
+function p90DrafSimpan_() {
+  try {
+    const v = el('wp-view-buat'); if (!v || (typeof wpEditingRow !== 'undefined' && wpEditingRow)) return;
+    if (!p90DrafIsi_()) { localStorage.removeItem(P90D_KUNCI); return; }
+    const nilai = {};
+    v.querySelectorAll('input[id], select[id], textarea[id]').forEach(x => { if (x.type === 'file' || x.type === 'button') return; nilai[x.id] = (x.type === 'checkbox' || x.type === 'radio') ? { c: x.checked } : x.value; });
+    localStorage.setItem(P90D_KUNCI, JSON.stringify({ t: Date.now(), nilai, cart: (typeof wpCart !== 'undefined' ? wpCart : []), lat: (typeof P85B !== 'undefined' && P85B) ? P85B.lat : null, lng: (typeof P85B !== 'undefined' && P85B) ? P85B.lng : null }));
+  } catch (e) { }
+}
+function p90DrafPulihkan_() {
+  let d = null; try { d = JSON.parse(localStorage.getItem(P90D_KUNCI) || 'null'); } catch (e) { }
+  if (!d || Date.now() - d.t > 7 * 86400000) return false;
+  try {
+    Object.keys(d.nilai || {}).forEach(id => { const x = el(id); if (!x) return; const v = d.nilai[id]; if (v && typeof v === 'object') x.checked = !!v.c; else x.value = v; });
+    const pb = el('wp-b-penerima-beda'), pw = el('wp-b-penerima-wrap'); if (pb && pw) pw.style.display = pb.checked ? '' : 'none';
+    if (Array.isArray(d.cart)) { wpCart = d.cart; try { wpRenderCart(); } catch (e) { } }
+    try { if (typeof p89BarisDariTeks_ === 'function' && el('p85a-jalan')) p89BarisDariTeks_(el('p85a-jalan').value); } catch (e) { }
+    try { if (typeof P85B !== 'undefined' && d.lat && d.lng) { P85B.lat = d.lat; P85B.lng = d.lng; } } catch (e) { }
+    p90DrafTanda_(true);
+    return true;
+  } catch (e) { return false; }
+}
+function p90DrafTanda_(ada) {
+  const h = document.querySelector('#wp-po-modal .wp-po-modal-head'); if (!h) return;
+  let b = el('p90-batal-inv');
+  if (!b) {
+    b = document.createElement('button'); b.type = 'button'; b.id = 'p90-batal-inv'; b.className = 'p90-batal-inv'; b.textContent = '🗑 Batalkan invoice';
+    b.setAttribute('data-p45-tip', 'Kosongkan semua isian & keranjang (draf dibuang)');
+    b.onclick = p90DrafBatalkan;
+    const x = h.querySelector('.wp-po-modal-tutup'); h.insertBefore(b, x);
+  }
+  b.hidden = !!(typeof wpEditingRow !== 'undefined' && wpEditingRow);
+  let i = el('p90-draf-info');
+  if (ada && !i) { const j = el('wp-po-modal-judul'); if (j) { j.insertAdjacentHTML('afterend', '<span class="p90-draf-info" id="p90-draf-info">Draf tersimpan</span>'); } }
+  if (!ada && i) i.remove();
+}
+async function p90DrafBatalkan() {
+  const ok = typeof omniKonfirmasi === 'function'
+    ? await omniKonfirmasi({ judul: 'Batalkan invoice ini?', html: 'Semua isian pembeli, alamat & keranjang dikosongkan. Pesanan belum tersimpan, jadi tidak ada data yang terhapus.', ya: 'Ya, kosongkan', tidak: 'Tidak' })
+    : confirm('Batalkan invoice ini? Semua isian dikosongkan.');
+  if (!ok) return;
+  P90.draf.ada = false; try { localStorage.removeItem(P90D_KUNCI); } catch (e) { }
+  p90FormBaruAsli_();
+  p90DrafTanda_(false);
+}
+const p90FormBaruAsli_ = wpBukaFormBaru;
+wpBukaFormBaru = function () {
+  // Draf masih ada (jendela ditutup tanpa simpan / batal) -> isian dipertahankan
+  if (P90.draf.ada && el('wp-view-buat') && p90DrafIsi_()) { p90DrafTanda_(true); return; }
+  const r = p90FormBaruAsli_.apply(this, arguments);
+  if (!P90.draf.pulihCek) { P90.draf.pulihCek = true; if (p90DrafPulihkan_()) { P90.draf.ada = true; return r; } }
+  p90DrafTanda_(false);
+  return r;
+};
+const p90TutupPoAsli_ = wpTutupPoModal;
+wpTutupPoModal = function () {
+  const sedangEdit = typeof wpEditingRow !== 'undefined' && !!wpEditingRow;
+  if (!sedangEdit && !P90.draf.menyimpan) { P90.draf.ada = p90DrafIsi_(); if (P90.draf.ada) p90DrafSimpan_(); else { try { localStorage.removeItem(P90D_KUNCI); } catch (e) { } } }
+  return p90TutupPoAsli_.apply(this, arguments);
+};
+const p90SimpanLatarAsli_ = wpSimpanLatar;
+wpSimpanLatar = async function (f) {
+  P90.draf.menyimpan = true;
+  try {
+    const r = await p90SimpanLatarAsli_.apply(this, arguments);
+    const m = el('wp-po-modal');
+    if (!m || m.style.display === 'none') { P90.draf.ada = false; try { localStorage.removeItem(P90D_KUNCI); } catch (e) { } const i = el('p90-draf-info'); if (i) i.remove(); }
+    return r;
+  } finally { P90.draf.menyimpan = false; }
+};
+const p90BukaPoAsli_ = wpBukaPoModal;
+wpBukaPoModal = function (modeEdit) { const r = p90BukaPoAsli_.apply(this, arguments); try { p90DrafTanda_(P90.draf.ada && !modeEdit); } catch (e) { } return r; };
+window.addEventListener('pagehide', () => { try { const m = el('wp-po-modal'); if (m && m.style.display === 'flex') p90DrafSimpan_(); } catch (e) { } });
+setInterval(() => { try { const m = el('wp-po-modal'); if (m && m.style.display === 'flex' && !document.hidden) p90DrafSimpan_(); } catch (e) { } }, 15000);
+
+/* ---------- DN-956: nama supplier di panel stok bisa diubah & dipelajari ---------- */
+function p90SuppKunciFe_(url) {
+  const m = String(url || '').match(/^https?:\/\/([^\/?#]+)(\/[^?#]*)?/i); if (!m) return '';
+  const host = m[1].toLowerCase().replace(/^www\.|^m\./, ''), jalur = String(m[2] || '').split('/').filter(Boolean);
+  return /tokopedia\.com|shopee\.|tiktok\.com|bukalapak\.com|lazada\.|blibli\.com/.test(host) && jalur.length ? host + '/' + jalur[0].toLowerCase() : host;
+}
+function p90SuppPeta_() { try { return JSON.parse(localStorage.getItem('p90_supp_v1') || '{}') || {}; } catch (e) { return {}; } }
+const p90StokRenderAsli_ = p57StokRender_;
+p57StokRender_ = function () {
+  try {
+    const peta = p90SuppPeta_();
+    if (typeof P57 !== 'undefined' && P57.stok) Object.keys(P57.stok).forEach(u => { const k = p90SuppKunciFe_(u), d = P57.stok[u]; if (k && peta[k] && d && d.sup !== peta[k]) { if (!d.supBaca) d.supBaca = d.sup; d.sup = peta[k]; } });
+  } catch (e) { }
+  return p90StokRenderAsli_.apply(this, arguments);
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.p57-stok .p63-stok-judul b'); if (!b) return;
+  const baris = b.closest('.sku-supp-baris'), wrap = b.closest('#tp-baris-sku-supplier, #katalog-baris-sku-supplier'); if (!baris || !wrap) return;
+  const arr = wrap.id === 'tp-baris-sku-supplier' ? tpBarisSupplier : katalogBarisSupplier, r = arr[parseInt(baris.dataset.idx, 10)];
+  const url = String((r && r.url) || '').trim(); if (!url) return;
+  e.preventDefault(); e.stopPropagation();
+  p90SuppEdit_(b, url, r);
+}, true);
+function p90SuppEdit_(anchor, url, r) {
+  const lama = el('p90-sn'); if (lama) lama.remove();
+  const d = (P57.stok && P57.stok[url]) || {}, sekarang = d.sup || (r && r.namaSupplier) || '', baca = d.supBaca || sekarang;
+  const pop = document.createElement('div'); pop.className = 'p90-sn'; pop.id = 'p90-sn';
+  pop.innerHTML = `<b>Nama supplier</b><input id="p90-sn-in" value="${pgrAttr(sekarang)}" placeholder="Nama supplier yang benar">
+    <small>Dipakai untuk semua link dari toko ${p90E(p90SuppKunciFe_(url))}. ${baca && baca !== sekarang ? 'Hasil baca halaman: ' + p90E(baca) : ''}</small>
+    <div class="aksi">${baca && baca !== sekarang ? '<button type="button" data-k="kembali">↺ Hasil baca</button>' : ''}<span style="flex:1"></span><button type="button" data-k="batal">Batal</button><button type="button" class="utama" data-k="simpan">Simpan</button></div>`;
+  document.body.appendChild(pop);
+  const rc = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 280, rc.left - 140)) + 'px'; pop.style.top = Math.min(window.innerHeight - 170, rc.bottom + 6) + 'px';
+  const inp = pop.querySelector('input'); inp.focus(); inp.select();
+  const tutup = () => { pop.remove(); document.removeEventListener('mousedown', luar, true); };
+  const luar = ev => { if (!pop.contains(ev.target)) tutup(); };
+  setTimeout(() => document.addEventListener('mousedown', luar, true), 0);
+  const simpan = (nama, hapus) => {
+    nama = String(nama || '').trim(); if (!nama) return;
+    const k = p90SuppKunciFe_(url), peta = p90SuppPeta_();
+    if (hapus) delete peta[k]; else peta[k] = nama;
+    try { localStorage.setItem('p90_supp_v1', JSON.stringify(peta)); } catch (e) { }
+    Object.keys(P57.stok || {}).forEach(u => { if (p90SuppKunciFe_(u) === k) { const x = P57.stok[u]; if (!x.supBaca) x.supBaca = x.sup; x.sup = nama; } });
+    if (r && 'namaSupplier' in r) r.namaSupplier = nama;
+    try { p63SimpanStok_(); } catch (e) { }
+    try { p57StokRender_(); } catch (e) { }
+    postJsonTulis({ aksi: 'p90_supp_nama', url, namaBaca: baca, namaBenar: nama, hapus: !!hapus, email: currentUserEmail() }, 30000).then(x => { if (!x || !x.success) throw new Error((x && x.error) || 'gagal'); omxToast('✓ Nama supplier disimpan & dipelajari'); })
+      .catch(er => omxToast('Nama tampil di layar, tetapi gagal disimpan ke server: ' + String(er.message || er), 'error'));
+    tutup();
+  };
+  pop.addEventListener('click', ev => { const t = ev.target.closest('button'); if (!t) return; if (t.dataset.k === 'batal') tutup(); if (t.dataset.k === 'simpan') simpan(inp.value); if (t.dataset.k === 'kembali') simpan(baca, true); });
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); simpan(inp.value); } if (ev.key === 'Escape') tutup(); });
+}
 </script>
 
 </body>
