@@ -82,7 +82,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.110';
+  var VERSI = 'v2026.10.111';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -86988,6 +86988,83 @@ function p90SuppEdit_(anchor, url, r) {
   };
   pop.addEventListener('click', ev => { const t = ev.target.closest('button'); if (!t) return; if (t.dataset.k === 'batal') tutup(); if (t.dataset.k === 'simpan') simpan(inp.value); if (t.dataset.k === 'kembali') simpan(baca, true); });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); simpan(inp.value); } if (ev.key === 'Escape') tutup(); });
+}
+</script>
+
+<style>
+  /* ============ PAKET 91 (v2026.10.111) - HP: tidak ada yang tertutup menu bawah ============ */
+  html.p86-hp-on { --p91-nav: 84px; }
+  /* ruang di ujung halaman = tinggi menu bawah yang diukur (bukan angka tetap) */
+  html.p86-hp-on body.p87-nav-semua main, html.p86-hp-on body.p86-menu-tampil main { padding-bottom: calc(var(--p91-nav) + 28px) !important; }
+  /* tombol "Muat Checklist" (DN-589) & bilah aksi lengket lain berhenti TEPAT di atas menu bawah */
+  html.p86-hp-on body.p87-nav-semua .mgm-checklist-aksi, html.p86-hp-on body.p86-menu-tampil .mgm-checklist-aksi { bottom: calc(var(--p91-nav) + 10px) !important; }
+  /* DN-117: tanda "perlu dikirim ulang" di HP = kapsul kecil di kanan atas di bawah header (tidak di tengah layar, tidak menutupi tombol bawah) */
+  html.omni-mobile #omxlog-pill.gagal { top: calc(58px + env(safe-area-inset-top, 0px)) !important; bottom: auto !important; right: 10px !important; left: auto !important; transform: none !important;
+    max-width: 62vw; padding: 5px 10px !important; font-size: 11.5px !important; line-height: 1.2; gap: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.omni-mobile #omxlog-panel { max-height: calc(100vh - var(--p91-nav, 84px) - 90px) !important; bottom: calc(var(--p91-nav, 84px) + 52px) !important; }
+</style>
+<script>
+/* ============================ PAKET 91 (v2026.10.111) ============================
+   DN-589: tombol "Muat Checklist" tertutup menu bawah HP. Diperbaiki untuk SEMUA layar HP sekaligus:
+   1) tinggi menu bawah diukur langsung (--p91-nav) -> ruang di ujung halaman & bilah lengket memakai angka itu;
+   2) penjaga otomatis: titik-titik di area menu bawah diperiksa; bila ada tombol / bilah melayang atau lengket
+      (position fixed / sticky) yang berada DI BAWAH menu, posisinya dinaikkan tepat di atas menu.
+      Berjalan saat layar berganti, digulir, diputar, dan tiap 1 detik (ringan: maks 15 titik, tanpa server). */
+const P91 = { tanda: new Set(), jadwal: 0 };
+function p91Nav_() {
+  const n = document.getElementById('p86-nav') || document.getElementById('m2-nav');
+  if (!n) return null;
+  const cs = getComputedStyle(n); if (cs.display === 'none' || cs.visibility === 'hidden') return null;
+  const r = n.getBoundingClientRect(); if (r.height < 20 || r.top >= innerHeight) return null;
+  // tombol Scan bulat menonjol di atas menu -> ambil titik paling atas dari semua isi menu
+  let atas = r.top; n.querySelectorAll('*').forEach(c => { const rc = c.getBoundingClientRect(); if (rc.height > 0 && rc.top < atas && rc.top > r.top - 60) atas = rc.top; });
+  return { el: n, top: atas, tinggi: Math.max(0, innerHeight - atas) };
+}
+function p91Jaga() {
+  P91.jadwal = 0;
+  const nav = p91Nav_(), html = document.documentElement;
+  if (!nav) { // menu bawah tidak tampil -> kembalikan yang pernah dinaikkan
+    P91.tanda.forEach(e => { try { e.style.removeProperty('bottom'); delete e.dataset.p91; } catch (x) { } }); P91.tanda.clear(); return;
+  }
+  const t = Math.round(nav.tinggi);
+  if (html.style.getPropertyValue('--p91-nav') !== t + 'px') html.style.setProperty('--p91-nav', t + 'px');
+  // yang sudah dinaikkan: sesuaikan bila tinggi menu berubah, lepas bila elemennya hilang
+  P91.tanda.forEach(e => { if (!e.isConnected) { P91.tanda.delete(e); return; } const b = (t + 10) + 'px'; if (e.style.getPropertyValue('bottom') !== b) e.style.setProperty('bottom', b, 'important'); });
+  const ys = [nav.top + 6, nav.top + Math.min(nav.tinggi - 6, 30)], xs = [0.06, 0.25, 0.5, 0.75, 0.94].map(f => Math.round(innerWidth * f));
+  const sudah = new Set();
+  ys.forEach(y => xs.forEach(x => {
+    let tumpuk; try { tumpuk = document.elementsFromPoint(x, y); } catch (e) { return; }
+    const iNav = tumpuk.findIndex(e => nav.el.contains(e)); if (iNav < 0) return; // menu tidak paling atas di titik ini (mis. jendela pop-up) -> aman
+    for (const e of tumpuk.slice(iNav + 1)) {
+      if (e === document.body || e === html || nav.el.contains(e) || e.contains(nav.el)) continue;
+      // cari pembungkus melayang / lengket terdekat
+      let k = e, dapat = null;
+      while (k && k !== document.body && k !== html) {
+        const pos = getComputedStyle(k).position;
+        if (pos === 'fixed' || pos === 'sticky') { dapat = k; break; }
+        k = k.parentElement;
+      }
+      if (!dapat || sudah.has(dapat) || P91.tanda.has(dapat) || dapat.contains(nav.el)) continue;
+      sudah.add(dapat);
+      const r = dapat.getBoundingClientRect();
+      if (r.height <= 0 || r.height > innerHeight * 0.85) continue; // lapisan selayar penuh tidak diubah
+      if (r.bottom <= nav.top + 1) continue;
+      dapat.style.setProperty('bottom', (t + 10) + 'px', 'important');
+      dapat.dataset.p91 = '1'; P91.tanda.add(dapat);
+    }
+  }));
+}
+function p91Jadwalkan() { if (!P91.jadwal) P91.jadwal = requestAnimationFrame(p91Jaga); }
+if (document.documentElement.classList.contains('omni-mobile') || /Mobi|Android|iPhone/i.test(navigator.userAgent)) {
+  ['scroll', 'resize', 'orientationchange'].forEach(ev => window.addEventListener(ev, p91Jadwalkan, { passive: true }));
+  document.addEventListener('click', () => setTimeout(p91Jadwalkan, 60), true);
+  setInterval(() => { if (!document.hidden) p91Jaga(); }, 1000);
+  setTimeout(p91Jaga, 400);
+}
+/* DN-833: kotak No Resi di jendela Kirim Pesanan tanpa tulisan contoh */
+if (typeof p90ResiBuka === 'function') {
+  const p91ResiBukaAsli_ = p90ResiBuka;
+  p90ResiBuka = function () { const r = p91ResiBukaAsli_.apply(this, arguments); try { const i = el('p90r-resi'); if (i) i.placeholder = ''; } catch (e) { } return r; };
 }
 </script>
 
