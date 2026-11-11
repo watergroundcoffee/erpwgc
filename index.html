@@ -82,7 +82,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.111';
+  var VERSI = 'v2026.10.112';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -87066,6 +87066,528 @@ if (typeof p90ResiBuka === 'function') {
   const p91ResiBukaAsli_ = p90ResiBuka;
   p90ResiBuka = function () { const r = p91ResiBukaAsli_.apply(this, arguments); try { const i = el('p90r-resi'); if (i) i.placeholder = ''; } catch (e) { } return r; };
 }
+</script>
+
+<!-- ===================================================================================
+     PAKET 92 (v2026.10.112) - lampu status simpan (HP & web), Zoom+Flash 1 baris, label variasi + Jadikan Varian,
+     kotak tetap sidebar (Catatan Dev + Lipat + versi), submenu melayang tidak hilang, Copy invoice cepat + teks transfer,
+     foto produk di Detail Pesanan
+     =================================================================================== -->
+<style>
+  /* ---------- DN-408: HP Memo Gudang - Zoom & Flash satu baris ringkas ---------- */
+  #mgm-input-wrap .mgm-kamera-opsi { justify-content: flex-end; gap: 6px; }
+  #mgm-input-wrap .mgm-kamera-opsi .mgm-kamera-petunjuk { display: none; }
+  #mgm-input-wrap .mgm-opsi-kanan { flex-wrap: nowrap !important; gap: 6px; width: 100%; justify-content: flex-end; }
+  #mgm-input-wrap .mgm-opsi-kanan .mgm-flash-toggle { padding: 4px 5px 4px 8px; font-size: 11.5px; white-space: nowrap; }
+
+  /* ---------- DN-617 / DN-463: lampu status simpan (seperti mobile banking) ---------- */
+  #omxlog-pill, #omxlog-pill.gagal { display: none !important; }
+  .p92-lampu { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: 6px;
+    border: 0; border-radius: 50%; background: transparent; cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent; }
+  .p92-lampu:hover { background: rgba(127,127,127,.14); }
+  .p92-lampu i { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18), 0 0 8px rgba(34,197,94,.55); transition: background .2s, box-shadow .2s; }
+  .p92-lampu.jalan i { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.2), 0 0 8px rgba(245,158,11,.6); animation: p92Denyut 1s infinite; }
+  .p92-lampu.gagal i { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.22), 0 0 10px rgba(239,68,68,.75); }
+  .p92-lampu.p92-kedip i { animation: p92Kedip .45s 3; }
+  .p92-lampu b { position: absolute; top: -3px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: #ef4444; color: #fff; font: 700 9.5px/15px system-ui, sans-serif; text-align: center; }
+  .p92-lampu b:empty { display: none; }
+  @keyframes p92Denyut { 50% { opacity: .35; } }
+  @keyframes p92Kedip { 50% { transform: scale(1.8); } }
+  #app-web .web-topbar-kanan .p92-lampu { width: 30px; height: 30px; margin: 0 2px 0 0; }
+  /* HP: header tetap 1 baris - nama dipendekkan, lampu ringkas */
+  /* titik koneksi lama digabung ke lampu (merah juga saat koneksi ke server putus) -> header tidak makin sesak */
+  #app > header #conn-dot { display: none !important; }
+  #app > header .p92-lampu { width: 22px; height: 22px; margin-left: 2px; }
+  html body #omxlog-panel.p92-panel { top: var(--p92-top, 64px) !important; right: var(--p92-kanan, 12px) !important; left: auto !important; bottom: auto !important;
+    width: min(360px, calc(100vw - 20px)) !important; max-height: min(60vh, calc(100vh - var(--p92-top, 64px) - 96px)) !important; z-index: 9600 !important; }
+  #omxlog-panel .omxlog-item.p92-ulang { cursor: pointer; }
+  #omxlog-panel .omxlog-item.p92-ulang:hover { background: rgba(239,68,68,.08); }
+  #omxlog-panel .p92-ulang-semua { margin-left: auto; border: 0; border-radius: 8px; padding: 5px 9px; background: #ef4444 !important; color: #fff !important; font: 700 11.5px system-ui, sans-serif !important; cursor: pointer; }
+  #omxlog-panel .p92-ulang-semua + button { margin-left: 4px !important; }
+
+  /* ---------- DN-987: kotak tetap di kiri bawah sidebar (Catatan Dev + Lipat + versi) ---------- */
+  html.p84-ui #app-web .web-shell:not(.web-menu-top) .web-sidebar { display: flex !important; flex-direction: column; }
+  .p92-sbkaki { position: sticky; bottom: 0; z-index: 46; margin: auto -10px 0; padding: 10px 10px 8px; flex: none;
+    background: linear-gradient(180deg, rgba(29,24,21,0), #1d1815 22%); }
+  .p92-sbkaki .p92-sbtombol { display: flex; gap: 8px; justify-content: center; }
+  .p92-sbkaki .p92-slot, .p92-sbkaki .p86-lipat { flex: none; width: 38px !important; height: 38px; margin: 0 !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); color: #d8d0c7; }
+  .p92-sbkaki .p92-slot { border-color: transparent; background: transparent; }
+  .p92-sbkaki .p86-lipat span { display: none !important; }
+  .p92-sbkaki .p86-lipat:hover { color: #fff; border-color: rgba(245,158,11,.55); background: rgba(245,158,11,.08); }
+  .p92-sbkaki .p92-versi { margin-top: 6px; text-align: center; font: 600 10.5px/1.25 system-ui, sans-serif; color: #8f8378; letter-spacing: .02em; word-break: break-all; }
+  #app-web .web-shell.web-sidebar-lipat .p92-sbkaki .p92-sbtombol { flex-direction: column; align-items: center; gap: 6px; }
+  .p92-sbkaki .p92-versi .pendek, #app-web .web-shell.web-sidebar-lipat .p92-sbkaki .p92-versi .penuh { display: none; }
+  #app-web .web-shell.web-sidebar-lipat .p92-sbkaki .p92-versi .pendek { display: inline; }
+  #app-web .web-shell.web-sidebar-lipat .p92-sbkaki .p92-versi { font-size: 10px; }
+  #app-web .web-shell.web-menu-top .p92-sbkaki { display: none; }
+  .dvn-fab.p88-dvn.p92-sb { width: 38px !important; height: 38px !important; padding: 0 !important; justify-content: center !important; border-radius: 10px !important;
+    background: rgba(255,255,255,.04) !important; color: #d8d0c7 !important; border: 1px solid rgba(255,255,255,.10) !important; box-shadow: none !important; }
+  .dvn-fab.p88-dvn.p92-sb:hover { color: #fff !important; border-color: rgba(245,158,11,.55) !important; background: rgba(245,158,11,.08) !important; }
+  .dvn-fab.p88-dvn.p92-sb .p89-lbl { display: none !important; }
+  .dvn-fab.p88-dvn.p92-sb .dvn-n { position: absolute !important; top: -6px !important; right: -6px !important; margin: 0 !important; }
+
+  /* ---------- DN-975: submenu melayang (sidebar dilipat) tetap terbuka saat kursor menyeberang ---------- */
+  html.p84-ui #app-web .web-shell.web-sidebar-lipat:not(.web-menu-top) .web-nav-group.p92-fly .web-submenu-wrap,
+  #app-web .web-shell.web-sidebar-lipat:not(.web-menu-top) .web-nav-group.p92-fly .web-submenu-wrap {
+    display: flex !important; opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; transform: translateX(0) !important; }
+  #app-web .web-shell.web-sidebar-lipat:not(.web-menu-top) .web-nav-group .web-submenu-wrap::after { width: 26px !important; top: -12px !important; height: calc(100% + 24px) !important; }
+
+  /* ---------- DN-972: kartu kecil nama variasi di Produk Master ---------- */
+  .p92-vchip { align-self: flex-start; width: fit-content; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; margin: 3px 0 1px; padding: 2px 8px; border-radius: 6px; cursor: text;
+    border: 1px solid rgba(180,83,9,.28); background: rgba(245,158,11,.10); color: #92400e; font: 600 11.5px/1.5 inherit; font-family: inherit; }
+  .p92-vchip:hover { border-color: #d97706; }
+  .p92-vchip.kosong { border-style: dashed; background: transparent; color: var(--web-text-dim, #8a8a8a); font-weight: 500; opacity: 0; transition: opacity .12s; }
+  #katalog-produk-body tr:hover .p92-vchip.kosong, .p92-vchip.kosong:focus { opacity: 1; }
+  .p92-vchip.simpan { opacity: .6; }
+  .p92-vinput { width: 160px; max-width: 100%; margin: 3px 0 1px; padding: 3px 8px; border: 1px solid #d97706; border-radius: 6px; font: 600 12px inherit; font-family: inherit; outline: none; box-shadow: 0 0 0 3px rgba(245,158,11,.18); }
+  .p92-jv table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .p92-jv td, .p92-jv th { padding: 7px 8px; border-bottom: 1px solid var(--web-border, #e5e7eb); text-align: left; vertical-align: middle; }
+  .p92-jv th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--web-text-dim, #6b7280); }
+  .p92-jv .f { width: 38px; height: 38px; border-radius: 8px; object-fit: cover; background: #f3f0ec; display: inline-flex; align-items: center; justify-content: center; }
+  .p92-jv input[type=text] { width: 100%; min-width: 120px; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--web-border, #d1d5db); border-radius: 8px; font: inherit; }
+  .p92-jv small { display: block; color: var(--web-text-dim, #6b7280); font-size: 11px; }
+  .p92-jv .ikut { color: #6b7280; font-style: italic; }
+  .p92-jv .aksi { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; align-items: center; }
+  .p92-jv .aksi .st { margin-right: auto; font-size: 12px; }
+
+  /* ---------- DN-216: foto produk di Detail Pesanan ---------- */
+  .p92-dp { display: flex; align-items: center; gap: 10px; }
+  .p92-dp img, .p92-dp .tanpa { flex: none; width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: #f3f0ec; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; cursor: zoom-in; }
+  .p92-dp .tanpa { cursor: default; }
+</style>
+<script>
+/* ============================ PAKET 92 (v2026.10.112) ============================ */
+const P92 = { bukaUser: false, lampu: [], kanvas: new Map() };
+const p92E = v => (typeof omxEsc === 'function' ? omxEsc(v) : String(v == null ? '' : v));
+const p92A = v => (typeof pgrAttr === 'function' ? pgrAttr(v) : p92E(v));
+const p92Web_ = () => !!(el('app-web') && el('app-web').style.display === 'block');
+
+/* ---------- DN-617 / DN-463: lampu hijau / kuning / merah di kanan atas header ---------- */
+function p92LampuPasang_() {
+  const tempat = [];
+  const hp = document.querySelector('#app > header .header-right'); if (hp) tempat.push(['hp', hp]);
+  const web = document.querySelector('#app-web .web-topbar-kanan'); if (web) tempat.push(['web', web]);
+  tempat.forEach(([jenis, induk]) => {
+    let b = el('p92-lampu-' + jenis);
+    if (!b) {
+      b = document.createElement('button'); b.type = 'button'; b.id = 'p92-lampu-' + jenis; b.className = 'p92-lampu';
+      b.innerHTML = '<i></i><b></b>';
+      b.addEventListener('click', e => { e.stopPropagation(); p92PanelBukaTutup(b); });
+      if (jenis === 'web') { const prof = el('omtb-profil'); induk.insertBefore(b, prof && prof.parentNode === induk ? prof : null); }
+      else induk.appendChild(b);
+    }
+  });
+  p92LampuPerbarui_();
+}
+function p92LogHitung_() {
+  const baru = (typeof omxLog !== 'undefined' ? omxLog : []).filter(x => Date.now() - x.t < 86400000);
+  return { baru, jalan: baru.filter(x => x.status === 'kirim' || x.status === 'ulang').length, gagal: baru.filter(x => x.status === 'gagal').length };
+}
+function p92LampuPerbarui_() {
+  const h = p92LogHitung_();
+  const putus = !!(el('conn-dot') && el('conn-dot').classList.contains('bad'));
+  document.querySelectorAll('.p92-lampu').forEach(b => {
+    b.classList.toggle('jalan', h.jalan > 0); b.classList.toggle('gagal', !h.jalan && (h.gagal > 0 || putus));
+    const n = b.querySelector('b'); if (n) n.textContent = h.gagal ? String(h.gagal) : '';
+    const t = h.jalan ? `Menyimpan ${h.jalan} data…` : h.gagal ? `${h.gagal} gagal tersimpan - klik untuk melihat & kirim ulang` : putus ? 'Koneksi ke server terputus - mencoba lagi otomatis' : 'Semua tersimpan · klik untuk melihat riwayat simpan';
+    b.title = t; b.setAttribute('aria-label', t);
+  });
+}
+function p92PanelBukaTutup(tombol) {
+  const p = el('omxlog-panel'); if (!p) return;
+  if (!p.hidden) { P92.bukaUser = false; p.hidden = true; return; }
+  const b = tombol || Array.from(document.querySelectorAll('.p92-lampu')).find(x => x.offsetParent);
+  if (b) { const r = b.getBoundingClientRect(); p.style.setProperty('--p92-top', Math.round(r.bottom + 8) + 'px'); p.style.setProperty('--p92-kanan', Math.max(8, Math.round(innerWidth - r.right - 4)) + 'px'); }
+  p.classList.add('p92-panel');
+  P92.bukaUser = true; p.hidden = false;
+  omxLogRender_();
+}
+if (typeof omxLogRender_ === 'function') {
+  const p92RenderAsli_ = omxLogRender_;
+  omxLogRender_ = function () {
+    const r = p92RenderAsli_.apply(this, arguments);
+    try {
+      p92LampuPerbarui_();
+      const isi = el('omxlog-isi'), p = el('omxlog-panel');
+      if (isi && p && !p.hidden) {
+        // yang gagal di atas; seluruh baris gagal bisa diklik untuk kirim ulang
+        Array.from(isi.querySelectorAll('.omxlog-item')).filter(x => x.querySelector('.omxlog-dot.gagal')).reverse().forEach(x => { x.classList.add('p92-ulang'); x.title = 'Klik untuk kirim ulang'; isi.prepend(x); });
+        const h = p92LogHitung_(), kepala = p.querySelector('header');
+        let s = kepala && kepala.querySelector('.p92-ulang-semua');
+        if (kepala && h.gagal > 1 && !s) { s = document.createElement('button'); s.type = 'button'; s.className = 'p92-ulang-semua'; s.onclick = e => { e.stopPropagation(); p92UlangSemua(); }; kepala.insertBefore(s, kepala.querySelector('button:not(.p92-ulang-semua)')); }
+        if (s) { if (h.gagal > 1) s.textContent = `Kirim ulang ${h.gagal}`; else s.remove(); }
+      }
+    } catch (e) { }
+    return r;
+  };
+}
+function p92UlangSemua() { p92LogHitung_().baru.filter(x => x.status === 'gagal').forEach(x => { try { omxLogUlang(x.id); } catch (e) { } }); }
+(function () {
+  const p = el('omxlog-panel'); if (!p) return;
+  // panel TIDAK membuka sendiri saat ada yang gagal - cukup lampu merah berkedip; dibuka hanya lewat klik lampu
+  new MutationObserver(() => {
+    if (p.hidden) { P92.bukaUser = false; return; }
+    if (!P92.bukaUser) { p.hidden = true; document.querySelectorAll('.p92-lampu').forEach(b => { b.classList.remove('p92-kedip'); void b.offsetWidth; b.classList.add('p92-kedip'); }); }
+  }).observe(p, { attributes: true, attributeFilter: ['hidden'] });
+  p.addEventListener('click', e => {
+    const it = e.target.closest('.omxlog-item.p92-ulang'); if (!it || e.target.closest('button')) return;
+    const b = it.querySelector('button'); if (b) b.click();
+  });
+  document.addEventListener('pointerdown', e => {
+    if (p.hidden || p.contains(e.target) || (e.target.closest && e.target.closest('.p92-lampu'))) return;
+    P92.bukaUser = false; p.hidden = true;
+  }, true);
+})();
+setInterval(() => { try { p92LampuPasang_(); } catch (e) { } }, 1500); setTimeout(p92LampuPasang_, 300);
+
+/* ---------- DN-987: kotak tetap kiri bawah sidebar ---------- */
+function p92Versi_() { try { return (window.omxAnalitik && omxAnalitik.status) ? omxAnalitik.status().versi : ''; } catch (e) { return ''; } }
+function p92SbKaki_() {
+  const sb = document.querySelector('#app-web .web-sidebar'); if (!sb) return null;
+  let k = el('p92-sbkaki');
+  if (!k) {
+    k = document.createElement('div'); k.id = 'p92-sbkaki'; k.className = 'p92-sbkaki';
+    k.innerHTML = '<div class="p92-sbtombol"><span class="p92-slot" id="p92-slot-dvn"></span></div><div class="p92-versi" id="p92-versi"></div>';
+    sb.appendChild(k);
+  } else if (k.parentNode !== sb || sb.lastElementChild !== k) sb.appendChild(k);
+  const lip = el('p86-lipat');
+  if (lip && lip.parentNode !== k.firstElementChild) k.firstElementChild.appendChild(lip);
+  if (lip) { lip.title = 'Lipat / buka menu samping (Ctrl + \\)'; lip.setAttribute('aria-label', 'Lipat / buka menu samping'); }
+  const v = p92Versi_(), ve = el('p92-versi');
+  if (ve && ve.dataset.v !== v) { ve.dataset.v = v; ve.innerHTML = `<span class="penuh">${p92E(v)}</span><span class="pendek">${p92E(v.replace(/^v\d{4}\./, 'v'))}</span>`; ve.title = 'Versi aplikasi ' + v; }
+  return k;
+}
+if (typeof p55Dock_ === 'function') {
+  const p92DockAsli_ = p55Dock_;
+  p55Dock_ = function () {
+    const r = p92DockAsli_.apply(this, arguments);
+    try {
+      const fab = el('dvn-fab'), t = el('p88-dvn-tempat');
+      const k = p92Web_() && p92SbKaki_();
+      const sbTampil = !!(k && k.offsetParent);
+      const slot = el('p92-slot-dvn');
+      if (fab && t && sbTampil && slot) {
+        if (t.parentNode !== slot) slot.appendChild(t);
+        t.classList.remove('p89-sb'); fab.classList.remove('p89-sb', 'p89-lipat'); fab.classList.add('p92-sb');
+        t.style.cssText = 'display:block;width:38px;height:38px;';
+      } else if (fab && fab.classList.contains('p92-sb')) { fab.classList.remove('p92-sb'); fab.style.removeProperty('width'); fab.style.removeProperty('height'); }
+      p88DvnPosisi_();
+    } catch (e) { }
+    return r;
+  };
+}
+if (typeof p88DvnPosisi_ === 'function') {
+  const p92PosisiAsli_ = p88DvnPosisi_;
+  p88DvnPosisi_ = function () {
+    const r = p92PosisiAsli_.apply(this, arguments);
+    try {
+      const fab = el('dvn-fab'), t = el('p88-dvn-tempat');
+      if (fab && t && fab.classList.contains('p92-sb') && fab.style.display !== 'none') {
+        const b = t.getBoundingClientRect();
+        if (b.width) { fab.style.left = Math.round(b.left) + 'px'; fab.style.top = Math.round(b.top) + 'px'; fab.style.setProperty('width', Math.round(b.width) + 'px', 'important'); fab.style.setProperty('height', Math.round(b.height) + 'px', 'important'); fab.classList.remove('p88-dvn-sudut'); }
+      }
+    } catch (e) { }
+    return r;
+  };
+}
+setTimeout(() => { try { p92SbKaki_(); p55Dock_(); } catch (e) { } }, 700);
+setInterval(() => { try { if (p92Web_()) p92SbKaki_(); } catch (e) { } }, 3000);
+
+/* ---------- DN-975: submenu melayang tidak hilang saat kursor menyeberang ---------- */
+(function () {
+  const lipat = () => { const sh = document.querySelector('#app-web .web-shell'); return !!(sh && sh.classList.contains('web-sidebar-lipat') && !sh.classList.contains('web-menu-top')); };
+  let aktif = null, tTutup = 0, tPindah = 0;
+  function buka(g) {
+    clearTimeout(tTutup); clearTimeout(tPindah);
+    if (aktif && aktif !== g) aktif.classList.remove('p92-fly');
+    aktif = g; g.classList.add('p92-fly');
+    const sh = document.querySelector('#app-web .web-shell'); if (sh) sh.classList.remove('p87-nav-diam');
+  }
+  function tutup(segera) {
+    clearTimeout(tTutup);
+    const g = aktif; if (!g) return;
+    const f = () => { g.classList.remove('p92-fly'); if (aktif === g) aktif = null; };
+    if (segera) f(); else tTutup = setTimeout(f, 450);
+  }
+  document.addEventListener('mouseover', e => {
+    if (!lipat()) { if (aktif) tutup(true); return; }
+    const g = e.target.closest && e.target.closest('#app-web .web-nav > .web-nav-group');
+    if (!g) return;
+    if (g.classList.contains('nav-tutup-paksa')) return;
+    if (!aktif || g === aktif) { buka(g); return; }
+    // sedang menuju submenu grup lain: pindah grup hanya bila kursor berhenti sejenak di ikon grup baru
+    clearTimeout(tPindah); clearTimeout(tTutup);
+    tPindah = setTimeout(() => { if (g.matches(':hover')) buka(g); }, 160);
+  });
+  document.addEventListener('mouseout', e => {
+    if (!aktif) return;
+    const ke = e.relatedTarget;
+    if (ke && aktif.contains(ke)) { clearTimeout(tTutup); return; }
+    if (!aktif.contains(e.target)) return;
+    tutup(false);
+  });
+  document.addEventListener('click', e => {
+    const s = e.target.closest && e.target.closest('#app-web .web-nav .web-submenu-wrap .web-nav-sub');
+    if (s && aktif) tutup(true);
+  }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') tutup(true); });
+})();
+
+/* ---------- DN-972: label variasi per produk + Jadikan Varian ---------- */
+function p92ProdukSku_(sku) { return (katalogProdukCache || []).find(x => x.sku === sku); }
+function p92VchipHtml_(p) {
+  const l = String(p.labelVarian || '').trim();
+  return `<button type="button" class="p92-vchip${l ? '' : ' kosong'}" data-sku="${p92A(p.sku)}" title="Nama variasi (warna, ukuran, dll.) - klik untuk mengubah">${l ? p92E(l) : '+ nama variasi'}</button>`;
+}
+if (typeof katalogRenderTabel === 'function') {
+  const p92TabelAsli_ = katalogRenderTabel;
+  katalogRenderTabel = function () {
+    const h = p92TabelAsli_.apply(this, arguments);
+    try {
+      el('katalog-produk-body').querySelectorAll('tr[data-sku]').forEach(tr => {
+        const p = p92ProdukSku_(tr.dataset.sku); if (!p || p.arsip) return;
+        const nm = tr.querySelector('.tabel-produk-nama'); if (!nm || tr.querySelector('.p92-vchip')) return;
+        nm.insertAdjacentHTML('afterend', p92VchipHtml_(p));
+      });
+    } catch (e) { }
+    return h;
+  };
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest && e.target.closest('#katalog-produk-body .p92-vchip'); if (!c) return;
+  e.stopPropagation(); e.preventDefault();
+  const p = p92ProdukSku_(c.dataset.sku); if (!p) return;
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.className = 'p92-vinput'; inp.maxLength = 60; inp.value = p.labelVarian || ''; inp.placeholder = 'mis. Hitam / 1 kg / XL';
+  inp.title = 'Enter = simpan · Esc = batal · kosongkan untuk menghapus';
+  c.replaceWith(inp); inp.focus(); inp.select();
+  let selesai = false;
+  const akhiri = simpan => {
+    if (selesai) return; selesai = true;
+    const baru = inp.value.replace(/\s+/g, ' ').trim(), lama = String(p.labelVarian || '').trim();
+    const wadah = document.createElement('span'); wadah.innerHTML = p92VchipHtml_(simpan ? Object.assign({}, p, { labelVarian: baru }) : p);
+    const chip = wadah.firstElementChild; inp.replaceWith(chip);
+    if (simpan && baru !== lama) p92SimpanLabel_([{ sku: p.sku, label: baru, lama }], chip);
+  };
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); akhiri(true); } else if (ev.key === 'Escape') { ev.preventDefault(); akhiri(false); } });
+  inp.addEventListener('blur', () => akhiri(true));
+  inp.addEventListener('click', ev => ev.stopPropagation());
+}, true);
+function p92SimpanLabel_(daftar, chip) {
+  // instan: cache & tampilan diubah dulu, dikirim 1 paket ke server; gagal -> dikembalikan + lampu merah
+  daftar.forEach(d => { const p = p92ProdukSku_(d.sku); if (p) p.labelVarian = d.label; });
+  try { katalogSimpanCacheLokal(); } catch (e) { }
+  if (chip) chip.classList.add('simpan');
+  omxSimpanInstan({ aksi: 'p92_label_varian', daftar: daftar.map(d => ({ sku: d.sku, label: d.label })), toko: currentToko }, {
+    label: 'Nama variasi · ' + daftar.map(d => d.sku).join(', '),
+    berhasil: () => { if (chip && chip.isConnected) chip.classList.remove('simpan'); },
+    gagal: () => {
+      daftar.forEach(d => { const p = p92ProdukSku_(d.sku); if (p) p.labelVarian = d.lama || ''; });
+      try { katalogSimpanCacheLokal(); katalogProdukRenderHalaman(); } catch (e) { }
+    }
+  });
+}
+// Tombol "Jadikan Varian" di bilah pilihan massal
+(function () {
+  const bar = el('katalog-batch-bar'); if (!bar || el('p92-btn-varian')) return;
+  const b = document.createElement('button');
+  b.id = 'p92-btn-varian'; b.className = 'web-btn-secondary'; b.style.cssText = 'margin:0; background:#fff;';
+  b.title = 'Kelompokkan produk terpilih menjadi 1 grup varian (warna, ukuran, dll.)';
+  b.innerHTML = '🧩 Jadikan Varian'; b.onclick = () => p92JadikanVarianBuka();
+  const ref = bar.querySelector('.web-btn-danger'); bar.insertBefore(b, ref || null);
+})();
+function p92TebakLabel_(nama) {
+  // bagian nama yang BEDA antar produk = nama variasi (awalan & akhiran kata yang sama dibuang)
+  const kata = nama.map(n => String(n || '').replace(/\s+/g, ' ').trim().split(' '));
+  if (kata.length < 2) return nama.map(() => '');
+  let awal = 0; while (kata.every(k => awal < k.length - 1 && k[awal] && k[awal].toLowerCase() === kata[0][awal].toLowerCase())) awal++;
+  let akhir = 0; while (kata.every(k => akhir < k.length - awal - 1 && k[k.length - 1 - akhir].toLowerCase() === kata[0][kata[0].length - 1 - akhir].toLowerCase())) akhir++;
+  return kata.map(k => k.slice(awal, k.length - akhir).join(' ').replace(/^[-–,/(\s]+|[-–,/)\s]+$/g, '').trim());
+}
+function p92JadikanVarianBuka() {
+  const dipilih = Array.from(katalogProdukTerpilih || []).map(p92ProdukSku_).filter(Boolean);
+  if (dipilih.length < 2) { pgrToast('Pilih minimal 2 produk untuk dijadikan varian.'); return; }
+  // anggota grup lama dari produk pertama ikut (supaya tidak terlepas)
+  const utama0 = dipilih.find(p => p.idVarian) || dipilih[0];
+  const ikut = utama0.idVarian ? (katalogProdukCache || []).filter(p => p.idVarian === utama0.idVarian && !dipilih.includes(p)) : [];
+  const semua = dipilih.concat(ikut);
+  const tebak = p92TebakLabel_(semua.map(p => p.nama));
+  P92.jv = { semua, utama: utama0.sku };
+  const baris = semua.map((p, i) => {
+    const f = p.urlFoto ? `<img class="f" src="${p92A(typeof p43Thumb === 'function' ? p43Thumb(p.urlFoto, 96) : p.urlFoto)}" alt="" loading="lazy">` : '<span class="f">🖼️</span>';
+    return `<tr><td><input type="radio" name="p92jv-utama" value="${p92A(p.sku)}" ${p.sku === utama0.sku ? 'checked' : ''} title="Produk utama grup"></td><td>${f}</td>
+      <td>${p92E(p.nama)}<small>${p92E(p.sku)}${ikut.includes(p) ? ' · <span class="ikut">sudah satu grup</span>' : (p.idVarian && p.idVarian !== utama0.idVarian ? ' · pindah dari grup lain' : '')}</small></td>
+      <td><input type="text" data-sku="${p92A(p.sku)}" maxlength="60" value="${p92A(p.labelVarian || tebak[i] || '')}" placeholder="mis. Hitam / XL"></td></tr>`;
+  }).join('');
+  omxModal('🧩 Jadikan Varian · ' + semua.length + ' produk', `<div class="p92-jv">
+    <table class="p84-tf-tidak"><thead><tr><th title="Produk utama grup">Utama</th><th></th><th>Produk</th><th>Nama variasi</th></tr></thead><tbody>${baris}</tbody></table>
+    <div class="aksi"><span class="st" id="p92-jv-st"></span><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Batal</button>
+    <button type="button" class="web-btn-primary" id="p92-jv-ok" onclick="p92JadikanVarianSimpan()">Gabungkan jadi 1 varian</button></div></div>`, { lebar: true });
+}
+async function p92JadikanVarianSimpan() {
+  const w = el('omx-modal'); if (!w || !P92.jv) return;
+  const utama = (w.querySelector('input[name=p92jv-utama]:checked') || {}).value || P92.jv.utama;
+  const daftar = Array.from(w.querySelectorAll('input[type=text][data-sku]')).map(i => ({ sku: i.dataset.sku, namaVarian: i.value.replace(/\s+/g, ' ').trim() }));
+  const kosong = daftar.filter(d => !d.namaVarian).length;
+  const st = el('p92-jv-st'), ok = el('p92-jv-ok');
+  if (kosong) { st.textContent = '⚠️ Isi nama variasi untuk semua produk.'; st.className = 'st status-text err'; return; }
+  const dobel = daftar.map(d => d.namaVarian.toLowerCase()).filter((x, i, a) => a.indexOf(x) !== i);
+  if (dobel.length) { st.textContent = '⚠️ Nama variasi tidak boleh sama: ' + dobel[0]; st.className = 'st status-text err'; return; }
+  ok.disabled = true; st.className = 'st status-text'; st.textContent = '⏳ Menyimpan…';
+  // urutan: produk utama di depan
+  daftar.sort((a, b) => (a.sku === utama ? -1 : 0) - (b.sku === utama ? -1 : 0));
+  try {
+    const d = await postJsonTulis({ aksi: 'simpan_daftar_varian', skuAktif: utama, daftar, toko: currentToko, email: currentUserEmail() }, 60000, { labelLog: 'Jadikan Varian · ' + daftar.length + ' produk' });
+    if (!d || !d.success) throw new Error((d && d.error) || 'Ditolak server');
+    const id = d.idVarian || ('var-lokal-' + Date.now());
+    daftar.forEach(x => { const p = p92ProdukSku_(x.sku); if (p) { p.idVarian = id; p.labelVarian = x.namaVarian; } });
+    try { katalogSimpanCacheLokal(); } catch (e) { }
+    omxTutupModal();
+    try { katalogBatchBatalkanSemua(); katalogProdukRenderHalaman(); } catch (e) { }
+    pgrToast('✓ ' + daftar.length + ' produk digabung menjadi 1 varian');
+    setTimeout(() => { try { katalogFetchProduk({ segar: true }); } catch (e) { } }, 300);
+  } catch (e) {
+    ok.disabled = false; st.textContent = '✗ ' + e.message; st.className = 'st status-text err';
+  }
+}
+
+/* ---------- DN-826 / DN-358: Copy invoice cepat + teks transfer ---------- */
+function p92Tanggal_(t) {
+  const B = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const s = String(t || '').trim(); let d = null, m;
+  if ((m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/))) d = new Date(+m[3], +m[2] - 1, +m[1]);
+  else if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) d = new Date(+m[1], +m[2] - 1, +m[3]);
+  else if ((m = s.match(/^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\.?\s+(\d{4})/))) { const i = ['jan','feb','mar','apr','mei','may','jun','jul','agu','aug','sep','okt','oct','nov','des','dec'].indexOf(m[2].toLowerCase()); const peta = [0,1,2,3,4,4,5,6,7,7,8,9,9,10,11,11]; if (i >= 0) d = new Date(+m[3], peta[i], +m[1]); }
+  else if (s) { const x = new Date(s); if (!isNaN(x)) d = x; }
+  if (!d || isNaN(d)) d = new Date();
+  return d.getDate() + ' ' + B[d.getMonth()] + ' ' + d.getFullYear();
+}
+function p92NamaRapi_(n) { return String(n || '').replace(/\s+/g, ' ').trim().toLowerCase().replace(/(^|[\s\-'.(])([a-z])/g, (a, b, c) => b + c.toUpperCase()); }
+function p92InfoCopy_() {
+  const latar = el('wdoc-latar');
+  if (latar && !latar.hidden && typeof wdoc !== 'undefined' && wdoc.order) {
+    const o = wdoc.order;
+    return { no: (typeof formatNoPesananTampilan === 'function' ? formatNoPesananTampilan('PO Sales', o.noInvoice) : o.noInvoice), nama: o.namaPenerima, tanggal: o.tanggal, total: o.total };
+  }
+  const i = (typeof pmPreviewInfo !== 'undefined' && pmPreviewInfo) || (typeof dapatkanInfoOrderUntukFile === 'function' ? dapatkanInfoOrderUntukFile() : {}) || {};
+  let total = i.total;
+  if (total === undefined && typeof lastInvoiceData !== 'undefined' && lastInvoiceData) total = lastInvoiceData.total;
+  return { no: i.noInvoice, nama: i.nama || i.namaPenerima, tanggal: i.tanggal || (typeof lastInvoiceData !== 'undefined' && lastInvoiceData ? lastInvoiceData.tanggal : ''), total };
+}
+function p92TeksTagihan_() {
+  const i = p92InfoCopy_();
+  return `${p92Tanggal_(i.tanggal)}, ${p92NamaRapi_(i.nama)}, Invoice ${String(i.no || '').trim()} Total ${pmRpKoma(i.total)} Silahkan ditransfer ke ${INFO_TRANSFER_PM}`.replace(/\s+/g, ' ').trim();
+}
+function p92Sidik_(s) { let h = 0; for (let i = 0; i < s.length; i += 7) h = (h * 31 + s.charCodeAt(i)) | 0; return s.length + ':' + h; }
+// Dulu html2canvas menyalin SELURUH halaman aplikasi (±9.000+ elemen) tiap Copy -> 3-6 detik.
+// Sekarang dokumen difoto di bingkai kecil terpisah yang hanya berisi dokumen + CSS yang dipakainya (±0,4 dtk),
+// dan hasilnya disiapkan di latar begitu dokumen tampil -> tombol Copy langsung.
+async function p92KanvasCepat_(sumberId) {
+  if (!window.html2canvas) throw new Error('Library gambar gagal dimuat - cek koneksi internet.');
+  const sumber = el(sumberId); if (!sumber) throw new Error('Dokumen tidak ada');
+  const css = [];
+  for (const ss of Array.from(document.styleSheets)) {
+    let rules; try { rules = ss.cssRules; } catch (e) { continue; }
+    for (const r of Array.from(rules || [])) {
+      if (r.type === 1) { try { if (sumber.matches(r.selectorText) || sumber.querySelector(r.selectorText)) css.push(r.cssText); } catch (e) { } }
+      else if (r.type === 5) css.push(r.cssText);
+    }
+  }
+  const gaya = getComputedStyle(sumber.parentElement || document.body), vars = [];
+  const akar = getComputedStyle(document.documentElement);
+  for (let i = 0; i < akar.length; i++) { const k = akar[i]; if (k.startsWith('--')) vars.push(k + ':' + akar.getPropertyValue(k)); }
+  const f = document.createElement('iframe');
+  f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
+  f.style.cssText = `position:fixed;left:-10000px;top:0;width:${PM_DOC_LEBAR_ASLI + 40}px;height:3000px;border:0;visibility:hidden;`;
+  document.body.appendChild(f);
+  try {
+    const d = f.contentDocument;
+    d.open(); d.write(`<!doctype html><html><head><meta charset="utf-8"><style>:root{${vars.join(';')}}html,body{margin:0;background:#fff;font-family:${gaya.fontFamily};font-size:${gaya.fontSize};color:${gaya.color};line-height:${gaya.lineHeight};}${css.join('\n')}</style></head><body></body></html>`); d.close();
+    const k = sumber.cloneNode(true);
+    k.style.display = 'block'; k.style.position = 'static'; k.style.left = ''; k.style.top = ''; k.style.width = PM_DOC_LEBAR_ASLI + 'px';
+    d.body.appendChild(k);
+    await omxTungguGambar_(k);
+    return await html2canvas(k, { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0, windowWidth: PM_DOC_LEBAR_ASLI + 40, logging: false });
+  } finally { f.remove(); }
+}
+function p92BlobDokumen_(sumberId) {
+  const s = el(sumberId); if (!s) return Promise.reject(new Error('Dokumen tidak ada'));
+  const kunci = sumberId + '|' + p92Sidik_(s.innerHTML);
+  let j = P92.kanvas.get(kunci);
+  if (!j) {
+    j = p92KanvasCepat_(sumberId).catch(() => pmKanvasDokumen(sumberId)) // cadangan: cara lama
+      .then(c => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('Gagal membuat gambar')), 'image/png')));
+    j.catch(() => P92.kanvas.delete(kunci));
+    P92.kanvas.set(kunci, j);
+    if (P92.kanvas.size > 6) P92.kanvas.delete(P92.kanvas.keys().next().value);
+  }
+  return j;
+}
+function p92SiapkanCopy_(ids) {
+  const jalan = () => ids.forEach(id => { try { if (el(id) && el(id).querySelector('.print-sheet')) p92BlobDokumen_(id).catch(() => { }); } catch (e) { } });
+  setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(jalan, { timeout: 1500 }) : jalan()), 250);
+}
+pmCopyDokumen = async function (sumberId, btn) {
+  const teks = p92TeksTagihan_();
+  const labelAwal = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span aria-hidden="true">⏳</span>Menyalin'; }
+  const selesai = (ok, pesan) => {
+    if (btn) { btn.disabled = false; btn.innerHTML = ok ? '<span aria-hidden="true">✓</span>Tersalin' : labelAwal; if (ok) setTimeout(() => { btn.innerHTML = labelAwal; }, 1800); }
+    pgrToast(pesan); if (ok) { try { playBeep(); } catch (e) { } }
+  };
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': p92BlobDokumen_(sumberId), 'text/plain': new Blob([teks], { type: 'text/plain' }) })]);
+      selesai(true, 'Gambar + teks tagihan disalin. Tempel di WhatsApp / chat.');
+      return;
+    }
+    throw new Error('Browser belum mendukung salin gambar');
+  } catch (err) {
+    try { await navigator.clipboard.writeText(teks); selesai(true, 'Teks tagihan disalin (salin gambar tidak didukung browser ini - pakai Simpan untuk gambarnya).'); }
+    catch (e2) { selesai(false, 'Gagal menyalin: ' + (err.message || e2.message)); }
+  }
+};
+if (typeof wdocBuka === 'function') {
+  const p92WdocAsli_ = wdocBuka;
+  wdocBuka = function (order, opsi) { const r = p92WdocAsli_.apply(this, arguments); try { if (order && !(opsi && opsi.memuat)) p92SiapkanCopy_(order.bolehHarga ? ['print-invoice-pages', 'print-label-pages'] : ['print-label-pages']); } catch (e) { } return r; };
+}
+if (typeof tampilkanKontenPrintMobile === 'function') {
+  const p92PmAsli_ = tampilkanKontenPrintMobile;
+  tampilkanKontenPrintMobile = function () { const r = p92PmAsli_.apply(this, arguments); try { p92SiapkanCopy_(['print-invoice-pages']); } catch (e) { } return r; };
+}
+
+/* ---------- DN-216: foto produk di kiri nama barang (Detail Pesanan) ---------- */
+function p92FotoProduk_(sku, nama) {
+  let f = ''; try { f = p86FotoSku_(sku, nama); } catch (e) { }
+  if (!f) { const k = String(sku || '').toUpperCase(); const p = (typeof katalogProdukCache !== 'undefined' ? katalogProdukCache : []).find(x => String(x.sku).toUpperCase() === k); if (p && p.urlFoto) f = p.urlFoto; }
+  return f;
+}
+function p92DetailFoto_(o) {
+  const body = el('wp-d-items-body'); if (!body || !o || !o.items) return;
+  const tr = Array.from(body.querySelectorAll('tr')).filter(r => !r.classList.contains('wp-skel-baris'));
+  let kurang = false;
+  o.items.forEach((it, i) => {
+    const td = tr[i] && tr[i].cells[0]; if (!td || td.querySelector('.p92-dp')) return;
+    const f = p92FotoProduk_(it.sku, it.nama); if (!f) kurang = true;
+    const src = f && typeof p43Thumb === 'function' ? p43Thumb(f, 120) : f;
+    td.innerHTML = `<div class="p92-dp">${f ? `<img src="${p92A(src)}" data-besar="${p92A(f)}" alt="" loading="lazy" referrerpolicy="no-referrer" title="Klik untuk memperbesar">` : '<span class="tanpa">📦</span>'}<div>${td.innerHTML}</div></div>`;
+  });
+  // foto belum ada di daftar produk lokal -> daftar dimuat SEKALI per pesanan lalu dicoba lagi (tanpa ulang terus)
+  if (kurang && !o._p92Foto && !P92.fotoMuat && typeof produkRinganMuat === 'function') {
+    o._p92Foto = 1; P92.fotoMuat = true;
+    produkRinganMuat(false).then(() => { P92.fotoMuat = false; if (wpCurrentDetailOrder === o) { body.querySelectorAll('.p92-dp .tanpa').forEach(x => { const blok = x.closest('td'); if (blok) blok.innerHTML = blok.querySelector('.p92-dp > div').innerHTML; }); p92DetailFoto_(o); } }).catch(() => { P92.fotoMuat = false; });
+  }
+}
+if (typeof wpRenderDetail_ === 'function') {
+  const p92DetailAsli_ = wpRenderDetail_;
+  wpRenderDetail_ = function (o) { const r = p92DetailAsli_.apply(this, arguments); try { p92DetailFoto_(o); } catch (e) { } return r; };
+}
+document.addEventListener('click', e => {
+  const im = e.target.closest && e.target.closest('#wp-d-items-body .p92-dp img'); if (!im) return;
+  const src = im.dataset.besar || im.src;
+  if (typeof p84Lihat === 'function') p84Lihat(src); else window.open(src, '_blank', 'noopener');
+});
 </script>
 
 </body>
