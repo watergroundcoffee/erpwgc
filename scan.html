@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14110f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Scan Resi · goodang.id</title>
+<!-- goodang.id SCAN RINGAN (v2026.10.117, DN-898): halaman khusus gudang, ±25 KB, tanpa modul ERP lain.
+     Login & sesi memakai akun yang sama (localStorage trg_user dari aplikasi utama), kirim ke backend yang sama
+     (aksi scan_batch) - hasil langsung tercatat di ERP. Kamera: pembaca barcode bawaan HP (BarcodeDetector);
+     iPhone / HP tanpa pembaca bawaan memakai ZXing yang baru diunduh saat kamera dinyalakan. -->
+<style>
+  :root { --bg: #14110f; --panel: #1f1b18; --garis: #3a332d; --teks: #f5efe8; --redup: #a8998b; --aksen: #f59e0b;
+    --keluar: #3fa66b; --retur: #e07f63; --stock: #5b9be0; --merah: #ef4444; --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--teks); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100vh; padding: calc(var(--sat) + 8px) 12px calc(var(--sab) + 16px); max-width: 560px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  header b { font-size: 17px; letter-spacing: -.01em; } header b span { color: var(--aksen); }
+  header .isi { flex: 1; min-width: 0; } header small { display: block; color: var(--redup); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lampu { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18); flex: none; }
+  .lampu.kuning { background: var(--aksen); box-shadow: 0 0 0 3px rgba(245,158,11,.2); } .lampu.merah { background: var(--merah); box-shadow: 0 0 0 3px rgba(239,68,68,.2); }
+  .btn { border: 1px solid var(--garis); background: var(--panel); color: var(--teks); border-radius: 12px; font: inherit; font-weight: 700; padding: 10px 14px; cursor: pointer; }
+  .btn.kecil { padding: 6px 10px; font-size: 13px; border-radius: 10px; }
+  .mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+  .mode button { border: 2px solid var(--garis); background: var(--panel); color: var(--redup); border-radius: 12px; font: inherit; font-weight: 800; font-size: 13px; padding: 10px 4px; }
+  .mode button[aria-pressed="true"] { color: #10130f; }
+  .mode button[data-m="keluar"][aria-pressed="true"] { background: var(--keluar); border-color: var(--keluar); }
+  .mode button[data-m="retur"][aria-pressed="true"] { background: var(--retur); border-color: var(--retur); }
+  .mode button[data-m="stock"][aria-pressed="true"] { background: var(--stock); border-color: var(--stock); }
+  .kamera { position: relative; height: 38vh; min-height: 220px; border-radius: 16px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
+  .kamera video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .kamera .bingkai { position: absolute; left: 8%; right: 8%; top: 32%; bottom: 32%; border: 2px solid rgba(255,255,255,.75); border-radius: 12px; box-shadow: 0 0 0 999px rgba(0,0,0,.28); pointer-events: none; }
+  .kamera .mulai { position: relative; z-index: 2; }
+  .kamera .alat { position: absolute; z-index: 3; right: 8px; top: 8px; display: flex; gap: 6px; }
+  .kamera .alat button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 18px; }
+  .kamera .alat button.on { background: var(--aksen); color: #111; }
+  .kamera .pesan { position: absolute; z-index: 3; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 12px; color: #fff; text-shadow: 0 1px 3px #000; padding: 0 10px; }
+  .manual { display: flex; gap: 6px; margin: 10px 0; }
+  .manual input { flex: 1; min-width: 0; border: 1px solid var(--garis); background: var(--panel); color: var(--teks); border-radius: 12px; font: inherit; font-size: 16px; padding: 11px 12px; }
+  .status { min-height: 22px; font-weight: 700; font-size: 14px; margin: 2px 0 8px; }
+  .status.ok { color: #4ade80; } .status.dup { color: var(--aksen); } .status.err { color: #f87171; }
+  .ring { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+  .ring div { background: var(--panel); border: 1px solid var(--garis); border-radius: 12px; padding: 8px 10px; }
+  .ring b { display: block; font-size: 20px; } .ring span { font-size: 11px; color: var(--redup); }
+  h3 { font-size: 13px; color: var(--redup); margin: 12px 0 6px; display: flex; align-items: center; gap: 8px; }
+  h3 .btn { margin-left: auto; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; gap: 8px; align-items: baseline; padding: 7px 10px; border-radius: 10px; background: var(--panel); margin-bottom: 4px; font-size: 13.5px; word-break: break-all; }
+  li .w { margin-left: auto; color: var(--redup); font-size: 11.5px; white-space: nowrap; }
+  li.antre { color: var(--aksen); } li.kirim { opacity: .6; } li.gagal { color: #fca5a5; } li.dup { color: var(--aksen); }
+  .kosong { color: var(--redup); font-size: 13px; padding: 6px 2px; }
+  .login { text-align: center; padding: 40px 10px; } .login a { color: var(--aksen); font-weight: 700; }
+  footer { margin-top: 16px; display: flex; gap: 8px; justify-content: space-between; color: var(--redup); font-size: 12px; align-items: center; }
+  footer a { color: var(--redup); }
+  @media (orientation: landscape) and (max-height: 500px) { .kamera { height: 60vh; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="isi"><b>goodang<span>.id</span> · Scan</b><small id="info">Memuat…</small></div>
+  <i class="lampu" id="lampu" title="Koneksi"></i>
+  <button type="button" class="btn kecil" id="btn-toko" title="Ganti toko">🏬</button>
+</header>
+<main id="utama"></main>
+<footer><span id="versi">Scan ringan v2026.10.117</span><a href="./" id="ke-erp">Buka aplikasi lengkap ›</a></footer>
+<script>
+(function () {
+  'use strict';
+  var URL_API = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
+  var MODE = { keluar: 'Keluar', retur: 'Retur', stock: 'Pembelian' };
+  var IZIN = { keluar: 'scanResiKeluar', retur: 'scanResiMasuk', stock: 'scanResiMasuk' };
+  var S = { user: null, toko: 'Waterground', mode: 'keluar', antre: [], hasil: [], sesi: {}, kirim: false, timer: 0, stream: null, det: null, zx: null, jalan: false, akhir: '', akhirN: 0, akhirT: 0, torch: false };
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var hari = function () { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+  function simpan() {
+    try {
+      localStorage.setItem('scanlite_antre', JSON.stringify(S.antre.map(function (x) { return { r: x.r, m: x.m, t: x.t }; })));
+      localStorage.setItem('scanlite_hasil', JSON.stringify({ h: hari(), d: S.hasil.slice(0, 80), s: S.sesi }));
+      localStorage.setItem('scanlite_mode', S.mode);
+    } catch (e) { }
+  }
+  function muat() {
+    try { S.user = JSON.parse(localStorage.getItem('trg_user') || 'null'); } catch (e) { S.user = null; }
+    try { S.toko = localStorage.getItem('toko_aktif') || 'Waterground'; } catch (e) { }
+    try { S.antre = (JSON.parse(localStorage.getItem('scanlite_antre') || '[]') || []).map(function (x) { return { r: x.r, m: x.m, t: x.t, st: 'antre' }; }); } catch (e) { S.antre = []; }
+    try { var h = JSON.parse(localStorage.getItem('scanlite_hasil') || 'null'); if (h && h.h === hari()) { S.hasil = h.d || []; S.sesi = h.s || {}; } } catch (e) { }
+    try { var m = localStorage.getItem('scanlite_mode'); if (MODE[m]) S.mode = m; } catch (e) { }
+  }
+  function boleh(m) { var iz = (S.user && S.user.izin) || {}; return !!(S.user && (S.user.isOwner || iz[IZIN[m]] || !S.user.izin)); }
+
+  /* ---------- suara ---------- */
+  var ctx = null;
+  function nada(f, d, tipe, mulai) { try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + (mulai || 0); o.type = tipe || 'square'; o.frequency.value = f; g.gain.setValueAtTime(.18, t); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + d + .02); } catch (e) { } }
+  function tiit() { nada(1900, .11); try { navigator.vibrate && navigator.vibrate(35); } catch (e) { } }
+  function toot() { nada(320, .28, 'sawtooth'); try { navigator.vibrate && navigator.vibrate([60, 40, 60]); } catch (e) { } }
+
+  /* ---------- tampilan ---------- */
+  function render() {
+    if (!S.user || !S.user.sessionToken) {
+      $('utama').innerHTML = '<div class="login"><p>Belum login di HP ini.</p><p><a href="./">Login di aplikasi goodang.id</a> lalu buka halaman ini lagi.</p></div>';
+      $('info').textContent = 'Belum login'; return;
+    }
+    $('info').textContent = (S.user.nama || S.user.email) + ' · ' + S.toko;
+    if (!$('kamera')) {
+      $('utama').innerHTML = '<div class="mode" id="mode">' + Object.keys(MODE).filter(boleh).map(function (m) { return '<button type="button" data-m="' + m + '" aria-pressed="false">' + MODE[m] + '</button>'; }).join('') + '</div>' +
+        '<div class="kamera" id="kamera"><video id="video" playsinline muted></video><div class="bingkai" id="bingkai" hidden></div>' +
+        '<button type="button" class="btn mulai" id="btn-kamera">📷 Nyalakan kamera</button>' +
+        '<div class="alat" id="alat" hidden><button type="button" id="btn-torch" title="Senter" hidden>🔦</button><button type="button" id="btn-stop" title="Matikan kamera">✕</button></div><div class="pesan" id="pesan-kam"></div></div>' +
+        '<div class="manual"><input id="input" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="Ketik / scanner USB lalu Enter"><button type="button" class="btn" id="btn-tambah">＋</button></div>' +
+        '<div class="status" id="status" role="status" aria-live="polite"></div>' +
+        '<div class="ring" id="ring"></div><div id="daftar"></div>';
+      $('mode').onclick = function (e) { var b = e.target.closest('button[data-m]'); if (!b) return; S.mode = b.dataset.m; simpan(); render(); };
+      $('btn-kamera').onclick = kameraMulai; $('btn-stop').onclick = kameraStop; $('btn-torch').onclick = senter;
+      $('btn-tambah').onclick = function () { masuk($('input').value); $('input').value = ''; $('input').focus(); };
+      $('input').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); masuk(this.value); this.value = ''; } };
+      if (!boleh(S.mode)) S.mode = Object.keys(MODE).filter(boleh)[0] || 'keluar';
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#mode button'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.m === S.mode)); });
+    var m = S.mode, hasilM = S.hasil.filter(function (x) { return x.m === m; }), antreM = S.antre.filter(function (x) { return x.m === m; });
+    var ok = hasilM.filter(function (x) { return x.k === 'ok'; }).length, gagal = hasilM.filter(function (x) { return x.k === 'gagal'; }).length;
+    $('ring').innerHTML = '<div><b>' + ok + '</b><span>Berhasil hari ini</span></div><div><b>' + antreM.length + '</b><span>Menunggu kirim</span></div><div><b style="color:' + (gagal ? '#f87171' : 'inherit') + '">' + gagal + '</b><span>Gagal</span></div>';
+    var jam = function (t) { return new Date(t).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); };
+    var html = '';
+    if (antreM.length) html += '<h3>Menunggu dikirim</h3><ul>' + antreM.map(function (x) { return '<li class="' + (x.st === 'kirim' ? 'antre kirim' : 'antre') + '">' + esc(x.r) + '<span class="w">' + (x.st === 'kirim' ? 'mengirim…' : 'antre') + '</span></li>'; }).join('') + '</ul>';
+    if (gagal) html += '<h3>Gagal <button type="button" class="btn kecil" id="btn-ulang">↻ Kirim ulang</button></h3><ul>' + hasilM.filter(function (x) { return x.k === 'gagal'; }).map(function (x) { return '<li class="gagal">' + esc(x.r) + '<span class="w">' + esc(x.e || '') + '</span></li>'; }).join('') + '</ul>';
+    html += '<h3>Terakhir discan</h3>' + (hasilM.filter(function (x) { return x.k !== 'gagal'; }).length ? '<ul>' + hasilM.filter(function (x) { return x.k !== 'gagal'; }).slice(0, 25).map(function (x) { return '<li class="' + (x.k === 'dup' ? 'dup' : '') + '">' + esc(x.r) + '<span class="w">' + esc(x.k === 'dup' ? 'sudah pernah' : (x.kurir || '')) + ' · ' + jam(x.t) + '</span></li>'; }).join('') + '</ul>' : '<div class="kosong">Belum ada resi di mode ini hari ini.</div>');
+    $('daftar').innerHTML = html;
+    if ($('btn-ulang')) $('btn-ulang').onclick = ulangGagal;
+  }
+  function status(t, k) { var s = $('status'); if (s) { s.textContent = t; s.className = 'status ' + (k || ''); } }
+  function lampu(k) { $('lampu').className = 'lampu ' + (k || ''); }
+
+  /* ---------- antrean & kirim (1 paket per maks 10 resi) ---------- */
+  function bersih(t) { return String(t || '').trim().replace(/\s+/g, '').toUpperCase(); }
+  function masuk(teks) {
+    var r = bersih(teks); if (r.length < 5) return;
+    var kunci = S.mode + '|' + r;
+    if (S.sesi[kunci] || S.antre.some(function (x) { return x.m === S.mode && x.r === r; })) { toot(); status('⚠ Sudah discan: ' + r, 'dup'); return; }
+    S.sesi[kunci] = 1;
+    S.antre.unshift({ r: r, m: S.mode, t: Date.now(), st: 'antre' });
+    tiit(); status('✓ ' + r, 'ok'); simpan(); render();
+    clearTimeout(S.timer);
+    var n = S.antre.filter(function (x) { return x.st === 'antre'; }).length;
+    S.timer = setTimeout(kirim, n >= 10 ? 0 : 1200);
+  }
+  function api(body, ms) {
+    var c = new AbortController(), t = setTimeout(function () { c.abort(); }, ms || 90000);
+    var kirimB = Object.assign({ email: S.user.email, sessionToken: S.user.sessionToken, toko: S.toko, perangkat: 'hp', idPermintaan: 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }, body);
+    return fetch(URL_API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(kirimB), signal: c.signal })
+      .then(function (r) { return r.text(); }).then(function (t) {
+        var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Respons server bukan JSON'); }
+        if (d && d._sesiBaru) { S.user.sessionToken = d._sesiBaru; try { var u = JSON.parse(localStorage.getItem('trg_user') || 'null'); if (u && u.email === S.user.email) { u.sessionToken = d._sesiBaru; localStorage.setItem('trg_user', JSON.stringify(u)); } } catch (e) { } }
+        if (d && d.sesiHabis) { try { var u2 = JSON.parse(localStorage.getItem('trg_user') || 'null'); if (u2 && u2.sessionToken && u2.sessionToken !== S.user.sessionToken) { S.user.sessionToken = u2.sessionToken; return api(body, ms); } } catch (e) { } throw new Error('Sesi login habis - login ulang di aplikasi utama'); }
+        return d;
+      }).finally(function () { clearTimeout(t); });
+  }
+  function kirim() {
+    if (S.kirim || !S.user) return;
+    var semua = S.antre.filter(function (x) { return x.st === 'antre'; }); if (!semua.length) return;
+    var mode = semua.some(function (x) { return x.m === S.mode; }) ? S.mode : semua[0].m;
+    var batch = semua.filter(function (x) { return x.m === mode; }).slice(0, 25);
+    batch.forEach(function (x) { x.st = 'kirim'; });
+    S.kirim = true; lampu('kuning'); render();
+    var ulangNanti = 0;
+    api({ aksi: 'scan_batch', tipe: mode, daftarNoResi: batch.map(function (x) { return x.r; }) }).then(function (d) {
+      var kembali = d.sibuk ? batch.map(function (x) { return x.r; }) : (d.belumDiproses || []);
+      batch.forEach(function (x) { if (kembali.indexOf(x.r) !== -1) x.st = 'antre'; });
+      if (d.sibuk) { ulangNanti = 3000; status('⏳ Server sibuk - dikirim ulang otomatis', 'dup'); }
+      else if (kembali.length) ulangNanti = 100;
+      var keluarkan = function (r) { var i = S.antre.findIndex(function (x) { return x.r === r && x.m === mode && x.st === 'kirim'; }); if (i !== -1) S.antre.splice(i, 1); };
+      if (d.success) {
+        (d.hasil || []).forEach(function (h) {
+          keluarkan(h.noResi);
+          if (h.success) S.hasil.unshift({ r: h.noResi, m: mode, k: 'ok', kurir: h.kurir || '', t: Date.now() });
+          else if (h.duplicate) S.hasil.unshift({ r: h.noResi, m: mode, k: 'dup', t: Date.now() });
+          else S.hasil.unshift({ r: h.noResi, m: mode, k: 'gagal', e: h.error || 'Gagal', t: Date.now() });
+        });
+        lampu('');
+      } else if (!d.sibuk) {
+        batch.forEach(function (x) { keluarkan(x.r); S.hasil.unshift({ r: x.r, m: mode, k: 'gagal', e: d.error || 'Gagal', t: Date.now() }); });
+        lampu('merah'); status('✗ ' + (d.error || 'Gagal kirim'), 'err');
+      }
+    }).catch(function (e) {
+      batch.forEach(function (x) { x.st = 'antre'; });
+      ulangNanti = 5000; lampu('merah'); status('📶 Koneksi bermasalah - resi aman di antrean, dikirim ulang otomatis', 'err');
+    }).then(function () {
+      S.kirim = false; S.hasil = S.hasil.slice(0, 200); simpan(); render();
+      if (S.antre.some(function (x) { return x.st === 'antre'; })) setTimeout(kirim, ulangNanti || 100);
+    });
+  }
+  function ulangGagal() {
+    var g = S.hasil.filter(function (x) { return x.k === 'gagal' && x.m === S.mode; });
+    S.hasil = S.hasil.filter(function (x) { return !(x.k === 'gagal' && x.m === S.mode); });
+    g.forEach(function (x) { S.antre.unshift({ r: x.r, m: x.m, t: Date.now(), st: 'antre' }); });
+    simpan(); render(); kirim();
+  }
+
+  /* ---------- kamera ---------- */
+  var FORMAT = ['code_128', 'code_39', 'code_93', 'codabar', 'itf', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'data_matrix'];
+  function terbaca(teks, format) {
+    var t = bersih(teks); if (!t) return;
+    var satuD = /qr_code|data_matrix|ean_13|ean_8|upc_a/.test(format || '');
+    if (t === S.akhir && Date.now() - S.akhirT < 2500) { S.akhirT = Date.now(); if (++S.akhirN === 2 && !satuD) masuk(t); return; } // 1D harus terbaca 2x sama (anti salah baca)
+    S.akhir = t; S.akhirN = 1; S.akhirT = Date.now();
+    if (satuD) masuk(t);
+  }
+  function kameraMulai() {
+    $('pesan-kam').textContent = 'Menyalakan kamera…';
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }).then(function (st) {
+      S.stream = st; var v = $('video'); v.srcObject = st; return v.play();
+    }).then(function () {
+      $('btn-kamera').hidden = true; $('alat').hidden = false; $('bingkai').hidden = false; $('pesan-kam').textContent = 'Arahkan barcode resi ke kotak';
+      try { var tr = S.stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; $('btn-torch').hidden = !cap.torch; } catch (e) { }
+      S.jalan = true;
+      if ('BarcodeDetector' in window) {
+        return window.BarcodeDetector.getSupportedFormats().then(function (ada) {
+          var f = FORMAT.filter(function (x) { return ada.indexOf(x) !== -1; });
+          if (f.indexOf('code_128') === -1) return pakaiZxing();
+          S.det = new window.BarcodeDetector({ formats: f }); loopNatif();
+        }).catch(pakaiZxing);
+      }
+      return pakaiZxing();
+    }).catch(function (e) { $('pesan-kam').textContent = '⚠ Kamera tidak bisa dibuka: ' + (e.message || e) + ' - pakai kotak ketik di bawah.'; });
+  }
+  function loopNatif() {
+    if (!S.jalan || !S.det) return;
+    var v = $('video');
+    if (v.readyState >= 2) S.det.detect(v).then(function (r) { if (r && r[0]) terbaca(r[0].rawValue, r[0].format); }).catch(function () { }).then(function () { setTimeout(loopNatif, 120); });
+    else setTimeout(loopNatif, 150);
+  }
+  function pakaiZxing() {
+    var lanjut = function () {
+      try {
+        var Z = window.ZXing, hints = new Map(), F = Z.BarcodeFormat;
+        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [F.CODE_128, F.CODE_39, F.CODE_93, F.CODABAR, F.ITF, F.EAN_13, F.QR_CODE]);
+        S.zx = new Z.BrowserMultiFormatReader(hints, 150);
+        S.zx.decodeFromVideoElementContinuously($('video'), function (res) { if (res) terbaca(res.getText(), String(res.getBarcodeFormat && res.getBarcodeFormat()) === '11' ? 'qr_code' : ''); });
+      } catch (e) { $('pesan-kam').textContent = '⚠ Pembaca barcode gagal: ' + e.message; }
+    };
+    if (window.ZXing) return lanjut();
+    $('pesan-kam').textContent = 'Menyiapkan pembaca barcode…';
+    var s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js';
+    s.onload = function () { $('pesan-kam').textContent = 'Arahkan barcode resi ke kotak'; lanjut(); };
+    s.onerror = function () { $('pesan-kam').textContent = '⚠ Pembaca barcode gagal dimuat - pakai kotak ketik.'; };
+    document.head.appendChild(s);
+  }
+  function kameraStop() {
+    S.jalan = false; S.det = null;
+    try { if (S.zx) S.zx.reset(); } catch (e) { } S.zx = null;
+    try { S.stream && S.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { } S.stream = null; S.torch = false;
+    if ($('btn-kamera')) { $('btn-kamera').hidden = false; $('alat').hidden = true; $('bingkai').hidden = true; $('pesan-kam').textContent = ''; $('btn-torch').classList.remove('on'); }
+  }
+  function senter() {
+    try { var tr = S.stream.getVideoTracks()[0]; S.torch = !S.torch; tr.applyConstraints({ advanced: [{ torch: S.torch }] }); $('btn-torch').classList.toggle('on', S.torch); } catch (e) { }
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden && S.jalan) kameraStop(); else if (!document.hidden) kirim(); });
+  window.addEventListener('online', function () { lampu(''); kirim(); });
+  window.addEventListener('offline', function () { lampu('merah'); });
+
+  /* ---------- toko ---------- */
+  $('btn-toko').onclick = function () {
+    var daftar = [];
+    try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('p90_sc|lihat_daftar_toko|') === 0) { var c = JSON.parse(localStorage.getItem(k) || 'null'); ((c && c.d && (c.d.daftar || c.d.toko)) || []).forEach(function (t) { var n = typeof t === 'string' ? t : (t.nama || t.toko || ''); if (n && daftar.indexOf(n) === -1) daftar.push(n); }); } }); } catch (e) { }
+    ['Waterground', S.toko].forEach(function (n) { if (n && daftar.indexOf(n) === -1) daftar.push(n); });
+    var i = daftar.indexOf(S.toko), baru = daftar[(i + 1) % daftar.length];
+    if (daftar.length < 2) { status('Hanya 1 toko di HP ini - ganti toko lewat aplikasi lengkap', 'dup'); return; }
+    S.toko = baru; try { localStorage.setItem('toko_aktif', baru); } catch (e) { } render(); status('Toko aktif: ' + baru, 'ok');
+  };
+
+  muat(); render(); if (S.user) kirim();
+  if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); });
+  try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait-primary').catch(function () { }); } catch (e) { }
+})();
+</script>
+</body>
+</html>
