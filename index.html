@@ -82,7 +82,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.118';
+  var VERSI = 'v2026.10.119';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -1118,12 +1118,12 @@ window.omxSaatChartSiap = function (fn) {
   try {
     var p = null; // v2026.10.118: pilihan manual tampilan dihapus - murni jenis perangkat
     {
-      var ua = navigator.userAgent || '';
-      if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') m = navigator.userAgentData.mobile;
-      else if (/iPad|Tablet|PlayBook|Silk/i.test(ua)) m = false;
-      else if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) m = false;
+      // v2026.10.119 (DN-402): sama persis dengan p99HpKah_() - HP (termasuk Android mode "situs desktop") = mobile
+      var ua = navigator.userAgent || '', tp = navigator.maxTouchPoints || 0;
+      if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && tp > 1)) m = false;
       else if (/iPhone|iPod|Windows Phone|BlackBerry|Opera Mini|IEMobile|Android.+Mobile|Mobi/i.test(ua)) m = true;
-      else { var sp = Math.min(screen.width || 0, screen.height || 0); m = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && sp > 0 && sp < 600); }
+      else if (navigator.userAgentData && navigator.userAgentData.mobile === true) m = true;
+      else { var sp = Math.min(screen.width || 0, screen.height || 0); m = !!((tp > 0 || (window.matchMedia && matchMedia('(pointer: coarse)').matches)) && sp > 0 && sp < 600); }
     }
   } catch (e) { m = false; }
   var h = document.documentElement;
@@ -27292,7 +27292,7 @@ function fin2RenderRingkasan(L) {
       baris('− Biaya operasional', -(lr.totalBebanUmum + lr.bebanKerugianPersediaan + (lr.bebanPenyusutan || 0) - iklanJ), 'merah') +
       (iklanJ ? baris('− Biaya iklan', -iklanJ, 'merah') : '') +
       (lr.pendapatanLain ? baris('+ Pendapatan lain', lr.pendapatanLain, 'hijau') : '') +
-      (lr.bebanLain ? baris('− Bunga pinjaman', -lr.bebanLain, 'merah') : '') +
+      (lr.bebanLain ? baris('− Beban lain-lain (bunga & penyesuaian retur)', -lr.bebanLain, 'merah') : '') +
       (lr.bebanPajak ? baris('− Pajak penghasilan', -lr.bebanPajak, 'merah') : '') +
       baris('= Laba bersih', lr.labaBersih, lr.labaBersih >= 0 ? 'hijau' : 'merah', true)
     : '<div class="fin2-kosong">Belum ada transaksi di periode ini.</div>';
@@ -27347,7 +27347,7 @@ function fin2AlurPasangDetail(L) {
     '− Biaya operasional': { rumus: 'Biaya gudang & operasional yang dicatat di menu Biaya (gaji, listrik, kemasan, dll. - TANPA iklan) + barang rusak/hilang + penyusutan aset.' + pct(opex),
       isi: daftar((lr.bebanUmum || []).filter(x => (x.akun || x.nama) !== 'Beban Iklan & Promosi').concat(lr.bebanKerugianPersediaan ? [{ label: 'Barang rusak / hilang', nilai: lr.bebanKerugianPersediaan }] : [], lr.bebanPenyusutan ? [{ label: 'Penyusutan aset', nilai: lr.bebanPenyusutan }] : []), x => (x.ikon ? x.ikon + ' ' : '') + (x.label || x.nama)) },
     '= Laba bersih': { rumus: `Omzet ${fin2Rp(om)} − HPP ${fin2Rp(lr.hpp)} − potongan marketplace ${fin2Rp(lr.totalBebanPenjualan)} − biaya operasional ${fin2Rp(opex)}` + (iklanJ ? ` − biaya iklan ${fin2Rp(iklanJ)}` : '')
-      + (lr.pendapatanLain ? ` + pendapatan lain ${fin2Rp(lr.pendapatanLain)}` : '') + (lr.bebanLain ? ` − bunga ${fin2Rp(lr.bebanLain)}` : '') + (lr.bebanPajak ? ` − pajak ${fin2Rp(lr.bebanPajak)}` : '')
+      + (lr.pendapatanLain ? ` + pendapatan lain ${fin2Rp(lr.pendapatanLain)}` : '') + (lr.bebanLain ? ` − beban lain ${fin2Rp(lr.bebanLain)}` : '') + (lr.bebanPajak ? ` − pajak ${fin2Rp(lr.bebanPajak)}` : '')
       + ` = <b>${fin2Rp(lr.labaBersih)}</b>` + (om ? ` · margin bersih ${fin2Persen(lr.labaBersih / om)}` : '') + '.', isi: '', html: true }
   };
   wadah.querySelectorAll('.fin2-bar-baris').forEach(b => {
@@ -27439,7 +27439,7 @@ function fin2HtmlLabaRugi(L) {
   if (lr.pendapatanLain || lr.bebanLain) {
     h += fin2BarisLap('Pendapatan &amp; Beban Lain-lain', null, 'grup');
     if (lr.pendapatanLain) h += fin2BarisLap('Pendapatan lain-lain', lr.pendapatanLain, 'sub');
-    if (lr.bebanLain) h += fin2BarisLap('Beban bunga pinjaman', lr.bebanLain, 'sub', { kurang: true });
+    if (lr.bebanLain) h += fin2BarisLap('Beban lain-lain', lr.bebanLain, 'sub', { kurang: true, ket: 'Bunga pinjaman + Beban Penyesuaian Retur & Klaim (8-102) - rincian di tab Jurnal Penyesuaian' });
   }
   if (lr.bebanPajak) {
     h += fin2BarisLap('LABA SEBELUM PAJAK', lr.labaSebelumPajak, 'total utama');
@@ -88959,6 +88959,268 @@ p86SheetScan = function () {
   } catch (e) { }
   return r;
 };
+</script>
+
+<!-- ===================================================================================
+     PAKET 99 (v2026.10.119) - DN-402 HP wajib tampilan mobile / laptop wajib web, DN-431 menu bawah HP rapat ke bawah,
+     DN-365 klaim retur = nota debet/kredit -> Laporan Keuangan > Jurnal Penyesuaian (dengan jejak), DN-989 Monitor Stok
+     disederhanakan (Stok Fisik · On Reserve · On Order · Available + Barang Rusak)
+     =================================================================================== -->
+<style>
+  /* ---------- DN-431: menu bawah HP rapat ke bawah (garis home iPhone tetap bebas) ---------- */
+  html.omni-mobile .p86-nav { padding-bottom: max(4px, calc(env(safe-area-inset-bottom, 0px) - 20px)) !important; }
+  /* ---------- DN-365 ---------- */
+  .p96-nota tr.info td { color: var(--web-text-dim, #78716c); }
+  .p96-nota tr.info .n span { text-decoration: line-through; opacity: .7; }
+  .p96-nota small.st { background: rgba(21,128,61,.1); color: #15803d; }
+  .p96-nota small.info { background: rgba(120,113,108,.12); color: var(--web-text-dim, #78716c); }
+  .p99-jp-ring { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 0 0 12px; }
+  .p99-jp-ring > div { border: 1px solid var(--web-border, #e6e1da); border-radius: 12px; padding: 10px 12px; background: var(--web-panel, #fff); }
+  .p99-jp-ring small { display: block; font-size: 11.5px; color: var(--web-text-dim, #78716c); }
+  .p99-jp-ring b { font-size: 17px; font-variant-numeric: tabular-nums; }
+  .p99-jp-ring .deb { color: #b91c1c; } .p99-jp-ring .kre { color: #15803d; }
+  .p99-jp-alat { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .p99-jp-alat input { flex: 1; min-width: 200px; margin: 0; }
+  .p99-jp-alat button.aktif { background: var(--web-accent, #b45309); color: #fff; border-color: transparent; }
+  table.p99-jp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.p99-jp th { text-align: left; font-size: 11px; color: var(--web-text-dim, #78716c); padding: 6px 8px; border-bottom: 1px solid var(--web-border, #e6e1da); white-space: nowrap; }
+  table.p99-jp td { padding: 6px 8px; border-bottom: 1px solid var(--web-border, #f1ede8); vertical-align: top; }
+  table.p99-jp td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.p99-jp .deb { color: #b91c1c; } table.p99-jp .kre { color: #15803d; }
+  table.p99-jp tr.tidak td { color: var(--web-text-dim, #78716c); } table.p99-jp tr.tidak td.n span { text-decoration: line-through; }
+  table.p99-jp small { display: block; font-size: 10.5px; color: var(--web-text-dim, #78716c); }
+  .p99-ref { border: 0; background: none; color: #1d4ed8; font: inherit; font-weight: 700; padding: 0; cursor: pointer; text-decoration: underline dotted; }
+  .p99-st { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 99px; padding: 1px 8px; white-space: nowrap; }
+  .p99-st.baru { background: rgba(37,99,235,.1); color: #1d4ed8; } .p99-st.sudah { background: rgba(21,128,61,.1); color: #15803d; } .p99-st.tidak { background: rgba(120,113,108,.12); color: var(--web-text-dim, #78716c); }
+  /* ---------- DN-989: Monitor Stok sederhana ---------- */
+  #per-mon-pane-pilar > .web-kpi-grid:not(.p99-alur) { display: none !important; }
+  .p99-alur { display: grid !important; grid-template-columns: 1fr auto 1fr auto 1fr 1fr 1fr; gap: 10px; align-items: stretch; margin-bottom: 12px; }
+  .p99-alur .op { align-self: center; font-size: 22px; font-weight: 800; color: var(--web-text-dim, #78716c); }
+  .p99-alur .web-kpi-card { cursor: pointer; min-width: 0; }
+  .p99-alur .web-kpi-card small { display: block; font-size: 11.5px; color: var(--web-text-dim, #78716c); margin-top: 2px; }
+  .p99-alur .web-kpi-card.rusak { border-color: rgba(185,28,28,.35); }
+  .p99-alur .web-kpi-card.order { border-style: dashed; }
+  #per-mon-pane-pilar .per-legend { display: none; }
+  @media (max-width: 1000px) { .p99-alur { grid-template-columns: 1fr 1fr; } .p99-alur .op { display: none; } }
+</style>
+<script>
+/* ============================ PAKET 99 (v2026.10.119) ============================ */
+function p99E(s) { return escapeHtml(String(s == null ? '' : s)); }
+function p99Rp(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+
+/* ---------- DN-402: HP WAJIB tampilan mobile, laptop / tablet WAJIB tampilan web ----------
+   Dulu: browser Android dengan "situs desktop" / browser lain melapor userAgentData.mobile = false -> dianggap laptop.
+   Sekarang: iPhone / UA HP / userAgentData.mobile = HP; selain itu layar sentuh dengan sisi terpendek < 600 px = HP. */
+function p99HpKah_() {
+  try {
+    const ua = navigator.userAgent || '', tp = navigator.maxTouchPoints || 0;
+    if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && tp > 1)) return false;
+    if (/iPhone|iPod|Windows Phone|BlackBerry|Opera Mini|IEMobile|Android.+Mobile|Mobi/i.test(ua)) return true;
+    if (navigator.userAgentData && navigator.userAgentData.mobile === true) return true;
+    const sp = Math.min(screen.width || 0, screen.height || 0), sentuh = tp > 0 || (window.matchMedia && matchMedia('(pointer: coarse)').matches);
+    return !!(sentuh && sp > 0 && sp < 600);
+  } catch (e) { return false; }
+}
+perangkatAdalahHP = p99HpKah_;
+const p99SwitchWebAsli_ = switchKeTampilanWeb;
+switchKeTampilanWeb = function () {
+  if (p99HpKah_()) { // HP tidak boleh masuk tampilan web
+    paksaModeMobile = true; omniTemaSinkron('mobile');
+    el('app-web').style.display = 'none'; el('app').style.display = 'block';
+    try { terapkanKunciTemaMobile(); perbaruiIkonTema(); } catch (e) { }
+    if (currentUser) el('screen-menu').style.display = 'flex';
+    return;
+  }
+  return p99SwitchWebAsli_.apply(this, arguments);
+};
+const p99BukaMobileAsli_ = bukaMobileDariWeb;
+bukaMobileDariWeb = function () {
+  if (p99HpKah_()) return p99BukaMobileAsli_.apply(this, arguments);
+  pgrToast('Fitur ini dikerjakan dari HP gudang');
+};
+wsBukaMobileMintaStock = function () { if (p99HpKah_()) { p99BukaMobileAsli_(); openStockOpname(); } else bukaLokasiWeb({ tab: 'persediaan', sub: 'memogudang' }); };
+(function p99PastikanTampilan_() {
+  const hp = p99HpKah_();
+  if (hp === !!paksaModeMobile) return;
+  paksaModeMobile = hp;
+  const h = document.documentElement; h.classList.remove('omni-mobile', 'omni-web'); h.classList.add(hp ? 'omni-mobile' : 'omni-web'); h.style.colorScheme = hp ? 'dark' : 'light';
+  try {
+    if (!currentUser) {
+      omniTemaSinkron(hp ? 'mobile' : 'web');
+      if (el('screen-login').style.display === 'flex' || el('screen-login-web').style.display === 'block') tampilkanLayarLogin();
+    } else if (hp) {
+      switchKeTampilanWeb();
+    } else {
+      omniTemaSinkron('web'); p99SwitchWebAsli_();
+      if (!window._pemuatWebSudah) { window._pemuatWebSudah = true; try { pgtMuatPosisiMenu(); muatStatusInsightPanel(); muatLogoPerusahaan(); pulihkanLokasiTerakhir(); } catch (e) { } }
+    }
+  } catch (e) { console.warn('P99 tampilan', e); }
+})();
+
+/* ---------- DN-365: nota klaim = semua mutasi + baris manual (tanpa ubah tahap) ---------- */
+p96NotaMuat = async function (noResi, segar) {
+  const x = P96.nota[noResi]; if (x && (x.memuat || (!segar && !x.error && x.v2))) return;
+  const det = rt2.detail[noResi] || {}, d = rt2Data(noResi) || {};
+  P96.nota[noResi] = Object.assign({}, x || {}, { memuat: true });
+  try {
+    const r = await postJson({ aksi: 'p95_klaim_nota', noResi, ids: p96NotaIds_(noResi, det, d), email: currentUserEmail() }, 60000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    const otomatis = r.otomatis || (r.mutasi || []).map(m => ({ tgl: m.tgl, ket: m.ket, debet: m.debet, kredit: m.kredit, sumber: 'Mutasi ' + (m.sumber || ''), dihitung: true, jurnalBaru: true }));
+    P96.nota[noResi] = { v2: true, otomatis, manual: (x && x.ubah) ? x.manual : (r.manual || []), ubah: !!(x && x.ubah) };
+  } catch (e) { P96.nota[noResi] = Object.assign({}, x || {}, { memuat: false, error: String(e.message || e) }); }
+  if (rt2.buka[noResi]) rt2RenderDetail(noResi);
+};
+p96NotaBaris_ = function (noResi, det, d) {
+  const N = P96.nota[noResi] || {}, rows = [];
+  if (d.tanggal) rows.push({ tgl: String(d.tanggal).slice(0, 10), ket: 'Paket retur diterima gudang' + (d.statusCek ? ' · ' + d.statusCek : '') });
+  (N.otomatis || []).forEach(b => rows.push({ tgl: b.tgl, ket: b.ket, debet: b.debet, kredit: b.kredit, info: !b.dihitung, alasan: b.alasan || '', sumber: b.sumber || '', sudah: !!b.sudahDiLaporan }));
+  return rows.sort((a, b) => (a.tgl || '9') < (b.tgl || '9') ? -1 : (a.tgl || '9') > (b.tgl || '9') ? 1 : 0);
+};
+p96NotaTotal_ = function (noResi, auto) {
+  const N = P96.nota[noResi] || {}, semua = auto.filter(r => !r.info).concat(N.manual || []);
+  const deb = semua.reduce((t, r) => t + (Number(r.debet) || 0), 0), kre = semua.reduce((t, r) => t + (Number(r.kredit) || 0), 0);
+  return { deb, kre, net: kre - deb };
+};
+const p99NotaHtmlAsli_ = p96NotaHtml_;
+p96NotaHtml_ = function (noResi, det, d) {
+  let h = p99NotaHtmlAsli_.apply(this, arguments);
+  try {
+    // tandai baris otomatis: info (tidak dihitung) / sudah di laporan / jurnal penyesuaian baru
+    const auto = p96NotaBaris_(noResi, det, d), tb = h.split('<tbody>');
+    if (tb.length === 2) {
+      const [isi, ekor] = tb[1].split('</tbody>');
+      const tr = isi.split('</tr>'), hasil = tr.map((t, i) => {
+        const r = auto[i]; if (!r || !/^\s*<tr>/.test(t)) return t;
+        const tanda = r.info ? `<small class="info" title="${pgrAttr(r.alasan + (r.sumber ? ' · ' + r.sumber : ''))}">info</small>` : (r.sumber ? `<small class="${r.sudah ? 'st' : ''}" title="${pgrAttr(r.sumber + (r.sudah ? ' · sudah masuk laporan' : ' · masuk Jurnal Penyesuaian'))}">${r.sudah ? 'sudah di laporan' : 'jurnal'}</small>` : '');
+        return t.replace(/^\s*<tr>/, `<tr class="${r.info ? 'info' : ''}">`).replace(/<\/td><td class="n">/, tanda + '</td><td class="n">');
+      });
+      h = tb[0] + '<tbody>' + hasil.join('</tr>') + '</tbody>' + ekor;
+    }
+    h = h.replace(/(<span style="font-size:11px; color:var\(--web-text-dim\);">)([^<]*mutasi marketplace[^<]*)/, (m, a) => a + ((P96.nota[noResi] || {}).memuat ? '<span class="dok-spin"></span> mencari mutasi marketplace…' : 'Otomatis dari mutasi marketplace + barang rusak / hilang'))
+      .replace('<span><button type="button" onclick="p96NotaTambah', `<span><button type="button" onclick="p99BukaJP('${pgrAttr(noResi)}')" title="Lihat semua baris kasus ini di Laporan Keuangan > Jurnal Penyesuaian">📒 Jurnal Penyesuaian</button> <button type="button" onclick="p96NotaTambah`);
+  } catch (e) { }
+  return h;
+};
+const p99KlaimHtmlAsli_ = p10KlaimHtml;
+p10KlaimHtml = function () {
+  const h = p99KlaimHtmlAsli_.apply(this, arguments);
+  return h ? h.replace(/<details class="p96-klaim-form"[\s\S]*<\/details>/, '') : h; // ubah tahap klaim dihapus - cukup tambah / hapus baris nota
+};
+
+/* ---------- DN-365: Laporan Keuangan > Jurnal Penyesuaian ---------- */
+const P99 = { jp: {}, filter: 'semua', cari: '' };
+if (Array.isArray(FIN2_TAB_LAP) && !FIN2_TAB_LAP.includes('jp')) FIN2_TAB_LAP.splice(1, 0, 'jp');
+(function () {
+  const b = document.querySelector('[data-fin2-tab="jurnal"]'); if (!b || document.querySelector('[data-fin2-tab="jp"]')) return;
+  b.insertAdjacentHTML('afterend', '<button type="button" role="tab" data-fin2-tab="jp" onclick="fin2GantiTabLaporan(\'jp\')" title="Semua penyesuaian: retur rusak / hilang, kompensasi & biaya marketplace, klaim, nota manual - dengan jejak per baris">Jurnal Penyesuaian</button>');
+})();
+const p99RenderLapAsli_ = fin2RenderLaporan;
+fin2RenderLaporan = function () {
+  if (fin2.tabLap !== 'jp') return p99RenderLapAsli_.apply(this, arguments);
+  const w = el('fin2-lap-isi'); if (!w) return;
+  const k = fin2.dari + '|' + fin2.sampai, D = P99.jp[k];
+  if (!D) { w.innerHTML = '<div class="fin2-lap-catatan" style="text-align:center;"><span class="dok-spin"></span> Memuat Jurnal Penyesuaian…</div>'; p99MuatJP(); return; }
+  if (D.error) { w.innerHTML = `<div class="fin2-lap-catatan" style="text-align:center; color:#b91c1c;">✗ ${p99E(D.error)} <button type="button" class="p99-ref" onclick="delete P99.jp['${pgrAttr(k)}']; fin2RenderLaporan()">Coba lagi</button></div>`; return; }
+  w.innerHTML = p99HtmlJP_(D);
+  const c = el('p99-jp-cari'); if (c && P99.fokus) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); }
+};
+async function p99MuatJP(paksa) {
+  const k = fin2.dari + '|' + fin2.sampai;
+  if (paksa) delete P99.jp[k];
+  try {
+    const r = await postJson({ aksi: 'p99_jurnal_penyesuaian', dari: fin2.dari, sampai: fin2.sampai, email: currentUserEmail() }, 90000, true);
+    if (!r || !r.success) throw new Error((r && r.error) || 'Gagal');
+    P99.jp[k] = r;
+  } catch (e) { P99.jp[k] = { error: String(e.message || e) }; }
+  if (fin2.tabLap === 'jp') fin2RenderLaporan();
+}
+function p99HtmlJP_(D) {
+  const t = D.total || {}, q = P99.cari.toLowerCase(), f = P99.filter;
+  const L = (D.baris || []).filter(b => (f === 'semua' || (f === 'baru' && b.jurnalBaru) || (f === 'tidak' && !b.dihitung) || (f === b.kasus)) &&
+    (!q || [b.ref, b.pesanan, b.ket, b.sumber, b.kasus].join(' ').toLowerCase().includes(q))).slice().reverse();
+  const kasus = Array.from(new Set((D.baris || []).map(b => b.kasus)));
+  const st = b => !b.dihitung ? `<span class="p99-st tidak" title="${pgrAttr(b.alasan || '')}">tidak dihitung</span>` : b.jurnalBaru ? '<span class="p99-st baru" title="Dijurnal JP: kredit -> Pendapatan Klaim (7-102), debet -> Beban Penyesuaian Retur & Klaim (8-102), lawan Kas & Bank">jurnal JP</span>' : '<span class="p99-st sudah" title="Sudah masuk laporan lewat persediaan / jurnal klaim cara lama">sudah di laporan</span>';
+  const ref = b => b.kasus === 'Retur' ? `<button type="button" class="p99-ref" onclick="p99Lacak('${pgrAttr(b.ref)}')" title="Buka kasus di Pengiriman > Resi Masuk">${p99E(b.ref)}</button>` : (b.kasus === 'Klaim supplier' ? `<button type="button" class="p99-ref" onclick="bukaLokasiWeb({ tab: 'pembelian', sub: 'claim' })" title="Buka Pembelian > Claim Kurang/Rusak">${p99E(b.ref || '-')}</button>` : p99E(b.ref || '-'));
+  return fin2Kop('JURNAL PENYESUAIAN', fin2SubPeriode({ periode: D.periode })) + `
+    <div class="p99-jp-ring">
+      <div title="Semua penyesuaian yang memengaruhi laporan (debet = mengurangi laba)"><small>Total debet</small><b class="deb">${p99Rp(t.debet)}</b></div>
+      <div title="Semua penyesuaian yang menambah laba"><small>Total kredit</small><b class="kre">${p99Rp(t.kredit)}</b></div>
+      <div title="Kredit − debet"><small>Dampak bersih ke laba</small><b class="${(t.kredit - t.debet) < 0 ? 'deb' : 'kre'}">${(t.kredit - t.debet) < 0 ? '−' : ''}${p99Rp(Math.abs((t.kredit || 0) - (t.debet || 0)))}</b></div>
+      <div title="Baris yang baru dijurnal oleh paket ini (kompensasi / biaya marketplace & nota manual)"><small>Jurnal JP baru</small><b>${p99Rp(t.baruKredit)} / −${p99Rp(t.baruDebet).replace('Rp ', '')}</b></div>
+    </div>
+    <div class="p99-jp-alat">
+      <input id="p99-jp-cari" class="web-search-input" placeholder="Cari resi, pesanan, keterangan…" value="${pgrAttr(P99.cari)}" oninput="P99.cari=this.value; P99.fokus=1; fin2RenderLaporan()">
+      ${['semua', 'baru', 'tidak'].concat(kasus).map(x => `<button type="button" class="web-chart-toggle-btn ${f === x ? 'aktif' : ''}" onclick="P99.filter='${pgrAttr(x)}'; P99.fokus=0; fin2RenderLaporan()">${p99E({ semua: 'Semua', baru: 'Jurnal JP', tidak: 'Tidak dihitung' }[x] || x)}</button>`).join('')}
+      <button type="button" class="web-chart-toggle-btn" onclick="p99MuatJP(true)" title="Muat ulang">🔄</button>
+    </div>
+    <div style="overflow-x:auto;"><table class="p99-jp"><thead><tr><th>Tgl.</th><th>Kasus</th><th>Referensi</th><th>Keterangan</th><th class="n">Debet</th><th class="n">Kredit</th><th>Status</th></tr></thead><tbody>
+    ${L.length ? L.slice(0, 500).map(b => `<tr class="${b.dihitung ? '' : 'tidak'}"><td style="white-space:nowrap;">${p99E(fin2TglLabel ? fin2TglLabel(b.tgl) : b.tgl)}</td><td>${p99E(b.kasus)}</td><td>${ref(b)}${b.pesanan ? `<small>pesanan ${p99E(b.pesanan)}</small>` : ''}</td>
+      <td>${p99E(b.ket)}<small title="Sumber data">↳ ${p99E(b.sumber)}${b.akun ? ' · ' + p99E(b.akun) : ''}${b.alasan ? ' · ' + p99E(b.alasan) : ''}</small></td>
+      <td class="n deb"><span>${b.debet ? '−' + Math.round(b.debet).toLocaleString('id-ID') : ''}</span></td><td class="n kre"><span>${b.kredit ? '+' + Math.round(b.kredit).toLocaleString('id-ID') : ''}</span></td><td>${st(b)}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center; color:var(--web-text-dim);">Tidak ada penyesuaian di periode ini.</td></tr>'}
+    </tbody></table></div>
+    <div class="fin2-lap-catatan">Jurnal JP masuk ke Jurnal Umum, Buku Besar, Laba Rugi (Pendapatan Klaim 7-102 / Beban Penyesuaian Retur &amp; Klaim 8-102), Posisi Keuangan &amp; Arus Kas. Barang rusak / hilang sudah dibebankan lewat persediaan (Beban Kerusakan Persediaan). Penghasilan pesanan, refund pembeli &amp; penarikan saldo tidak dihitung di sini karena sudah bagian dari penjualan.${L.length > 500 ? ' Ditampilkan 500 baris terbaru - persempit dengan pencarian.' : ''}</div>`;
+}
+function p99BukaJP(noResi) {
+  P99.cari = String(noResi || ''); P99.filter = 'semua';
+  bukaLokasiWeb({ tab: 'finance', sub: 'laporan' });
+  setTimeout(() => { try { fin2GantiTabLaporan('jp'); } catch (e) { } }, 400);
+}
+function p99Lacak(noResi) {
+  bukaLokasiWeb({ tab: 'pengiriman', sub: 'resi-masuk' });
+  let n = 0;
+  const coba = () => {
+    const c = el('rt2-cari');
+    if (c && typeof rt2Data === 'function' && rt2Data(noResi)) {
+      c.value = noResi; try { rt2Paginasi.page = 1; rt2Render(); } catch (e) { }
+      try { if (!rt2.buka[noResi]) rt2ToggleDetail(noResi); } catch (e) { }
+      const x = document.getElementById('rt2-detail-' + noResi); if (x) x.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+    if (++n < 40) setTimeout(coba, 300); else if (c) { c.value = noResi; try { rt2Render(); } catch (e) { } }
+  };
+  setTimeout(coba, 300);
+}
+const p99NotaSimpanAsli_ = p96NotaSimpan;
+p96NotaSimpan = async function () { const r = await p99NotaSimpanAsli_.apply(this, arguments); try { P99.jp = {}; } catch (e) { } return r; };
+
+/* ---------- DN-989: Monitor Stok sederhana ---------- */
+const P99S = { rusak: null, rusakT: 0 };
+function p99StokKartu_() {
+  const g = document.querySelector('#per-mon-pane-pilar > .web-kpi-grid'); if (!g || el('p99-alur')) return;
+  g.insertAdjacentHTML('beforebegin', `<div class="web-kpi-grid p99-alur" id="p99-alur">
+    <div class="web-kpi-card" onclick="perMonSetFilter('semua')" title="Fisik riil di gudang: Qty Opname + Masuk − Keluar sejak opname terakhir"><div class="web-kpi-label">Stok Fisik</div><div class="web-kpi-value" id="p99-s-fisik">-</div><small id="p99-s-fisik-k"></small></div>
+    <div class="op" aria-hidden="true">−</div>
+    <div class="web-kpi-card" onclick="perMonSetFilter('reserve')" title="Pesanan masuk yang resinya BELUM discan keluar"><div class="web-kpi-label">On Reserve</div><div class="web-kpi-value" id="p99-s-reserve">-</div><small id="p99-s-reserve-k"></small></div>
+    <div class="op" aria-hidden="true">=</div>
+    <div class="web-kpi-card" onclick="perMonSetFilter(P99S.minus ? 'minus' : 'semua')" title="Stok Fisik − On Reserve = bebas dijual"><div class="web-kpi-label">On Available</div><div class="web-kpi-value" id="p99-s-avail">-</div><small id="p99-s-avail-k"></small></div>
+    <div class="web-kpi-card order" onclick="perMonSetFilter('order')" title="Akan datang: invoice pembelian belum divalidasi + sisa PO"><div class="web-kpi-label">On Order</div><div class="web-kpi-value" id="p99-s-order">-</div><small id="p99-s-order-k"></small></div>
+    <div class="web-kpi-card rusak" onclick="bukaLokasiWeb({ tab: 'pembelian', sub: 'claim' })" title="Barang masuk kurang / rusak yang masih diklaim ke supplier - buka Pembelian > Claim Kurang/Rusak"><div class="web-kpi-label">Barang Rusak / Kurang</div><div class="web-kpi-value" id="p99-s-rusak">-</div><small id="p99-s-rusak-k">Claim ke supplier</small></div>
+  </div>`);
+}
+function p99StokIsi_() {
+  p99StokKartu_();
+  const L = (perMonCache || []).filter(p => p.terdaftar && !p.arsip), jml = k => L.reduce((t, p) => t + (Number(p[k]) || 0), 0), ada = k => L.filter(p => Number(p[k]) > 0).length;
+  const f = (id, v) => { const e = el(id); if (e) e.textContent = Math.round(v).toLocaleString('id-ID'); }, k = (id, t) => { const e = el(id); if (e) e.textContent = t; };
+  f('p99-s-fisik', jml('onHand')); k('p99-s-fisik-k', L.length.toLocaleString('id-ID') + ' SKU');
+  f('p99-s-reserve', jml('onReserve')); k('p99-s-reserve-k', ada('onReserve') + ' SKU dipesan');
+  f('p99-s-avail', jml('onAvailable')); P99S.minus = L.filter(p => Number(p.onAvailable) < 0).length;
+  k('p99-s-avail-k', P99S.minus ? '⚠ ' + P99S.minus + ' SKU minus' : 'pcs bebas dijual');
+  const av = el('p99-s-avail-k'); if (av) av.style.color = P99S.minus ? 'var(--web-danger, #b91c1c)' : '';
+  f('p99-s-order', jml('onOrder')); k('p99-s-order-k', ada('onOrder') + ' SKU akan datang');
+  p99StokRusak_();
+}
+async function p99StokRusak_() {
+  const tulis = () => { const d = P99S.rusak; if (!d) return; const e = el('p99-s-rusak'), s = el('p99-s-rusak-k'); if (e) e.textContent = d.qty.toLocaleString('id-ID'); if (s) s.textContent = d.n + ' klaim terbuka' + (d.nilai ? ' · ' + p99Rp(d.nilai) : ''); };
+  tulis();
+  if (Date.now() - P99S.rusakT < 120000) return; P99S.rusakT = Date.now();
+  try {
+    const r = await postJson({ aksi: 'p55_bm_klaim_daftar', email: currentUserEmail() }, 30000, true);
+    if (r && r.success) { const L = r.daftar || []; P99S.rusak = { n: L.length, qty: L.reduce((t, x) => t + (Number(x.qty) || 0), 0), nilai: L.reduce((t, x) => t + (Number(x.nilai) || 0), 0) }; tulis(); }
+  } catch (e) { }
+}
+const p99MonTerapkanAsli_ = perMonTerapkanData;
+perMonTerapkanData = function () { const r = p99MonTerapkanAsli_.apply(this, arguments); try { p99StokIsi_(); } catch (e) { console.warn('P99 stok', e); } return r; };
+try { if (typeof perMonCache !== 'undefined' && perMonCache.length) p99StokIsi_(); else p99StokKartu_(); } catch (e) { }
 </script>
 
 </body>
