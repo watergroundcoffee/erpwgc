@@ -82,7 +82,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.114';
+  var VERSI = 'v2026.10.115';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -55766,7 +55766,7 @@ function iaLencana_(obj) {
 
 window.belRenderKontak = function () {
   const cari = (el('bel-kontak-cari')?.value || '').toLowerCase().trim();
-  const daftar = cari ? belKontakCache.filter(s => String(s.nama || '').toLowerCase().includes(cari)) : belKontakCache;
+  const daftar = cari ? belKontakCache.filter(s => (typeof p95Cocok_ === 'function' ? p95Cocok_(s, cari) : String(s.nama || '').toLowerCase().includes(cari))) : belKontakCache; // v2026.10.115 (DN-453): cari semua isi
   if (daftar.length === 0) {
     el('bel-kontak-list').innerHTML = '';
     el('bel-kontak-empty').style.display = 'block';
@@ -88171,6 +88171,583 @@ async function p94Putus() {
   try { const d = await postJson({ aksi: 'gdrive_putus', email: currentUserEmail() }, 30000); if (!d || !d.success) throw new Error((d && d.error) || 'Gagal'); P94.t = 0; await p94MuatStatus_(true); p94Render_(P94.status); omxToast('Google Drive diputuskan.'); }
   catch (e) { omxToast('Gagal: ' + e.message, 'error'); }
 }
+</script>
+
+<!-- ===================================================================================
+     PAKET 95 (v2026.10.115) - Kalibrasi biaya marketplace dari Laporan Penghasilan (batas harga aman akurat),
+     DN-811 harga live tanpa SKU terhubung, DN-285 HPP Rp 0 per channel, DN-392 kapsul variasi, DN-453 pencarian
+     longgar, DN-713 profil supplier dinamis, DN-956 layar penuh Android
+     =================================================================================== -->
+<style>
+  /* ---------- Kalibrasi Laporan Penghasilan ---------- */
+  .omx-modal.lebar:has(.p95-kal) { max-width: min(1060px, 96vw) !important; width: 96vw; }
+  .p95-kal { font-size: 12.5px; }
+  .p95-kal-info { color: var(--web-text-dim, #78716c); margin: 0 0 10px; line-height: 1.5; }
+  .p95-kal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .p95-kal-kartu { border: 1px solid var(--web-border, #e6e1da); border-radius: 12px; padding: 10px 12px; background: var(--web-panel, #fff); min-width: 0; }
+  .p95-kal-kartu h4 { margin: 0 0 2px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .p95-kal-kartu h4 small { font-weight: 500; color: var(--web-text-dim, #78716c); font-size: 11.5px; margin-left: auto; }
+  .p95-kal table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  .p95-kal th { text-align: left; font-size: 10.5px; color: var(--web-text-dim, #78716c); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--web-border, #e6e1da); }
+  .p95-kal td { padding: 4px 6px; border-bottom: 1px solid var(--web-border, #f1ede8); vertical-align: top; }
+  .p95-kal td.n, .p95-kal th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .p95-kal tr.tot td { font-weight: 700; border-top: 1px solid var(--web-border, #e6e1da); }
+  .p95-kal tr.info td { color: var(--web-text-dim, #78716c); }
+  .p95-kal tr.info td:first-child { white-space: nowrap; width: 1%; padding-right: 14px; }
+  .p95-kal td small { display: block; color: var(--web-text-dim, #78716c); font-size: 10.5px; }
+  .p95-kal .naik { color: #b91c1c; font-weight: 700; }
+  .p95-kal .turun { color: #15803d; font-weight: 700; }
+  .p95-kal-peringatan { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(245,158,11,.10); color: #92400e; line-height: 1.45; }
+  .p95-kal-peringatan li { margin: 2px 0; }
+  .p95-kal-aksi { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+  .p95-kal-aksi button { margin: 0; }
+  /* ---------- DN-811 ---------- */
+  .p95-live-hint { font-size: 10.5px; color: var(--web-text-dim, #78716c); margin-top: 3px; line-height: 1.3; }
+  /* ---------- DN-285 ---------- */
+  .p95-hpp0 { border: 1px solid rgba(185,28,28,.35); background: rgba(185,28,28,.06); color: #b91c1c; border-radius: 99px; font: inherit; font-size: 11px; font-weight: 700; padding: 1px 8px; cursor: pointer; margin-left: 6px; white-space: nowrap; }
+  .p95-hpp0:hover { background: rgba(185,28,28,.12); }
+  .p95-hpp-psn { color: var(--web-text-dim, #78716c); font-size: 10px; margin-left: 3px; cursor: help; }
+  .p95-ah-aksi { display: flex; justify-content: flex-end; gap: 8px; align-items: center; margin-top: 10px; }
+  /* ---------- DN-392: kapsul variasi lebih besar ---------- */
+  #katalog-produk-body .katalog-varian-kolom { max-width: 230px; gap: 9px; }
+  #katalog-produk-body .katalog-varian-chip { font-size: 12.5px; padding: 4px 11px; border-radius: 14px; line-height: 1.3; }
+  #katalog-produk-body .katalog-varian-chip-list { gap: 5px; }
+  #katalog-produk-body .katalog-varian-nama { font-size: 11.5px; }
+  #katalog-produk-body .katalog-varian-ringkas { font-size: 12px; }
+  #katalog-produk-body .vb-btn-atur { font-size: 12px; padding: 3px 9px; }
+  /* ---------- DN-713: profil supplier dinamis ---------- */
+  .p95-tu { margin: 8px 0 10px; border: 1px dashed var(--web-border, #e6e1da); border-radius: 10px; padding: 8px 10px; }
+  .p95-tu-judul { font-size: 12px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .p95-tu-judul span { font-weight: 500; color: var(--web-text-dim, #78716c); font-size: 11px; }
+  .p95-tu-baris { display: grid; grid-template-columns: 150px minmax(0, 1fr) 28px; gap: 6px; align-items: center; margin-top: 5px; }
+  .p95-tu-baris.lain { grid-template-columns: 150px 110px minmax(0, 1fr) 28px; }
+  .p95-tu-baris .web-form-input { margin: 0; padding: 6px 8px; font-size: 12.5px; }
+  .p95-tu-x { border: 0; background: none; color: var(--web-text-dim, #78716c); cursor: pointer; font-size: 14px; }
+  .p95-tu-x:hover { color: var(--web-danger, #b91c1c); }
+  .p95-tu-tambah { border: 0; background: none; color: #b45309; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 0 0; }
+  .p95-kt-tu { margin-top: 6px; }
+  .p95-chip-wrap { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+  .p95-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 280px; border: 1px solid var(--web-border, #e6e1da); border-radius: 99px; padding: 2px 9px; font-size: 11.5px; color: var(--web-text, #292524); background: var(--web-bg, #faf8f5); text-decoration: none; }
+  .p95-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  a.p95-chip:hover { border-color: rgba(180,83,9,.5); color: #92400e; }
+  .p95-chip.pribadi { background: rgba(99,102,241,.06); border-color: rgba(99,102,241,.25); }
+  @media (max-width: 640px) { .p95-tu-baris, .p95-tu-baris.lain { grid-template-columns: 1fr 28px; } .p95-tu-baris select { grid-column: 1 / 2; } }
+</style>
+<script>
+/* ============================ PAKET 95 (v2026.10.115) ============================ */
+const P95 = { kal: null, tu: [], tuKirim: null };
+function p95E(s) { return escapeHtml(String(s == null ? '' : s)); }
+function p95Rp(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+function p95Pct(x, d) { return (Math.round((Number(x) || 0) * Math.pow(10, d == null ? 2 : d)) / Math.pow(10, d == null ? 2 : d)).toLocaleString('id-ID', { maximumFractionDigits: d == null ? 2 : d }) + '%'; }
+function p95Num(v) { if (typeof v === 'number') return isFinite(v) ? v : 0; const s = String(v == null ? '' : v).replace(/[^\d\-.,]/g, ''); if (!s || s === '-') return 0; return parseFloat(s.replace(/,/g, '')) || 0; }
+function p95Median(a) { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; }
+function p95Modus(a) { const n = {}; let best = 0, v = 0; a.forEach(x => { n[x] = (n[x] || 0) + 1; if (n[x] > best) { best = n[x]; v = x; } }); return v; }
+
+/* =============== 1) KALIBRASI BIAYA DARI LAPORAN PENGHASILAN MARKETPLACE ===============
+   File dibaca DI BROWSER (SheetJS) - tidak ada data pesanan yang dikirim ke server. Hasilnya hanya usulan
+   baris Biaya Platform di Kalkulator Harga; tersimpan setelah Owner menekan Simpan Parameter. */
+function p95Header_(aoa, wajib) {
+  for (let i = 0; i < Math.min(aoa.length, 15); i++) {
+    const r = (aoa[i] || []).map(x => String(x == null ? '' : x).trim());
+    if (wajib.every(w => r.includes(w))) { const idx = {}; r.forEach((n, j) => { if (n && idx[n] === undefined) idx[n] = j; }); return { baris: i, idx, nama: r }; }
+  }
+  return null;
+}
+// komponen % : rate = median(-biaya/dasar) bila dikenakan di >= 50% pesanan, selain itu rata-rata tertimbang
+function p95Komponen_(orders, kolom, dasarFn, opsi) {
+  opsi = opsi || {};
+  const rasio = [], nilai = []; let total = 0, totalDasar = 0, n = 0;
+  orders.forEach(o => {
+    const d = dasarFn(o); if (!(d > 0)) return;
+    const b = -kolom.reduce((t, k) => t + p95Num(o[k]), 0);
+    totalDasar += d; total += b;
+    if (b > 0.5) { n++; rasio.push(b / d * 100); nilai.push(Math.round(b)); }
+  });
+  const nDasar = orders.filter(o => dasarFn(o) > 0).length || 1, cakupan = n / nDasar;
+  const rata = totalDasar > 0 ? total / totalDasar * 100 : 0;
+  if (opsi.tipe === 'Rp') {
+    const v = opsi.cara === 'rata' ? (n ? nilai.reduce((a, b) => a + b, 0) / n : 0) : p95Modus(nilai);
+    return { tipe: 'Rp', nilai: Math.ceil(v / 10) * 10, cakupan, total, n, rata, rentang: nilai.length ? [Math.min(...nilai), Math.max(...nilai)] : null };
+  }
+  const pakaiMedian = opsi.cara === 'median' || (opsi.cara !== 'rata' && cakupan >= 0.5);
+  return { tipe: '%', nilai: pakaiMedian ? p95Median(rasio) : rata, cara: pakaiMedian ? 'median' : 'rata', cakupan, total, n, rata };
+}
+function p95BulatPct_(x) { return Math.round(x * 100) / 100; }
+// Laporan TikTok/Shopee kadang menulis ukuran sheet (!ref) lebih kecil dari isinya -> baris & kolom terpotong. Hitung ulang dari sel.
+function p95Aoa_(ws) {
+  try {
+    let r = 0, c = 0;
+    Object.keys(ws).forEach(k => { if (k[0] === '!') return; const a = XLSX.utils.decode_cell(k); if (a.r > r) r = a.r; if (a.c > c) c = a.c; });
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r, c } });
+  } catch (e) { }
+  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+}
+
+function p95ParseShopee_(wb) {
+  const nm = wb.SheetNames.find(n => /^penghasilan$|income/i.test(n)) || wb.SheetNames.find(n => /penghasilan/i.test(n));
+  if (!nm) return null;
+  const aoa = p95Aoa_(wb.Sheets[nm]);
+  const H = p95Header_(aoa, ['No. Pesanan', 'Harga Produk']); if (!H) return null;
+  const kolom = H.nama.filter(Boolean);
+  let rows = aoa.slice(H.baris + 1).map(r => { const o = {}; Object.keys(H.idx).forEach(k => { o[k] = r[H.idx[k]]; }); return o; }).filter(o => o['No. Pesanan']);
+  if (H.idx['Lihat berdasarkan'] !== undefined) rows = rows.filter(o => /order/i.test(String(o['Lihat berdasarkan'] || '')));
+  if (!rows.length) return null;
+  const dasar = o => p95Num(o['Harga Produk']) + Math.min(0, p95Num(o['Jumlah Pengembalian Dana ke Pembeli']));
+  const ada = k => kolom.includes(k), grupKolom = re => kolom.filter(k => re.test(k));
+  const baris = [], info = [];
+  const tambah = (nama, kol, opsi, catatan) => { kol = kol.filter(ada); if (!kol.length) return; const x = p95Komponen_(rows, kol, dasar, opsi); if (!(x.n > 0)) return; baris.push(Object.assign({ nama, catatan: catatan || '' }, x)); };
+  tambah('Biaya Administrasi', ['Biaya Administrasi'], { cara: 'median' }, 'Tarif kategori');
+  tambah('Biaya Proses Pesanan', ['Biaya Proses Pesanan'], { tipe: 'Rp' }, 'Tetap per pesanan');
+  // Gratis Ongkir XTRA & Promo XTRA: beberapa kolom per kategori / program -> ambil tarif TERTINGGI yang dipakai >= 5% pesanan (aman)
+  [['Gratis Ongkir XTRA', /^Biaya Gratis Ongkir XTRA/i], ['Promo XTRA', /^Biaya Layanan Promo XTRA/i]].forEach(([nama, re]) => {
+    const kol = grupKolom(re); if (!kol.length) return;
+    const per = kol.map(k => Object.assign({ kolom: k }, p95Komponen_(rows, [k], dasar, { cara: 'median' }))).filter(x => x.n > 0);
+    if (!per.length) return;
+    const nDasar = rows.filter(o => dasar(o) > 0).length || 1, sah = per.filter(x => x.n / nDasar >= 0.05), pilih = (sah.length ? sah : per).sort((a, b) => b.nilai - a.nilai)[0];
+    const gab = p95Komponen_(rows, kol, dasar, { cara: 'rata' });
+    baris.push({ nama, tipe: '%', nilai: pilih.nilai, cara: 'tertinggi', cakupan: gab.cakupan, total: gab.total, n: gab.n, rata: gab.rata,
+      catatan: per.map(x => x.kolom.replace(/^Biaya (Gratis Ongkir XTRA|Layanan Promo XTRA)\s*-?\s*/i, '').replace(/^Ukuran Biasa\s*/i, '') + ' ' + p95Pct(x.nilai) + ' (' + x.n + ')').join(' · ') });
+  });
+  tambah('Biaya Transaksi', ['Biaya Transaksi']);
+  tambah('Biaya Kampanye', ['Biaya Kampanye'], { cara: 'rata' });
+  tambah('Komisi Afiliasi (AMS)', ['Biaya Komisi AMS'], { cara: 'rata' }, 'Rata-rata semua pesanan (hanya pesanan via afiliasi yang kena)');
+  tambah('Premi Asuransi', ['Premi'], { cara: 'rata' });
+  tambah('FBS Fee', ['FBS Fee'], { cara: 'rata' });
+  tambah('PPh 22', ['PPh 22'], { cara: 'median' }, 'Uang muka pajak - bisa dikreditkan');
+  // ongkir & retur yang ditanggung toko
+  const kolOngkir = ['Ongkir Dibayar Pembeli', 'Ongkos Kirim yang Dibayarkan ke Jasa Kirim', 'Potongan Ongkos Kirim dari Jasa Kirim', 'Gratis Ongkir dari Shopee', 'Ongkos Kirim Pengembalian Barang', 'Return to Seller Fee', 'Pengembalian Biaya Kirim'].filter(ada);
+  let ongkirToko = 0, nOngkir = 0, totDasar = 0;
+  rows.forEach(o => { totDasar += Math.max(0, dasar(o)); const s = kolOngkir.reduce((t, k) => t + p95Num(o[k]), 0); if (s < -0.5) { ongkirToko += -s; nOngkir++; } });
+  if (ongkirToko > 0 && totDasar > 0) baris.push({ nama: 'Cadangan ongkir & retur', tipe: '%', nilai: ongkirToko / totDasar * 100, cara: 'rata', cakupan: nOngkir / rows.length, total: ongkirToko, n: nOngkir, catatan: 'Selisih ongkir & ongkir retur yang ditanggung toko' });
+  const harga = rows.reduce((t, o) => t + p95Num(o['Harga Produk']), 0), bersih = rows.reduce((t, o) => t + p95Num(o['Total Penghasilan']), 0);
+  const refund = -rows.reduce((t, o) => t + p95Num(o['Jumlah Pengembalian Dana ke Pembeli']), 0);
+  const vPenjual = -['Voucher disponsor oleh Penjual', 'Cashback Koin disponsori Penjual', 'Voucher co-fund disponsor oleh Penjual', 'Cashback Koin Co-fund disponsori Penjual'].filter(ada).reduce((t, k) => t + rows.reduce((a, o) => a + p95Num(o[k]), 0), 0);
+  info.push(['Pesanan', rows.length.toLocaleString('id-ID')], ['Harga produk (omzet)', p95Rp(harga)], ['Uang bersih diterima', p95Rp(bersih) + ' · potongan efektif ' + p95Pct(harga > 0 ? (1 - bersih / harga) * 100 : 0, 1)]);
+  if (refund > 0) info.push(['Dana dikembalikan ke pembeli', p95Rp(refund) + ' (' + p95Pct(refund / (harga || 1) * 100, 1) + ')']);
+  if (vPenjual > 0) info.push(['Voucher / cashback dari toko', p95Rp(vPenjual) + ' (' + p95Pct(vPenjual / (harga || 1) * 100, 1) + ')']);
+  // potongan efektif per rentang harga (biaya tetap paling berat di barang murah)
+  const band = [[0, 25000, '≤ 25 rb'], [25000, 50000, '25–50 rb'], [50000, 100000, '50–100 rb'], [100000, 200000, '100–200 rb'], [200000, 500000, '200–500 rb'], [500000, 1e12, '> 500 rb']].map(b => {
+    const r = rows.filter(o => { const h = p95Num(o['Harga Produk']); return h > b[0] && h <= b[1]; });
+    const h = r.reduce((t, o) => t + p95Num(o['Harga Produk']), 0), n = r.reduce((t, o) => t + p95Num(o['Total Penghasilan']), 0);
+    return { label: b[2], pesanan: r.length, potongan: h > 0 ? (1 - n / h) * 100 : null };
+  }).filter(b => b.pesanan);
+  const periode = (() => { try { const s = wb.Sheets[wb.SheetNames.find(n => /summary|ringkasan/i.test(n))]; if (!s) return ''; const a = XLSX.utils.sheet_to_json(s, { header: 1, defval: null }); const d = a.find(r => r && /^dari$/i.test(String(r[0]))), k = a.find(r => r && /^ke$/i.test(String(r[0]))); return d && k ? d[1] + ' – ' + k[1] : ''; } catch (e) { return ''; } })();
+  return { grup: 'shopee', judul: 'Shopee', periode, baris, info, band, pesanan: rows.length };
+}
+
+function p95ParseTiktok_(wb) {
+  const nm = wb.SheetNames.find(n => /detail pesanan|order details/i.test(n)); if (!nm) return null;
+  const aoa = p95Aoa_(wb.Sheets[nm]);
+  const H = p95Header_(aoa, ['ID Pesanan/Penyesuaian', 'Jenis transaksi']); if (!H) return null;
+  const kolom = H.nama.filter(Boolean), ada = k => kolom.includes(k);
+  const semua = aoa.slice(H.baris + 1).map(r => { const o = {}; Object.keys(H.idx).forEach(k => { o[k] = r[H.idx[k]]; }); return o; }).filter(o => o['ID Pesanan/Penyesuaian']);
+  const rows = semua.filter(o => /^pesanan$|^order$/i.test(String(o['Jenis transaksi'] || '').trim()));
+  if (!rows.length) return null;
+  const dasar = o => p95Num(o['Subtotal setelah diskon penjual']) + Math.min(0, p95Num(o['Total pengembalian dana setelah diskon']));
+  const baris = [], info = [];
+  const tambah = (nama, kol, opsi, catatan) => { kol = kol.filter(ada); if (!kol.length) return; const x = p95Komponen_(rows, kol, dasar, opsi); if (!(x.n > 0)) return; baris.push(Object.assign({ nama, catatan: catatan || '' }, x)); };
+  tambah('Komisi Platform', ['Biaya komisi platform'], { cara: 'median' }, 'Dihitung dari harga setelah diskon toko');
+  tambah('Komisi Dinamis', ['Komisi dinamis'], { cara: 'median' });
+  tambah('Biaya layanan Growth Xtra', ['Biaya layanan Program Growth Xtra'], { cara: 'median' });
+  tambah('Biaya layanan Bebas Ongkir', ['Biaya layanan Program Bebas Ongkir']);
+  tambah('Growth Xtra Super', ['Biaya layanan Growth Xtra Program Super']);
+  tambah('Biaya layanan Khusus LIVE', ['Biaya layanan Khusus LIVE'], { cara: 'rata' });
+  tambah('Biaya layanan Mall', ['Biaya layanan Mall']);
+  tambah('Biaya Pembayaran', ['Biaya Pembayaran']);
+  tambah('Biaya Program EAMS', ['Biaya layanan Program EAMS'], { cara: 'rata' });
+  tambah('Flash Sale / Crazy Deal', ['Biaya layanan Brands Crazy Deal/Flash Sale'], { cara: 'rata' });
+  tambah('Biaya PayLater', ['Biaya program PayLater'], { cara: 'rata' });
+  tambah('Biaya layanan khusus platform', ['Biaya layanan khusus platform'], { cara: 'rata' });
+  tambah('Komisi Afiliasi', ['Komisi Afiliasi', 'Komisi mitra afiliasi', 'Komisi Iklan Toko afiliasi', 'Komisi iklan toko Mitra Afiliasi'], { cara: 'rata' }, 'Rata-rata semua pesanan; tidak dikembalikan saat refund');
+  tambah('PPh 22', ['PPh Pasal 22 dipungut'], { cara: 'median' }, 'Uang muka pajak - bisa dikreditkan');
+  tambah('Biaya Pemrosesan Pesanan', ['Biaya pemrosesan pesanan'], { tipe: 'Rp' }, 'Tetap per pesanan');
+  tambah('Biaya Layanan Logistik', ['Biaya layanan logistik'], { tipe: 'Rp', cara: 'rata' }, 'Rata-rata per paket - tergantung berat & rute');
+  // ongkir tambahan (di luar biaya layanan logistik) + kerugian pesanan refund (saldo minus)
+  let ongkirLebih = 0, nO = 0, rugiRefund = 0, nR = 0, totDasar = 0;
+  rows.forEach(o => {
+    totDasar += Math.max(0, dasar(o));
+    const lebih = p95Num(o['Ongkir']) - p95Num(o['Biaya layanan logistik']); if (lebih < -0.5) { ongkirLebih += -lebih; nO++; }
+    const settle = p95Num(o['Jumlah penyelesaian pembayaran']); if (settle < -0.5) { rugiRefund += -settle; nR++; }
+  });
+  if ((ongkirLebih + rugiRefund) > 0 && totDasar > 0) baris.push({ nama: 'Cadangan ongkir & retur', tipe: '%', nilai: (ongkirLebih + rugiRefund) / totDasar * 100, cara: 'rata', cakupan: (nO + nR) / rows.length, total: ongkirLebih + rugiRefund, n: nO + nR, catatan: 'Ongkir retur / beda berat + saldo minus pesanan refund' });
+  const sebelum = rows.reduce((t, o) => t + p95Num(o['Subtotal sebelum diskon']), 0), diskon = -rows.reduce((t, o) => t + p95Num(o['Diskon penjual']), 0);
+  const setelah = rows.reduce((t, o) => t + p95Num(o['Subtotal setelah diskon penjual']), 0), refund = -rows.reduce((t, o) => t + p95Num(o['Total pengembalian dana setelah diskon']), 0);
+  const settle = semua.reduce((t, o) => t + p95Num(o['Jumlah penyelesaian pembayaran']), 0), gmv = -rows.reduce((t, o) => t + p95Num(o['Biaya iklan GMV Max']), 0);
+  const nTok = rows.filter(o => /tokopedia/i.test(String(o['Sumber pesanan'] || ''))).length;
+  info.push(['Pesanan', rows.length.toLocaleString('id-ID') + (nTok ? ' (Tokopedia ' + nTok + ')' : '')], ['Harga sebelum diskon toko', p95Rp(sebelum)],
+    ['Diskon dari toko', p95Rp(diskon) + ' (' + p95Pct(diskon / (sebelum || 1) * 100, 1) + ')'], ['Dana dikembalikan (refund)', p95Rp(refund) + ' (' + p95Pct(refund / (setelah || 1) * 100, 1) + ')'],
+    ['Uang bersih diterima', p95Rp(settle) + ' · ' + p95Pct(setelah - refund > 0 ? settle / (setelah - refund) * 100 : 0, 1) + ' dari penjualan bersih']);
+  if (gmv > 0) info.push(['Iklan GMV Max', p95Rp(gmv) + ' (' + p95Pct(gmv / (setelah - refund || 1) * 100, 1) + ' omzet) - isi di baris Iklan bila mau dimasukkan']);
+  const adj = semua.filter(o => !/^pesanan$|^order$/i.test(String(o['Jenis transaksi'] || '').trim())).reduce((t, o) => t + p95Num(o['Jumlah penyelesaian pembayaran']), 0);
+  if (adj) info.push(['Penyesuaian / kompensasi', p95Rp(adj)]);
+  let periode = '';
+  try { const s = wb.Sheets[wb.SheetNames.find(n => /^laporan$|report/i.test(n))]; const a = s ? XLSX.utils.sheet_to_json(s, { header: 1, defval: null }) : []; const p = a.find(r => r && /periode/i.test(String(r[0]))); if (p) periode = String(p[1] || ''); } catch (e) { }
+  return { grup: 'tiktok', judul: 'TikTok Shop & Tokopedia', periode, baris, info, band: [], pesanan: rows.length };
+}
+
+async function p95BacaLaporan_(files) {
+  await impMuatXlsx();
+  const hasil = {}, gagal = [];
+  for (const f of files) {
+    try {
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      const h = p95ParseShopee_(wb) || p95ParseTiktok_(wb);
+      if (!h) { gagal.push(f.name + ': bukan Laporan Penghasilan Shopee / TikTok Shop'); continue; }
+      hasil[h.grup] = h; h.file = f.name;
+    } catch (e) { gagal.push(f.name + ': ' + (e.message || e)); }
+  }
+  return { hasil, gagal };
+}
+// biaya saat ini di kalkulator: total % & total Rp
+function p95BiayaSekarang_(g) {
+  try {
+    const rows = (hargaDraftParam()[g] || {}).biaya || [];
+    let pct = 0, rp = 0;
+    rows.forEach(b => { const n = Number(String(b.nominal).replace(',', '.')) || 0; if (b.tipe === 'Rp') rp += n; else pct += n; });
+    return { pct, rp, rows };
+  } catch (e) { return { pct: 0, rp: 0, rows: [] }; }
+}
+function p95HargaAman_(hpp, pct, rp) { return pct >= 100 ? 0 : Math.ceil((hpp + rp) / (1 - pct / 100)); }
+function p95KartuKal_(h) {
+  const skr = p95BiayaSekarang_(h.grup);
+  const pctBaru = h.baris.filter(b => b.tipe === '%').reduce((t, b) => t + p95BulatPct_(b.nilai), 0), rpBaru = h.baris.filter(b => b.tipe === 'Rp').reduce((t, b) => t + b.nilai, 0);
+  const tr = h.baris.map(b => `<tr><td>${p95E(b.nama)}${b.catatan ? `<small>${p95E(b.catatan)}</small>` : ''}</td>
+    <td class="n"><b>${b.tipe === 'Rp' ? p95Rp(b.nilai) : p95Pct(p95BulatPct_(b.nilai))}</b>${b.tipe === 'Rp' && b.rentang && b.rentang[0] !== b.rentang[1] ? `<small>${p95Rp(b.rentang[0])}–${p95Rp(b.rentang[1])}</small>` : ''}</td>
+    <td class="n">${Math.round((b.cakupan || 0) * 100)}%</td><td class="n">${p95Rp(b.total)}</td></tr>`).join('');
+  const contoh = [20000, 50000, 100000].map(hpp => {
+    const lama = p95HargaAman_(hpp, skr.pct, skr.rp), baru = p95HargaAman_(hpp, pctBaru, rpBaru), sel = baru - lama;
+    return `<tr><td>HPP ${p95Rp(hpp)}</td><td class="n">${p95Rp(lama)}</td><td class="n"><b>${p95Rp(baru)}</b></td><td class="n ${sel > 0 ? 'naik' : sel < 0 ? 'turun' : ''}">${sel > 0 ? '+' : ''}${p95Rp(sel).replace('Rp -', '-Rp ')}</td></tr>`;
+  }).join('');
+  const band = h.band.length ? `<table><thead><tr><th>Harga barang</th><th class="n">Pesanan</th><th class="n">Potongan efektif</th></tr></thead><tbody>${h.band.map(b => `<tr><td>${p95E(b.label)}</td><td class="n">${b.pesanan}</td><td class="n">${b.potongan == null ? '-' : p95Pct(b.potongan, 1)}</td></tr>`).join('')}</tbody></table>` : '';
+  const pr = [];
+  if (pctBaru > skr.pct + 0.5) pr.push(`Biaya persen asli <b>${p95Pct(pctBaru)}</b> lebih besar dari kalkulator sekarang <b>${p95Pct(skr.pct)}</b> - batas harga aman lama terlalu rendah.`);
+  if (rpBaru > skr.rp + 100) pr.push(`Biaya tetap per pesanan <b>${p95Rp(rpBaru)}</b> belum (lengkap) dihitung di kalkulator (sekarang ${p95Rp(skr.rp)}) - barang murah paling terdampak.`);
+  if (skr.rows.some(b => b.tipe === '%' && Number(String(b.maks || '').replace(/\D/g, '')) > 0)) pr.push('Kalkulator memakai <b>batas maksimal</b> potongan, padahal di laporan asli tidak ada batas yang terlihat - batas maks dihapus.');
+  return `<div class="p95-kal-kartu"><h4>${omniLogoPlatformHtml ? (omniLogoPlatformHtml(h.grup === 'shopee' ? 'Shopee' : 'TikTok Shop', 18) || '') : ''} ${p95E(h.judul)}<small>${p95E(h.periode || h.file || '')}</small></h4>
+    <table><tbody>${h.info.map(x => `<tr class="info"><td>${p95E(x[0])}</td><td class="n" colspan="3">${p95E(x[1])}</td></tr>`).join('')}</tbody></table>
+    <table><thead><tr><th>Komponen biaya (usulan)</th><th class="n">Tarif</th><th class="n" title="Persen pesanan yang kena biaya ini">Kena</th><th class="n">Total periode</th></tr></thead>
+      <tbody>${tr}<tr class="tot"><td>Total</td><td class="n">${p95Pct(pctBaru)} + ${p95Rp(rpBaru)}</td><td></td><td></td></tr></tbody></table>
+    <table><thead><tr><th>Titik impas (tanpa margin)</th><th class="n">Kalkulator sekarang</th><th class="n">Usulan</th><th class="n">Selisih</th></tr></thead><tbody>${contoh}</tbody></table>
+    ${band}
+    ${pr.length ? `<ul class="p95-kal-peringatan">${pr.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}</div>`;
+}
+async function p95KalibrasiPilih() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.xlsx,.xls';
+  inp.onchange = async () => {
+    const files = Array.from(inp.files || []); if (!files.length) return;
+    const btn = el('p95-btn-kal'), teks = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Membaca laporan…'; }
+    try {
+      const r = await p95BacaLaporan_(files);
+      P95.kal = r.hasil;
+      const grup = Object.keys(r.hasil);
+      if (!grup.length) throw new Error(r.gagal.join(' · ') || 'Tidak ada laporan yang bisa dibaca');
+      const html = `<div class="p95-kal">
+        <p class="p95-kal-info">Dihitung dari <b>potongan asli</b> per pesanan di laporan (tidak dikirim ke server). Tarif = yang paling sering dikenakan; biaya yang hanya kena sebagian pesanan (afiliasi, asuransi, ongkir retur) memakai rata-rata semua pesanan. Diterapkan = mengganti baris <b>Biaya Platform</b> di kalkulator; tersimpan setelah Anda menekan <b>Simpan Parameter</b>.</p>
+        <div class="p95-kal-grid">${grup.map(g => p95KartuKal_(r.hasil[g])).join('')}</div>
+        ${r.gagal.length ? `<div class="p95-kal-peringatan">${r.gagal.map(p95E).join('<br>')}</div>` : ''}
+        <div class="p95-kal-aksi"><button type="button" class="web-btn-secondary" onclick="omxTutupModal()">Tutup</button><button type="button" class="web-btn-primary" onclick="p95KalibrasiTerapkan()">Terapkan ke kalkulator</button></div></div>`;
+      omxModal('Biaya asli dari Laporan Penghasilan', html, { lebar: true });
+    } catch (e) { omniToast('Laporan gagal dibaca: ' + (e.message || e), 'error'); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = teks; } }
+  };
+  inp.click();
+}
+function p95KalibrasiTerapkan() {
+  const h = P95.kal || {}, draft = hargaDraftParam(), g = Object.keys(h);
+  g.forEach(k => {
+    if (!draft[k]) return;
+    draft[k].biaya = h[k].baris.filter(b => b.nilai > 0).map(b => b.tipe === 'Rp'
+      ? { nama: b.nama.slice(0, 60), tipe: 'Rp', nominal: String(Math.round(b.nilai)), maks: '' }
+      : { nama: b.nama.slice(0, 60), tipe: '%', nominal: hargaTeksPersen(p95BulatPct_(b.nilai)), maks: '' });
+  });
+  if (draft.tiktok && draft.tokopedia && h.tiktok) draft.tokopedia.biaya = JSON.parse(JSON.stringify(draft.tiktok.biaya));
+  omxTutupModal();
+  hargaRenderParamCards(); hargaParamSetelahBerubah();
+  omniToast('Biaya asli diterapkan ke kalkulator - periksa lalu tekan Simpan Parameter', 'sukses');
+  const s = el('harga-param-btn-simpan'); if (s) { s.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+}
+(function () {
+  const ref = el('p88-btn-deteksi'); if (!ref || el('p95-btn-kal')) return;
+  ref.insertAdjacentHTML('beforebegin', '<button class="web-btn-secondary" id="p95-btn-kal" type="button" onclick="p95KalibrasiPilih()" title="Upload Laporan Penghasilan Shopee (Income sudah dilepas) dan/atau TikTok Shop (income .xlsx) - biaya asli per pesanan dihitung jadi tarif kalkulator">📊 Kalibrasi dari Laporan Penghasilan</button>');
+})();
+
+/* =============== 2) DN-811: Harga Live - SKU belum terhubung tetap bisa dicek & dikirim (pakai SKU Gudang) =============== */
+const p95LiveSelAsli_ = hargaLiveSelHtml;
+hargaLiveSelHtml = function (sku) {
+  const h = p95LiveSelAsli_.apply(this, arguments);
+  if (!/harga-live-kosong/.test(h) || !sku) return h;
+  const simpan = hargaLiveMap[sku];
+  try {
+    hargaLiveMap[sku] = [{ platform: 'Shopee', kodeMp: sku, _kosong: true }, { platform: 'TikTok Shop', kodeMp: sku, _kosong: true }];
+    let x = p95LiveSelAsli_.call(this, sku);
+    x = x.replace(/>Belum dibaca</g, '>Klik untuk cek<');
+    return x + '<div class="p95-live-hint" title="Bila SKU di marketplace berbeda dengan SKU Gudang, hubungkan lewat Katalog > Produk Master > SKU Mapping">Memakai SKU Gudang · belum ada SKU marketplace terhubung</div>';
+  } catch (e) { return h; }
+  finally { if (simpan === undefined) delete hargaLiveMap[sku]; else hargaLiveMap[sku] = simpan; }
+};
+try { document.querySelectorAll('#katalog-harga-body td.harga-col-live[data-live-sku]').forEach(td => { if (td.querySelector('.harga-live-kosong')) td.innerHTML = hargaLiveSelHtml(td.dataset.liveSku); }); } catch (e) { }
+
+/* =============== 3) DN-285: HPP Rp 0 per channel - tanda + lengkapi massal =============== */
+const p95UrAsli_ = p75RenderUntungRugi_;
+p75RenderUntungRugi_ = function () {
+  const r = p95UrAsli_.apply(this, arguments);
+  try {
+    const mk = P75.mk[p75KunciPeriode_()], w = el('p75-ur'); if (!mk || !w || !Array.isArray(mk.daftar)) return r;
+    const peta = {}; mk.daftar.forEach(x => { peta[x.kanal] = x; });
+    w.querySelectorAll('tbody tr').forEach(tr => {
+      const td = tr.children; if (td.length < 4) return;
+      const nama = td[0].textContent.replace(/\u00a0/g, ' ').trim(), x = peta[nama];
+      const omzet = /[1-9]/.test(td[2].textContent), hpp0 = !/[1-9]/.test(td[3].textContent);
+      if (omzet && hpp0 && !td[3].querySelector('.p95-hpp0')) td[3].insertAdjacentHTML('beforeend', `<button type="button" class="p95-hpp0" onclick="p95LengkapiHpp()" title="Omzet ada tapi HPP Rp 0: SKU terjual belum punya Harga Modal / belum terhubung ke Produk Master. Klik untuk melengkapi.">⚠ lengkapi</button>`);
+      if (x && x.sumberHpp === 'pesanan' && !td[3].querySelector('.p95-hpp-psn')) td[3].insertAdjacentHTML('beforeend', `<span class="p95-hpp-psn" title="HPP dihitung dari rincian pesanan periode ini (qty × Harga Modal) karena lebih lengkap daripada catatan stok keluar (${fin2Rp(x.hppLedger || 0)}).${x.qtyTanpaHpp ? ' Masih ' + x.qtyTanpaHpp + ' pcs tanpa Harga Modal.' : ''}">ⓘ</span>`);
+      if (x && x.qtyTanpaHpp > 0 && !hpp0 && !td[3].querySelector('.p95-hpp0')) td[3].insertAdjacentHTML('beforeend', `<button type="button" class="p95-hpp0" onclick="p95LengkapiHpp()" title="${x.qtyTanpaHpp} pcs terjual di channel ini belum punya Harga Modal - HPP masih kurang.">⚠ ${x.qtyTanpaHpp} pcs</button>`);
+    });
+  } catch (e) { console.warn('P95 HPP', e); }
+  return r;
+};
+async function p95LengkapiHpp() {
+  try { if (!P78.audit[p78AuditKunci_()]) { omniToast('Memeriksa HPP pesanan periode ini…'); await p78AuditMuat_(true); } } catch (e) { }
+  if (!P78.audit[p78AuditKunci_()]) { omniToast('Pemeriksaan HPP gagal dimuat - coba lagi', 'error'); return; }
+  p78AuditBuka();
+}
+const p95AuditBukaAsli_ = p78AuditBuka;
+p78AuditBuka = function () {
+  const r = p95AuditBukaAsli_.apply(this, arguments);
+  try {
+    const w = document.querySelector('#omx-modal .p78-ah'); if (!w || !w.querySelector('tr[data-p78sku]') || w.querySelector('.p95-ah-aksi')) return r;
+    w.insertAdjacentHTML('beforeend', '<div class="p95-ah-aksi"><span class="status-text" id="p95-ah-st"></span><button type="button" class="web-btn-primary" style="margin:0;" onclick="p95SimpanHppSemua()">Simpan semua yang diisi</button></div>');
+  } catch (e) { }
+  return r;
+};
+async function p95SimpanHppSemua() {
+  const baris = Array.from(document.querySelectorAll('#omx-modal tr[data-p78sku]')).map(tr => ({ tr, sku: tr.dataset.p78sku, inp: tr.querySelector('input') }))
+    .map(x => Object.assign(x, { hpp: x.inp ? Math.round(Number(String(x.inp.value).replace(/[^\d]/g, '')) || 0) : 0 })).filter(x => x.hpp > 0);
+  const st = el('p95-ah-st');
+  if (!baris.length) { if (st) { st.className = 'status-text err'; st.textContent = 'Isi harga modal dulu'; } return; }
+  baris.forEach(x => x.tr.querySelectorAll('input,button').forEach(b => b.disabled = true));
+  if (st) { st.className = 'status-text'; st.textContent = 'Menyimpan ' + baris.length + ' SKU…'; }
+  try {
+    const d = await postJsonTulis({ aksi: 'p95_hpp_massal', items: baris.map(x => ({ sku: x.sku, hpp: x.hpp })), email: currentUserEmail() }, 120000);
+    if (!d || !d.success) throw new Error((d && d.error) || 'Gagal');
+    const gagal = {}; (d.gagal || []).forEach(g => { gagal[g.sku] = g.error; });
+    baris.forEach(x => {
+      if (gagal[x.sku]) { x.tr.querySelectorAll('input,button').forEach(b => b.disabled = false); x.tr.lastElementChild.insertAdjacentHTML('beforeend', `<div class="status-text err" style="text-align:left;">✗ ${p95E(gagal[x.sku])}</div>`); }
+      else x.tr.lastElementChild.innerHTML = `<span class="p78-ok">✓ ${fin2Rp(x.hpp)}</span>`;
+    });
+    const a = P78.audit[p78AuditKunci_()]; if (a) a.tanpaHpp = a.tanpaHpp.filter(x => !(d.tersimpan || []).includes(x.sku));
+    try { fin2.lapKunci = ''; katalogHargaCache = []; delete P75.mk[p75KunciPeriode_()]; delete P75.mkJalan[p75KunciPeriode_()]; } catch (e) { }
+    if (st) { st.className = 'status-text ' + ((d.gagal || []).length ? 'err' : 'ok'); st.textContent = `✓ ${(d.tersimpan || []).length} tersimpan${(d.gagal || []).length ? ' · ' + d.gagal.length + ' gagal' : ''}`; }
+    try { p78AuditRender_(); p75MuatMarginKanal_(); } catch (e) { }
+    if (typeof playBeep === 'function') playBeep();
+  } catch (e) {
+    baris.forEach(x => x.tr.querySelectorAll('input,button').forEach(b => b.disabled = false));
+    if (st) { st.className = 'status-text err'; st.textContent = '✗ ' + String(e.message || e).replace(/^Error:\s*/, ''); }
+  }
+}
+
+/* =============== 4) DN-453: pencarian longgar (nama, PIC, alamat, nomor, tautan - lengkap maupun sepotong) =============== */
+function p95Norm_(s) { return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9@.]+/g, ' ').trim(); }
+function p95Teks_(o, out, d) {
+  out = out || []; d = d || 0; if (o == null || d > 5) return out;
+  if (typeof o === 'string' || typeof o === 'number') { out.push(String(o)); return out; }
+  if (Array.isArray(o)) { o.forEach(x => p95Teks_(x, out, d + 1)); return out; }
+  if (typeof o === 'object') Object.keys(o).forEach(k => { if (k[0] !== '_' && k !== 'row') p95Teks_(o[k], out, d + 1); });
+  return out;
+}
+function p95Lev1_(a, b) { // jarak edit <= 1 ?
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, beda = 0;
+  while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++beda > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } }
+  return beda + (a.length - i) + (b.length - j) <= 1;
+}
+function p95Cocok_(obj, kata) {
+  const q = p95Norm_(kata); if (!q) return true;
+  const teks = p95Teks_(obj), hay = p95Norm_(teks.join(' ')), angka = teks.map(t => String(t).replace(/\D/g, '')).filter(x => x.length >= 4).map(x => x.replace(/^62/, '0')).join(' ');
+  const kataHay = hay.split(' ');
+  return q.split(' ').every(t => {
+    if (hay.includes(t)) return true;
+    if (/^\d{3,}$/.test(t)) return angka.includes(t.replace(/^62/, '0')) || angka.includes(t);
+    if (t.length >= 4) return kataHay.some(w => p95Lev1_(w.slice(0, t.length + 1), t) || p95Lev1_(w.slice(0, t.length), t));
+    return false;
+  });
+}
+try { const c = el('bel-kontak-cari'); if (c) c.placeholder = 'Cari supplier, PIC, alamat, nomor, tautan…'; } catch (e) { }
+
+/* =============== 5) DN-713: profil supplier dinamis (usaha & personil) - tampil hanya yang diisi =============== */
+const P95_JENIS = [['WhatsApp', '💬'], ['Telepon', '☎️'], ['Email', '✉️'], ['Website', '🌐'], ['Instagram', '📸'], ['TikTok', '🎵'], ['Facebook', '📘'], ['LinkedIn', '💼'], ['YouTube', '▶️'],
+  ['Toko Shopee', '🛍️'], ['Toko Tokopedia', '🟢'], ['Toko TikTok Shop', '🎵'], ['Google Maps', '📍'], ['Alamat', '🏠'], ['NPWP', '🧾'], ['Rekening', '🏦'], ['Lainnya', '🔗']];
+function p95Ikon_(j) { const x = P95_JENIS.find(a => a[0] === j); return x ? x[1] : '🔗'; }
+function p95TebakJenis_(v) {
+  const s = String(v || '').toLowerCase();
+  if (/instagram\.com|^@/.test(s)) return 'Instagram'; if (/tiktok\.com\/@/.test(s)) return 'TikTok'; if (/shopee\./.test(s)) return 'Toko Shopee'; if (/tokopedia\./.test(s)) return 'Toko Tokopedia';
+  if (/linkedin\./.test(s)) return 'LinkedIn'; if (/facebook\.|fb\.com/.test(s)) return 'Facebook'; if (/youtube\.|youtu\.be/.test(s)) return 'YouTube'; if (/maps\.google|goo\.gl\/maps|maps\.app/.test(s)) return 'Google Maps';
+  if (/@.+\./.test(s)) return 'Email'; if (/^(\+?62|0)8[\d\s-]{6,}$/.test(s)) return 'WhatsApp'; if (/^(\+?62|0)[1-7][\d\s()-]{5,}$/.test(s)) return 'Telepon'; if (/^https?:\/\/|^www\.|\.[a-z]{2,}(\/|$)/.test(s)) return 'Website';
+  return '';
+}
+function p95Href_(t) {
+  const v = String(t.nilai || '').trim(); if (!v) return '';
+  if (t.jenis === 'WhatsApp') return p40WaLink_(v);
+  if (t.jenis === 'Telepon') return 'tel:' + v.replace(/[^\d+]/g, '');
+  if (t.jenis === 'Email') return /@/.test(v) ? 'mailto:' + v : '';
+  if (t.jenis === 'Instagram' && /^@?[\w.]+$/.test(v)) return 'https://instagram.com/' + v.replace(/^@/, '');
+  if (t.jenis === 'TikTok' && /^@?[\w.]+$/.test(v)) return 'https://www.tiktok.com/@' + v.replace(/^@/, '');
+  if (t.jenis === 'Google Maps' && !/^https?:/i.test(v)) return 'https://www.google.com/maps/search/' + encodeURIComponent(v);
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^www\.|^[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(v)) return 'https://' + v;
+  return '';
+}
+function p95ChipHtml_(t, pribadi) {
+  const href = p95Href_(t), label = (t.jenis === 'Lainnya' && t.label ? t.label : t.jenis);
+  const isi = `${p95Ikon_(t.jenis)} <span>${p95E(t.nilai)}</span>`, judul = pgrAttr(label + ': ' + t.nilai + (pribadi ? ' (personil)' : ' (usaha)'));
+  return href ? `<a class="p95-chip${pribadi ? ' pribadi' : ''}" href="${pgrAttr(href)}" target="_blank" rel="noopener" title="${judul}">${isi}</a>` : `<span class="p95-chip${pribadi ? ' pribadi' : ''}" title="${judul}">${isi}</span>`;
+}
+function p95ChipsHtml_(list, pribadi) { const l = (list || []).filter(t => t && String(t.nilai || '').trim()); return l.length ? `<div class="p95-chip-wrap">${l.map(t => p95ChipHtml_(t, pribadi)).join('')}</div>` : ''; }
+function p95BersihTu_(list) { return (list || []).map(t => ({ jenis: t.jenis || p95TebakJenis_(t.nilai) || 'Lainnya', label: String(t.label || '').trim().slice(0, 40), nilai: String(t.nilai || '').trim().slice(0, 300) })).filter(t => t.nilai); }
+// editor baris: lingkup 'u' = usaha, 'k|<wadah>|<i>' = personil
+function p95TuDaftar_(lingkup) {
+  if (lingkup === 'u') return P95.tu;
+  const [, w, i] = lingkup.split('|'), k = (p43Kt_(w).daftar || [])[+i]; if (!k) return null;
+  if (!Array.isArray(k.tautan)) k.tautan = []; return k.tautan;
+}
+function p95TuEditorHtml_(lingkup, list) {
+  return list.map((t, j) => `<div class="p95-tu-baris${t.jenis === 'Lainnya' ? ' lain' : ''}">
+      <select class="web-form-input" data-p95tu="${pgrAttr(lingkup)}" data-j="${j}" data-f="jenis" aria-label="Jenis">${P95_JENIS.map(a => `<option ${a[0] === t.jenis ? 'selected' : ''} value="${a[0]}">${a[1]} ${a[0]}</option>`).join('')}</select>
+      ${t.jenis === 'Lainnya' ? `<input class="web-form-input" data-p95tu="${pgrAttr(lingkup)}" data-j="${j}" data-f="label" placeholder="Nama (mis. Shopee Mall 2)" value="${pgrAttr(t.label || '')}">` : ''}
+      <input class="web-form-input" data-p95tu="${pgrAttr(lingkup)}" data-j="${j}" data-f="nilai" placeholder="Link / nomor / alamat / akun" value="${pgrAttr(t.nilai || '')}">
+      <button type="button" class="p95-tu-x" data-p95tu-x="${pgrAttr(lingkup)}" data-j="${j}" title="Hapus" aria-label="Hapus">✕</button></div>`).join('')
+    + `<button type="button" class="p95-tu-tambah" data-p95tu-tambah="${pgrAttr(lingkup)}">＋ ${lingkup === 'u' ? 'Kontak / tautan usaha' : 'Tautan pribadi (IG, LinkedIn, email kantor…)'}</button>`;
+}
+function p95TuRender_(lingkup) {
+  if (lingkup === 'u') { const w = el('p95-tu-isi'); if (w) w.innerHTML = p95TuEditorHtml_('u', P95.tu); return; }
+  const [, w, i] = lingkup.split('|'), kartu = (el(w) ? el(w).querySelectorAll('.p43-kt') : [])[+i]; if (!kartu) return;
+  const box = kartu.querySelector('.p95-kt-tu'); if (box) box.innerHTML = p95TuEditorHtml_(lingkup, p95TuDaftar_(lingkup) || []);
+}
+document.addEventListener('input', e => {
+  const x = e.target.closest && e.target.closest('[data-p95tu]'); if (!x) return;
+  const l = p95TuDaftar_(x.dataset.p95tu), t = l && l[+x.dataset.j]; if (!t) return;
+  t[x.dataset.f] = x.value;
+  if (x.dataset.f === 'nilai' && !t._jenisManual) { const j = p95TebakJenis_(x.value); if (j && j !== t.jenis) { t.jenis = j; const s = x.parentNode.querySelector('select'); if (s) s.value = j; } }
+});
+document.addEventListener('change', e => {
+  const x = e.target.closest && e.target.closest('select[data-p95tu]'); if (!x) return;
+  const l = p95TuDaftar_(x.dataset.p95tu), t = l && l[+x.dataset.j]; if (!t) return;
+  t.jenis = x.value; t._jenisManual = 1; p95TuRender_(x.dataset.p95tu);
+});
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('[data-p95tu-tambah]'), h = e.target.closest && e.target.closest('[data-p95tu-x]');
+  if (a) { const l = p95TuDaftar_(a.dataset.p95tuTambah); if (!l) return; l.push({ jenis: 'Website', label: '', nilai: '' }); p95TuRender_(a.dataset.p95tuTambah); const ins = document.querySelectorAll(`[data-p95tu="${CSS.escape(a.dataset.p95tuTambah)}"][data-f="nilai"]`); if (ins.length) ins[ins.length - 1].focus(); }
+  if (h) { const l = p95TuDaftar_(h.dataset.p95tuX); if (!l) return; l.splice(+h.dataset.j, 1); p95TuRender_(h.dataset.p95tuX); }
+});
+// modal supplier: kontak lengkap (dulu hanya nama + 1 nomor yang terbawa saat Edit) + profil usaha
+const p95BukaSupAsli_ = belBukaModalSupplier;
+belBukaModalSupplier = function (s) {
+  const r = p95BukaSupAsli_.apply(this, arguments);
+  try {
+    const asli = s && s.row ? (belKontakCache.find(x => x.row === s.row) || s) : s;
+    if (asli && Array.isArray(asli.kontakWA) && asli.kontakWA.length) {
+      belSupplierKontakWaAktif = JSON.parse(JSON.stringify(omniBersihUnderscore_(asli.kontakWA)));
+      belRenderSupplierKontakWaList();
+    }
+    P95.tu = JSON.parse(JSON.stringify((asli && asli.tautanUsaha) || []));
+    let box = el('p95-tu');
+    if (!box) {
+      box = document.createElement('div'); box.id = 'p95-tu'; box.className = 'p95-tu';
+      box.innerHTML = '<div class="p95-tu-judul">🏢 Profil usaha <span>website, toko marketplace, IG, telepon kantor, alamat… - hanya yang diisi yang tampil</span></div><div id="p95-tu-isi"></div>';
+      const ref = el('bel-supplier-nama'); if (ref) ref.insertAdjacentElement('afterend', box);
+    }
+    p95TuRender_('u');
+  } catch (e) { console.warn('P95 profil', e); }
+  return r;
+};
+const p95SimpanSupAsli_ = window.belSimpanSupplierModal;
+window.belSimpanSupplierModal = function () {
+  P95.tuKirim = { nama: ((el('bel-supplier-nama') || {}).value || '').trim(), tu: p95BersihTu_(P95.tu) };
+  const r = p95SimpanSupAsli_.apply(this, arguments);
+  try { const s = belKontakCache.find(x => String(x.nama).trim() === P95.tuKirim.nama); if (s) { s.tautanUsaha = P95.tuKirim.tu; belSimpanCacheKontak_(); } } catch (e) { }
+  return r;
+};
+belSimpanSupplierModal = window.belSimpanSupplierModal;
+const p95PostTulisAsli_ = postJsonTulis;
+postJsonTulis = function (body) {
+  try { if (body && body.aksi === 'simpan_supplier' && P95.tuKirim && String(body.nama || '').trim() === P95.tuKirim.nama) arguments[0] = Object.assign({}, body, { tautanUsaha: P95.tuKirim.tu }); } catch (e) { }
+  return p95PostTulisAsli_.apply(this, arguments);
+};
+// personil: tautan pribadi di setiap kartu personil (supplier & cabang)
+const p95RenderKtAsli_ = p43RenderKontak;
+p43RenderKontak = function (wadahId) {
+  const r = p95RenderKtAsli_.apply(this, arguments);
+  try {
+    const w = el(wadahId), d = p43Kt_(wadahId).daftar || [];
+    if (w) w.querySelectorAll('.p43-kt').forEach((k, i) => {
+      if (k.querySelector('.p95-kt-tu')) return;
+      const lingkup = 'k|' + wadahId + '|' + i, box = document.createElement('div'); box.className = 'p95-kt-tu';
+      const aksi = k.querySelector('.p43-kt-aksi'); (aksi ? aksi : k.lastElementChild).insertAdjacentElement('afterend', box);
+      if (d[i] && !Array.isArray(d[i].tautan)) d[i].tautan = [];
+      box.innerHTML = p95TuEditorHtml_(lingkup, (d[i] && d[i].tautan) || []);
+    });
+  } catch (e) { }
+  return r;
+};
+const p95KtBersihAsli_ = p43KtBersih_;
+p43KtBersih_ = function (daftar) {
+  const dasar = (daftar || []).map(k => ({ k, b: p95KtBersihAsli_([Object.assign({}, k, { wa: ((k.wa || []).some(x => String(x).trim()) || (k.email || []).some(x => String(x).trim()) || String(k.namaJabatan || '').trim()) ? k.wa : ['-'] })])[0] }));
+  return dasar.map(({ k, b }) => {
+    if (!b) return null;
+    if (b.wa.length === 1 && b.wa[0] === '-') { b.wa = []; b.noWA = ''; }
+    b.tautan = p95BersihTu_(k.tautan);
+    return (b.wa.length || b.email.length || b.namaJabatan || b.tautan.length) ? b : null;
+  }).filter(Boolean);
+};
+// tampilan daftar: chip tautan pribadi di bawah tiap personil, chip usaha di bawah nama supplier
+const p95RingkasAsli_ = p40KontakRingkasHtml_;
+p40KontakRingkasHtml_ = function (s) {
+  let h = p95RingkasAsli_.apply(this, arguments);
+  try {
+    const L = (s && s.kontakWA) || [], bag = h.split('<div class="p40-kr">');
+    if (L.length && bag.length - 1 === L.length) h = bag[0] + L.map((k, i) => '<div class="p40-kr">' + bag[i + 1].replace(/<\/div>\s*$/, p95ChipsHtml_(k.tautan, true) + '</div>')).join('');
+    else { const tl = []; L.forEach(k => (k.tautan || []).forEach(t => tl.push(t))); h += p95ChipsHtml_(tl, true); }
+  } catch (e) { }
+  return h;
+};
+const p95RenderKontakAsli_ = belRenderKontak;
+belRenderKontak = function () {
+  const r = p95RenderKontakAsli_.apply(this, arguments);
+  try {
+    document.querySelectorAll('#bel-kontak-list button[onclick^="belBukaSupplierIdx("]').forEach(b => {
+      const m = b.getAttribute('onclick').match(/belBukaSupplierIdx\((\d+)\)/), s = m && belKontakCache[+m[1]]; if (!s || !(s.tautanUsaha || []).length) return;
+      const panel = b.closest('.web-panel'), kiri = panel && panel.firstElementChild && panel.firstElementChild.firstElementChild; if (!kiri || kiri.querySelector('.p95-usaha')) return;
+      const nama = kiri.firstElementChild; if (nama) nama.insertAdjacentHTML('afterend', `<div class="p95-usaha">${p95ChipsHtml_(s.tautanUsaha, false)}</div>`);
+    });
+  } catch (e) { }
+  return r;
+};
+
+/* =============== 6) DN-956: layar penuh seperti aplikasi di Android (Chrome & browser lain) =============== */
+const p95StandaloneAsli_ = m2Standalone_;
+m2Standalone_ = function () {
+  try { if (window.matchMedia && (matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: minimal-ui)').matches)) return true; } catch (e) { }
+  return p95StandaloneAsli_.apply(this, arguments);
+};
+(function () {
+  const android = /Android/i.test(navigator.userAgent);
+  if (!android) return;
+  const bisa = () => !m2Standalone_() && document.fullscreenEnabled && !document.fullscreenElement && (document.documentElement.classList.contains('omni-mobile') || innerWidth < 900);
+  document.addEventListener('pointerdown', e => {
+    if (!bisa()) return;
+    const t = e.target; if (t && t.closest && t.closest('input[type=file], label[for], video, [data-p95-no-fs]')) return;
+    try { const p = document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (p && p.catch) p.catch(() => { }); } catch (e2) { }
+  }, true);
+  // sekali per hari: sarankan pasang aplikasi (layar penuh permanen tanpa ketuk)
+  setTimeout(() => {
+    try {
+      if (m2Standalone_()) return;
+      const k = 'p95_saran_pasang', hari = new Date().toISOString().slice(0, 10);
+      if (localStorage.getItem(k) === hari) return; localStorage.setItem(k, hari);
+      omniToast('Layar penuh aktif setelah ketukan pertama. Pasang aplikasi goodang.id supaya selalu layar penuh: menu ⋮ → Instal aplikasi.', 'info', { durasi: 9000 });
+    } catch (e) { }
+  }, 6000);
+})();
 </script>
 
 </body>
