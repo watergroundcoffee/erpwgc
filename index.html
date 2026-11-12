@@ -82,7 +82,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.116';
+  var VERSI = 'v2026.10.117';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -25444,7 +25444,7 @@ async function muatSemuaSaranAI() {
   try {
     const data = await postJson({ aksi: 'semua_saran_ai', email: currentUserEmail() }, 45000); // v2026.10.51: 20 dtk sering habis -> server mengerjakan 2x
     if (data.success) {
-      saranAICache = data.insight;
+      saranAICache = Array.isArray(data.insight) ? data.insight : []; // v2026.10.117: jawaban tanpa insight tidak lagi merusak pindah halaman
       tampilkanSaranAIUntukHalamanIni();
     }
   } catch (err) {
@@ -88743,7 +88743,7 @@ m2Standalone_ = function () {
     try {
       if (m2Standalone_()) return;
       const k = 'p95_saran_pasang', hari = new Date().toISOString().slice(0, 10);
-      if (localStorage.getItem(k) === hari) return; localStorage.setItem(k, hari);
+      if (localStorage.getItem(k)) return; localStorage.setItem(k, hari); // v2026.10.117: cukup sekali per HP
       omniToast('Layar penuh aktif setelah ketukan pertama. Pasang aplikasi goodang.id supaya selalu layar penuh: menu ⋮ → Instal aplikasi.', 'info', { durasi: 9000 });
     } catch (e) { }
   }, 6000);
@@ -89148,6 +89148,133 @@ async function p96VariasiDariUrl() {
   } catch (e) { if (h) h.innerHTML = `<div class="p96-var-st" style="color:#b91c1c;">✗ ${p96E(String(e.message || e).replace(/^Error:\s*/, ''))}</div>`; }
   finally { if (b) { b.disabled = false; b.textContent = '✦ dari URL Supplier'; } }
 }
+</script>
+
+<!-- ===================================================================================
+     PAKET 97 (v2026.10.117) - Tampilan HP: DN-971 / DN-289 layar penuh tidak lagi terkunci mendatar (dikunci tegak),
+     DN-289 iPhone: isi tidak lagi tertutup kamera/Dynamic Island, DN-151636-289 & DN-174 versi aplikasi HP lama
+     dihapus - HP selalu memakai tampilan mobile (web ringkas), DN-445 tombol kaki menu samping bergerak halus,
+     DN-898 halaman Scan Ringan terpisah (scan.html) untuk HP gudang
+     =================================================================================== -->
+<style>
+  :root { --p97-sat: env(safe-area-inset-top, 0px); --p97-sab: env(safe-area-inset-bottom, 0px); }
+  /* ---------- DN-289: area kamera / Dynamic Island iPhone selalu kosong, isi mulai di bawahnya ---------- */
+  #p97-pelindung { position: fixed; left: 0; right: 0; top: 0; height: var(--p97-sat); z-index: 10060; pointer-events: none; background: var(--web-bg, #f5f4f1); display: none; }
+  html.omni-mobile #p97-pelindung, html.m2 #p97-pelindung { display: block; }
+  html.m2-native #p97-pelindung, html.omni-mobile:not(.m2) #p97-pelindung { background: var(--bg, #10151b); }
+  html.m2 .web-topbar { padding-top: calc(8px + var(--p97-sat)) !important; }
+  html.omni-mobile #app { padding-top: var(--p97-sat); }
+  html.omni-mobile #screen-login, html.omni-mobile #screen-login-web { padding-top: calc(var(--p97-sat) + 12px) !important; }
+  html.m2 #m2-lembar { max-height: calc(100vh - var(--p97-sat) - 24px); }
+  /* ---------- DN-151636: tampilan mobile tidak lagi tercampur menu samping versi web (aturan Paket 92 lebih kuat) ---------- */
+  html.m2 #app-web .web-shell:not(.web-menu-top) .web-sidebar, html.m2 #app-web .web-shell .web-sidebar { display: none !important; }
+  html.m2 #app-web .web-shell, html.m2 #app-web .web-shell.web-sidebar-lipat { display: block !important; grid-template-columns: none !important; }
+  html.m2 #p92-sbkaki { display: none !important; }
+  /* ---------- DN-971: HP mendatar -> ajakan memutar tegak (gudang selalu tegak) ---------- */
+  #p97-putar { position: fixed; inset: 0; z-index: 2147483000; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center;
+    background: #14110f; color: #f5efe8; font: 600 15px/1.45 system-ui, sans-serif; padding: 24px; }
+  #p97-putar .ik { font-size: 46px; animation: p97Putar 1.6s ease-in-out infinite; }
+  #p97-putar button { border: 1px solid #3a332d; background: #1f1b18; color: #a8998b; border-radius: 10px; font: inherit; font-size: 12.5px; padding: 7px 12px; }
+  @keyframes p97Putar { 0%, 30% { transform: rotate(-90deg); } 60%, 100% { transform: rotate(0deg); } }
+  @media (orientation: landscape) and (max-height: 500px) { html.omni-mobile:not(.p97-boleh-datar) #p97-putar, html.m2:not(.p97-boleh-datar) #p97-putar { display: flex; } }
+  /* ---------- DN-151636 / DN-174: tidak ada lagi tombol "versi mobile lama" ---------- */
+  .omtb-item[onclick*="bukaMobileDariWeb"], #p86-balik { display: none !important; }
+  /* ---------- DN-445: 2 tombol kaki menu samping berpindah halus saat menu dilipat / dibuka ---------- */
+  .p92-sbkaki .p92-sbtombol { position: relative; display: block !important; height: 38px; transition: height .26s cubic-bezier(.4, 0, .2, 1); }
+  .p92-sbkaki .p92-sbtombol > * { position: absolute !important; top: 0; left: 50%; transition: transform .26s cubic-bezier(.4, 0, .2, 1), background-color .15s, border-color .15s, color .15s; will-change: transform; }
+  .p92-sbkaki .p92-sbtombol > :nth-child(1) { transform: translateX(calc(-100% - 4px)); }
+  .p92-sbkaki .p92-sbtombol > :nth-child(2) { transform: translateX(4px); }
+  .p92-sbkaki .p92-sbtombol > :only-child { transform: translateX(-50%); }
+  #app-web .web-shell.web-sidebar-lipat .p92-sbkaki .p92-sbtombol { height: 82px; }
+  #app-web .web-shell.web-sidebar-lipat .p92-sbkaki .p92-sbtombol > :nth-child(1) { transform: translate(-50%, 0); }
+  #app-web .web-shell.web-sidebar-lipat .p92-sbkaki .p92-sbtombol > :nth-child(2) { transform: translate(-50%, 44px); }
+  .p92-sbkaki .p92-versi { transition: opacity .2s ease; }
+  @media (prefers-reduced-motion: reduce) { .p92-sbkaki .p92-sbtombol, .p92-sbkaki .p92-sbtombol > * { transition: none; } }
+  /* ---------- DN-898: Scan ringan ---------- */
+  .m2-baris.p97-ringan { border: 1px solid rgba(245,158,11,.45); background: rgba(245,158,11,.08); }
+</style>
+<script>
+/* ============================ PAKET 97 (v2026.10.117) ============================ */
+(function () {
+  if (!el('p97-pelindung')) document.body.insertAdjacentHTML('beforeend', '<div id="p97-pelindung" aria-hidden="true"></div>' +
+    '<div id="p97-putar" role="alertdialog" aria-label="Putar HP ke posisi tegak"><div class="ik">📱</div><div>Putar HP ke posisi <b>tegak</b>.<br>Tampilan goodang.id di HP dibuat untuk posisi tegak.</div>' +
+    '<button type="button" onclick="document.documentElement.classList.add(\'p97-boleh-datar\'); try{sessionStorage.setItem(\'p97_datar\',\'1\')}catch(e){}">Tetap pakai mendatar</button></div>');
+  try { if (sessionStorage.getItem('p97_datar') === '1') document.documentElement.classList.add('p97-boleh-datar'); } catch (e) { }
+})();
+
+/* ---------- DN-971 / DN-289: layar penuh selalu tegak ---------- */
+function p97Datar_() { try { return matchMedia('(orientation: landscape)').matches; } catch (e) { return false; } }
+function p97KunciTegak_() {
+  try {
+    if (!(screen.orientation && screen.orientation.lock)) return;
+    if (!document.fullscreenElement && !m2Standalone_()) return;
+    if (document.fullscreenElement && document.fullscreenElement.tagName === 'VIDEO') return; // video produk boleh mendatar
+    const p = screen.orientation.lock('portrait-primary');
+    if (p && p.catch) p.catch(() => {
+      // HP menolak kunci tegak -> keluar dari layar penuh supaya tidak terjebak mendatar
+      if (document.fullscreenElement && p97Datar_()) { try { document.exitFullscreen(); } catch (e) { } }
+    });
+  } catch (e) { }
+}
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement) setTimeout(p97KunciTegak_, 30);
+  else { try { if (screen.orientation && screen.orientation.unlock && !m2Standalone_()) screen.orientation.unlock(); } catch (e) { } }
+});
+try { if (screen.orientation) screen.orientation.addEventListener('change', () => { if (p97Datar_() && (document.fullscreenElement || m2Standalone_())) p97KunciTegak_(); }); } catch (e) { }
+setTimeout(p97KunciTegak_, 800);
+
+/* ---------- DN-151636 / DN-174: HP selalu tampilan mobile (web ringkas), versi aplikasi lama tidak dipakai lagi ---------- */
+m2Diizinkan_ = function () {
+  const hp = !!(paksaModeMobile || (typeof perangkatAdalahHP === 'function' && perangkatAdalahHP()));
+  return hp && Math.min(window.innerWidth, Math.max(window.innerHeight, 1)) < 900;
+};
+try { localStorage.setItem('omni_m2', '1'); } catch (e) { }
+m2TampilanLama = function () { omniToast('Tampilan HP lama sudah dihapus - semua fitur ada di tampilan ini.'); };
+const p97LainnyaAsli_ = m2LembarLainnya;
+m2LembarLainnya = function () {
+  const r = p97LainnyaAsli_.apply(this, arguments);
+  try { document.querySelectorAll('#m2-lembar .m2-baris').forEach(b => { if (/m2TampilanLama/.test(b.getAttribute('onclick') || '')) b.remove(); }); } catch (e) { }
+  return r;
+};
+const p97DaftarScanAsli_ = m2DaftarScan_;
+m2DaftarScan_ = function () {
+  const d = p97DaftarScanAsli_.apply(this, arguments);
+  try { if (d.some(x => /startScan|showSubmenu/.test(x[3]))) d.unshift(['⚡', 'Scan cepat (layar ringan)', 'Paling ringan untuk HP gudang - resi keluar, retur & pembelian', "location.href='scan.html'"]); } catch (e) { }
+  return d;
+};
+const p97LembarScanAsli_ = m2LembarScan;
+m2LembarScan = function () {
+  const r = p97LembarScanAsli_.apply(this, arguments);
+  try { const b = document.querySelector('#m2-lembar .m2-baris[onclick*="scan.html"]'); if (b) b.classList.add('p97-ringan'); } catch (e) { }
+  return r;
+};
+// tombol web lama "buka di tampilan mobile" -> di HP dibuka sebagai layar sementara lalu kembali sendiri
+const p97BukaMobileAsli_ = bukaMobileDariWeb;
+bukaMobileDariWeb = function () {
+  if (!(typeof M2 !== 'undefined' && M2.aktif)) return p97BukaMobileAsli_.apply(this, arguments);
+  m2Native(() => { });
+  setTimeout(() => { try { const m = el('screen-menu'); if (M2.native && m && m.style.display !== 'none') m2KembaliWeb(); } catch (e) { } }, 60);
+};
+// sudah login & masih di tampilan HP lama (mis. dibuka dari alamat #persediaan/monitor) -> pindah ke tampilan mobile
+function p97PastikanM2_() {
+  try {
+    if (typeof M2 === 'undefined' || M2.aktif || M2.native || !currentUser) return;
+    const app = el('app'); if (!app || app.style.display === 'none') return;
+    if (!m2Diizinkan_()) return;
+    paksaModeMobile = true; m2Mulai();
+    const h = String(location.hash || '').replace(/^#/, '');
+    if (h && h !== 'overview') { try { const [tab, sub] = h.split('/'); if (tab && (!m2BolehTab_ || m2BolehTab_(tab))) bukaLokasiWeb(sub ? { tab, sub } : { tab }); } catch (e) { } }
+  } catch (e) { console.warn('P97 m2', e); }
+}
+setTimeout(p97PastikanM2_, 0); setTimeout(p97PastikanM2_, 600); setTimeout(p97PastikanM2_, 2000);
+const p97LoginAsli_ = terapkanTampilanLogin;
+terapkanTampilanLogin = function () { const r = p97LoginAsli_.apply(this, arguments); setTimeout(p97PastikanM2_, 0); return r; };
+const p97ShowMenuAsli_ = showMenu;
+showMenu = function () {
+  const r = p97ShowMenuAsli_.apply(this, arguments);
+  try { if (typeof M2 !== 'undefined' && !M2.native && !M2.aktif && currentUser) setTimeout(p97PastikanM2_, 0); } catch (e) { }
+  return r;
+};
 </script>
 
 </body>
