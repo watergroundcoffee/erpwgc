@@ -1150,6 +1150,8 @@ function getRoutes_() {
     'p107_pelanggan_perkaya': prosesP107PelangganPerkaya, // v2026.10.127 (DN-387): rekening / HP / alamat dari hasil baca AI
     'p107_po_format': prosesP107PoFormat,             // v2026.10.127 (DN-451): format PO pembeli diingat
     'p107_stok_induk': prosesP107StokInduk,           // v2026.10.127 (DN-488): SKU Stok Induk (banyak produk 1 stok)
+    'cek_p108_prod': prosesCekP108Prod,               // v2026.10.128 (DN-509/955/537): SKU Produksi BoM terbalik
+    'p108_prod_simpan': prosesP108ProdSimpan,         // v2026.10.128 (DN-509/955/204): simpan SKU Produksi / induk / roasted
     'p84_item_simpan': prosesP84ItemSimpan,   // v2026.10.104 (Paket 84)
     'p84_stok_ubah': prosesP84StokUbah,   // v2026.10.104 (Paket 84)
     'p84_proses': prosesP84Proses,   // v2026.10.104 (Paket 84)
@@ -39172,6 +39174,35 @@ var DEV_PAKET_SELESAI_ = [
       'DN-261117-134211-875': 'Pencarian produk (Buat Pesanan, cari produk PO, & semua kotak cari yang memakai katalog ringan): prediktif dengan metadata (SKU, nama, SKU marketplace terhubung, kategori, merek, variasi), toleran salah ketik & satuan (200 gr = 200g), dan belajar dari produk yang dipilih (makin sering dipakai makin di atas).',
       'DN-261117-133752-451': 'Penjualan > Buat Pesanan > Upload PO: format PO per pemesan diingat - PO berikutnya dari pemesan yang sama otomatis mengisi pembeli, HP, penerima, alamat, toko & kurir; pasangan baris PO -> SKU memakai pilihan yang dipelajari + pencarian prediktif.'
     }
+  },
+  {
+    versi: 'v2026.10.128', paket: 'Paket 108', selesai: {
+      'DN-261119-004400-537': 'Produksi diulang dari awal: menu Produksi kini hanya SKU Produksi · Pembukuan Produksi · Label Kopi. Menu lama (Ringkasan, Green/Roasted, Roasting, Kemas, Peralatan, Perlengkapan) disembunyikan - datanya tidak dihapus dari database.',
+      'DN-261119-010825-509': 'Produksi > SKU Produksi (BoM terbalik): pilih produk sejenis dari Katalog -> SKU Produksi per gramasi diusulkan otomatis (JENIS-ASAL6-ROAST-GRAM, mis. RBT-BLIKTM-DK-100) -> 1 SKU Produksi Induk tanpa gramasi (RBTBLIKTMDK) dengan stok satuan gram. Dikirim kosong, dipetakan satu per satu. Pembukuan Produksi = pengeluaran pabrik (gas, listrik, air, label sticker, plastik kemasan, perawatan mesin, upah produksi) memakai mesin bukti + OCR + format nota yang sama dengan Input Biaya Finance, data terpisah.',
+      'DN-261118-153848-955': 'Produksi > SKU Produksi: semua gramasi 1 kopi terhubung ke 1 induk (akhiran gram), beberapa induk (RBTGAYO, RBTFLORES, RBTBALI) bisa memakai 1 Sumber Roasted Beans (mis. RBTALL1KG) - penjualan produk mana pun memotong gram stok roasted itu.',
+      'DN-261118-165108-204': 'Stok induk kopi dimulai dari Produksi: setiap SKU Produksi otomatis menjadi SKU Supplier "Produksi Internal" di Produk Master, dan produk memakai stok gram induk / roasted. Katalog > Stok Induk kini mengarahkan kopi ke Produksi.',
+      'DN-261118-153946-568': 'Produksi: tombol ❔ Tutorial - halaman menggelap, bagian penting dilingkari + penjelasan langkah demi langkah (otomatis sekali saat pertama dibuka, bisa diulang kapan saja).',
+      'DN-261118-153324-179': 'File aplikasi kini diserahkan sebagai index.html (tidak perlu ganti nama saat upload ke GitHub).',
+      'DN-261118-130016-835': 'Pembelian > Smart Paste: daftar produk diambil SEGAR dari server saat memilih produk & saat pencarian tidak menemukan apa-apa - produk yang baru ditambah di Produk Master langsung muncul.',
+      'DN-261118-125742-692': 'Pembelian > Smart Paste > Pilih produk: kotak "＋ Tambah SKU produk baru" - membuka Tambah Produk (nama & harga beli terisi dari baris invoice), setelah disimpan langsung dipilih untuk baris itu.',
+      'DN-261118-125604-476': 'Pembelian > Input Pembelian: kolom Kode PO di sebelah No Invoice (terisi otomatis dari teks "No. Pesanan / Order ID / No PO" saat paste); kosong = sama dengan No Invoice. Tersimpan per invoice.',
+      'DN-261119-001615-754': 'Semua pasangan input tanggal awal-akhir (Penjualan, Pembelian, Pengiriman, dll) diganti 1 tombol kalender rentang yang sama dengan modul lain (pilih tanggal mulai lalu akhir, ✕ untuk hapus).',
+      'DN-261118-164749-898': 'Penjualan > detail pesanan > kartu ketiga = nota per pesanan: rincian dana asli -> "Pencairan Marketplace" -> − HPP (rincian per barang menjorok) -> − biaya operasional -> − iklan -> Laba bersih + margin (urutan sama dengan laporan keuangan).',
+      'DN-261118-163408-289': 'Label pengiriman 10x15: barcode resi di atas dengan teks "SPX  nomor" di bawahnya; Penerima (atas) & Pengirim (bawah) ringkas di kiri; Fragile & Wajib Video Unboxing di kotak kanan; ID pesanan pakai QR persegi dengan nomor di bawahnya (tidak dobel).',
+      'DN-261118-162622-240': 'Catatan Developer bisa membawa gambar: 🖼 Lampirkan, Ctrl+V screenshot, atau seret ke jendela (maks 6). Disimpan ke Storage, tautannya ikut file .md.',
+      'DN-261118-162150-787': 'Penjualan > detail > Data Pembeli: Profil Pembeli kiri atas, Profil Penerima kiri bawah, peta kanan. Peta buram sampai Owner menekan "📍 Konfirmasi lokasi" (tersimpan per pesanan).',
+      'DN-261118-155627-513': 'Penjualan > Daftar Pesanan: arahkan kursor ke ikon 🚚 = waktu scan keluar & nama staf yang men-scan.',
+      'DN-261118-155554-760': 'Penjualan > Daftar Pesanan: kolom No Resi hanya menampilkan bukti yang SUDAH ada dengan warna tegas (🚚 hijau scan keluar, 💰 biru uang masuk, ↩ ungu retur, 🖨 abu tua label dicetak + jumlah). Kolom Cetak terpisah dihapus (digabung).',
+      'DN-261118-155215-974': 'Bukti resi (Kirim Pesanan): Smart OCR - teks dibaca di browser dulu, format resi yang dikenali (SPX, J&T, SiCepat, AnterAja, Ninja, ID Express, GoSend, format yang pernah dikirim) langsung terisi TANPA AI; format baru baru dibaca AI lalu diingat. Pola sama dengan Input Biaya & Pembukuan.',
+      'DN-261118-154904-118': 'Penjualan > Daftar Pesanan: panah ▼ di kanan diganti tombol pensil ✎ = Edit Pesanan (Manual Order); klik baris tetap membuka detail.',
+      'DN-261118-154812-719': 'Penjualan > Daftar Pesanan: tombol ringkas di dalam baris - 🖨 [Label][Invoice][Surat Jalan] (ikon vektor) di bawah No Pesanan, 👤 Data Pembeli di bawah nama pembeli, [📄 Bukti Bayar][🚚 Input Resi] di bawah No Resi (Manual Order). Tombol lama di baris detail disembunyikan.',
+      'DN-261119-001943-232': 'Finance > Dashboard Ringkasan: klik angka toko / channel di jendela rincian -> konfirmasi -> Penjualan > Daftar Pesanan dengan toko, channel & rentang tanggal yang sama + bar jejak (angka Dashboard vs total daftar, tanda ✓ cocok / selisih).',
+      'DN-261118-165731-371': 'Katalog > Detail Produk Master: Toko tujuan dipilih otomatis dari metadata (kolom Toko produk, lalu nama / kategori / merek: alat musik & perkakas = Conner, kopi & alat seduh = Waterground) dengan keterangan "✨ ditebak".',
+      'DN-261118-231514-126': 'HP: foto kecil di kiri nama barang juga di lembar isi pesanan (resi pending), daftar Belum dikirim & daftar Harus discan keluar.',
+      'DN-261118-232214-260': 'HP > header: logo goodang.id kiri, jam di tengah, akun (ikon orang + nama) di kanan sebelah lampu hijau/merah; menu akun ringkas muncul tepat di bawah kotak nama.',
+      'DN-261118-231822-325': 'HP > Scan > Resi Keluar: daftar "Harus discan keluar" ringkas tanpa klik - resi, toko · no pesanan, dan foto kecil + nama + qty tiap barang.',
+      'DN-261118-231425-191': 'HP > Scan > Resi Masuk: langkah "1 Terima Paket › 2 Bongkar Paket › 3 Konfirmasi" dihapus (tidak pernah berubah); tombol Bongkar Paket tetap ada (untuk paket yang lupa discan) dibuat ringkas + tautan kecil Pilih jenis manual.'
+    }
   }
 ];
 /* ####################################################################################
@@ -39190,7 +39221,7 @@ var DEV_KONTEKS_DEFAULT_ = [
   '- Saya Hermawan, Owner Waterground Coffee & Roastery (Indonesia). Bahasa: Indonesia.',
   '- Saya TIDAK mengerti coding, deployment, maupun akuntansi -> jelaskan langkah demi langkah (klik apa, di mana, tanda berhasilnya).',
   '- Saya sering membuat CHAT CLAUDE BARU supaya hemat token. Setiap chat (baru maupun lama) saya lampirkan file .md ini bersama file lain (zip paket terbaru, RINGKASAN-PROGRESS.md, statistik). Anggap file ini sumber konteks utama - jangan minta saya menjelaskan ulang.',
-  '- Serahkan FILE LENGKAP siap Replace-All (Code.gs, kode_lama.ts, scan-resi-gudang.html, gas.ts/index.ts bila berubah) + goodang-final.zip + RINGKASAN-PROGRESS.md + SQL baru bila ada. Tanpa potongan / placeholder.',
+  '- Serahkan FILE LENGKAP siap Replace-All (Code.gs, kode_lama.ts, index.html (dulu scan-resi-gudang.html), gas.ts/index.ts bila berubah) + goodang-final.zip + RINGKASAN-PROGRESS.md + SQL baru bila ada. Tanpa potongan / placeholder.',
   '- Tidak boleh ada fitur lama hilang atau rusak. Tema UI dipertahankan.',
   '- Jujur: pisahkan yang sudah diuji (simulasi) dan yang belum (akun / perangkat / data asli). Paling banyak 1 pertanyaan per balasan; kalau ragu boleh bertanya untuk rekonfirmasi.',
   '- Akhiri dengan CHECKLIST bernomor: deploy kode_lama.ts -> SQL bila ada -> upload HTML -> cek omxAnalitik.status().versi -> uji fitur.',
@@ -39204,7 +39235,7 @@ var DEV_KONTEKS_DEFAULT_ = [
   '- Staf gudang cukup scan; sistem yang menyortir dan mencocokkan (tanpa input berulang).',
   '',
   '### Arsitektur singkat',
-  '- Frontend: scan-resi-gudang.html (±4 MB, 1 file) di GitHub Pages repo erpwgc (https://watergroundcoffee.github.io/erpwgc/).',
+  '- Frontend: index.html (±7 MB, 1 file; dulu scan-resi-gudang.html) di GitHub Pages repo erpwgc (https://watergroundcoffee.github.io/erpwgc/).',
   '- Backend: Supabase Edge Function "goodang" (project ref cjqkllvcagrokswcesyp): index.ts (router), gas.ts (peniru Apps Script), kode_lama.ts (HASIL TRANSPILE Code.gs - jangan diedit manual), migrasi.ts. Data di Postgres schema omni (omni.sheet/omni.baris = isi tab spreadsheet lama).',
   '- Alur ubah backend: edit apps-script/Code.gs -> cd tools; npm i acorn acorn-walk magic-string; node transpile.mjs ../apps-script/Code.gs ../supabase/functions/goodang/kode_lama.ts ("peringatan" harus kosong) -> deno check index.ts.',
   '- Uji: Postgres lokal + skrip Deno (jalankanKonteks + buatModul, API marketplace dipalsukan), frontend Playwright (tanpa pageerror baru; nama global dobel tetap 8 lama).',
@@ -60303,3 +60334,212 @@ function prosesP107StokInduk(data) {
     return { success: true, peta: peta };
   } catch (err) { return { success: false, error: err.message || String(err) }; }
 }
+
+/* ####################################################################################
+   PAKET 108 (v2026.10.128) - 19 Nov 2026 · Catatan Developer 16-19 Nov
+   - DN-537 / DN-509 / DN-955 / DN-204: Produksi diulang dari awal - SKU Produksi "BoM terbalik":
+       Produk Master (per gramasi) -> SKU Produksi per gramasi (mis. RBT-BLIKTM-DK-100) -> SKU Produksi Induk tanpa gramasi
+       (RBTBLIKTMDK, stok satuan GRAM) -> opsional Sumber Roasted Beans (mis. RBTALL1KG) yang dipakai banyak induk.
+       "Produksi Internal" = salah satu supplier di Produk Master (SKU Produksi otomatis jadi SKU Supplier produk itu).
+       Stok: produk master memakai stok gram (P107 Stok Induk, faktor = gram per pcs) dari induk / sumber roasted.
+       Data mulai KOSONG (Script Property P108_PRODUKSI_V1), dipetakan Owner satu per satu.
+   - DN-509 (6): Pembukuan Produksi = mesin Pembukuan Produksi (bukti + OCR + pola dipakai bersama Input Biaya Finance)
+       + kategori pengeluaran pabrik: Gas, Listrik, Air, Label & Sticker, Plastik Kemasan, Perawatan Mesin, Upah Produksi.
+   - DN-513: daftar "resi sudah keluar" membawa nama staf yang men-scan (hover di Penjualan).
+   - DN-240: Catatan Developer bisa membawa gambar (kolom 17 "Gambar", disimpan ke Storage, tautan ikut file .md).
+   #################################################################################### */
+var P108_PROD_PROP_ = 'P108_PRODUKSI_V1';
+var P108_SUPPLIER_ = 'Produksi Internal';
+function p108ProdBaca_() {
+  var d = {};
+  try { d = JSON.parse(PropertiesService.getScriptProperties().getProperty(P108_PROD_PROP_) || '{}') || {}; } catch (e) { d = {}; }
+  d.induk = d.induk || {}; d.anak = d.anak || {}; d.roasted = d.roasted || {};
+  return d;
+}
+function p108ProdTulis_(d) { PropertiesService.getScriptProperties().setProperty(P108_PROD_PROP_, JSON.stringify({ induk: d.induk, anak: d.anak, roasted: d.roasted })); }
+function p108Kode_(v) { return String(v || '').toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9\-_.]/g, '').slice(0, 40); }
+function p108StokSku_(d, indSku) { var i = d.induk[indSku]; return i && i.roasted ? i.roasted : indSku; }
+function p108PastikanMaster_(sku, nama, data) {
+  var sh = getMasterProdukSheet(data.toko);
+  if (katCariBarisSku_(sh, sku) > 1) return false;
+  var h = prosesTambahProdukBaru_inti_({ email: data.email, toko: data.toko, sku: sku, namaProduk: String(nama || sku).slice(0, 140) + ' (stok gram)', kategori: 'Produksi',
+    deskripsi: 'Stok produksi dalam satuan GRAM - dibuat otomatis dari Produksi > SKU Produksi. Opname & pembelian roasted dicatat di SKU ini.' });
+  if (!h || !h.success) throw new Error('Gagal membuat SKU stok ' + sku + ' di Produk Master: ' + ((h && h.error) || ''));
+  try { katInvalidasiCacheKatalog_(data.toko); } catch (e) { }
+  return true;
+}
+function p108Link_(skuProduk, skuProd, hapus) {
+  var sh = getSkuSupplierTerhubungSheet(), lr = sh.getLastRow(), ada = false;
+  if (lr > 1) {
+    var v = sh.getRange(2, 1, lr - 1, 3).getValues();
+    for (var i = v.length - 1; i >= 0; i--) {
+      var a = String(v[i][0] || '').trim(), b = String(v[i][1] || '').trim();
+      if (b.toUpperCase() !== skuProd.toUpperCase()) continue;
+      if (hapus) { if (String(v[i][2] || '') === P108_SUPPLIER_) sh.deleteRow(i + 2); continue; }
+      if (a.toUpperCase() === skuProduk.toUpperCase()) ada = true;
+      else throw new Error('SKU Produksi ' + skuProd + ' sudah menjadi SKU Supplier produk ' + a + ' - pakai kode lain.');
+    }
+  }
+  if (!hapus && !ada) sh.appendRow([skuProduk, skuProd, P108_SUPPLIER_, 0, 'SKU Produksi otomatis (Produksi > SKU Produksi)']);
+}
+// Stok: produk master -> stok gram induk / sumber roasted (mesin Stok Induk P107, faktor = gram per pcs)
+function p108SinkronStok_(d) {
+  var peta = p107IndukPeta_(), dipakai = {};
+  Object.keys(d.anak).forEach(function (s) {
+    var a = d.anak[s]; if (!a || !a.produk || !(a.gram > 0) || !d.induk[a.induk]) return;
+    var stok = p108StokSku_(d, a.induk);
+    if (peta[stok] && !peta[stok].p108) throw new Error(stok + ' sendiri memakai stok induk ' + peta[stok].induk + ' (diatur di Katalog) - lepas dulu.');
+    var lama = peta[a.produk];
+    if (lama && !lama.p108 && lama.induk !== stok) throw new Error('Produk ' + a.produk + ' sudah memakai stok induk ' + lama.induk + ' (diatur di Katalog) - lepas dulu di Katalog > Stok Induk.');
+    peta[a.produk] = { induk: stok, faktor: Math.round(a.gram * 10000) / 10000, t: Date.now(), p108: s };
+    dipakai[a.produk] = 1;
+  });
+  Object.keys(peta).forEach(function (k) { if (peta[k] && peta[k].p108 && !dipakai[k]) delete peta[k]; });
+  PropertiesService.getScriptProperties().setProperty(P107_INDUK_PROP_, JSON.stringify(peta));
+  try { CacheService.getScriptCache().removeAll([SM_CACHE_MONITOR, 'P108_STOK_V1']); } catch (e) { }
+  try { smInvalidasiCache(); } catch (e) { }
+}
+function prosesCekP108Prod(data) {
+  try {
+    if (!mgApakahOwner_(data.email) && !cekIzin(data.email, 'mintaStock')) throw new Error('Anda tidak punya izin untuk aksi ini.');
+    var d = p108ProdBaca_(), stokSku = {};
+    Object.keys(d.induk).forEach(function (s) { stokSku[p108StokSku_(d, s)] = 1; });
+    Object.keys(d.roasted).forEach(function (s) { stokSku[s] = 1; });
+    var stok = {}, c = CacheService.getScriptCache(), ada = !data.segar && c.get('P108_STOK_V1');
+    if (ada) { try { stok = JSON.parse(ada); } catch (e) { stok = {}; } }
+    else if (Object.keys(stokSku).length) {
+      try {
+        (smHitungMesinStok({}).daftar || []).forEach(function (p) { var k = smKey(p.sku); if (stokSku[k] || stokSku[p.sku]) stok[k] = { onHand: p.onHand, tersedia: p.onAvailable, reserve: p.onReserve }; });
+        c.put('P108_STOK_V1', JSON.stringify(stok), 120);
+      } catch (eS) { stok = {}; }
+    }
+    // nama & foto produk master yang dipetakan
+    var produk = {}, perlu = {};
+    Object.keys(d.anak).forEach(function (s) { if (d.anak[s].produk) perlu[String(d.anak[s].produk).toUpperCase()] = 1; });
+    Object.keys(stokSku).forEach(function (s) { perlu[s] = 1; });
+    var sh = getMasterProdukSheet(data.toko), lr = sh.getLastRow();
+    if (lr > 1 && Object.keys(perlu).length) sh.getRange(2, 1, lr - 1, 9).getValues().forEach(function (r) {
+      var k = String(r[0] || '').trim().toUpperCase(); if (perlu[k]) produk[k] = { sku: String(r[0]).trim(), nama: String(r[1] || ''), foto: String(r[8] || '') };
+    });
+    return { success: true, d: d, stok: stok, produk: produk, owner: mgApakahOwner_(data.email), supplier: P108_SUPPLIER_ };
+  } catch (err) { return { success: false, error: err.message || String(err) }; }
+}
+function prosesP108ProdSimpan(data) {
+  var lock = LockService.getScriptLock();
+  try {
+    if (!mgApakahOwner_(data.email)) throw new Error('Hanya Owner yang bisa mengatur SKU Produksi.');
+    lock.waitLock(20000);
+    var d = p108ProdBaca_(), mode = String(data.mode || ''), kini = Date.now();
+    var dipakaiRoasted = function (s) { return Object.keys(d.induk).some(function (k) { return d.induk[k].roasted === s; }); };
+    if (mode === 'roasted') {
+      var rs = p108Kode_(data.sku); if (rs.length < 3) throw new Error('SKU Roasted Beans minimal 3 karakter.');
+      if (d.induk[rs] || d.anak[rs]) throw new Error(rs + ' sudah dipakai sebagai SKU Produksi.');
+      d.roasted[rs] = { nama: String(data.nama || rs).trim().slice(0, 120), t: kini };
+      p108PastikanMaster_(rs, d.roasted[rs].nama, data);
+    } else if (mode === 'roasted_hapus') {
+      var rh = p108Kode_(data.sku); if (dipakaiRoasted(rh)) throw new Error(rh + ' masih dipakai induk - ganti sumber roasted induk itu dulu.');
+      delete d.roasted[rh];
+    } else if (mode === 'batch' || mode === 'induk') {
+      var ind = data.induk || {}, is = p108Kode_(ind.sku);
+      if (is.length < 3) throw new Error('SKU Produksi Induk minimal 3 karakter.');
+      if (d.anak[is] || d.roasted[is]) throw new Error(is + ' sudah dipakai sebagai SKU lain.');
+      var roasted = p108Kode_(ind.roasted || '');
+      if (roasted && !d.roasted[roasted]) { d.roasted[roasted] = { nama: String(ind.namaRoasted || roasted), t: kini }; }
+      if (roasted === is) roasted = '';
+      d.induk[is] = { nama: String(ind.nama || (d.induk[is] && d.induk[is].nama) || is).trim().slice(0, 120), roasted: roasted,
+        jenis: String(ind.jenis || '').slice(0, 10), asal: String(ind.asal || '').slice(0, 10), roast: String(ind.roast || '').slice(0, 6), t: kini };
+      if (mode === 'batch') {
+        var anak = (Array.isArray(data.anak) ? data.anak : []).slice(0, 60);
+        if (!anak.length) throw new Error('Pilih minimal 1 produk.');
+        var dipakaiProduk = {}, rencana = [];
+        anak.forEach(function (a) {
+          var s = p108Kode_(a.sku), g = Number(String(a.gram).replace(',', '.')), pr = String(a.produk || '').trim();
+          if (s.length < 3) throw new Error('SKU Produksi kosong / terlalu pendek.');
+          if (!(g > 0) || g > 100000) throw new Error('Gramasi ' + s + ' harus diisi (gram).');
+          if (d.induk[s] || d.roasted[s]) throw new Error(s + ' sudah dipakai sebagai SKU induk / roasted.');
+          if (d.anak[s] && d.anak[s].induk !== is) throw new Error(s + ' sudah dipakai induk ' + d.anak[s].induk + '.');
+          if (pr) {
+            if (dipakaiProduk[pr.toUpperCase()]) throw new Error('Produk ' + pr + ' dipilih 2 kali.');
+            dipakaiProduk[pr.toUpperCase()] = 1;
+            Object.keys(d.anak).forEach(function (k) { if (k !== s && String(d.anak[k].produk || '').toUpperCase() === pr.toUpperCase()) throw new Error('Produk ' + pr + ' sudah memakai SKU Produksi ' + k + '.'); });
+            if (!(katCariBarisSku_(getMasterProdukSheet(data.toko), pr) > 1)) throw new Error('Produk ' + pr + ' tidak ada di Produk Master.');
+          }
+          rencana.push({ s: s, g: g, pr: pr });
+        });
+        // semua baris lolos pemeriksaan -> baru ditulis (tidak ada perubahan setengah jadi)
+        rencana.forEach(function (x) {
+          var lama = d.anak[x.s];
+          if (lama && lama.produk && lama.produk !== x.pr) p108Link_(lama.produk, x.s, true);
+          d.anak[x.s] = { induk: is, gram: Math.round(x.g * 1000) / 1000, produk: x.pr, t: kini };
+          if (x.pr) p108Link_(x.pr, x.s, false);
+        });
+      }
+      p108PastikanMaster_(p108StokSku_(d, is), roasted ? (d.roasted[roasted].nama || roasted) : d.induk[is].nama, data);
+    } else if (mode === 'anak_hapus') {
+      var ah = p108Kode_(data.sku), x = d.anak[ah]; if (!x) throw new Error('SKU Produksi tidak ditemukan.');
+      if (x.produk) p108Link_(x.produk, ah, true);
+      delete d.anak[ah];
+    } else if (mode === 'induk_hapus') {
+      var ih = p108Kode_(data.sku); if (!d.induk[ih]) throw new Error('SKU induk tidak ditemukan.');
+      Object.keys(d.anak).forEach(function (k) { if (d.anak[k].induk === ih) { if (d.anak[k].produk) p108Link_(d.anak[k].produk, k, true); delete d.anak[k]; } });
+      delete d.induk[ih];
+    } else throw new Error('Mode tidak dikenal.');
+    p108SinkronStok_(d);
+    p108ProdTulis_(d);
+    try { katInvalidasiCacheKatalog_(data.toko); } catch (e) { }
+    return prosesCekP108Prod({ email: data.email, toko: data.toko, segar: true });
+  } catch (err) { return { success: false, error: err.message || String(err) }; }
+  finally { try { lock.releaseLock(); } catch (e) { } }
+}
+
+/* ---------- DN-509 (6): kategori Pembukuan Produksi (pengeluaran pabrik) ---------- */
+['Gas', 'Listrik', 'Air', 'Label & Sticker', 'Plastik Kemasan', 'Perawatan Mesin', 'Upah Produksi'].forEach(function (k) { if (P84_KAT_KELUAR_.indexOf(k) < 0) P84_KAT_KELUAR_.push(k); });
+
+/* ---------- DN-513: siapa yang men-scan keluar (hover status di Penjualan) ---------- */
+var p108ResiKeluarAsli_ = prosesLihatResiSudahKeluar;
+prosesLihatResiSudahKeluar = function (data) {
+  var r = p108ResiKeluarAsli_.apply(this, arguments);
+  try {
+    if (!r || !r.success) return r;
+    var c = CacheService.getScriptCache(), ada = !(data && data.segar) && c.get('RESI_KELUAR_OLEH_V1');
+    if (ada) { r.oleh = JSON.parse(ada); return r; }
+    var oleh = {}, batas = Date.now() - 60 * 86400000;
+    smBacaSheet('Resi Keluar', 11).forEach(function (x) {
+      var k = kunciResi_(x[0]); if (!k || String(x[10] || '').trim() === 'Pending') return;
+      if (x[2] instanceof Date && x[2].getTime() < batas) return;
+      var o = String(x[8] || '').trim(); if (o) oleh[k] = o.slice(0, 40);
+    });
+    r.oleh = oleh;
+    try { c.put('RESI_KELUAR_OLEH_V1', JSON.stringify(oleh), 180); } catch (eC) { }
+  } catch (e) { }
+  return r;
+};
+
+/* ---------- DN-240: gambar di Catatan Developer ---------- */
+if (DEV_CATATAN_HEADER_.indexOf('Gambar') < 0) DEV_CATATAN_HEADER_.push('Gambar');
+var p108DevObjAsli_ = devBarisKeObjek_;
+devBarisKeObjek_ = function (r, tz) {
+  var o = p108DevObjAsli_.apply(this, arguments);
+  try { var g = r && r[16] ? JSON.parse(r[16]) : []; o.gambar = Array.isArray(g) ? g : []; } catch (e) { o.gambar = []; }
+  return o;
+};
+var p108DevSimpanAsli_ = prosesDevCatatanSimpan;
+prosesDevCatatanSimpan = function (data) {
+  var gb = (data && Array.isArray(data.gambar) ? data.gambar : []).slice(0, 6);
+  if (data) delete data.gambar;
+  var r = p108DevSimpanAsli_.apply(this, arguments);
+  if (!r || !r.success || !gb.length) return r;
+  try {
+    var url = [];
+    gb.forEach(function (g, i) {
+      try { var u = pkSimpanFoto_(g.base64, g.mime || 'image/jpeg', r.catatan.id + '-' + (i + 1) + '.jpg', 'Catatan Developer'); if (u) url.push(u); } catch (eF) { r.gagalGambar = (r.gagalGambar || 0) + 1; }
+    });
+    if (url.length) {
+      var sh = getDevCatatanSheet_(), lr = sh.getLastRow(), ids = sh.getRange(Math.max(2, lr - 30), 1, Math.min(31, lr - 1), 1).getValues();
+      for (var k = ids.length - 1; k >= 0; k--) if (String(ids[k][0]) === r.catatan.id) { sh.getRange(Math.max(2, lr - 30) + k, 17).setValue(JSON.stringify(url)); break; }
+      if (lr >= 1 && !String(sh.getRange(1, 17).getValue() || '')) sh.getRange(1, 17).setValue('Gambar');
+      r.catatan.gambar = url;
+    }
+  } catch (e) { r.gagalGambar = gb.length; }
+  return r;
+};
