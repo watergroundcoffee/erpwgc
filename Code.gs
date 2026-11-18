@@ -1152,6 +1152,8 @@ function getRoutes_() {
     'p107_stok_induk': prosesP107StokInduk,           // v2026.10.127 (DN-488): SKU Stok Induk (banyak produk 1 stok)
     'cek_p108_prod': prosesCekP108Prod,               // v2026.10.128 (DN-509/955/537): SKU Produksi BoM terbalik
     'p108_prod_simpan': prosesP108ProdSimpan,         // v2026.10.128 (DN-509/955/204): simpan SKU Produksi / induk / roasted
+    'p109_kopi_ai': prosesP109KopiAi,                 // v2026.10.129 (DN-672): profil kopi dari AI + Google Search
+    'p109_foto_unggah': prosesP109FotoUnggah,         // v2026.10.129 (DN-672): foto Kartu Produk produksi
     'p84_item_simpan': prosesP84ItemSimpan,   // v2026.10.104 (Paket 84)
     'p84_stok_ubah': prosesP84StokUbah,   // v2026.10.104 (Paket 84)
     'p84_proses': prosesP84Proses,   // v2026.10.104 (Paket 84)
@@ -39203,6 +39205,22 @@ var DEV_PAKET_SELESAI_ = [
       'DN-261118-231822-325': 'HP > Scan > Resi Keluar: daftar "Harus discan keluar" ringkas tanpa klik - resi, toko · no pesanan, dan foto kecil + nama + qty tiap barang.',
       'DN-261118-231425-191': 'HP > Scan > Resi Masuk: langkah "1 Terima Paket › 2 Bongkar Paket › 3 Konfirmasi" dihapus (tidak pernah berubah); tombol Bongkar Paket tetap ada (untuk paket yang lupa discan) dibuat ringkas + tautan kecil Pilih jenis manual.'
     }
+  },
+  {
+    versi: 'v2026.10.129', paket: 'Paket 109', selesai: {
+      'DN-261119-020932-654': 'Penjualan > Daftar Pesanan: tampilan baris dikembalikan seperti versi 127 (kolom Cetak, kapsul Keluar gudang, bukti 🚚💰↩, panah ▼). Hover kapsul Keluar gudang tetap menampilkan waktu & nama staf yang men-scan.',
+      'DN-261119-015912-776': 'Penjualan > Daftar Pesanan: tombol kecil di dalam sel & info status cetak versi 108 dicabut - kembali ke model sebelumnya.',
+      'DN-261119-015748-398': 'Penjualan > Daftar Pesanan: kotak ikon bukti berwarna versi 108 dicabut - kembali ke tampilan versi 127.',
+      'DN-261119-015557-886': 'Penjualan > Daftar Pesanan: kolom No Resi kembali seperti versi 127.',
+      'DN-261119-015354-341': 'Penjualan > Daftar Pesanan > klik pesanan: tombol aksi besar bertulisan di atas Info Pembeli - ✎ Edit Pesanan · No Resi / Kirim · Bukti Bayar · ⋯ Detail lengkap (Manual Order) | 🖨 Cetak Label · 🖨 Cetak Invoice · 🖨 Cetak Surat Jalan | Input Data Pembeli · Tandai Selesai / Retur.',
+      'DN-261119-020627-945': 'Label pengiriman 10x15 kembali ke versi 127 (No Resi + logo kurir di kotak kanan, barcode di bawah, ikon Fragile / Video Unboxing, Nomor Order + barcode, QR) - kecuali kotak kiri Penerima (atas) & Pengirim (bawah) yang rapi tetap dipakai.',
+      'DN-261119-020310-481': 'Penjualan > Daftar Pesanan (pilih pesanan): tombol "Label resmi marketplace" & pilihan mode label disembunyikan - cetak label memakai label internal ERP (🖨 Cetak Label).',
+      'DN-261119-020010-314': 'Penjualan > detail > kartu Hasil penjualan: rincian HPP per barang ditulis halus di bawah baris "Modal barang (HPP)" (daftar terpisah di bawah tabel dihapus).',
+      'DN-261119-020759-116': 'Finance > Dashboard Ringkasan: klik Shopee / Tokopedia / TikTok Shop kini menyaring channel itu saja (dulu terbaca logo, sehingga seluruh toko tampil). Sorotan rapi: arahkan ke 1 channel = baris itu disorot; arahkan ke nama toko = seluruh grup (semua channel) disorot.',
+      'DN-261119-015131-900': 'HP > Scan > Resi Masuk: bar Bongkar Paket & Pilih jenis manual dihapus. Semua lewat kotak scan: resi / ID pesanan / No Invoice dikenali langsung; resi tak dikenal -> popup isi ID pesanan, Simpan resi saja, atau checklist kosong (pembelian tanpa resi).',
+      'DN-261119-014917-672': 'Produksi > SKU Produksi = Kartu Produk: tulis lengkap (Jenis "Robusta", Asal "Bali Kintamani", Roast "Dark Roast") -> singkatan SKU otomatis (RBT · BLIKTM · DK); profil varietas, proses, ketinggian, wilayah, tasting notes, saran seduh, deskripsi; tombol ✨ Lengkapi dengan AI + Google (sumber ditampilkan); foto seperti Katalog (klik / seret / Ctrl+V, foto utama); gramasi -> SKU Produksi -> 🔗 dihubungkan ke produk Katalog (SKU Mapping).',
+      'DN-261119-014252-204': 'Pencarian produk seragam: banyak SKU sekaligus (pisah spasi, koma atau baris baru - sama seperti Katalog, termasuk SKU terhubung) + prediktif & tahan salah ketik. Dipakai di Produksi (pilih produk Katalog), Pembelian > Smart Paste (pilih produk) dan Katalog > Produk Master (kini koma juga pemisah SKU).'
+    }
   }
 ];
 /* ####################################################################################
@@ -60543,3 +60561,102 @@ prosesDevCatatanSimpan = function (data) {
   } catch (e) { r.gagalGambar = gb.length; }
   return r;
 };
+
+
+/* ####################################################################################
+   PAKET 109 (v2026.10.129) - 19 Nov 2026
+   - DN-672: Produksi > SKU Produksi = KARTU PRODUK. Owner menulis lengkap (jenis "Robusta", asal "Bali Kintamani",
+     roast "Dark Roast"), sistem menentukan singkatan SKU. Profil kopi (varietas, proses, ketinggian, tasting notes,
+     deskripsi, foto) disimpan di induk P108 (profil, foto). AI + Google Search membantu mengisi profil.
+     Gramasi -> SKU Produksi -> dihubungkan ke produk Katalog (SKU Supplier "Produksi Internal", stok gram).
+   #################################################################################### */
+function p109Teks_(v, n) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 200); }
+function p109Profil_(x) {
+  x = x || {};
+  var out = {};
+  ['jenis', 'asal', 'roast', 'varietas', 'proses', 'ketinggian', 'wilayah', 'notes', 'seduh'].forEach(function (k) { out[k] = p109Teks_(x[k], 160); });
+  out.deskripsi = p109Teks_(x.deskripsi, 1500);
+  return out;
+}
+// mode 'kartu': simpan profil + daftar gramasi lengkap (gramasi yang dihapus dari kartu ikut dilepas)
+var p109ProdSimpanAsli_ = prosesP108ProdSimpan;
+prosesP108ProdSimpan = function (data) {
+  if (!data || data.mode !== 'kartu') return p109ProdSimpanAsli_.apply(this, arguments);
+  var lock = LockService.getScriptLock();
+  try {
+    if (!mgApakahOwner_(data.email)) throw new Error('Hanya Owner yang bisa mengatur Kartu Produk produksi.');
+    lock.waitLock(20000);
+    var d = p108ProdBaca_(), ind = data.induk || {}, is = p108Kode_(ind.sku), kini = Date.now();
+    if (is.length < 3) throw new Error('SKU Produksi Induk minimal 3 karakter.');
+    if (!p109Teks_(ind.nama)) throw new Error('Nama produk wajib diisi.');
+    if (d.anak[is] || d.roasted[is]) throw new Error(is + ' sudah dipakai sebagai SKU lain.');
+    var roasted = p108Kode_(ind.roasted || ''); if (roasted === is) roasted = '';
+    var anak = (Array.isArray(data.anak) ? data.anak : []).slice(0, 40), rencana = [], dipakaiS = {}, dipakaiP = {};
+    var shM = getMasterProdukSheet(data.toko);
+    anak.forEach(function (a) {
+      var s = p108Kode_(a.sku), g = Number(String(a.gram).replace(',', '.')), pr = String(a.produk || '').trim();
+      if (s.length < 3) throw new Error('SKU Produksi gramasi kosong / terlalu pendek.');
+      if (!(g > 0) || g > 100000) throw new Error('Gramasi ' + s + ' harus diisi (gram).');
+      if (dipakaiS[s]) throw new Error('SKU Produksi ' + s + ' dobel di kartu ini.'); dipakaiS[s] = 1;
+      if (d.induk[s] || d.roasted[s]) throw new Error(s + ' sudah dipakai sebagai SKU induk / roasted.');
+      if (d.anak[s] && d.anak[s].induk !== is) throw new Error(s + ' sudah dipakai induk ' + d.anak[s].induk + '.');
+      if (pr) {
+        if (dipakaiP[pr.toUpperCase()]) throw new Error('Produk ' + pr + ' dipilih 2 kali.'); dipakaiP[pr.toUpperCase()] = 1;
+        Object.keys(d.anak).forEach(function (k) { if (k !== s && d.anak[k].induk !== is && String(d.anak[k].produk || '').toUpperCase() === pr.toUpperCase()) throw new Error('Produk ' + pr + ' sudah memakai SKU Produksi ' + k + '.'); });
+        if (!(katCariBarisSku_(shM, pr) > 1)) throw new Error('Produk ' + pr + ' tidak ada di Produk Master.');
+      }
+      rencana.push({ s: s, g: g, pr: pr });
+    });
+    if (roasted && !d.roasted[roasted]) d.roasted[roasted] = { nama: p109Teks_(ind.namaRoasted || roasted, 120), t: kini };
+    var lamaInd = d.induk[is] || {};
+    d.induk[is] = { nama: p109Teks_(ind.nama, 120), roasted: roasted, jenis: p109Teks_(ind.jenis, 10), asal: p109Teks_(ind.asal, 10), roast: p109Teks_(ind.roast, 6),
+      profil: p109Profil_(ind.profil), foto: (Array.isArray(ind.foto) ? ind.foto : []).filter(function (u) { return /^https?:\/\//.test(String(u)); }).slice(0, 8),
+      dibuat: lamaInd.dibuat || kini, t: kini };
+    // gramasi lama yang tidak ada lagi -> dilepas
+    Object.keys(d.anak).forEach(function (k) { if (d.anak[k].induk === is && !dipakaiS[k]) { if (d.anak[k].produk) p108Link_(d.anak[k].produk, k, true); delete d.anak[k]; } });
+    rencana.forEach(function (x) {
+      var lama = d.anak[x.s];
+      if (lama && lama.produk && lama.produk !== x.pr) p108Link_(lama.produk, x.s, true);
+      d.anak[x.s] = { induk: is, gram: Math.round(x.g * 1000) / 1000, produk: x.pr, t: kini };
+      if (x.pr) p108Link_(x.pr, x.s, false);
+    });
+    if (rencana.some(function (x) { return x.pr; })) p108PastikanMaster_(p108StokSku_(d, is), roasted ? (d.roasted[roasted].nama || roasted) : d.induk[is].nama, data);
+    p108SinkronStok_(d);
+    p108ProdTulis_(d);
+    try { katInvalidasiCacheKatalog_(data.toko); } catch (e) { }
+    return prosesCekP108Prod({ email: data.email, toko: data.toko, segar: true });
+  } catch (err) { return { success: false, error: err.message || String(err) }; }
+  finally { try { lock.releaseLock(); } catch (e) { } }
+};
+function prosesP109FotoUnggah(data) {
+  try {
+    if (!mgApakahOwner_(data.email) && !cekIzin(data.email, 'mintaStock')) throw new Error('Anda tidak punya izin untuk aksi ini.');
+    var b = String(data.base64 || ''); if (!b) throw new Error('Tidak ada gambar.');
+    var url = pkSimpanFoto_(b, data.mime || 'image/jpeg', 'produksi-' + Date.now() + '.jpg', 'Foto Produksi');
+    if (!url) throw new Error('Gagal menyimpan foto.');
+    return { success: true, url: url };
+  } catch (err) { return { success: false, error: err.message || String(err) }; }
+}
+function prosesP109KopiAi(data) {
+  try {
+    if (!mgApakahOwner_(data.email) && !cekIzin(data.email, 'mintaStock')) throw new Error('Anda tidak punya izin untuk aksi ini.');
+    var nama = p109Teks_(data.nama, 120), jenis = p109Teks_(data.jenis, 40), asal = p109Teks_(data.asal, 80), roast = p109Teks_(data.roast, 40);
+    if (!nama && !asal) throw new Error('Isi dulu nama produk atau asal kopi.');
+    var k = ocrKonfig_(), key = k.keyGratis || k.keyBayar; if (!key) throw new Error('Kunci Gemini belum diatur.');
+    var prompt = 'Cari di Google informasi kopi Indonesia berikut: ' + [nama, jenis, asal, roast].filter(String).join(' · ') + '. ' +
+      'Isi profil untuk label & katalog roastery. Balas HANYA JSON: {"jenis":"Arabica|Robusta|Liberica|Excelsa|Blend","asal":"daerah asal singkat mis. Bali Kintamani","wilayah":"provinsi / kabupaten",' +
+      '"varietas":"","proses":"Natural/Washed/Honey/Semi-washed/Wet hulled","ketinggian":"mis. 1.200-1.600 mdpl","notes":"tasting notes singkat dipisah koma","seduh":"metode seduh yang cocok",' +
+      '"roast":"roast level yang umum dipakai","deskripsi":"2-3 kalimat bahasa Indonesia untuk deskripsi produk"}. Jangan mengarang; kosongkan bila tidak ditemukan.';
+    var model = k.modelGratis || 'gemini-2.5-flash';
+    var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
+    var payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2, maxOutputTokens: 1500 } };
+    var res = fetchHemat(url, { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, payload: JSON.stringify(payload), muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error('AI gagal (HTTP ' + res.getResponseCode() + ')');
+    var j = JSON.parse(res.getContentText()), cand = (j.candidates || [])[0] || {};
+    var teks = ((cand.content && cand.content.parts) || []).map(function (p) { return p.text || ''; }).join('');
+    var m = /\{[\s\S]*\}/.exec(teks); if (!m) throw new Error('Hasil AI tidak terbaca.');
+    var o = p109Profil_(JSON.parse(m[0]));
+    var sumber = []; ((cand.groundingMetadata || {}).groundingChunks || []).forEach(function (ch) { if (ch.web && ch.web.uri && sumber.length < 5) sumber.push({ judul: ch.web.title || '', url: ch.web.uri }); });
+    return { success: true, profil: o, sumber: sumber, model: model };
+  } catch (err) { return { success: false, error: err.message || String(err) }; }
+}
