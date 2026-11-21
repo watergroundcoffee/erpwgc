@@ -93,7 +93,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.132';
+  var VERSI = 'v2026.10.133';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -97976,8 +97976,9 @@ p110VProduk = async function (isi) {
 
 
 
+
 <!-- ===================================================================================
-     PAKET 112 (v2026.10.132) - 21 Nov 2026 · 31 catatan: Pengiriman (kotak hitam macet + mode ringan), Persediaan dari Katalog,
+     PAKET 112 (v2026.10.132-133) - 21 Nov 2026 · 31 catatan (133: akar macet Pengiriman = penyimpanan penuh -> putaran proses latar): Pengiriman (kotak hitam macet + mode ringan), Persediaan dari Katalog,
      Penjualan (baris aksi tetap terbuka, Bukti Bayar & Kirim langsung, setor tunai, serah terima, Kilat Shopee, ikon salin, logo label),
      Finance (slip per staff, bukti biaya, kategori sederhana, kolom keterangan, tinjau impor), Katalog Import, Pembelian rapi + AI belajar,
      Produksi (Katalog Kopi · Roasted Beans · Greenbeans + Roasting), tempel dari Excel
@@ -98227,18 +98228,68 @@ async function p112KirimLambat_() {
   };
 })();
 
-/* ---------- Penyimpanan browser: data raksasa (> 2,5 juta huruf) tidak dipaksa disimpan ----------
-   Dulu: setiap simpan cache besar saat penyimpanan penuh -> semua snapshot halaman dibuang satu per satu sambil
-   mencoba menulis ulang data berMB-MB (bisa membuat layar tertahan beberapa detik). Sekarang langsung dilewati. */
+/* ---------- DN-835 / DN-741 (akar masalah): penyimpanan browser PENUH ----------
+   Bila localStorage penuh, penanda waktu "terakhir dijalankan" (mis. Cari pesanan otomatis tiap 15 menit) gagal disimpan
+   tanpa error -> proses latar mengulang dirinya terus (uji: 330x dalam 10 dtk), setiap putaran merender ulang ±4.500 resi
+   -> halaman "Page Unresponsive". Perbaikan: (1) cadangan di memori - nilai yang gagal disimpan tetap terbaca selama sesi,
+   (2) saat penuh, cache besar yang bisa dibuat ulang (cachettl_*, pm_snap_*, cache_*) dibuang dulu, (3) data > 2,5 juta
+   huruf tidak dipaksa disimpan, (4) pembersihan otomatis saat aplikasi dibuka bila penyimpanan hampir penuh. */
+const P112_MEM = new Map();
+const P112_BISA_BUANG = /^(cachettl_|pm_snap_v1\||cache_|omni_logo_cache$)/;
+function p112BuangCache_(st, kecuali, target) {
+  try {
+    const L = []; for (let i = 0; i < st.length; i++) { const k = st.key(i); if (k && k !== kecuali && P112_BISA_BUANG.test(k)) L.push({ k, n: (st.getItem(k) || '').length }); }
+    L.sort((x, y) => y.n - x.n); let bebas = 0;
+    for (const x of L) { st.removeItem(x.k); bebas += x.n; if (bebas >= (target || 1)) break; }
+    return bebas;
+  } catch (e) { return 0; }
+}
 (function () {
   try {
-    const s = Storage.prototype.setItem;
+    const set = Storage.prototype.setItem, get = Storage.prototype.getItem, hapus = Storage.prototype.removeItem;
     Storage.prototype.setItem = function (k, v) {
-      const n = v == null ? 0 : String(v).length;
-      if (n > 2500000) { try { this.removeItem(k); } catch (e) { } try { console.warn('P112: "' + k + '" terlalu besar (' + Math.round(n / 1e6) + ' jt huruf) - tidak disimpan di browser'); } catch (e) { } return; }
-      return s.apply(this, arguments);
+      const t = v == null ? '' : String(v);
+      if (t.length > 2500000) { try { hapus.call(this, k); } catch (e) { } P112_MEM.delete(k); return; }
+      let ok = false;
+      try { set.call(this, k, t); ok = t.length > 20000 || get.call(this, k) === t; } catch (e) { ok = false; }
+      if (!ok && this === window.localStorage) { // penuh -> buang cache yang bisa dibuat ulang, coba sekali lagi
+        if (!P112_BISA_BUANG.test(k)) { p112BuangCache_(this, k, t.length * 2 + 200000); try { set.call(this, k, t); ok = t.length > 20000 || get.call(this, k) === t; } catch (e) { ok = false; } }
+      }
+      if (ok) P112_MEM.delete(k); else if (this === window.localStorage) P112_MEM.set(k, t);
+    };
+    Storage.prototype.getItem = function (k) { if (this === window.localStorage && P112_MEM.has(k)) return P112_MEM.get(k); return get.call(this, k); };
+    Storage.prototype.removeItem = function (k) { if (this === window.localStorage) P112_MEM.delete(k); return hapus.call(this, k); };
+    // saat dibuka: penyimpanan > ±4 juta huruf -> buang cache besar sampai ±3 juta
+    let tot = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); tot += (k || '').length + (get.call(localStorage, k) || '').length; }
+    P112.penyimpanan = tot;
+    if (tot > 4000000) p112BuangCache_(localStorage, '', tot - 3000000);
+  } catch (e) { }
+})();
+
+/* ---------- Pemutus putaran: proses latar yang memanggil server terlalu sering ditahan ----------
+   Aksi latar Pengiriman maks 4x / 30 dtk; aksi lain maks 40x / 20 dtk. Kelebihannya DITUNDA 30 dtk lalu dijawab gagal
+   (tidak dijawab seketika, supaya putaran tidak berubah jadi lingkaran tanpa jeda yang membekukan layar). Tercatat di kotak hitam. */
+const P112_LATAR = /^(cari_resi_mendalam|lengkapi_resi_belum_terhubung|cek_resi_instan|koreksi_resi_lihat|siklus_resi_daftar|kilat_rekap|gdrive_status|p43_asisten|tgs_[a-z_]*|kilat_sinkron[a-z_]*|lihat_log_resi_(aktif|riwayat|masuk))$/;
+(function () {
+  try {
+    const asli = postJsonKeServer_, jejak = {};
+    postJsonKeServer_ = async function (body) {
+      const a = String((body && body.aksi) || ''), kini = Date.now(), latar = P112_LATAR.test(a);
+      const L = (jejak[a] = (jejak[a] || []).filter(t => kini - t < (latar ? 30000 : 20000))); L.push(kini);
+      if (L.length > (latar ? 4 : 40)) {
+        if (!P112['putus_' + a] || kini - P112['putus_' + a] > 60000) { P112['putus_' + a] = kini; try { P112.catatLambat && P112.catatLambat('putaran', 0, 'Aksi ' + a + ' dipanggil ' + L.length + 'x dalam ' + (latar ? 30 : 20) + ' dtk - ditahan otomatis'); } catch (e) { } }
+        await new Promise(r => setTimeout(r, 30000));
+        return { success: false, error: 'Ditahan otomatis: ' + a + ' dipanggil terlalu sering', ditahan: true };
+      }
+      return asli.apply(this, arguments);
     };
   } catch (e) { }
+})();
+// Cari pesanan otomatis (Pengiriman): jeda 15 menit juga dijaga di memori (dulu hanya di localStorage)
+(function () {
+  if (typeof ccxCariMendalam !== 'function') return;
+  const a = ccxCariMendalam; let t = 0;
+  ccxCariMendalam = function (manual) { if (!manual) { if (Date.now() - t < 15 * 60000) return Promise.resolve(); t = Date.now(); } return a.apply(this, arguments); };
 })();
 
 /* ---------- DN-835 / DN-741: Pengiriman lebih ringan + mode ringan otomatis ---------- */
