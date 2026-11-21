@@ -93,7 +93,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.134';
+  var VERSI = 'v2026.10.135';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -97982,8 +97982,11 @@ p110VProduk = async function (isi) {
 
 
 
+
+
+
 <!-- ===================================================================================
-     PAKET 112 (v2026.10.132-134) - 21 Nov 2026 · 31 catatan (133: penyimpanan penuh; 134: pelacak + pemutus proses macet Pengiriman): Pengiriman (kotak hitam macet + mode ringan), Persediaan dari Katalog,
+     PAKET 112 (v2026.10.132-135) - 21 Nov 2026 · 31 catatan (133: penyimpanan penuh; 134: pelacak + pemutus proses macet Pengiriman; 135: akar macet Pengiriman = pemasang tabel & pengamat halaman): Pengiriman (kotak hitam macet + mode ringan), Persediaan dari Katalog,
      Penjualan (baris aksi tetap terbuka, Bukti Bayar & Kirim langsung, setor tunai, serah terima, Kilat Shopee, ikon salin, logo label),
      Finance (slip per staff, bukti biaya, kategori sederhana, kolom keterangan, tinjau impor), Katalog Import, Pembelian rapi + AI belajar,
      Produksi (Katalog Kopi · Roasted Beans · Greenbeans + Roasting), tempel dari Excel
@@ -98119,6 +98122,8 @@ tr:hover .p111-salin, .p111-salin:hover, .p50-salin:hover, .p53-salin:hover, .p1
 .p113-jejak code { font-size: 11.5px; color: #a7f3d0; word-break: break-word; }
 .p113-jejak small { display: block; margin-top: 6px; color: #a8a29e; }
 .p113-jejak button { position: absolute; top: 8px; right: 10px; border: 0; background: #44403c; color: #fff; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+/* P114: tombol tampilkan lagi (Kilat) */
+.p114-lagi { display: block; margin: 10px auto; padding: 7px 16px; font-size: 12.5px; border-radius: 8px; }
 </style>
 <script>
 /* =====================================================================================
@@ -99343,6 +99348,265 @@ document.addEventListener('paste', e => {
 
 /* ---------- DN-539: No pesanan di Persediaan > Riwayat Stok membuka detail baca-saja (tanpa pindah menu) ---------- */
 if (typeof p103RiwBukaPesanan === 'function' && typeof p111PesananDetailBuka === 'function') p103RiwBukaPesanan = function (no) { return p111PesananDetailBuka(no); };
+/* =====================================================================================
+   PAKET 114 (v2026.10.135) - DN-835/741 AKAR MASALAH Pengiriman macet (ditemukan & direproduksi)
+   Penyebab: daftar Pengiriman Kilat membuat 1 tabel kecil per reservasi (ratusan tabel). Untuk SETIAP judul kolom,
+   pemasang "geser lebar kolom" (P63) & "bungkus tabel" membaca gaya lalu langsung menulis -> browser menghitung ulang
+   gaya SELURUH halaman berkali-kali (150 reservasi = 3 dtk beku, 700 = beberapa menit) dan terulang tiap data disegarkan.
+   Ditambah pengamat halaman yang saling memicu (tombol Catatan Dev dipindah bolak-balik tiap 1,5 dtk, jam, kunci cetak).
+   Perbaikan:
+   1) Tombol filter ▾ & pegangan geser kolom baru dipasang saat kursor / jari menyentuh judul tabel (lebar tersimpan tetap
+      langsung dipakai) -> membuka halaman tidak lagi memasang ribuan tombol.
+   2) Bungkus tabel: baca semua dulu, tulis sekali (tanpa hitung ulang berulang).
+   3) Kilat > Daftar reservasi: rincian barang dibuat saat kartu dibuka + 60 kartu per halaman; Rekap: 400 baris pertama
+      + tombol tampilkan semua.
+   4) Pengamat halaman tenang: tombol Catatan Dev tidak dipindah bolak-balik, jam & teks yang sama tidak ditulis ulang,
+      kunci tombol cetak dirapatkan (maks 1x / 0,7 dtk bila keadaan tidak berubah).
+   ===================================================================================== */
+const P114 = { tf: 0, kol: 0, bungkus: 0, klLimit: 60, klRekapSemua: false };
+
+/* ---------- 4a) teks yang sama tidak ditulis ulang (mencegah pengamat halaman terbangun tanpa perubahan) ---------- */
+(function () {
+  const d = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+  if (!d || !d.set || Node.prototype._p114tc) return;
+  Object.defineProperty(Node.prototype, 'textContent', {
+    configurable: true, enumerable: d.enumerable, get: d.get,
+    set(v) {
+      if (this.nodeType === 1) {
+        const s = v == null ? '' : String(v), c = this.firstChild;
+        if (c === null ? s === '' : (c.nodeType === 3 && c === this.lastChild && c.data === s)) return;
+        if (this.id === 'clock-text' && c && c.nodeType === 3 && c === this.lastChild) { c.data = s; return; } // jam: ubah isi teks saja
+      }
+      d.set.call(this, v);
+    }
+  });
+  Node.prototype._p114tc = true;
+})();
+
+/* ---------- 4b) tombol Catatan Dev: tidak lagi dipindah menu <-> slot bawah tiap 1,5 dtk ---------- */
+if (typeof p55Dock_ === 'function') {
+  const p114DockAsli_ = p55Dock_;
+  p55Dock_ = function () {
+    try {
+      if (document.hidden) return;
+      const fab = el('dvn-fab'), t = el('p88-dvn-tempat'), slot = el('p92-slot-dvn'), k = el('p92-sbkaki'), aw = el('app-web');
+      const web = !!(aw && aw.style.display === 'block');
+      if (fab && !fab._p114ih) { // ikon tombol ditulis ulang tiap 2,5 dtk (hasil baca HTML tak pernah persis sama) -> bandingkan teks aslinya
+        fab._p114ih = true;
+        const dh = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+        let mentah = null;
+        Object.defineProperty(fab, 'innerHTML', { configurable: true, get() { return mentah !== null ? mentah : dh.get.call(this); }, set(v) { const s = String(v); if (s === mentah) return; mentah = s; dh.set.call(this, s); } });
+      }
+      if (fab && t && slot && k && web && !el('p55-dock') && k.offsetParent) {
+        if (fab.parentNode !== document.body) document.body.appendChild(fab);
+        const pill = el('omxlog-pill'); if (pill && pill.parentNode !== document.body) document.body.appendChild(pill);
+        const sb = k.parentNode; if (sb && sb.lastElementChild !== k) sb.appendChild(k);
+        if (t.parentNode !== slot) slot.appendChild(t);
+        if (t.classList.contains('p89-sb')) t.classList.remove('p89-sb');
+        if (fab.classList.contains('p89-sb') || fab.classList.contains('p89-lipat')) fab.classList.remove('p89-sb', 'p89-lipat');
+        if (!fab.classList.contains('p92-sb')) fab.classList.add('p92-sb');
+        if (t.style.display !== 'block' || t.style.width !== '38px' || t.style.height !== '38px') t.style.cssText = 'display:block;width:38px;height:38px;';
+        p88DvnPosisi_();
+        return;
+      }
+    } catch (e) { }
+    return p114DockAsli_.apply(this, arguments);
+  };
+}
+if (typeof p88DvnPosisi_ === 'function') {
+  const p114PosAsli_ = p88DvnPosisi_;
+  p88DvnPosisi_ = function () {
+    try {
+      const fab = el('dvn-fab'), t = el('p88-dvn-tempat');
+      if (fab && t && fab.dataset.p89 && fab.classList.contains('p92-sb') && fab.style.display !== 'none') {
+        if (t.hidden) t.hidden = false;
+        const b = t.getBoundingClientRect();
+        if (b.width) {
+          const s = fab.style, L = Math.round(b.left) + 'px', T = Math.round(b.top) + 'px', W = Math.round(b.width) + 'px', H = Math.round(b.height) + 'px';
+          if (s.left !== L) s.left = L;
+          if (s.top !== T) s.top = T;
+          if (s.width !== W || s.getPropertyPriority('width') !== 'important') s.setProperty('width', W, 'important');
+          if (s.height !== H || s.getPropertyPriority('height') !== 'important') s.setProperty('height', H, 'important');
+          if (fab.classList.contains('p88-dvn-sudut')) fab.classList.remove('p88-dvn-sudut');
+          return;
+        }
+      }
+    } catch (e) { }
+    return p114PosAsli_.apply(this, arguments);
+  };
+}
+
+/* ---------- 4c) kunci tombol cetak: dirapatkan bila keadaan sama ---------- */
+if (typeof omniCetakTerapkanKunci === 'function') {
+  const p114KunciAsli_ = omniCetakTerapkanKunci;
+  let akhir = 0, kunciAkhir = '', jadwal = 0;
+  omniCetakTerapkanKunci = function () {
+    let k = '';
+    try { let m = false; try { m = !!pgrAktifMeta.memuat; } catch (e) { } k = [omniCetakDaftarBoleh_(), omniCetak.dokSiap, omniCetak.wdocMemuat, m].join('|'); } catch (e) { k = String(Math.random()); }
+    const kini = performance.now();
+    if (k === kunciAkhir && kini - akhir < 700) {
+      if (!jadwal) jadwal = setTimeout(() => { jadwal = 0; akhir = performance.now(); try { p114KunciAsli_(); } catch (e) { } }, 700);
+      return;
+    }
+    kunciAkhir = k; akhir = kini;
+    if (jadwal) { clearTimeout(jadwal); jadwal = 0; }
+    return p114KunciAsli_.apply(this, arguments);
+  };
+}
+
+/* ---------- 2) bungkus tabel responsif: baca semua dulu, lalu tulis (1x hitung gaya, bukan 1x per tabel) ---------- */
+if (typeof omniBungkusTabel_ === 'function') {
+  omniBungkusTabel_ = function (akar) {
+    const daftar = (akar && akar.querySelectorAll ? akar : document).querySelectorAll('table:not([data-omni-scroll])');
+    if (!daftar.length) return;
+    const semua = Array.from(daftar), bungkus = [];
+    semua.forEach(t => {
+      if (!t.closest('#app-web, #app')) return;
+      const p = t.parentElement;
+      if (!p || p.matches('.web-table-wrap, .tabel-scroll, .tabel-scroll-otomatis')) return;
+      for (let a = p, i = 0; a && i < 3; a = a.parentElement, i++) {
+        const ox = getComputedStyle(a).overflowX;
+        if (ox === 'auto' || ox === 'scroll') return;
+      }
+      const th = t.querySelector('th');
+      if (th && getComputedStyle(th).position === 'sticky') return;
+      bungkus.push(t);
+    });
+    semua.forEach(t => t.setAttribute('data-omni-scroll', '1'));
+    bungkus.forEach(t => {
+      const p = t.parentElement; if (!p) return;
+      const w = document.createElement('div'); w.className = 'tabel-scroll-otomatis';
+      p.insertBefore(w, t); w.appendChild(t);
+    });
+    P114.bungkus += bungkus.length;
+  };
+}
+
+/* ---------- 1) tombol filter ▾ & geser lebar kolom: dipasang saat judul tabel disentuh ---------- */
+(function () {
+  const KUNCI = 'p63_kolom_v1';
+  let kol = {}, kolRaw = null;
+  const lebarTersimpan = () => { let raw = '{}'; try { raw = localStorage.getItem(KUNCI) || '{}'; } catch (e) { } if (raw !== kolRaw) { kolRaw = raw; try { kol = JSON.parse(raw) || {}; } catch (e) { kol = {}; } } return kol; };
+  const idTabel = t => t.id || ((t.querySelector('tbody[id]') || {}).id) || ((t.closest('[id]') || {}).id) || '';
+  // kunci sama dengan pemasang lama (P63); versi "▾" = judul yang dulu sudah berisi tombol filter saat disimpan
+  const kunciTabel = (t, panah) => { const r = t.tHead.rows[t.tHead.rows.length - 1]; return idTabel(t) + '#' + Array.from(r.cells).map(c => { const x = (c.textContent || '').replace(/[▾▲▼⏷]/g, '').trim(); return ((panah && (x || c.querySelector('input')) ? x + '▾' : x)).slice(0, 10); }).join('|'); };
+  // a) tandai judul kolom baru (hanya TULIS, tanpa membaca gaya) + pakai lebar tersimpan
+  function tandai() {
+    const ths = document.querySelectorAll('table > thead > tr:last-child > th:not([data-p63k])');
+    if (!ths.length) return;
+    const simpan = lebarTersimpan(), perTabel = new Map();
+    ths.forEach(th => { const t = th.closest('table'); if (!t) { th.dataset.p63k = '-'; return; } if (!perTabel.has(t)) perTabel.set(t, []); perTabel.get(t).push(th); });
+    perTabel.forEach((list, t) => {
+      let lebar = null;
+      try { if (Object.keys(simpan).length) lebar = simpan[kunciTabel(t, true)] || simpan[kunciTabel(t, false)] || null; } catch (e) { }
+      list.forEach(th => {
+        th.dataset.p63k = 'tunda';
+        const w = lebar && lebar[th.cellIndex];
+        if (w) { th.style.width = th.style.minWidth = th.style.maxWidth = w + 'px'; }
+      });
+    });
+  }
+  let jadwal = 0;
+  new MutationObserver(() => { if (!jadwal) jadwal = setTimeout(() => { jadwal = 0; try { tandai(); } catch (e) { } }, 60); }).observe(document.body, { childList: true, subtree: true });
+  setTimeout(tandai, 0);
+
+  // b) filter ▾: tabel baru hanya ditandai; dipasang saat disentuh (atau langsung bila tabel itu sedang difilter/diurutkan)
+  if (typeof p84TfPasang === 'function') {
+    const tfAsli = p84TfPasang;
+    P114.tfAsli = tfAsli;
+    p84TfPasang = function (t) {
+      if (!t || !t.dataset || t.dataset.p84tf) return;
+      try { if (p84TfState.size && t.tHead && t.tHead.rows.length && p84TfState.has(p84TfIdTabel(t))) return tfAsli(t); } catch (e) { }
+      t.dataset.p84tf = 'tunda';
+    };
+  }
+  // c) pasang saat judul disentuh: baca gaya semua judul sekali, lalu tulis
+  function pasangTabel(t) {
+    if (!t || t._p114) return; t._p114 = true;
+    try { if (t.dataset.p84tf === 'tunda' && P114.tfAsli) { delete t.dataset.p84tf; P114.tfAsli(t); P114.tf++; } } catch (e) { }
+    try {
+      if (!t.tHead || !t.tHead.rows.length || t.closest('.p63-tanpa-geser')) return;
+      const ths = Array.from(t.tHead.rows[t.tHead.rows.length - 1].cells).filter(th => th.tagName === 'TH' && th.dataset.p63k === 'tunda');
+      if (!ths.length) return;
+      const pos = ths.map(th => getComputedStyle(th).position);
+      ths.forEach((th, i) => {
+        th.dataset.p63k = '1';
+        if (pos[i] === 'static') th.style.position = 'relative';
+        if (!th.querySelector(':scope > .p63-kol-geser')) { const h = document.createElement('span'); h.className = 'p63-kol-geser'; h.title = 'Seret untuk mengubah lebar kolom · klik 2x untuk ukuran awal'; th.appendChild(h); }
+      });
+      P114.kol++;
+    } catch (e) { }
+  }
+  P114.pasangTabel = pasangTabel;
+  const sentuh = e => { const x = e.target && e.target.closest && e.target.closest('thead'); if (!x) return; const t = x.closest('table'); if (t && !t._p114) pasangTabel(t); };
+  document.addEventListener('pointerover', sentuh, true);
+  document.addEventListener('pointerdown', sentuh, true);
+  document.addEventListener('focusin', sentuh, true);
+})();
+
+/* ---------- 3) Pengiriman Kilat: daftar reservasi ringan + rekap bertahap ---------- */
+function p114KlTabel_(it) {
+  return `<table class="web-table kl-tabel-barang">
+        <thead><tr><th>SKU</th><th>Nama Barang</th><th style="text-align:right;">Qty</th><th style="text-align:right;">HPP / pcs</th><th style="text-align:right;">Harga Jual / pcs</th><th style="text-align:right;">Nilai Modal</th><th style="text-align:right;">Nilai Jual</th></tr></thead>
+        <tbody>${(it.barang || []).length ? it.barang.map(b => `
+          <tr><td>${escapeHtml(b.sku)}</td><td>${escapeHtml(b.nama || '')}</td><td style="text-align:right;">${b.qty}</td>
+            <td style="text-align:right;">${klRp(b.hpp)}${b.hpp === 0 ? ' <span class="kl-warn" title="HPP belum diisi di Produk Master">!</span>' : ''}</td>
+            <td style="text-align:right;">${klRp(b.hargaJual)}${b.hargaJual !== null && !b.hargaDariShopee ? ' <span class="kl-sub" title="Harga Shopee kosong - memakai harga default">(default)</span>' : ''}</td>
+            <td style="text-align:right;">${b.hpp === null ? '—' : klRp(b.hpp * b.qty)}</td><td style="text-align:right;">${b.hargaJual === null ? '—' : klRp(b.hargaJual * b.qty)}</td></tr>`).join('')
+      : '<tr><td colspan="7" style="color:var(--web-text-dim);">Daftar produk belum terisi (akan terisi otomatis dari Booking Shopee, atau isi lewat Kelola Transfer).</td></tr>'}</tbody>
+      </table>`;
+}
+if (typeof klRenderDaftar === 'function') {
+  let p114KlRows = [], p114KlQ = null;
+  klRenderDaftar = function (lagi) {
+    if (!klData) return;
+    const inp = el('kl-daftar-cari'), list = el('kl-daftar-list'); if (!list) return;
+    const q = ((inp && inp.value) || '').trim().toLowerCase();
+    if (lagi !== true || q !== p114KlQ) P114.klLimit = 60;
+    p114KlQ = q;
+    list.classList.remove('rl-skel'); list.style.display = '';
+    p114KlRows = (klData.items || []).filter(it => !q || String(it.noReservasi || '').toLowerCase().includes(q) || String(it.noResi).toLowerCase().includes(q)
+      || String(it.noPesananPembeli).toLowerCase().includes(q) || (it.barang || []).some(b => String(b.sku || '').toLowerCase().includes(q) || String(b.nama).toLowerCase().includes(q)));
+    if (!p114KlRows.length) { list.innerHTML = '<div class="web-placeholder">Belum ada reservasi Pengiriman Kilat.</div>'; return; }
+    const tampil = p114KlRows.slice(0, P114.klLimit), sisa = p114KlRows.length - tampil.length;
+    list.innerHTML = tampil.map((it, i) => `
+    <details class="kl-kartu" data-p114i="${i}">
+      <summary>
+        <div class="kl-kartu-kiri">
+          <b>${escapeHtml(it.noReservasi)}</b>
+          <span class="kl-sub">${escapeHtml(it.tanggal || '')} · Resi ${escapeHtml(it.noResi || '-')} · Pesanan pembeli: ${escapeHtml(it.noPesananPembeli || '-')}</span>
+        </div>
+        <div class="kl-kartu-kanan">
+          <span class="kl-nilai"><i>Modal</i>${klRp(it.nilaiModal)}</span>
+          <span class="kl-nilai"><i>Jual</i>${klRp(it.nilaiJual)}</span>
+          ${klPillHasil(it.hasil)}
+        </div>
+      </summary>
+    </details>`).join('') + (sisa > 0 ? `<button type="button" class="web-btn-secondary p114-lagi" onclick="P114.klLimit+=60; klRenderDaftar(true)">Tampilkan ${Math.min(60, sisa)} lagi · sisa ${sisa} dari ${p114KlRows.length}</button>` : '');
+  };
+  // rincian barang dibuat saat kartu dibuka
+  document.addEventListener('toggle', e => {
+    const d = e.target;
+    if (!d || !d.matches || !d.open || !d.matches('#kl-daftar-list details.kl-kartu[data-p114i]') || d.dataset.p114isi) return;
+    const it = p114KlRows[+d.dataset.p114i]; if (!it) return;
+    d.dataset.p114isi = '1'; d.insertAdjacentHTML('beforeend', p114KlTabel_(it));
+  }, true);
+}
+if (typeof klRenderRekap === 'function') {
+  const p114RekapAsli_ = klRenderRekap;
+  klRenderRekap = function (semua) {
+    if (semua === true) P114.klRekapSemua = true;
+    if (!klData || !Array.isArray(klData.items)) return p114RekapAsli_.apply(this, arguments);
+    const asli = klData.items;
+    let fh = ''; try { fh = klFilterHasil; } catch (e) { }
+    const rows = asli.filter(it => !fh || it.hasil === fh), BATAS = 400;
+    if (P114.klRekapSemua || rows.length <= BATAS) return p114RekapAsli_.call(this);
+    try { klData.items = rows.slice(0, BATAS); p114RekapAsli_.call(this); }
+    finally { klData.items = asli; }
+    const tb = el('kl-rekap-body');
+    if (tb) tb.insertAdjacentHTML('beforeend', `<tr class="p114-lagi-baris"><td colspan="9" style="text-align:center;"><button type="button" class="web-btn-secondary p114-lagi" onclick="klRenderRekap(true)">Tampilkan semua ${rows.length} baris (sekarang ${BATAS} terbaru)</button></td></tr>`);
+  };
+}
 
 /* =====================================================================================
    PAKET 113 (v2026.10.134) - DN-835/741 lanjutan: PELACAK + PEMUTUS PROSES MACET (Pengiriman)
