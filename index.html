@@ -93,7 +93,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.133';
+  var VERSI = 'v2026.10.134';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -97977,8 +97977,13 @@ p110VProduk = async function (isi) {
 
 
 
+
+
+
+
+
 <!-- ===================================================================================
-     PAKET 112 (v2026.10.132-133) - 21 Nov 2026 · 31 catatan (133: akar macet Pengiriman = penyimpanan penuh -> putaran proses latar): Pengiriman (kotak hitam macet + mode ringan), Persediaan dari Katalog,
+     PAKET 112 (v2026.10.132-134) - 21 Nov 2026 · 31 catatan (133: penyimpanan penuh; 134: pelacak + pemutus proses macet Pengiriman): Pengiriman (kotak hitam macet + mode ringan), Persediaan dari Katalog,
      Penjualan (baris aksi tetap terbuka, Bukti Bayar & Kirim langsung, setor tunai, serah terima, Kilat Shopee, ikon salin, logo label),
      Finance (slip per staff, bukti biaya, kategori sederhana, kolom keterangan, tinjau impor), Katalog Import, Pembelian rapi + AI belajar,
      Produksi (Katalog Kopi · Roasted Beans · Greenbeans + Roasting), tempel dari Excel
@@ -98109,6 +98114,11 @@ tr:hover .p111-salin, .p111-salin:hover, .p50-salin:hover, .p53-salin:hover, .p1
 .p112-alur { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: calc(12px + var(--fs-plus, 0px)); color: var(--web-text-dim, #64748b); background: var(--web-panel, #fff); border: 1px solid var(--web-border, #e2e8f0); border-radius: 12px; padding: 10px 14px; }
 .p112-alur b { color: var(--web-text, #0f172a); background: #fef3c7; border-radius: 8px; padding: 3px 9px; font-weight: 700; }
 .p112-alur i { font-style: normal; opacity: .6; }
+.p113-jejak { position: fixed; right: 16px; bottom: 16px; z-index: 99999; max-width: 560px; padding: 12px 14px 10px; border-radius: 12px; background: #1c1917; color: #fafaf9; box-shadow: 0 10px 30px rgba(0,0,0,.35); font-size: 12.5px; line-height: 1.5; }
+.p113-jejak b { display: block; margin-bottom: 4px; color: #fcd34d; }
+.p113-jejak code { font-size: 11.5px; color: #a7f3d0; word-break: break-word; }
+.p113-jejak small { display: block; margin-top: 6px; color: #a8a29e; }
+.p113-jejak button { position: absolute; top: 8px; right: 10px; border: 0; background: #44403c; color: #fff; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
 </style>
 <script>
 /* =====================================================================================
@@ -99333,6 +99343,86 @@ document.addEventListener('paste', e => {
 
 /* ---------- DN-539: No pesanan di Persediaan > Riwayat Stok membuka detail baca-saja (tanpa pindah menu) ---------- */
 if (typeof p103RiwBukaPesanan === 'function' && typeof p111PesananDetailBuka === 'function') p103RiwBukaPesanan = function (no) { return p111PesananDetailBuka(no); };
+
+/* =====================================================================================
+   PAKET 113 (v2026.10.134) - DN-835/741 lanjutan: PELACAK + PEMUTUS PROSES MACET (Pengiriman)
+   Macet di Pengiriman = 1 tugas yang tidak pernah selesai ("Wait" -> muncul lagi tiap ±30 dtk).
+   1) Setiap fungsi global aplikasi dibungkus pelacak ringan (aktif hanya saat menu Pengiriman terbuka):
+      tumpukan panggilan & jumlah panggilan per fungsi dalam 1 tugas dicatat ke penyimpanan tiap 1 dtk - TETAP tercatat
+      walau layar beku, jadi setelah "Exit page" penyebabnya terbaca.
+   2) Tugas yang berjalan > 12 dtk tanpa jeda DIHENTIKAN (error terkendali) -> layar pulih, bukan beku selamanya.
+   3) Setelah dibuka lagi: kartu kecil menampilkan fungsi penyebab (bisa di-screenshot) + ikut di .md Catatan Developer.
+   ===================================================================================== */
+const P113 = { aktif: false, tumpuk: [], hit: new Map(), mulai: 0, dalam: false, flushT: 0, panggil: 0, dibungkus: 0, putus: 0 };
+(function () {
+  const kanal = new MessageChannel();
+  kanal.port1.onmessage = () => { P113.dalam = false; };
+  const simpan = (selesai) => {
+    try {
+      const top = Array.from(P113.hit.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, c]) => n + '×' + c);
+      let versi = ''; try { versi = (window.omxAnalitik && omxAnalitik.status && omxAnalitik.status().versi) || (typeof VERSI !== 'undefined' ? VERSI : ''); } catch (e) { }
+      const j = { t: Date.now(), lok: location.hash, lama: Math.round(performance.now() - P113.mulai), tumpuk: P113.tumpuk.slice(-12), top, selesai: !!selesai, versi };
+      localStorage.setItem('p113_jejak', JSON.stringify(j));
+      if (!selesai && j.lama > 3000) localStorage.setItem('p113_macet', JSON.stringify(j)); // catatan macet permanen (tidak tertimpa aktivitas normal)
+    } catch (e) { }
+  };
+  P113.simpan = simpan;
+  const bungkus = (nama, f) => {
+    const w = function () {
+      if (!P113.aktif) return new.target ? Reflect.construct(f, arguments, new.target) : f.apply(this, arguments);
+      const n = ++P113.panggil, dasar = P113.tumpuk.length === 0;
+      if (!P113.dalam) { P113.dalam = true; P113.mulai = performance.now(); P113.hit.clear(); kanal.port2.postMessage(0); }
+      if ((n & 63) === 0) P113.hit.set(nama, (P113.hit.get(nama) || 0) + 64);
+      P113.tumpuk.push(nama);
+      if ((n & 4095) === 0 || (dasar && (n & 15) === 0)) {
+        const kini = performance.now();
+        if (kini - P113.flushT > 1000) { P113.flushT = kini; simpan(false); }
+        if (kini - P113.mulai > 12000) { // tugas tak berujung -> dihentikan supaya layar pulih
+          P113.putus++; simpan(false); P113.tumpuk.length = 0; P113.dalam = false;
+          try { P112.catatLambat && P112.catatLambat('dihentikan', kini - P113.mulai, 'Proses > 12 dtk dihentikan di ' + nama); } catch (e) { }
+          throw new Error('P113: proses macet dihentikan (' + nama + ')');
+        }
+      }
+      try { return new.target ? Reflect.construct(f, arguments, new.target) : f.apply(this, arguments); }
+      finally { P113.tumpuk.pop(); }
+    };
+    try { Object.defineProperty(w, 'name', { value: f.name }); } catch (e) { }
+    try { w.prototype = f.prototype; Object.assign(w, f); } catch (e) { }
+    w.__p113 = f;
+    return w;
+  };
+  try {
+    const lewati = /^(P113|p113|bungkus|webkit|on[a-z]+$)/;
+    Object.getOwnPropertyNames(window).forEach(k => {
+      if (lewati.test(k)) return;
+      let d; try { d = Object.getOwnPropertyDescriptor(window, k); } catch (e) { return; }
+      if (!d || !d.writable || typeof d.value !== 'function' || d.value.__p113) return;
+      let src = ''; try { src = Function.prototype.toString.call(d.value); } catch (e) { return; }
+      if (/\[native code\]/.test(src) || /^class[\s{]/.test(src) || src.length < 400) return; // fungsi pembantu kecil (dipanggil ribuan kali) tidak dibungkus
+      try { window[k] = bungkus(k, d.value); P113.dibungkus++; } catch (e) { }
+    });
+  } catch (e) { }
+  const cek = () => { P113.aktif = /^#pengiriman/.test(location.hash || '') || (typeof tabWebAktif !== 'undefined' && tabWebAktif === 'pengiriman'); };
+  cek(); window.addEventListener('hashchange', cek); setInterval(cek, 1000);
+  window.addEventListener('pagehide', () => { if (!P113.dalam) simpan(true); });
+  setInterval(() => { if (P113.aktif && !P113.dalam) { try { const j = JSON.parse(localStorage.getItem('p113_jejak') || 'null'); if (j && !j.selesai) simpan(true); } catch (e) { } } }, 3000);
+  // tampilkan jejak macet sebelumnya (sekali)
+  try {
+    const paksa = (() => { try { const L = JSON.parse(localStorage.getItem('p112_lambat') || '[]'); const x = L[L.length - 1]; return !!(x && x.jenis === 'ditutup-paksa' && Date.now() - x.t < 120000); } catch (e) { return false; } })();
+    let j = JSON.parse(localStorage.getItem('p113_macet') || 'null');
+    const jj = JSON.parse(localStorage.getItem('p113_jejak') || 'null');
+    if ((!j || j.tampil) && jj && !jj.selesai && paksa) j = jj; // ditutup paksa: tumpukan terakhir yang tercatat
+    if (j && !j.tampil && Date.now() - j.t < 3 * 864e5) {
+      try { P112.catatLambat && P112.catatLambat('jejak-macet', j.lama, 'Tumpukan: ' + (j.tumpuk || []).join(' › ') + ' · terbanyak: ' + (j.top || []).join(', '), j.lok); } catch (e) { }
+      j.tampil = true; localStorage.setItem('p113_macet', JSON.stringify(j));
+      setTimeout(() => {
+        const d = document.createElement('div'); d.className = 'p113-jejak';
+        d.innerHTML = `<b>🔍 Penyebab macet terakhir (${p112E(j.lok)} · ${Math.round(j.lama / 1000)} dtk${j.versi ? ' · ' + p112E(j.versi) : ''})</b><div>Sedang menjalankan: <code>${p112E((j.tumpuk || []).join(' › ') || '-')}</code></div><div>Paling sering dipanggil: <code>${p112E((j.top || []).join(', ') || '-')}</code></div><small>Screenshot kartu ini & kirim ke Claude. Juga tersimpan di file .md Catatan Developer.</small><button type="button" onclick="this.parentNode.remove()">Tutup</button>`;
+        document.body.appendChild(d);
+      }, 2500);
+    }
+  } catch (e) { }
+})();
 </script>
 
 </body>
