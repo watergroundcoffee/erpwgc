@@ -93,7 +93,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.135';
+  var VERSI = 'v2026.10.136';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -14102,7 +14102,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
               <div class="per-rekon-info" id="per-mon-rekon-info">⏱️ Stok dihitung langsung dari Smart Opname terakhir + mutasi sesudahnya...</div>
               <div class="per-rekon-aksi">
                 <button class="web-btn-secondary per-btn-kecil" id="per-mon-btn-trigger" style="display:none;" onclick="perMonPasangTrigger()"><span class="oi oi-settings" aria-hidden="true"></span> Aktifkan Jadwal 02:00</button>
-                <button class="web-btn-secondary per-btn-kecil" onclick="rakMuat(true).then(rakCetakDaftarOpname)" title="Cetak daftar stok urut rak untuk opname berurutan">🖨 Daftar Opname per Rak</button>
+
                 <button class="web-btn-secondary per-btn-kecil" id="per-mon-btn-rekon" style="display:none;" onclick="perMonJalankanRekon()">▶ Rekon Sekarang</button>
               </div>
             </div>
@@ -22657,6 +22657,8 @@ function rt2Render() {
   el('wp-logmasuk-empty').textContent = wpLogMasukCache.length ? 'Tidak ada resi retur yang cocok dengan filter.' : 'Belum ada resi masuk yang discan.';
   el('rt2-jumlah').textContent = rows.length + ' resi' + (rows.length !== wpLogMasukCache.length ? ' dari ' + wpLogMasukCache.length : '');
   const halaman = halamanDataPaginasi(rows, rt2Paginasi);
+  if (rt2._hal !== undefined && rt2._hal !== rt2Paginasi.page) rt2.buka = {}; // v2026.10.136 (DN-421): pindah halaman = detail tertutup
+  rt2._hal = rt2Paginasi.page;
   // Kalau user lagi mengetik di mode edit (pensil), ketikannya dipertahankan walau tabel dirender ulang (mis. auto-refresh)
   const inputEdit = document.querySelector('#wp-logmasuk-body [data-rt2-edit]');
   const idEdit = inp => inp ? inp.dataset.rt2Edit + '|' + (inp.closest('[data-rt2]') || {}).dataset?.rt2 : '';
@@ -22922,6 +22924,12 @@ function rt2UbahStatus(noResi, status) {
 }
 
 function rt2ToggleDetail(noResi) {
+  // v2026.10.136 (DN-421): hanya 1 detail retur terbuka - membuka yang lain menutup yang sebelumnya
+  Object.keys(rt2.buka).forEach(k => {
+    if (k === noResi || !rt2.buka[k]) return; rt2.buka[k] = false;
+    const t = document.querySelector(`[data-rt2-detail="${CSS.escape(k)}"]`), b = document.querySelector(`[data-rt2="${CSS.escape(k)}"]`);
+    if (t) t.style.display = 'none'; if (b) { b.classList.remove('rt2-terbuka'); const p = b.querySelector('.rt2-panah'); if (p) p.setAttribute('aria-expanded', false); }
+  });
   rt2.buka[noResi] = !rt2.buka[noResi];
   const tr = document.querySelector(`[data-rt2-detail="${CSS.escape(noResi)}"]`);
   const baris = document.querySelector(`[data-rt2="${CSS.escape(noResi)}"]`);
@@ -30439,7 +30447,7 @@ async function katalogFetchProduk(opsi) {
         if (!petaMarket[skuJual]) petaMarket[skuJual] = [];
         // 1 sel bisa berisi beberapa kode (dipisah koma/spasi) -> tampil sebagai SKU terpisah, tanpa dobel per platform
         String(d.skuMarketplace == null ? '' : d.skuMarketplace).split(/[\s,;]+/).map(x => x.trim()).filter(Boolean).forEach(kode => {
-          if (!petaMarket[skuJual].some(m => m.skuMarketplace.toUpperCase() === kode.toUpperCase() && m.platform === d.platform)) petaMarket[skuJual].push({ skuMarketplace: kode, platform: d.platform });
+          if (!petaMarket[skuJual].some(m => m.skuMarketplace.toUpperCase() === kode.toUpperCase() && m.platform === d.platform)) petaMarket[skuJual].push({ skuMarketplace: kode, platform: d.platform, toko: (/Toko\s+([A-Za-z]+)/.exec(String(d.keterangan || '')) || [])[1] || '' }); // v2026.10.136 (DN-407): + toko
         });
       });
       katalogPertahankanPetaTertunda(petaMarket, katalogSkuMarketplaceMap);
@@ -30630,7 +30638,7 @@ function katalogRenderTabel(halamanIni) {
                 const urlCari = URL_CARI_MARKETPLACE[m.platform] ? URL_CARI_MARKETPLACE[m.platform](p.nama) : null;
                 const ikon = iconB64 ? `<img src="data:image/png;base64,${iconB64}" style="width:20px; height:20px; border-radius:4px; margin-right:6px; vertical-align:middle; object-fit:contain;" />` : '';
                 // Klik = SALIN SKU ke clipboard (dulu membuka tab pencarian marketplace)
-                return `<div style="margin-bottom:6px;"><button type="button" class="katalog-salin-sku" data-salin="${escapeHtml(m.skuMarketplace)}" title="Klik untuk menyalin SKU ${escapeHtml(m.platform)}">${ikon}<span class="teks">${escapeHtml(m.skuMarketplace)}</span></button></div>`;
+                return `<div style="margin-bottom:6px;"><button type="button" class="katalog-salin-sku" data-salin="${escapeHtml(m.skuMarketplace)}" title="Klik untuk menyalin SKU ${escapeHtml(m.platform)}">${ikon}<span class="teks">${escapeHtml(m.skuMarketplace)}</span></button><small class="p115-toko">SKU ${escapeHtml(m.platform || 'marketplace')}${m.toko ? ' · toko ' + escapeHtml(m.toko) : ''}</small></div>`;
               }).join('');
             })()}
           </div>
@@ -43589,6 +43597,7 @@ function rakMuat(paksa) {
   return rakMemuat;
 }
 function rakChipHtml(sku) {
+  return ''; // v2026.10.136 (DN-605): fitur rak dimatikan (data rak lama tetap tersimpan, tidak ditampilkan / tidak dimuat)
   const r = rakPeta ? rakPeta[sku] : '';
   const skuAman = pgrAttr(sku);
   return r ? `<button type="button" class="rak-chip" data-rak-sku="${skuAman}" title="Lokasi rak - klik untuk ubah">📍 ${escapeHtml(r)}</button>`
@@ -43676,7 +43685,7 @@ function perMonRender() {
     perMonRender._muatKatalog = true;
     katalogFetchProduk().then(() => { if (el('per-mon-body')) perMonRender(); }); // untuk foto (cache lokal dulu)
   }
-  if (!rakPeta && !rakMemuat) rakMuat().then(() => perMonRender());
+  // v2026.10.136 (DN-605): data rak tidak dimuat lagi
   const data = perMonDataTersaring();
   try { p88MonLepasBar_(); } catch (eL) { }
   el('per-mon-empty').style.display = data.length === 0 ? 'block' : 'none';
@@ -46040,6 +46049,7 @@ function kirimRinganUntukCek_(kirim) {
   return out;
 }
 async function postJsonTulis(body, timeoutMs, opsi) {
+  if (body && !body.__ocrLewat && typeof OmniOCR === 'object' && OmniOCR.milik(body.aksi)) return OmniOCR.lewat(body, b => P115_POSTJSONTULIS_DASAR_(b, timeoutMs, opsi)); // v2026.10.136 (DN-994)
   opsi = opsi || {};
   if (body.toko === undefined) body.toko = currentToko;
   // Salinan: idPermintaan otomatis hanya hidup selama kiriman ini (objek milik pemanggil tidak diubah)
@@ -46096,6 +46106,7 @@ async function postJsonTulis(body, timeoutMs, opsi) {
     lepasTombol();
   }
 }
+const P115_POSTJSONTULIS_DASAR_ = postJsonTulis; // v2026.10.136 (DN-994)
 
 /* ============================================================
    CACHE BACA NAVIGASI - pindah menu TIDAK menembak server
@@ -46154,6 +46165,8 @@ function webAppTandaiAksiManual(e) {
 document.addEventListener('click', webAppTandaiAksiManual, true);
 
 async function postJson(body, timeoutMs, silent) {
+  // v2026.10.136 (DN-994): semua aksi baca dokumen (OCR / AI) lewat SATU pintu OmniOCR (dokumen sama tidak dibaca ulang)
+  if (body && !body.__ocrLewat && typeof OmniOCR === 'object' && OmniOCR.milik(body.aksi)) return OmniOCR.lewat(body, b => P115_POSTJSON_DASAR_(b, timeoutMs, silent));
   timeoutMs = timeoutMs || 20000;
   if (body.toko === undefined) body.toko = currentToko; // otomatis kirim toko yang lagi aktif, kecuali udah diisi manual
 
@@ -46178,6 +46191,7 @@ async function postJson(body, timeoutMs, silent) {
   webAppSimpanHasilBaca_(body, kunciCache, bolehCache, data);
   return data;
 }
+const P115_POSTJSON_DASAR_ = postJson; // v2026.10.136: jalur dasar (dipakai pintu OCR, tanpa melewati bungkusan 2x)
 
 // v2026.10.51 (Paket 33): aksi LATAR yang tidak mengubah data yang ditampilkan menu lain - dulu dianggap aksi tulis
 // sehingga cache menu (di HP/laptop) terbuang tiap 4 detik (memo_sesi_sinkron) / tiap 2 menit (spb_ocr_antrean).
@@ -63370,7 +63384,7 @@ kftBuka = function (k) {
     p13PatchList(k.noInvoice, { status: st || p13StatusSetelahKirim(it), noResi: k.noInvoice });
     try { if (selesaiAsli) selesaiAsli(); } catch (e) { }
   } });
-  p13kt = Object.assign({ fotoData: '', mime: '' }, k2);
+  p13kt = Object.assign({ fotoData: '', mime: '' }, k2, { sudah: typeof p115KtCari_ === 'function' ? p115KtCari_(k.noInvoice) : null }); // v2026.10.136 (DN-960)
   omxmModal(`<div class="omxm-kepala">Konfirmasi Diterima (Kurir Toko)<small>${omxEsc(k.noInvoice)} · ${omxEsc(k.nama || '')}</small><button class="x" type="button" onclick="omxModalTutup()" aria-label="Tutup">✕</button></div>
     <div class="omxm-isi p13-kt">
       <label class="p13-l" for="p13kt-nama">Diterima oleh *</label>
@@ -63384,6 +63398,7 @@ kftBuka = function (k) {
       <div style="font-size:calc(11.5px + var(--fs-plus, 0px)); opacity:.7; margin-top:10px;">Status langsung Dikirim & stok keluar. Bila sudah ditandai Lunas, pesanan otomatis Selesai.</div>
     </div>
     <div class="omxm-kaki"><button type="button" class="omxm-btn" onclick="omxModalTutup()">Batal</button><button type="button" class="omxm-btn utama" onclick="p13KtKirim()">✓ Konfirmasi diterima</button></div>`);
+  if (p13kt.sudah && typeof p115KtTampil_ === 'function') p115KtTampil_(p13kt.sudah);
   setTimeout(() => { const i = el('p13kt-nama'); if (i) { i.focus(); i.select(); } }, 60);
 };
 kftUlangi = function () { const k = { row: kft.row, noInvoice: kft.noInvoice, nama: kft.nama, onSelesai: kft.onSelesai }; p13KftKamera(k); };
@@ -63396,6 +63411,7 @@ async function p13KtFile(f) {
 }
 function p13KtKirim() {
   const k = p13kt; if (!k) return;
+  if (k.sudah && typeof p115KtUbah === 'function') return p115KtUbah(k); // v2026.10.136 (DN-960): sudah dikonfirmasi -> simpan perubahan
   const nama = String((el('p13kt-nama') || {}).value || '').trim();
   if (!nama && !k.fotoData) { omxToast('Isi nama penerima atau tambahkan foto bukti.', 'error'); const i = el('p13kt-nama'); if (i) i.focus(); return; }
   let wMs = Date.parse(String((el('p13kt-waktu') || {}).value || ''));
@@ -73214,7 +73230,7 @@ function p54HiasMonitor_() {
     if (tr.dataset.p54) return; const td = tr.children[1]; if (!td || tr.children.length < 4) return;
     const sku = (td.textContent || '').trim().split(/\s+/)[0]; if (!sku || /memuat|gagal/i.test(sku)) return;
     tr.dataset.p54 = '1';
-    td.insertAdjacentHTML('beforeend', `<button type="button" class="p54-edit" title="Edit nama, harga modal & URL supplier di jendela Produk Master" onclick="p54EditProduk('${pgrAttr(sku)}', event)">✎ Edit</button>`);
+    // v2026.10.136 (DN-257): tombol Edit dihapus - Persediaan hanya untuk stok & mutasi (edit barang di Katalog > Produk Master)
   });
 }
 (function () { const tb = el('per-mon-body'); if (tb) new MutationObserver(p54HiasMonitor_).observe(tb, { childList: true }); p54HiasMonitor_(); })();
@@ -73758,7 +73774,7 @@ function p56ItemsHtml_(items) {
 p55DialogRetur = async function (resi, r, idPesanan) {
   const rt = r.retur || {}, ps = r.pesanan || {};
   const resiCatat = (r.lewat === 'orderRetur' && rt.resiRetur) ? rt.resiRetur : resi;
-  const ket = { resiRetur: 'resi pengembalian', orderRetur: 'ID pesanan retur', idManual: 'ID pesanan yang pernah diisi', resiKeluar: 'resi kirim yang kembali', pesanan: 'pesanan penjualan' }[r.lewat] || '';
+  const ket = r.ekspor ? 'pesanan Shopee Ekspor (Flexi) - dicocokkan otomatis lewat API' : ({ resiRetur: 'resi pengembalian', orderRetur: 'ID pesanan retur', idManual: 'ID pesanan yang pernah diisi', resiKeluar: 'resi kirim yang kembali', pesanan: 'pesanan penjualan' }[r.lewat] || ''); // v2026.10.136 (DN-161)
   const baris = [['Marketplace', rt.sumber || ps.sumber], ['No Pesanan', rt.orderId || ps.noInvoice || r.idManual || idPesanan], ['Pembeli', ps.pembeli],
     ['Alasan', rt.alasan], ['Status', rt.status || ps.status], ['Resi', resiCatat]].filter(x => x[1]);
   const isi = p56ItemsHtml_(r.items) || (rt.produk ? `<div class="p56-item"><span>${escapeHtml(rt.produk)}</span></div>` : '');
@@ -75059,7 +75075,7 @@ p55DialogRetur = async function (resi, r, idPesanan) {
   const rt = r.retur || {}, ps = r.pesanan || {};
   const dariIdLangkah1 = !idPesanan && r.lewat === 'orderRetur';
   const resiCatat = dariIdLangkah1 && rt.resiRetur ? rt.resiRetur : resi;
-  const ket = { resiRetur: 'resi pengembalian', orderRetur: 'ID pesanan retur', idManual: 'ID pesanan yang pernah diisi', resiKeluar: 'resi kirim yang kembali', pesanan: 'pesanan penjualan' }[r.lewat] || '';
+  const ket = r.ekspor ? 'pesanan Shopee Ekspor (Flexi) - dicocokkan otomatis lewat API' : ({ resiRetur: 'resi pengembalian', orderRetur: 'ID pesanan retur', idManual: 'ID pesanan yang pernah diisi', resiKeluar: 'resi kirim yang kembali', pesanan: 'pesanan penjualan' }[r.lewat] || ''); // v2026.10.136 (DN-161)
   const id = rt.orderId || ps.noInvoice || r.idManual || idPesanan || '';
   const baris = [['Marketplace', rt.sumber || ps.sumber], ['No Pesanan', id], ['Pembeli', ps.pembeli], ['Alasan', rt.alasan], ['Status', rt.status || ps.status], ['Resi', resiCatat]].filter(x => x[1]);
   const isi = p56ItemsHtml_(r.items) || (rt.produk ? `<div class="p56-item"><span>${escapeHtml(rt.produk)}</span></div>` : '');
@@ -75964,6 +75980,8 @@ p49DokTombol_ = function () {
 /* ---------- DN-323: upload invoice pembelian = baca tanpa AI dulu; AI hanya lewat tombol "Isi dengan AI" ---------- */
 const p63BacaAiAsli_ = p48BacaInvoice;
 async function p63OcrGambar_(sumber) {
+  // v2026.10.136 (DN-994): OCR lokal lewat pintu OmniOCR (1 worker bersama + hasil diingat), dulu worker baru tiap gambar
+  if (typeof OmniOCR === 'object') return OmniOCR.teks(sumber);
   const T = await spbOcrMuatLib_();
   const w = await T.createWorker('eng', 1, { logger: () => { } });
   try { const r = await w.recognize(sumber); return (r && r.data && r.data.text) || ''; } finally { try { await w.terminate(); } catch (e) { } }
@@ -87382,10 +87400,12 @@ function p93ByrSusun_() {
   const pv = el('byr-file-pratinjau');
   if (pv) new MutationObserver(p93ByrTanda_).observe(pv, { childList: true, subtree: true, characterData: true });
   p93ByrTanda_();
+  try { if (typeof p115ByrAtas_ === 'function') p115ByrAtas_(); } catch (e) { } // v2026.10.136 (DN-237/192)
 }
 function p93ByrTanda_() {
   const k = document.querySelector('#omxm .p93-byr-kiri'); if (!k || typeof byr === 'undefined' || !byr) return;
   const ada = !!byr.fotoData; k.classList.toggle('ada', ada);
+  if (ada && typeof p115ByrLamaLepas_ === 'function') p115ByrLamaLepas_(); // file baru dipilih -> tampilan bukti lama dilepas
   const pv = el('byr-file-pratinjau');
   if (ada && /pdf/i.test(byr.mime || '') && pv && !pv.querySelector('iframe')) pv.innerHTML = `<iframe src="${p93A(byr.fotoData)}#toolbar=0" title="Bukti PDF"></iframe>`;
 }
@@ -89181,7 +89201,7 @@ async function p100JpHapus(baris) {
   const head = v.querySelector('.per-page-head');
   if (head) head.insertAdjacentHTML('beforeend', `<div class="p100-mon-aksi">
     <button type="button" class="web-btn-secondary per-btn-kecil" onclick="smpBuka()" title="Kirim stok bebas dijual ke Shopee & TikTok Shop"><span class="oi oi-refresh" aria-hidden="true"></span> Kirim Stok ke Marketplace</button>
-    <button type="button" class="web-btn-secondary per-btn-kecil" onclick="rakMuat(true).then(rakCetakDaftarOpname)" title="Cetak daftar stok urut rak untuk opname berurutan">🖨 Daftar Opname</button></div>`);
+    <button type="button" class="web-btn-secondary per-btn-kecil" onclick="rakMuat(true).then(rakCetakDaftarOpname)" title="Cetak daftar stok untuk hitung fisik (opname)">🖨 Daftar Opname</button></div>`);
   // chip filter: nama lebih mudah + stok habis
   const lbl = { semua: 'Semua', minus: 'Minus', reserve: 'Sedang dipesan', order: 'Akan datang' };
   v.querySelectorAll('.per-chip[data-permonf]').forEach(b => { if (lbl[b.dataset.permonf]) b.textContent = lbl[b.dataset.permonf]; });
@@ -89215,7 +89235,7 @@ function p100Waktu_(ms) {
 }
 perMonRender = function () {
   if (!katalogProdukCache.length && !perMonRender._muatKatalog) { perMonRender._muatKatalog = true; katalogFetchProduk().then(() => { if (el('per-mon-body')) perMonRender(); }); }
-  if (!rakPeta && !rakMemuat) rakMuat().then(() => perMonRender());
+  // v2026.10.136 (DN-605): data rak tidak dimuat lagi
   const data = perMonDataTersaring();
   try { p88MonLepasBar_(); } catch (eL) { }
   el('per-mon-empty').style.display = data.length === 0 ? 'block' : 'none';
@@ -89289,23 +89309,28 @@ function p100KartuRender() {
   if (c.error) isi = `<div class="web-placeholder">✗ ${p100E(c.error)} <button type="button" class="web-btn-secondary per-btn-kecil" onclick="p100KartuMuat('${pgrAttr(sku)}')">Coba lagi</button></div>`;
   else if (!c.k) isi = '<div class="web-placeholder"><span class="dok-spin"></span> Memuat mutasi…</div>';
   else {
-    const L = (k.timeline || []).filter(e => P100KS.f === 'semua' || e.kategori === P100KS.f);
-    let hariLalu = '';
+    // v2026.10.136 (DN-278): semua mutasi urut waktu TERBARU di atas - titik awal (opname) ikut di posisi waktunya
+    const L = (k.timeline || []).filter(e => P100KS.f === 'semua' || e.kategori === P100KS.f).slice().sort((a, b) => (Number(b.t) || 0) - (Number(a.t) || 0));
+    const opnMs = Number(k.opnameMs) || 0, opnHtml = k.opnameTerakhir && P100KS.f === 'semua' ? `<div class="ev"><span class="ik opname">=</span><span class="t">${p100E(k.opnameOtomatis ? 'Titik awal otomatis' : 'Stock opname (titik awal)')} ${p100E(k.idOpname || '')}<small>${p100E(k.opnameTerakhir)}</small></span><span class="q">${perFmtAngka(k.qtyOpname)}<small>hitungan fisik</small></span></div>` : '';
+    let hariLalu = '', opnDipasang = !opnHtml;
     isi = L.map(e => {
+      let pra = '';
+      if (!opnDipasang && opnMs && (Number(e.t) || 0) < opnMs) { opnDipasang = true; const hr0 = String(k.opnameTerakhir || '').split(/[\s,]+/)[0]; pra = `<div class="hari">${p100E(hr0)} · Titik awal</div>${opnHtml}`; hariLalu = ''; }
       const hr = String(e.waktu || '').split(/\s+/).slice(0, 3).join(' '), judul = hr !== hariLalu ? `<div class="hari">${p100E(hr)}</div>` : ''; hariLalu = hr;
       const ik = e.kategori === 'masuk' ? '+' : e.kategori === 'keluar' ? '−' : '!';
-      return `${judul}<div class="ev ${e.diabaikan ? 'abai' : ''}" title="${e.diabaikan ? 'Terjadi sebelum opname terakhir - sudah termasuk dalam angka opname' : ''}">
+      return `${pra}${judul}<div class="ev ${e.diabaikan ? 'abai' : ''}" title="${e.diabaikan ? 'Terjadi sebelum opname terakhir - sudah termasuk dalam angka opname' : ''}">
         <span class="ik ${p100E(e.kategori)}">${ik}</span><span class="t">${p100E(e.ket || '-')}<small>${p100E(String(e.waktu || '').split(/\s+/).slice(3).join(' '))} · ${p100E(e.sumber || '-')}${e.diabaikan ? ' · sebelum opname' : ''}</small></span>
         <span class="q ${e.qty > 0 ? 'p100-plus' : 'p100-min'}">${p100Tanda(e.qty)}<small>${e.saldo == null ? '' : 'sisa ' + perFmtAngka(e.saldo)}</small></span></div>`;
-    }).join('') || '<div class="web-placeholder">Belum ada mutasi untuk filter ini.</div>';
-    if (k.opnameTerakhir && P100KS.f === 'semua') isi += `<div class="hari">Titik awal</div><div class="ev"><span class="ik opname">=</span><span class="t">${p100E(k.opnameOtomatis ? 'Titik awal otomatis' : 'Stock opname')} ${p100E(k.idOpname || '')}<small>${p100E(k.opnameTerakhir)}</small></span><span class="q">${perFmtAngka(k.qtyOpname)}<small>hitungan fisik</small></span></div>`;
+    }).join('');
+    if (!opnDipasang) isi += `<div class="hari">Titik awal</div>${opnHtml}`;
+    if (!isi) isi = '<div class="web-placeholder">Belum ada mutasi untuk filter ini.</div>';
+    else if (!L.length && P100KS.f !== 'semua') isi = '<div class="web-placeholder">Belum ada mutasi untuk filter ini.</div>' + isi;
   }
   const chip = (f, t) => `<button type="button" class="per-chip ${P100KS.f === f ? 'active' : ''}" onclick="P100KS.f='${f}'; p100KartuRender()">${t}</button>`;
   pn.innerHTML = `<div class="kp"><button type="button" class="ttp" onclick="p100KartuTutup()" title="Tutup (Esc)">✕</button>
-      <h3>${p100E(nama)}</h3><div class="s">${p100E(sku)}${rakPeta && rakPeta[sku] ? ' · rak ' + p100E(rakPeta[sku]) : ''}</div>
+      <h3>${p100E(nama)}</h3><div class="s">${p100E(sku)}</div>
       <div class="angka">${ang('Fisik', k.onHand != null ? k.onHand : m.onHand, '', 'Fisik riil di gudang')}${ang('Dipesan', k.onReserve != null ? k.onReserve : m.onReserve, '', 'Pesanan sudah dibayar, barang belum keluar gudang (belum discan / belum terkirim)')}${ang('Bebas dijual', av, 'av', 'Fisik − Dipesan')}${ang('Akan datang', k.onOrder != null ? k.onOrder : m.onOrder, '', 'Invoice pembelian belum divalidasi + sisa PO')}</div>
       ${c.k ? `<div class="rumus">${k.opnameTerakhir ? `Opname <b>${perFmtAngka(k.qtyOpname)}</b> (${p100E(k.opnameTerakhir)})` : 'Belum pernah opname: <b>0</b>'} + masuk <b class="p100-plus">${perFmtAngka(k.masuk)}</b> − keluar <b class="p100-min">${perFmtAngka(k.keluar)}</b> − rusak/koreksi <b>${perFmtAngka(k.penyesuaian)}</b> = fisik <b>${perFmtAngka(k.onHand)}</b>${k.keluarTanpaScan ? ` · ⚠️ ${perFmtAngka(k.keluarTanpaScan)} keluar tanpa scan` : ''}</div>` : ''}
-      ${p100EditHtml_(sku, m)}
     </div>
     <div class="flt">${chip('semua', 'Semua mutasi')}${chip('masuk', 'Masuk')}${chip('keluar', 'Keluar')}${chip('penyesuaian', 'Rusak / koreksi')}</div>
     <div class="isi">${isi}</div>
@@ -93592,12 +93617,15 @@ function p106GabungKartu_() {
   const satu = document.createElement('div'); satu.className = 'p106-satu';
   satu.innerHTML = '<div class="kiri"><div class="p106-pp"></div><div class="p106-garis"></div></div><div class="kanan"></div>';
   const pp = satu.querySelector('.p106-pp'); pp.appendChild(pembeli); pp.appendChild(penerima);
-  const kiri = satu.querySelector('.kiri'); Array.from(k2.querySelectorAll(':scope > .p85-judul ~ :not(.p85-2kol):not(.p85-sembunyi)')).forEach(x => kiri.appendChild(x)); kiri.appendChild(alamat);
-  const kanan = satu.querySelector('.kanan'); riwayat.classList.add('p106-riw'); kanan.appendChild(riwayat); kanan.appendChild(peta);
+  const kiri = satu.querySelector('.kiri'); Array.from(k2.querySelectorAll(':scope > .p85-judul ~ :not(.p85-2kol):not(.p85-sembunyi)')).forEach(x => kiri.appendChild(x));
+  // v2026.10.136 (DN-315): peta pindah ke paling kiri, isian alamat di sebelahnya (lebih sempit), Riwayat Pembelian memanjang sampai bawah
+  satu.classList.add('p115-buat');
+  const ap = document.createElement('div'); ap.className = 'p115-ap'; ap.appendChild(peta); ap.appendChild(alamat); kiri.appendChild(ap);
+  const kanan = satu.querySelector('.kanan'); riwayat.classList.add('p106-riw'); kanan.appendChild(riwayat);
   tiga.replaceWith(satu);
   k2.querySelectorAll(':scope > .p85-sembunyi').forEach(x => k1.appendChild(x));
   const j1 = k1.querySelector('.p85-judul'), j2 = k2.querySelector('.p85-judul');
-  if (j1) { const sm = j1.querySelector('small, span:not(.p85-no):not([class*="no"])'); const b = j1.querySelector('b, h3, h4, strong'); if (b) b.textContent = 'Pembeli, Penerima & Alamat'; if (sm && j2) { const s2 = j2.querySelector('small, span:not(.p85-no):not([class*="no"])'); if (s2) sm.textContent = 'penerima otomatis = pembeli · isi alamat di kiri atau cari di peta'; } }
+  if (j1) { const sm = j1.querySelector('small, span:not(.p85-no):not([class*="no"])'); const b = j1.querySelector('b, h3, h4, strong'); if (b) b.textContent = 'Pembeli, Penerima & Alamat'; if (sm && j2) { const s2 = j2.querySelector('small, span:not(.p85-no):not([class*="no"])'); if (s2) sm.textContent = 'penerima otomatis = pembeli · cari titik di peta (kiri) atau isi alamat'; } }
   k2.remove();
   const k3 = Array.from(box.children).filter(c => c.classList.contains('p85-kartu'))[1];
   if (k3) { const no = k3.querySelector('.p85-judul .p85-no, .p85-judul i, .p85-judul em, .p85-judul span'); if (no && /^\s*3\s*$/.test(no.textContent)) no.textContent = '2'; }
@@ -94271,26 +94299,30 @@ async function p107LengkapMuat_(daftar) {
   P107.lengMuat = true;
   try {
     const r = await postJson({ aksi: 'cek_p107_kelengkapan', daftar: perlu.slice(0, 300).map(o => ({ s: o.sumber, no: o.noReferensi, resi: wpResiStr(o.noResi) })), email: currentUserEmail() }, 60000, true);
-    if (r && r.success) Object.keys(r.peta || {}).forEach(k => { P107.leng[k] = { v: r.peta[k], t: Date.now() }; });
+    if (r && r.success) Object.keys(r.peta || {}).forEach(k => { P107.leng[k] = { v: r.peta[k], x: (r.rinci || {})[k] || {}, t: Date.now() }; }); // v2026.10.136 (DN-689): + rincian tanggal & bukti
   } catch (e) { } finally { P107.lengMuat = false; }
   p107LengkapTempel_();
 }
 function p107UmurHari_(o) { const t = Number(o.waktuMs || o.ms || 0) || Date.parse(String(o.tanggal || '').replace(/(\d{2})-(\w{3})-(\d{4})/, '$1 $2 $3')) || 0; return t ? (Date.now() - t) / 86400000 : 0; }
 function p107LengkapTempel_() {
-  const peta = new Map((wpGabunganCache || []).map(o => [wpGabunganKunciUnik(o), o]));
+  // v2026.10.136 (DN-689 / DN-383): 3 ikon bukti diganti daftar status (Resi · Pembayaran · Transaksi, klik = bukti) + kurir dari API
+  const peta = new Map((wpGabunganCache || []).map(o => [wpGabunganKunciUnik(o), o])), tampil = [];
   document.querySelectorAll('#wp-gabungan-body tr[data-kunci]').forEach(tr => {
-    const o = peta.get(tr.dataset.kunci); if (!o) return;
-    const c = P107.leng[o.noReferensi]; if (!c) return;
+    const o = peta.get(tr.dataset.kunci); if (!o) return; tampil.push(o);
     const td = tr.querySelector('td.wp-mono'); if (!td) return;
-    let w = td.querySelector('.p107-lengkap'); if (!w) { td.insertAdjacentHTML('beforeend', '<span class="p107-lengkap"></span>'); w = td.querySelector('.p107-lengkap'); }
+    if (typeof p115KurirHtml_ === 'function') { const h = p115KurirHtml_(o), ada = td.querySelector('.p115-kur'); if (!ada) { if (h) td.insertAdjacentHTML('beforeend', h); } else if (ada.dataset.sig !== h) { if (h) ada.outerHTML = h; else ada.remove(); } const b = td.querySelector('.p115-kur'); if (b) b.dataset.sig = h; }
+    const c = P107.leng[o.noReferensi]; if (!c) return;
     const v = c.v || '', n = (v.match(/[rbt]/g) || []).length;
     const batal = /CANCEL|BATAL|UNPAID|REJECT/i.test(String(o.status || ''));
     const batasHari = p106ApakahKilat_(o) ? 7 : 21;
     const kurang = !batal && n < 2 && p107UmurHari_(o) > batasHari;
-    w.className = 'p107-lengkap' + (kurang ? ' kurang' : '');
+    let w = td.querySelector('.p107-lengkap'); if (!w) { td.insertAdjacentHTML('beforeend', '<span class="p107-lengkap"></span>'); w = td.querySelector('.p107-lengkap'); }
+    w.className = 'p107-lengkap' + (kurang ? ' kurang' : ''); // tetap ada (disembunyikan) untuk modul lain yang membaca tanda "kurang"
     w.title = `Bukti transaksi (minimal 2 dari 3):\n${v.includes('r') ? '✓' : '○'} Resi keluar sudah discan\n${v.includes('b') ? '✓' : '○'} Uang masuk tercatat (mutasi / API marketplace)\n${v.includes('t') ? '✓' : '○'} Resi retur dikonfirmasi Scan Resi Masuk` + (kurang ? `\n\n⚠ Sudah lewat ${batasHari} hari tanpa 2 bukti - perlu dicek / diajukan komplain.` : '');
-    w.innerHTML = `<i class="${v.includes('r') ? 'ya' : ''}">🚚</i><i class="${v.includes('b') ? 'ya' : ''}">💰</i><i class="${v.includes('t') ? 'ya' : ''}">↩</i>`;
+    if (typeof p115StatusHtml_ === 'function') { const h = p115StatusHtml_(o, c), ada = td.querySelector('.p115-st'); if (!ada) td.insertAdjacentHTML('beforeend', h); else if (ada.dataset.sig !== h) ada.outerHTML = h; const b = td.querySelector('.p115-st'); if (b) b.dataset.sig = h; }
+    const sl = td.querySelector('.p111-salin'), pk = td.querySelector('.p115-kur, .p115-st'); if (sl && pk && (sl.compareDocumentPosition(pk) & Node.DOCUMENT_POSITION_PRECEDING)) td.insertBefore(sl, pk); // ⧉ tetap di sebelah No Resi
   });
+  try { if (typeof p115KurirMuat_ === 'function') p115KurirMuat_(tampil); } catch (e) { }
 }
 const p107GabRenderAsli_ = window.wpGabunganRenderHalaman;
 window.wpGabunganRenderHalaman = function () {
@@ -97351,9 +97383,15 @@ p101LabelHtml_ = function (o, p, i, n) {
   p = p || {};
   const isi_ = typeof p101Isi_ === 'function' ? p101Isi_ : (x => String(x || '').trim());
   const resi = isi_(typeof wpResiStr === 'function' ? wpResiStr(o.noResi) : o.noResi);
-  const nama = isi_(p.nama) || isi_(o.namaManual) || (o.tebak && o.tebak.nama) || isi_(o.pembeli) || isi_(o.namaTersamar) || '-';
-  const hp = isi_(p.hp) || isi_(o.hpManual) || (o.tebak && o.tebak.hp) || isi_(o.hpTersamar) || '';
-  const alamat = isi_(p.alamat) || isi_(o.alamatManual) || (o.tebak && o.tebak.alamat) || isi_(o.alamatTersamar) || '-';
+  // v2026.10.136 (DN-833): ambil data PALING LENGKAP (tanpa sensor) dari semua sumber; bila lengkap -> HP disensor sebagian
+  // (UU 27/2022 PDP: data seperlunya untuk pengiriman). Nama & alamat tetap utuh agar kurir & staf gudang paham paket siapa.
+  const calon = L => L.map(x => isi_(x)).filter(x => x && x !== '-');
+  const terbaik = L => { const c = calon(L); return c.find(x => !/\*/.test(x)) || c.sort((a, b) => b.replace(/\*/g, '').length - a.replace(/\*/g, '').length)[0] || ''; };
+  const nama = terbaik([p.nama, o.namaManual, o.tebak && o.tebak.nama, o.pembeli, o.namaTersamar]) || '-';
+  const hpPenuh = terbaik([p.hp, o.hpManual, o.tebak && o.tebak.hp, o.hpTersamar]);
+  const hp = typeof p115SensorHp_ === 'function' ? p115SensorHp_(hpPenuh, o) : hpPenuh;
+  const alamat = terbaik([p.alamat, o.alamatManual, o.tebak && o.tebak.alamat, o.alamatTersamar]) || '-';
+  const userPb = /\*/.test(nama) && (p.username || o.username) && !/^-$/.test(p.username || o.username) ? ' (@' + String(p.username || o.username).replace(/^@/, '') + ')' : '';
   const items = (p.items || []).filter(x => Number(x.qty) > 0);
   const qty = items.reduce((t, x) => t + (Number(x.qty) || 0), 0);
   const kanal = p101LogoKanal_(o.sumber), kurir = isi_(o.kurir) || '', logoKurir = kurir ? p101LogoKurir_(kurir) : '', logoToko = p101LogoToko_(o.toko);
@@ -97374,7 +97412,7 @@ p101LabelHtml_ = function (o, p, i, n) {
     <div class="bc">${resi ? `${p101Barcode_(resi, 50, 2)}<div class="no mono">${p111E(resi)}</div>` : '<div class="belum">Resi belum tersedia</div>'}</div>
     <div class="grid">
       <div class="box al">
-        <div class="pn"><span class="lk">Penerima</span><b>${p111E(nama)}</b>${hp ? `<span class="hp mono">${p111E(hp)}</span>` : ''}<p>${p111E(alamat)}</p></div>
+        <div class="pn"><span class="lk">Penerima</span><b>${p111E(nama)}${p111E(userPb)}</b>${hp ? `<span class="hp mono">${p111E(hp)}</span>` : ''}<p>${p111E(alamat)}</p></div>
         <div class="pg"><span class="lk">Pengirim</span><b>${p111E(namaToko)}</b>${hpTokoTampil ? `<span class="hp mono">${p111E(hpTokoTampil)}</span>` : ''}${prof.alamat ? `<p>${p111E(prof.alamat)}</p>` : ''}</div>
       </div>
       <div class="kn">
@@ -97455,8 +97493,15 @@ p107KurirPasang_ = function () {
     const a = w.querySelector('.p102-kurir .p102-pil.aktif'); w.classList.toggle('p107-pilih', !!a); ganti.hidden = !a; og.hidden = !a;
     if (a) p111KaHitung_(og, a.textContent.replace(/\s+/g, ' ').trim());
   };
+  // v2026.10.136 (DN-516): klik kapsul kurir yang terpilih = ganti kurir (tombol "Ganti kurir" di bawahnya dihapus)
+  w.addEventListener('click', e => {
+    const akt = e.target.closest('.p102-kurir .p102-pil.aktif');
+    if (akt && w.classList.contains('p107-pilih')) { e.preventDefault(); e.stopImmediatePropagation(); ganti.click(); return; }
+  }, true);
   w.addEventListener('click', e => { if (e.target.closest('.p102-pil')) setTimeout(cek, 30); });
   ganti.addEventListener('click', () => { w.classList.remove('p107-pilih'); ganti.hidden = true; og.hidden = true; const c = w.querySelector('.p105-kurir-cari input, input.p105-kurir-cari'); if (c) c.focus(); });
+  const pilT = () => { const a = w.querySelector('.p102-kurir .p102-pil.aktif'); if (a) a.title = 'Klik untuk ganti kurir'; };
+  w.addEventListener('click', () => setTimeout(pilT, 40)); setTimeout(pilT, 60);
   const al = el('wp-b-alamat'); if (al && !al.dataset.p111) { al.dataset.p111 = '1'; al.addEventListener('change', () => { if (!og.hidden) { og.dataset.kunci = ''; cek(); } }); }
   cek();
 };
@@ -98468,6 +98513,8 @@ function p112AksiPulihkan_() {
   const aksi = el('wp-gab-aksi-' + tr.dataset.idx); if (!aksi || aksi.style.display !== 'none') return;
   document.querySelectorAll('#wp-gabungan-body tr.wp-gab-baris-aksi').forEach(x => { if (x !== aksi) x.style.display = 'none'; });
   aksi.style.display = 'table-row'; tr.classList.add('p112-terbuka');
+  // v2026.10.136 (DN-122): dulu hanya tombol yang dipulihkan (kotak data pesanan kosong) -> data selalu tampil bersama tombolnya
+  try { const box = aksi.querySelector('.pjx-box'); if (box && !box.children.length && typeof pjxMuat === 'function') pjxMuat(k, box); } catch (e) { }
 }
 document.addEventListener('click', e => {
   if (!e.isTrusted || !e.target.closest) return;
@@ -98519,8 +98566,9 @@ function p112ByrPasang_() {
   const o = (typeof byr !== 'undefined' && byr && byr.order) || {};
   if (o.bayarDiterima && (o.bayarDiterima.waktu || o.bayarDiterima.oleh || o.bayarDiterima.bukti)) {
     const isi = document.querySelector('#omxm .omxm-isi');
-    if (isi) isi.insertAdjacentHTML('afterbegin', `<div class="p112-sudah">✓ Sudah lunas${o.bayarDiterima.waktu ? ' · ' + p112E(o.bayarDiterima.waktu) : ''}${o.bayarDiterima.oleh ? ' · oleh ' + p112E(o.bayarDiterima.oleh) : ''}${o.bayarDiterima.bukti ? ` · <a href="${p112E(o.bayarDiterima.bukti)}" target="_blank" rel="noopener">lihat bukti</a>` : ''}. Upload di bawah untuk mengganti bukti.</div>`);
+    if (isi) isi.insertAdjacentHTML('afterbegin', `<div class="p112-sudah">✓ <b>Sudah lunas</b>${o.bayarDiterima.waktu ? ' · ' + p112E(o.bayarDiterima.waktu) : ''}${o.bayarDiterima.oleh ? ' · oleh ' + p112E(o.bayarDiterima.oleh) : ''}. Klik / tarik file ke kotak bukti untuk mengganti.</div>`);
   }
+  setTimeout(() => { try { if (typeof p115ByrAtas_ === 'function') p115ByrAtas_(); } catch (e) { } }, 0); // v2026.10.136 (DN-237/192): info di atas, bukti tersimpan langsung tampil
   t.insertAdjacentHTML('beforeend', `<div id="p112-setor" class="p112-setor">
     <label>Disetor / ditransfer ke rekening bisnis *<input id="p112-st-rek" class="web-form-input" list="p112-dl-rek" autocomplete="off" placeholder="mis. BCA Waterground 123…"><datalist id="p112-dl-rek"></datalist></label>
     <label>Penyetor *<input id="p112-st-org" class="web-form-input" list="p112-dl-org" autocomplete="off" placeholder="Nama yang menyetor / mentransfer"><datalist id="p112-dl-org"></datalist></label>
@@ -98816,6 +98864,9 @@ function p112KatGrupDari_(c) {
   if (c.grup === 'fin' || c.grup === 'transfer' || c.grup === 'abaikan') return 'lain';
   return c.arah === 'masuk' ? 'pendapatan' : 'pengeluaran';
 }
+// v2026.10.136 (DN-622): kode akun Bagan Akun SAK EMKM (sama dengan Laporan Keuangan) ditampilkan di depan nama kategori
+const P115_KODE_SAK = { op_terima: '4-1xx', op_lain_masuk: '7-101', op_kompensasi: '7-102', inv_jual_aset: '1-201', op_supplier: '1-103', inv_aset: '1-201', op_beban: '6-2xx', op_marketplace: '6-1xx', op_admin_bank: '6-210', op_pajak: '9-101', op_refund: '4-1xx', op_reimburse: '2-102', transfer: '1-101', fin_modal: '3-101', fin_prive: '3-102', fin_pinjam: '2-201', fin_cicil: '2-201' };
+const P115_NAMA_SAK = { '4-1xx': 'Penjualan per channel', '7-101': 'Pendapatan Lain-lain', '7-102': 'Pendapatan Klaim', '1-201': 'Aset Tetap', '1-103': 'Persediaan Barang Dagang', '6-2xx': 'Beban Operasional', '6-1xx': 'Beban Potongan & Komisi per channel', '6-210': 'Beban Operasional Lain', '9-101': 'Beban Pajak Penghasilan', '2-102': 'Utang Reimburse ke Pemilik', '1-101': 'Kas & Bank', '3-101': 'Modal Pemilik', '3-102': 'Prive Pemilik', '2-201': 'Utang Pinjaman' };
 function p112KatOpsi_(nilai, masuk, tanpaBaru) {
   const kat = typeof fmkKategori === 'function' ? fmkKategori() : [];
   const urut = masuk ? ['pendapatan', 'lain', 'pembelian', 'pengeluaran'] : ['pengeluaran', 'pembelian', 'lain', 'pendapatan'];
@@ -98823,7 +98874,7 @@ function p112KatOpsi_(nilai, masuk, tanpaBaru) {
   const g = id => P112_KAT_GRUP.find(x => x.id === id);
   return '<option value="">— pilih kategori —</option>' + urut.map(id => {
     const L = per[id] || []; if (!L.length) return '';
-    return `<optgroup label="${p112E(g(id).label)}">${L.map(c => `<option value="${p112E(c.k)}" ${c.k === nilai ? 'selected' : ''} title="${p112E(c.label)}">${c.custom ? '★ ' : ''}${p112E(g(id).k[c.k] || c.label)}</option>`).join('')}</optgroup>`;
+    return `<optgroup label="${p112E(g(id).label)}">${L.map(c => { const sak = P115_KODE_SAK[c.k] || (c.custom ? '6-2xx' : ''); return `<option value="${p112E(c.k)}" ${c.k === nilai ? 'selected' : ''} title="${p112E(c.label)}${sak ? ' · akun SAK ' + sak + ' ' + (P115_NAMA_SAK[sak] || '') : ''}">${sak ? '[' + sak + '] ' : ''}${c.custom ? '★ ' : ''}${p112E(g(id).k[c.k] || c.label)}</option>`; }).join('')}</optgroup>`;
   }).join('') + (tanpaBaru ? '' : '<option value="__baru__">＋ Tambah kategori baru…</option>');
 }
 function p112KatTerapkan_() {
@@ -98832,7 +98883,7 @@ function p112KatTerapkan_() {
     s.innerHTML = p112KatOpsi_(v, tr && tr.dataset.masuk === '1'); s.value = v; s.dataset.p112 = '1';
   });
   const th = Array.from(document.querySelectorAll('#fmk-list thead th')).find(x => /Kategori Finance/.test(x.textContent));
-  if (th && !th.querySelector('.p112-i')) th.insertAdjacentHTML('beforeend', ' <span class="p112-i" title="Pilih sederhana: Pendapatan · Pembelian · Pengeluaran · Bukan untung/rugi.&#10;Di laporan tetap otomatis masuk pos SAK yang benar (arus kas operasi / investasi / pendanaan, laba rugi).">ⓘ</span>');
+  if (th && !th.querySelector('.p112-i')) th.insertAdjacentHTML('beforeend', ' <span class="p112-i" title="Pilih sederhana: Pendapatan · Pembelian · Pengeluaran · Bukan untung/rugi.&#10;[kode] = nomor akun Bagan Akun SAK EMKM di Laporan Keuangan (4 = pendapatan, 6 = beban, 1 = aset, 2 = utang, 3 = modal, 7 = pendapatan lain, 9 = pajak).&#10;xx = nomor per channel / per jenis biaya.">ⓘ</span>');
 }
 
 /* ---------- DN-310: kolom Keterangan mutasi = [Nama biaya] / Order ID / Settlement ID - semua bisa diklik (baca saja) ---------- */
@@ -98872,7 +98923,19 @@ function p112KetTerapkan_(ulang) {
     if (!mp && !od.length && !st) { td.dataset.p112 = '1'; td.classList.add('p112-k'); const k = td.querySelector('.fmk-ket-isi'); if (k) { k.classList.add('p112-klik'); k.dataset.p112Mutasi = b.id; } return; }
     if (/^TTS-ST-/.test(b.id || '') && !P112.mref[b.id]) muat.push(b.id);
     const r = P112.mref[b.id] || {};
-    const ordHtml = od.length ? `<button type="button" class="p112-k2" data-p112-order="${p112E(od[0])}" data-p112-sumber="${/tiktok|tokopedia/i.test(b.akun || '') ? 'TikTok Shop' : 'Shopee'}" title="Lihat detail pesanan">🧾 ${p112E(od[0])}</button>${od.length > 1 || r.n > 1 ? `<button type="button" class="p112-k2 lagi" data-p112-st="${p112E(b.id)}">+${(r.n || od.length) - 1} pesanan</button>` : ''}`
+    // v2026.10.136 (DN-158): settlement TikTok -> keterangan utama = Settlement ID; di bawahnya tiap pesanan yang cair + nominalnya
+    if (/^TTS-ST-/.test(b.id || '') && st) {
+      const jenis = (/-([RFA])$/.exec(b.id) || [])[1] || '';
+      const nilai = o => { if (jenis === 'R') return o.pendapatan !== undefined ? o.pendapatan : null; if (jenis === 'F') return o.biaya !== undefined ? o.biaya : null; if (jenis === 'A') return o.ongkir !== undefined ? (o.ongkir || 0) + (o.penyesuaian || 0) : null; return o.nilai; };
+      const lbl = { R: 'pendapatan', F: 'biaya & komisi', A: 'ongkir / penyesuaian' }[jenis] || 'cair';
+      const L = (r.orders || []).map(o => { const v = nilai(o); return `<div><button type="button" class="p112-k2" data-p112-order="${p112E(o.order)}" data-p112-sumber="TikTok Shop" title="Lihat detail pesanan">🧾 ${p112E(o.order)}</button>${v === null ? `<small>cair ${p112E(p112Rp(o.nilai))}</small>` : `<b class="${v < 0 ? 'min' : 'plus'}" title="${p112E(lbl)} · cair ${p112E(p112Rp(o.nilai))}">${v < 0 ? '− ' : ''}${p112E(p112Rp(Math.abs(v)))}</b>`}</div>`; }).join('');
+      const isiL = r.memuat ? '<span class="p112-k2 redup">memuat ID pesanan…</span>' : (L ? `<div class="p115-st-list" title="${p112E(lbl)} per pesanan">${L}</div>` : `<button type="button" class="p112-k2 redup" data-p112-st="${p112E(b.id)}">ID pesanan belum ditarik</button>`);
+      td.innerHTML = `<div class="p112-ket"><button type="button" class="p112-k1" data-p112-st="${p112E(b.id)}" title="${p112E(b.ket)} · klik untuk isi settlement">Settlement ${p112E(st)}</button><small class="p112-ket">${p112E(p112KetNama_(b))}${r.n ? ' · ' + r.n + ' pesanan' : ''}</small>${isiL}</div>`;
+      td.dataset.p112 = '1'; td.classList.add('p112-k');
+      return;
+    }
+    // v2026.10.136 (DN-553): tombol "+N pesanan" dihapus - isi lengkap lewat klik No Settlement
+    const ordHtml = od.length ? `<button type="button" class="p112-k2" data-p112-order="${p112E(od[0])}" data-p112-sumber="${/tiktok|tokopedia/i.test(b.akun || '') ? 'TikTok Shop' : 'Shopee'}" title="Lihat detail pesanan">🧾 ${p112E(od[0])}</button>`
       : (r.memuat ? '<span class="p112-k2 redup">memuat ID pesanan…</span>' : (st ? `<button type="button" class="p112-k2 redup" data-p112-st="${p112E(b.id)}">ID pesanan belum ditarik</button>` : ''));
     td.innerHTML = `<div class="p112-ket"><button type="button" class="p112-k1" data-p112-mutasi="${p112E(b.id)}" title="${p112E(b.ket)}">${p112E(p112KetNama_(b))}</button>${ordHtml ? `<div class="p112-k2w">${ordHtml}</div>` : ''}${st ? `<button type="button" class="p112-k3" data-p112-st="${p112E(b.id)}" title="Lihat isi settlement">Settlement ${p112E(st)}</button>` : ''}</div>`;
     td.dataset.p112 = '1'; td.classList.add('p112-k');
@@ -98900,7 +98963,7 @@ async function p112SettlementDetail_(id) {
     const tot = (r.daftar || []).reduce((t, x) => t + (Number(x.nilai) || 0), 0);
     const jdl = document.querySelector('#omx-modal .omx-modal-head b'); if (jdl) jdl.textContent = '🧾 Settlement ' + r.statement;
     isi.innerHTML = `<div class="p112-ro"><div class="p111-dp-kp"><span>${p112E(b.akun || 'TikTok Shop')}</span><span>${p112E(String(b.t || '').slice(0, 10))}</span><span class="web-status-pill">${(r.daftar || []).length} pesanan</span><b>${p112Rp(tot)}</b></div>
-      ${(r.daftar || []).length ? `<div class="p112-ro-tbl"><table><thead><tr><th>No pesanan</th><th>Jenis</th><th class="n">Dana</th></tr></thead><tbody>${r.daftar.map(x => `<tr><td><button type="button" class="p112-k2" data-p112-order="${p112E(x.order)}" data-p112-sumber="TikTok Shop">🧾 ${p112E(x.order)}</button></td><td>${p112E(x.jenis || '-')}</td><td class="n">${p112Rp(x.nilai)}</td></tr>`).join('')}</tbody></table></div>`
+      ${(r.daftar || []).length ? `<div class="p112-ro-tbl p115-ro-tbl"><table><thead><tr><th>No pesanan</th><th>Jenis</th><th class="n">Pendapatan</th><th class="n">Biaya & komisi</th><th class="n">Ongkir / lain</th><th class="n">Cair</th></tr></thead><tbody>${r.daftar.map(x => `<tr><td><button type="button" class="p112-k2" data-p112-order="${p112E(x.order)}" data-p112-sumber="TikTok Shop">🧾 ${p112E(x.order)}</button></td><td>${p112E(x.jenis || '-')}</td><td class="n">${x.pendapatan !== undefined ? p112Rp(x.pendapatan) : '–'}</td><td class="n">${x.biaya !== undefined ? p112Rp(x.biaya) : '–'}</td><td class="n">${x.ongkir !== undefined ? p112Rp((x.ongkir || 0) + (x.penyesuaian || 0)) : '–'}</td><td class="n"><b>${p112Rp(x.nilai)}</b></td></tr>`).join('')}</tbody><tfoot><tr><th colspan="2">Total</th>${['pendapatan', 'biaya'].map(f => `<th class="n">${p112Rp(r.daftar.reduce((t, x) => t + (Number(x[f]) || 0), 0))}</th>`).join('')}<th class="n">${p112Rp(r.daftar.reduce((t, x) => t + (Number(x.ongkir) || 0) + (Number(x.penyesuaian) || 0), 0))}</th><th class="n">${p112Rp(tot)}</th></tr></tfoot></table></div>`
         : `<div class="p108-kosong">${r.sudahDitarik ? 'Settlement ini tidak berisi pesanan.' : 'ID pesanan settlement ini belum ditarik dari TikTok Shop.'}<br><br><button type="button" class="p108-btn utama" onclick="omxTutupModal(); p110MkTarikId()">🧾 Tarik sekarang</button></div>`}</div>`;
   } catch (e) { const isi = document.querySelector('#omx-modal .omx-modal-isi'); if (isi) isi.innerHTML = `<div class="p108-kosong">✗ ${p112E(String(e.message || e))}</div>`; }
 }
@@ -99003,7 +99066,7 @@ function p112ImporTombol_() {
   const b = Array.from(v.querySelectorAll('button')).find(x => /smxBuka/.test(x.getAttribute('onclick') || '') && !x.classList.contains('p112-imp'));
   if (!b) return;
   b.classList.add('p112-imp'); b.removeAttribute('style');
-  b.setAttribute('onclick', 'p112ImporBuka()'); b.title = 'Import produk: Excel, dari marketplace, atau mapping SKU';
+  b.setAttribute('onclick', 'p112ImporBuka()'); b.title = 'Import produk: Excel atau dari marketplace (API)';
   b.innerHTML = '<span class="oi oi-upload" aria-hidden="true"></span> Import';
   const tambah = Array.from(v.querySelectorAll('button')).find(x => /katalogBukaModalTambahProduk\(\)/.test(x.getAttribute('onclick') || '') && x.classList.contains('web-btn-primary'));
   if (tambah && tambah.parentNode) tambah.parentNode.insertBefore(b, tambah);
@@ -99013,8 +99076,7 @@ if (typeof katalogBukaSub === 'function') { const a = katalogBukaSub; katalogBuk
 function p112ImporBuka() {
   omxModal('Import produk ke Katalog', `<div class="p112-imp-pilih">
     <button type="button" class="p112-imp-k" onclick="p112ImporExcel()"><i>📄</i><b>Excel</b><span>Download template, isi, lalu upload. Foto cukup pakai link (URL).</span></button>
-    <button type="button" class="p112-imp-k" onclick="p112ImporMp()"><i>🏪</i><b>Dari Marketplace</b><span>Pilih toko yang terhubung - produk ditarik & dicocokkan otomatis dengan Katalog.</span></button>
-    <button type="button" class="p112-imp-k" onclick="omxTutupModal(); smxBuka()"><i>🔗</i><b>Mapping SKU</b><span>Cara lama: upload export TikTok Shop / Shopee + catatan SKU internal.</span></button></div>`, { lebar: true });
+    <button type="button" class="p112-imp-k" onclick="p112ImporMp()"><i>🏪</i><b>Dari Marketplace</b><span>Pilih toko yang terhubung - semua SKU listing ditarik lewat API, dicocokkan & dihubungkan ke SKU Gudang.</span></button></div>`, { lebar: true }); // v2026.10.136 (DN-320): "Mapping SKU" cara lama dihapus (smxBuka tetap ada, tanpa tombol)
 }
 /* --- 1) Excel: template -> isi -> upload --- */
 const P112_TPL = ['SKU', 'Nama Produk', 'Kategori', 'Harga Modal (HPP)', 'Harga Jual', 'URL Foto', 'SKU Shopee', 'SKU TikTok/Tokopedia'];
@@ -99079,16 +99141,20 @@ async function p112ImporTarik(id, label) {
       semua.push(...(r.rows || [])); cursor = r.lanjut || '';
       const p = el('p112-imp-prog'); if (p) p.innerHTML = `<i class="dok-spin"></i> ${semua.length} produk / variasi ditarik${r.total ? ' dari ±' + r.total + ' listing' : ''}…`;
     } while (cursor && ++putaran < 60 && document.querySelector('#omx-modal'));
-    const peta = p112KatPeta_(), terhubung = new Map();
+    const peta = p112KatPeta_(), terhubung = new Map(), mpPf = new Set(), pf = /shopee/.test(id) ? 'Shopee' : 'TikTok Shop';
     (katalogProdukCache || []).forEach(p => { try { (hargaDaftarTerhubung(p) || []).forEach(t => { if (t.kode) terhubung.set(String(t.kode).toUpperCase(), p.sku); }); } catch (e) { } });
+    Object.keys(katalogSkuMarketplaceMap || {}).forEach(g => (katalogSkuMarketplaceMap[g] || []).forEach(m => mpPf.add(String(m.skuMarketplace).toUpperCase() + '|' + m.platform)));
     const dipakai = new Set();
+    // v2026.10.136 (DN-407/948): setiap SKU listing dicatat per toko & dihubungkan terbalik ke SKU Gudang (ID listing dibawa untuk pasang SKU lewat API)
     const rows = semua.map(x => {
       const k = String(x.kode || '').trim().toUpperCase();
-      const r = { sku: k, nama: (x.nama + (x.varian ? ' - ' + x.varian : '')).replace(/\s+/g, ' ').trim(), kat: '', hpp: 0, harga: Math.round(x.harga || 0), foto: x.foto || '', shopee: /shopee/.test(id) ? k : '', tiktok: /tiktok/.test(id) ? k : '' };
+      const r = { sku: k, nama: (x.nama + (x.varian ? ' - ' + x.varian : '')).replace(/\s+/g, ' ').trim(), kat: '', hpp: 0, harga: Math.round(x.harga || 0), foto: x.foto || '', shopee: /shopee/.test(id) ? k : '', tiktok: /tiktok/.test(id) ? k : '', itemId: x.itemId || '', modelId: x.modelId || '' };
       r.st = !k ? 'tanpa' : peta.has(k) ? 'ada' : terhubung.has(k) ? 'hubung' : dipakai.has(k) ? 'dobel' : 'baru';
-      r.ke = terhubung.get(k) || ''; dipakai.add(k); r.pilih = r.st === 'baru'; return r;
+      r.ke = terhubung.get(k) || (r.st === 'ada' ? k : ''); dipakai.add(k); r.pilih = r.st === 'baru';
+      r.perluSambung = !!k && (r.st === 'ada' || r.st === 'hubung') && !mpPf.has(k + '|' + pf); r.gudang = r.perluSambung ? (r.ke || k) : '';
+      return r;
     });
-    P112.impor = { rows, sumber: label };
+    P112.impor = { rows, sumber: label, id, filter: '' };
     isi.innerHTML = '<div id="p112-imp-hasil"></div>';
     p112ImporTampil_();
   } catch (e) { isi.innerHTML = `<div class="p108-kosong">✗ ${p112E(String(e.message || e))}${semua.length ? `<br>${semua.length} produk sempat ditarik.` : ''}</div>`; }
@@ -99096,17 +99162,29 @@ async function p112ImporTarik(id, label) {
 const P112_IMP_ST = { baru: ['🆕 Belum ada', 'baru'], ada: ['✓ Sudah di Katalog', 'ada'], hubung: ['🔗 Terhubung', 'ada'], dobel: ['⚠ SKU dobel di file', 'salah'], salah: ['✗ SKU / nama kosong', 'salah'], tanpa: ['⚠ Tanpa SKU penjual', 'salah'] };
 function p112ImporTampil_() {
   const out = el('p112-imp-hasil'), I = P112.impor; if (!out || !I) return;
-  const n = s => I.rows.filter(r => r.st === s).length, pilih = I.rows.filter(r => r.pilih).length;
-  out.innerHTML = `<div class="p110-tinjau-ring"><span class="p110-st baru">🆕 ${n('baru')} belum ada</span><span class="p110-st manual">✓ ${n('ada') + n('hubung')} sudah ada / terhubung</span>${n('salah') + n('tanpa') + n('dobel') ? `<span class="p110-st ada">⚠ ${n('salah') + n('tanpa') + n('dobel')} perlu dicek</span>` : ''}</div>
-    <div class="p110-tinjau"><table><thead><tr><th><input type="checkbox" id="p112-imp-semua" ${pilih && pilih === n('baru') ? 'checked' : ''}></th><th>Foto</th><th>SKU</th><th>Nama produk</th><th class="n">Harga jual</th><th>Status</th></tr></thead><tbody>
-    ${I.rows.map((r, i) => `<tr class="${r.pilih ? '' : 'mati'}"><td>${r.st === 'baru' ? `<input type="checkbox" data-i="${i}" ${r.pilih ? 'checked' : ''}>` : ''}</td><td>${r.foto ? `<img class="p112-imp-f" src="${p112E(r.foto)}" alt="" loading="lazy">` : ''}</td><td class="mono">${p112E(r.sku || '-')}</td><td>${p112E(r.nama)}</td><td class="n">${r.harga ? p112Rp(r.harga) : ''}</td><td><span class="p110-st ${P112_IMP_ST[r.st][1]}">${P112_IMP_ST[r.st][0]}</span>${r.ke && r.ke !== r.sku ? `<small class="p112-ket"> → ${p112E(r.ke)}</small>` : ''}</td></tr>`).join('')}</tbody></table></div>
-    <div class="p108-aksi"><span class="p109-ket">${pilih} produk baru akan ditambahkan ke Katalog${I.sumber !== 'excel' ? ' · sumber ' + p112E(I.sumber) : ''}</span><span style="flex:1"></span><button type="button" class="p108-btn utama" id="p112-imp-ok" ${pilih ? '' : 'disabled'} onclick="p112ImporSimpan()">＋ Tambahkan ${pilih} produk</button></div>`;
+  const n = s => I.rows.filter(r => r.st === s).length, mp = I.sumber !== 'excel';
+  // v2026.10.136 (DN-541): 3 kapsul = saringan (klik lagi = semua)
+  const f = I.filter && P115_IMP_F[I.filter] ? P115_IMP_F[I.filter] : null, tampil = I.rows.map((r, i) => [r, i]).filter(([r]) => !f || f(r));
+  const pilih = I.rows.filter(r => r.pilih && r.st === 'baru' && !r.gudang).length, nSamb = I.rows.filter(r => r.gudang && (r.perluSambung || (r.st === 'baru' && r.pilih))).length, nTanpa = I.rows.filter(r => r.st === 'tanpa' && r.pilih).length;
+  const nCek = n('salah') + n('tanpa') + n('dobel'), nPerlu = I.rows.filter(r => r.perluSambung).length;
+  const kap = (id, kls, teks) => `<button type="button" class="p110-st ${kls} p115-f ${I.filter === id ? 'aktif' : ''}" data-p115-f="${id}" title="Klik untuk menampilkan hanya baris ini (klik lagi = semua)">${teks}</button>`;
+  const toko = mp ? `<span class="p115-imp-toko">SKU marketplace · ${p112E(I.sumber)}</span>` : '';
+  const dl = mp ? `<datalist id="p115-dl-gd">${(katalogProdukCache || []).filter(p => !p.arsip).slice(0, 3000).map(p => `<option value="${p112E(p.sku)}">${p112E(String(p.nama || '').slice(0, 60))}</option>`).join('')}</datalist>` : '';
+  out.innerHTML = `<div class="p110-tinjau-ring">${kap('baru', 'baru', '🆕 ' + n('baru') + ' belum ada')}${kap('ada', 'manual', '✓ ' + (n('ada') + n('hubung')) + ' sudah ada / terhubung')}${nCek ? kap('cek', 'ada', '⚠ ' + nCek + ' perlu dicek') : ''}${mp && nPerlu ? kap('sambung', 'tarik', '🔗 ' + nPerlu + ' belum dihubungkan ke SKU Gudang') : ''}${I.filter ? `<span class="p112-ket">menampilkan ${tampil.length} dari ${I.rows.length}</span>` : ''}</div>${dl}
+    <div class="p110-tinjau"><table><thead><tr><th><input type="checkbox" id="p112-imp-semua" ${pilih && pilih === n('baru') ? 'checked' : ''}></th><th>Foto</th><th>SKU${mp ? ' marketplace' : ''}</th><th>Nama produk</th><th class="n">Harga jual</th><th>Status</th>${mp ? '<th title="Hubungkan terbalik: SKU listing ini menunjuk SKU Gudang mana (untuk stok)">SKU Gudang</th>' : ''}</tr></thead><tbody>
+    ${tampil.map(([r, i]) => `<tr class="${r.pilih || r.perluSambung ? '' : 'mati'}"><td>${r.st === 'baru' || r.st === 'tanpa' ? `<input type="checkbox" data-i="${i}" ${r.pilih ? 'checked' : ''}>` : ''}</td><td>${r.foto ? `<img class="p112-imp-f" src="${p112E(r.foto)}" alt="" loading="lazy">` : ''}</td><td class="mono">${p112E(r.sku || '-')}${toko}</td><td>${p112E(r.nama)}</td><td class="n">${r.harga ? p112Rp(r.harga) : ''}</td><td><span class="p110-st ${P112_IMP_ST[r.st][1]}">${P112_IMP_ST[r.st][0]}</span>${r.perluSambung ? '<small class="p112-ket"> · belum dihubungkan</small>' : ''}${r.ke && r.ke !== r.sku ? `<small class="p112-ket"> → ${p112E(r.ke)}</small>` : ''}</td>${mp ? `<td>${r.st === 'hubung' && !r.perluSambung ? `<span class="mono">${p112E(r.ke)}</span>` : `<input class="web-form-input p115-imp-gd" data-g="${i}" list="p115-dl-gd" value="${p112E(r.gudang || '')}" placeholder="${r.st === 'tanpa' ? 'kosong = buat baru' : 'pilih SKU Gudang'}">`}</td>` : ''}</tr>`).join('')}</tbody></table></div>
+    <div class="p108-aksi p115-imp-aksi"><span class="p109-ket">${pilih} produk baru akan ditambahkan ke Katalog${I.sumber !== 'excel' ? ' · sumber ' + p112E(I.sumber) : ''}</span><span style="flex:1"></span>
+      ${mp ? `<button type="button" class="p108-btn" id="p115-imp-sambung" ${nSamb ? '' : 'disabled'} onclick="p115ImporSambung()" title="Catat kode marketplace di SKU Mapping (per toko) & arahkan ke SKU Gudang untuk stok">🔗 Hubungkan ${nSamb} SKU ke Gudang</button>` : ''}
+      ${mp && n('tanpa') ? `<button type="button" class="p108-btn" id="p115-imp-pasang" ${nTanpa ? '' : 'disabled'} onclick="p115ImporPasang()" title="Listing tanpa SKU penjual: buat kode SKU, pasang ke marketplace lewat API, lalu hubungkan ke Katalog">✨ Buat & pasang ${nTanpa} SKU</button>` : ''}
+      <button type="button" class="p108-btn utama" id="p112-imp-ok" ${pilih ? '' : 'disabled'} onclick="p112ImporSimpan()">＋ Tambahkan ${pilih} produk</button></div>`;
   out.querySelectorAll('input[data-i]').forEach(c => c.onchange = () => { I.rows[+c.dataset.i].pilih = c.checked; p112ImporTampil_(); });
-  const s = el('p112-imp-semua'); if (s) s.onchange = () => { I.rows.forEach(r => { if (r.st === 'baru') r.pilih = s.checked; }); p112ImporTampil_(); };
+  out.querySelectorAll('input[data-g]').forEach(c => c.onchange = () => { const r = I.rows[+c.dataset.g]; r.gudang = c.value.trim().toUpperCase(); if (r.st === 'baru' && r.gudang) r.pilih = true; p112ImporTampil_(); });
+  out.querySelectorAll('[data-p115-f]').forEach(c => c.onclick = () => { I.filter = I.filter === c.dataset.p115F ? '' : c.dataset.p115F; p112ImporTampil_(); });
+  const s = el('p112-imp-semua'); if (s) s.onchange = () => { I.rows.forEach(r => { if (r.st === 'baru' && !r.gudang) r.pilih = s.checked; }); p112ImporTampil_(); };
 }
 async function p112ImporSimpan() {
   const I = P112.impor; if (!I) return;
-  const L = I.rows.filter(r => r.pilih && r.st === 'baru'); if (!L.length) return;
+  const L = I.rows.filter(r => r.pilih && r.st === 'baru' && !r.gudang); if (!L.length) return; // v2026.10.136: baris ber-SKU Gudang = hubungkan, bukan produk baru
   const b = el('p112-imp-ok'); if (b) { b.disabled = true; b.innerHTML = '<i class="dok-spin"></i> Menyimpan…'; }
   try {
     for (let i = 0; i < L.length; i += 300) {
@@ -99115,8 +99193,10 @@ async function p112ImporSimpan() {
       if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
     }
     const peta = [];
-    L.forEach(x => { [['Shopee', x.shopee], ['TikTok Shop', x.tiktok]].forEach(([pf, k]) => { k = String(k || '').trim(); if (k && k.toUpperCase() !== x.sku) peta.push({ skuJual: x.sku, platform: pf, daftarSkuMarketplace: k.split(/[\s,;]+/).filter(Boolean) }); }); });
-    for (const m of peta) { try { await postJsonTulis(Object.assign({ aksi: 'tambah_sku_marketplace_terhubung_massal', keterangan: 'Import Katalog', email: currentUserEmail() }, m), 60000); } catch (e) { } }
+    // v2026.10.136 (DN-948): kode marketplace SELALU dicatat di SKU Mapping (juga bila sama dengan SKU Katalog) + nama toko
+    const tokoImp = I.sumber !== 'excel' && typeof p115ImpToko_ === 'function' ? p115ImpToko_(I) : '';
+    L.forEach(x => { [['Shopee', x.shopee], ['TikTok Shop', x.tiktok]].forEach(([pf, k]) => { k = String(k || '').trim(); if (k) peta.push({ skuJual: x.sku, platform: pf, daftarSkuMarketplace: k.split(/[\s,;]+/).filter(Boolean) }); }); });
+    for (const m of peta) { try { await postJsonTulis(Object.assign({ aksi: 'tambah_sku_marketplace_terhubung_massal', keterangan: (tokoImp ? 'Toko ' + tokoImp + ' · ' : '') + 'Import Katalog', email: currentUserEmail() }, m), 60000); } catch (e) { } }
     omxTutupModal();
     p112Toast_(`✓ ${L.length} produk ditambahkan ke Katalog${peta.length ? ' · ' + peta.length + ' SKU marketplace dihubungkan' : ''}`);
     try { await katalogFetchProduk({ segar: true }); katalogProdukRenderHalaman(); } catch (e) { }
@@ -99679,13 +99759,383 @@ const P113 = { aktif: false, tumpuk: [], hit: new Map(), mulai: 0, dalam: false,
     if (j && !j.tampil && Date.now() - j.t < 3 * 864e5) {
       try { P112.catatLambat && P112.catatLambat('jejak-macet', j.lama, 'Tumpukan: ' + (j.tumpuk || []).join(' › ') + ' · terbanyak: ' + (j.top || []).join(', '), j.lok); } catch (e) { }
       j.tampil = true; localStorage.setItem('p113_macet', JSON.stringify(j));
-      setTimeout(() => {
+      // v2026.10.136 (DN-211): tidak lagi tampil sebagai kartu - dicatat otomatis ke Catatan Developer (+ tetap di log .md)
+      setTimeout(() => { try { if (typeof p115MacetCatat_ === 'function') p115MacetCatat_(j); } catch (e) { } }, 2500);
+      if (false) setTimeout(() => {
         const d = document.createElement('div'); d.className = 'p113-jejak';
         d.innerHTML = `<b>🔍 Penyebab macet terakhir (${p112E(j.lok)} · ${Math.round(j.lama / 1000)} dtk${j.versi ? ' · ' + p112E(j.versi) : ''})</b><div>Sedang menjalankan: <code>${p112E((j.tumpuk || []).join(' › ') || '-')}</code></div><div>Paling sering dipanggil: <code>${p112E((j.top || []).join(', ') || '-')}</code></div><small>Screenshot kartu ini & kirim ke Claude. Juga tersimpan di file .md Catatan Developer.</small><button type="button" onclick="this.parentNode.remove()">Tutup</button>`;
         document.body.appendChild(d);
       }, 2500);
     }
   } catch (e) { }
+})();
+</script>
+
+
+<!-- =====================================================================================
+     PAKET 115 (v2026.10.136) - 22 Nov 2026 · 31 Catatan Developer
+     Aturan SoC mulai dijalankan: perilaku lama DIUBAH DI TEMPAT (cari "v2026.10.136" / "DN-..."), blok ini hanya
+     berisi KOMPONEN BERSAMA baru (D1 inti / D11 AI) + fungsi baru:
+       - OmniOCR  : SATU pintu OCR / baca dokumen untuk semua modul (DN-994)
+       - omxBukti : SATU penampil bukti (foto / PDF) untuk Tandai Lunas, Kurir Toko, status pesanan (DN-192/960/689)
+       - status pesanan (Resi · Pembayaran · Transaksi) + kurir dari API di Daftar Pesanan (DN-689/383)
+       - Katalog: SKU marketplace dari API -> daftar per toko, hubungkan terbalik ke SKU Gudang, pasang SKU via API (DN-407/948/208)
+       - Catatan Developer otomatis dari kotak hitam macet (DN-211)
+     ===================================================================================== -->
+<style>
+/* ---------- D1 komponen bukti ---------- */
+.p115-bukti { display: flex; flex-wrap: wrap; gap: 8px; }
+.p115-bk { position: relative; border: 1px solid var(--web-border, #e7e5e4); border-radius: 10px; padding: 0; background: #fff; cursor: zoom-in; overflow: hidden; width: 96px; height: 96px; }
+.p115-bk img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.p115-bk-file { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--web-border, #e7e5e4); border-radius: 10px; padding: 8px 12px; font: inherit; font-size: calc(12px + var(--fs-plus, 0px)); background: #fff; cursor: pointer; color: inherit; text-decoration: none; }
+.p115-sudah { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: calc(12.5px + var(--fs-plus, 0px)); line-height: 1.45; margin-bottom: 10px; }
+.p115-sudah b { font-weight: 800; }
+/* ---------- DN-237 / DN-192: Tandai Lunas - ringkasan & status lunas di atas, bukti lama langsung tampil ---------- */
+#omxm.p93-byr .omxm-isi.p93-byr-isi > .p115-byr-atas { grid-column: 1 / -1; display: grid; gap: 8px; }
+#omxm.p93-byr .p115-byr-atas .byr-ringkas { margin: 0; grid-template-columns: auto 1fr auto 1fr; align-items: center; }
+#omxm.p93-byr .p115-byr-atas .p112-sudah { margin: 0; }
+#omxm.p93-byr .p93-byr-kiri.ada-lama #byr-file-pratinjau img { width: 100%; height: 100%; object-fit: contain; }
+.p115-perbesar { position: absolute; right: 8px; bottom: 8px; z-index: 2; border: 0; border-radius: 999px; padding: 4px 10px; font: inherit; font-size: calc(11.5px + var(--fs-plus, 0px)); font-weight: 700; background: rgba(28,25,23,.78); color: #fff; cursor: zoom-in; }
+.p93-byr-kiri { position: relative; }
+/* ---------- DN-960: Kurir Toko sudah dikonfirmasi ---------- */
+.p13-kt .p115-bukti { margin-top: 6px; }
+/* ---------- DN-689: status pesanan (list) + DN-383 kurir ---------- */
+.p115-st { display: grid; gap: 2px; margin-top: 4px; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: calc(11px + var(--fs-plus, 0px)); line-height: 1.3; min-width: 150px; }
+.p115-st > button, .p115-st > span { display: flex; align-items: center; gap: 5px; border: 0; background: none; padding: 1px 0; font: inherit; color: inherit; text-align: left; white-space: nowrap; }
+.p115-st > button { cursor: pointer; border-radius: 5px; }
+.p115-st > button:hover { background: rgba(120,113,108,.10); }
+.p115-st i { font-style: normal; width: 8px; height: 8px; border-radius: 50%; flex: none; background: #a8a29e; }
+.p115-st .ok i { background: #16a34a; } .p115-st .jalan i { background: #2563eb; } .p115-st .awas i { background: #d97706; } .p115-st .retur i { background: #7c3aed; } .p115-st .batal i { background: #a8a29e; }
+.p115-st .ok { color: #166534; } .p115-st .jalan { color: #1e40af; } .p115-st .awas { color: #92400e; } .p115-st .retur { color: #5b21b6; } .p115-st .batal { color: #78716c; }
+.p115-st small { color: var(--web-text-dim, #78716c); font-weight: 400; }
+.p115-st .gr { border-top: 1px dashed var(--web-border, #e7e5e4); margin: 2px 0 1px; }
+.p115-st .tr { font-weight: 800; }
+.p115-kur { display: inline-flex; align-items: center; gap: 4px; margin: 3px 0 0 6px; vertical-align: middle; padding: 1px 7px 1px 3px; border-radius: 999px; border: 1px solid var(--web-border, #e7e5e4); background: var(--web-panel, #fff); font: 700 calc(10.5px + var(--fs-plus, 0px))/1.5 system-ui, sans-serif; color: #44403c; white-space: nowrap; }
+.p115-kur img { height: 13px; max-width: 34px; object-fit: contain; }
+.p115-kur.tebak { border-style: dashed; color: #78716c; }
+#wp-gabungan-body td.wp-mono .p107-lengkap { display: none !important; }
+/* ---------- DN-516: kapsul kurir terpilih = tombol ganti ---------- */
+.p106-kurir-wrap.p107-pilih .p102-kurir .p102-pil.aktif { cursor: pointer; }
+.p106-kurir-wrap.p107-pilih .p102-kurir .p102-pil.aktif::after { content: ' ⇄'; opacity: .55; font-weight: 700; }
+.p107-ganti-kurir { display: none !important; }
+/* ---------- DN-315: Buat Pesanan - peta kiri, alamat sempit, riwayat setinggi kartu ---------- */
+.p106-satu.p115-buat { align-items: stretch; }
+.p106-satu.p115-buat .p115-ap { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.p106-satu.p115-buat .p115-ap > * { min-width: 0; }
+.p106-satu.p115-buat .kanan { position: relative; min-height: 260px; }
+.p106-satu.p115-buat .kanan .p106-riw { position: absolute; inset: 0; display: flex; flex-direction: column; max-height: none; overflow: hidden; }
+.p106-satu.p115-buat .kanan .p106-riw #wp-b-riwayat-panel { flex: 1; min-height: 0; display: flex !important; flex-direction: column; }
+.p106-satu.p115-buat .kanan .p106-riw .wp-b-riwayat-list { flex: 1; min-height: 0; max-height: none !important; overflow: auto; }
+@media (max-width: 1100px) { .p106-satu.p115-buat .p115-ap { grid-template-columns: 1fr; } .p106-satu.p115-buat .kanan .p106-riw { position: static; max-height: 320px; } }
+/* ---------- DN-158 / DN-553: Mutasi - settlement TikTok ---------- */
+.p115-st-list { margin-top: 3px; display: grid; gap: 1px; max-height: 168px; overflow: auto; padding-right: 4px; }
+.p115-st-list > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: calc(11px + var(--fs-plus, 0px)); }
+.p115-st-list .p112-k2 { justify-self: start; }
+.p115-st-list b { font-variant-numeric: tabular-nums; font-weight: 700; }
+.p115-st-list .min { color: #b91c1c; } .p115-st-list .plus { color: #15803d; }
+.p115-st-list small { color: var(--web-text-dim, #78716c); font-weight: 400; }
+.p115-ro-tbl td.n, .p115-ro-tbl th.n { text-align: right; font-variant-numeric: tabular-nums; }
+/* ---------- DN-541 / DN-407 / DN-948: Import Katalog ---------- */
+.p110-tinjau-ring .p115-f { cursor: pointer; border: 1px solid transparent; font: inherit; font-size: 12px; font-weight: 700; }
+.p110-tinjau-ring .p115-f.aktif { outline: 2px solid var(--web-accent, #b45309); outline-offset: 1px; }
+.p115-imp-gd { width: 132px; padding: 4px 7px !important; font-size: calc(11.5px + var(--fs-plus, 0px)) !important; margin: 0 !important; font-family: ui-monospace, Menlo, monospace; }
+.p115-imp-toko { display: block; font-size: calc(10.5px + var(--fs-plus, 0px)); color: var(--web-text-dim, #78716c); font-family: system-ui, sans-serif; }
+.p115-imp-aksi { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.katalog-salin-sku + .p115-toko, .p115-toko { display: block; font-size: calc(10px + var(--fs-plus, 0px)); color: var(--web-text-dim, #78716c); margin: -2px 0 2px 26px; }
+</style>
+<script>
+/* =====================================================================================
+   PAKET 115 (v2026.10.136)
+   ===================================================================================== */
+const P115 = { kurir: {}, kurirMinta: new Set(), kurirT: 0, versi: 'v2026.10.136' };
+function p115E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function p115Rp(n) { n = Number(n) || 0; return (n < 0 ? '−Rp ' : 'Rp ') + Math.abs(Math.round(n)).toLocaleString('id-ID'); }
+// "20-Nov-2026 11:36:27" / "2026-11-20" / ms -> ms
+function p115Ms(v) {
+  if (!v) return 0; if (typeof v === 'number') return v;
+  const B = { jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, may: 4, jun: 5, jul: 6, agu: 7, aug: 7, agt: 7, sep: 8, okt: 9, oct: 9, nov: 10, des: 11, dec: 11 };
+  const m = /(\d{1,2})[-\s/](\w{3})[a-z]*[-\s/](\d{4})(?:[,\s]+(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?)?/i.exec(String(v));
+  if (m && B[m[2].toLowerCase()] !== undefined) return new Date(+m[3], B[m[2].toLowerCase()], +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)).getTime();
+  const t = Date.parse(String(v).replace(' ', 'T')); return isFinite(t) ? t : 0;
+}
+function p115Tgl(v) { const t = p115Ms(v); if (!t) return String(v || ''); const d = new Date(t), p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear(); }
+
+/* ---------- D11 · DN-994: SATU pintu OCR untuk seluruh aplikasi ----------
+   Semua modul tetap memanggil fungsinya masing-masing; jalur jaringan (postJson / postJsonTulis dasar) mengarahkan
+   setiap aksi "baca dokumen" ke OmniOCR.lewat(): sidik isi (SHA-256) -> ingatan browser -> server (pintu p115OcrPintu_
+   + ingatan sheet "OCR Ingatan"). Dokumen yang sama tidak dibaca ulang & tidak dikirim 2x bersamaan.
+   OCR lokal (Tesseract, 0 token) juga 1 pintu: OmniOCR.teks(gambar) - 1 worker dipakai bersama, hasil diingat. */
+const OmniOCR = (function () {
+  const AKSI = { p90_baca_bukti: 'bukti resi / bayar', p77_baca_bukti_transfer: 'bukti transfer', p48_baca_invoice_pembelian: 'invoice pembelian', ekstrak_invoice_ai: 'invoice pembelian',
+    baca_struk_biaya_ai: 'struk biaya', baca_teks_biaya_ai: 'teks biaya', p66_baca_biaya_ai: 'struk biaya', p89_po_baca: 'PO pembeli', p83_reimburse_baca: 'nota reimburse', p110_ai_rekening: 'e-statement' };
+  const ABAI = { email: 1, idPermintaan: 1, toko: 1, sessionToken: 1, segar: 1, paksa: 1, ulang: 1, perangkat: 1, __ocrLewat: 1, _t: 1, ts: 1, waktu: 1 };
+  const LS = 'p115_ocr_v1', mem = new Map(), jalan = new Map(), stat = { baca: 0, ingatBrowser: 0, ingatServer: 0, lokal: 0, lokalIngat: 0 };
+  let lokal = new Map();
+  try { (JSON.parse(localStorage.getItem(LS) || '[]') || []).forEach(([k, v]) => mem.set(k, v)); } catch (e) { }
+  function simpanLs_() { try { const L = Array.from(mem.entries()).filter(([, v]) => JSON.stringify(v).length < 20000).slice(-40); localStorage.setItem(LS, JSON.stringify(L)); } catch (e) { } }
+  async function sidik(teks) {
+    try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(teks)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 40); }
+    catch (e) { let h = 2166136261; for (let i = 0; i < teks.length; i++) { h ^= teks.charCodeAt(i); h = Math.imul(h, 16777619); } return 'f' + (h >>> 0).toString(16) + teks.length; }
+  }
+  function stabil(body) { const o = {}; Object.keys(body || {}).sort().forEach(k => { if (!ABAI[k] && k.charAt(0) !== '_') o[k] = body[k]; }); return JSON.stringify(o); }
+  const salin = x => { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } };
+  function milik(aksi) { return Object.prototype.hasOwnProperty.call(AKSI, String(aksi || '')); }
+  async function lewat(body, kirim) {
+    const aksi = body.aksi, paksa = !!(body.segar || body.paksa || body.ulang);
+    const tandai = Object.assign({}, body, { __ocrLewat: 1 });
+    if (paksa) { stat.baca++; return kirim(tandai); }
+    const k = aksi + ':' + await sidik(aksi + '|' + stabil(body));
+    if (mem.has(k)) { stat.ingatBrowser++; return Object.assign(salin(mem.get(k)), { ocrIngatan: 'browser' }); }
+    if (jalan.has(k)) return salin(await jalan.get(k));
+    const p = (async () => {
+      const r = await kirim(tandai);
+      if (r && r.success && !r.error) { if (r.ocrIngatan) stat.ingatServer++; else stat.baca++; mem.set(k, salin(r)); if (mem.size > 60) mem.delete(mem.keys().next().value); simpanLs_(); }
+      return r;
+    })();
+    jalan.set(k, p);
+    try { return await p; } finally { jalan.delete(k); }
+  }
+  // OCR lokal (Tesseract) - dipakai p63OcrGambar_ & pembaca resi/invoice tanpa AI
+  async function teks(sumber) {
+    let kunci = '';
+    try {
+      if (typeof sumber === 'string') kunci = await sidik(sumber.length > 200000 ? sumber.slice(0, 100000) + sumber.slice(-100000) + sumber.length : sumber);
+      else if (sumber && sumber.arrayBuffer) { const b = new Uint8Array(await sumber.arrayBuffer()); let s = ''; for (let i = 0; i < b.length; i += Math.max(1, Math.floor(b.length / 20000))) s += String.fromCharCode(b[i]); kunci = await sidik(s + '|' + b.length + '|' + (sumber.type || '')); }
+    } catch (e) { kunci = ''; }
+    if (kunci && lokal.has(kunci)) { stat.lokalIngat++; return lokal.get(kunci); }
+    const w = await spbOcrWorker_();
+    const r = await w.recognize(sumber);
+    const hasil = (r && r.data && r.data.text) || '';
+    stat.lokal++; if (kunci) { lokal.set(kunci, hasil); if (lokal.size > 30) lokal.delete(lokal.keys().next().value); }
+    return hasil;
+  }
+  return { milik, lewat, teks, statistik: () => Object.assign({ ingatan: mem.size }, stat), jenis: () => Object.assign({}, AKSI), lupakan: () => { mem.clear(); lokal = new Map(); try { localStorage.removeItem(LS); } catch (e) { } } };
+})();
+
+/* ---------- D1 · komponen BUKTI bersama (foto / PDF) ---------- */
+function omxBuktiGambar_(u, px) {
+  u = String(u || '').trim(); px = px || 600; if (!u) return ''; if (/^data:image\//.test(u)) return u; if (/\.pdf(\?|$)/i.test(u) || /application\/pdf/.test(u)) return '';
+  // bukti tidak boleh terpotong -> resize=contain (bukan cover seperti foto produk)
+  if (/\/storage\/v1\/object\/public\//.test(u)) return u.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + (u.includes('?') ? '&' : '?') + `width=${px}&resize=contain&quality=70`;
+  const m = u.match(/[?&]id=([\w-]{20,})/) || u.match(/\/d\/([\w-]{20,})/); if (/drive\.google|docs\.google/.test(u) && m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w${px}`;
+  if (/googleusercontent\.com/.test(u)) return u.replace(/=(w|s)\d+[^/]*$/, '') + `=w${px}`;
+  return u;
+}
+function omxBuktiHtml(daftar, opsi) {
+  opsi = opsi || {}; const L = (Array.isArray(daftar) ? daftar : [daftar]).map(x => String(x || '').trim()).filter(Boolean); if (!L.length) return '';
+  const attr = i => typeof lampiranAttr === 'function' ? lampiranAttr(L, i) : `href="${p115E(L[i])}" target="_blank"`;
+  return `<div class="p115-bukti">${L.map((u, i) => { const g = omxBuktiGambar_(u, opsi.px || 400); return g ? `<button type="button" class="p115-bk" ${attr(i)} title="Klik untuk memperbesar"><img src="${p115E(g)}" alt="Bukti" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.outerHTML='<span class=&quot;p115-bk-file&quot;>📄 Bukti tersimpan</span>'"></button>` : `<a class="p115-bk-file" ${attr(i)}>📄 ${p115E(opsi.label || 'Lihat bukti')}</a>`; }).join('')}</div>`;
+}
+function omxBuktiBuka(daftar, i) { const L = (Array.isArray(daftar) ? daftar : [daftar]).filter(Boolean); if (L.length && typeof lampiranBuka === 'function') lampiranBuka(L, i || 0); }
+
+/* ---------- DN-237 / DN-192: Tandai Lunas - info di atas + bukti tersimpan langsung tampil ---------- */
+function p115ByrAtas_() {
+  const m = el('omxm'), isi = m && m.querySelector('.omxm-isi.p93-byr-isi'); if (!isi) return;
+  let atas = isi.querySelector(':scope > .p115-byr-atas');
+  if (!atas) { atas = document.createElement('div'); atas.className = 'p115-byr-atas'; isi.insertBefore(atas, isi.firstChild); }
+  const ring = isi.querySelector('.byr-ringkas'), sudah = isi.querySelector('.p112-sudah');
+  if (ring && ring.parentNode !== atas) atas.appendChild(ring);
+  if (sudah && sudah.parentNode !== atas) { atas.insertBefore(sudah, atas.firstChild); const a = sudah.querySelector('a'); if (a) a.remove(); sudah.innerHTML = sudah.innerHTML.replace(/\s*·\s*\.\s*Upload di bawah untuk mengganti bukti\./, '. Klik / tarik file ke kotak bukti untuk mengganti.').replace(/Upload di bawah untuk mengganti bukti\./, 'Klik / tarik file ke kotak bukti untuk mengganti.'); }
+  const o = (typeof byr !== 'undefined' && byr && byr.order) || {}, bukti = o.bayarDiterima && o.bayarDiterima.bukti;
+  const kiri = isi.querySelector('.p93-byr-kiri'), pv = el('byr-file-pratinjau');
+  if (bukti && kiri && pv && !byr.fotoData && !kiri.classList.contains('ada-lama')) {
+    const g = omxBuktiGambar_(bukti, 900);
+    pv.innerHTML = g ? `<img src="${p115E(g)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='📄'">` : '📄';
+    const j = el('byr-file-judul'); if (j) j.textContent = 'Bukti tersimpan · klik untuk mengganti';
+    kiri.classList.add('ada-lama');
+    kiri.insertAdjacentHTML('beforeend', `<button type="button" class="p115-perbesar" title="Lihat bukti tersimpan">🔍 Perbesar</button>`);
+    kiri.querySelector('.p115-perbesar').onclick = e => { e.preventDefault(); e.stopPropagation(); omxBuktiBuka([bukti]); };
+  }
+}
+function p115ByrLamaLepas_() { const k = document.querySelector('#omxm .p93-byr-kiri.ada-lama'); if (!k) return; k.classList.remove('ada-lama'); const b = k.querySelector('.p115-perbesar'); if (b) b.remove(); }
+
+/* ---------- DN-960: Kurir Toko - konfirmasi tersimpan tampil & bisa diubah ---------- */
+function p115KtCari_(no) {
+  const L = [].concat(typeof wpListCache !== 'undefined' && wpListCache || [], typeof wpGabunganCache !== 'undefined' && wpGabunganCache || []);
+  const o = L.find(x => String(x.noInvoice || x.noReferensi || '') === String(no) && x.kurirToko);
+  return o ? o.kurirToko : null;
+}
+function p115KtTampil_(kt) {
+  const isi = document.querySelector('#omxm .omxm-isi.p13-kt'); if (!isi || !kt || isi.querySelector('.p115-sudah')) return;
+  isi.insertAdjacentHTML('afterbegin', `<div class="p115-sudah">✓ <span><b>Sudah dikonfirmasi diterima</b>${kt.diterimaOleh ? ' oleh ' + p115E(kt.diterimaOleh) : ''}${kt.waktuDiterima || kt.waktu ? ' · ' + p115E(kt.waktuDiterima || kt.waktu) : ''}${kt.oleh ? '<br><small>Dicatat ' + p115E(kt.oleh) + (kt.waktu ? ' · ' + p115E(kt.waktu) : '') + '</small>' : ''}<br><small>Ubah isian di bawah bila perlu, lalu simpan perubahan.</small></span></div>`);
+  const nm = el('p13kt-nama'); if (nm && kt.diterimaOleh) nm.value = kt.diterimaOleh;
+  const w = el('p13kt-waktu'), ms = p115Ms(kt.waktuDiterima || kt.waktu); if (w && ms && typeof p13WaktuLokal === 'function') w.value = p13WaktuLokal(ms);
+  if (kt.bukti) { const pr = el('p13kt-pratinjau'), g = omxBuktiGambar_(kt.bukti, 600); if (pr) pr.innerHTML = g ? `<img src="${p115E(g)}" alt="Foto bukti tersimpan" referrerpolicy="no-referrer">` : '📄'; const lbl = document.querySelector('#omxm label[for="p13kt-file"] b'); if (lbl) lbl.textContent = 'Foto tersimpan · klik untuk mengganti'; const z = document.querySelector('#omxm label[for="p13kt-file"]'); if (z) z.insertAdjacentHTML('afterend', omxBuktiHtml([kt.bukti])); }
+  const ok = document.querySelector('#omxm .omxm-kaki .omxm-btn.utama'); if (ok) ok.textContent = '💾 Simpan perubahan';
+}
+function p115KtUbah(k) {
+  const nama = String((el('p13kt-nama') || {}).value || '').trim();
+  let wMs = Date.parse(String((el('p13kt-waktu') || {}).value || '')); if (!(wMs > 0) || wMs > Date.now() + 120000) wMs = 0;
+  if (!nama && !k.fotoData && !(k.sudah && k.sudah.bukti)) { omxToast('Isi nama penerima atau tambahkan foto bukti.', 'error'); return; }
+  omxModalTutup(); omxToast('Menyimpan perubahan konfirmasi ' + k.noInvoice + '…');
+  postJsonTulis({ aksi: 'p115_kurir_toko_ubah', noInvoice: k.noInvoice, diterimaOleh: nama, waktuDiterimaMs: wMs, base64: k.fotoData || '', mime: k.mime || '', email: currentUserEmail() }, 120000)
+    .then(r => {
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menyimpan');
+      omxToast('✓ Konfirmasi ' + k.noInvoice + ' diperbarui.');
+      try { if (typeof p13PatchList === 'function') p13PatchList(k.noInvoice, { kurirToko: r.kurirToko }); } catch (e) { }
+      try { if (k.onSelesai) k.onSelesai(); } catch (e) { }
+    }).catch(e => omxToast('✗ ' + (e.message || e), 'error'));
+}
+
+/* ---------- DN-833: label - HP penerima disensor sebagian bila data lengkap (UU 27/2022 PDP) ----------
+   Nama & alamat utuh (dibutuhkan kurir & staf gudang). Kurir Toko (kurir sendiri yang menelepon pembeli) = HP utuh. */
+function p115SensorHp_(hp, o) {
+  hp = String(hp || '').trim(); if (!hp || /\*/.test(hp)) return hp;
+  if (o && /kurir toko|ambil sendiri/i.test(String(o.kurir || ''))) return hp;
+  const d = hp.replace(/[^\d+]/g, ''); if (d.replace(/\D/g, '').length < 8) return hp;
+  return d.slice(0, 4) + '****' + d.slice(-4);
+}
+
+/* ---------- DN-689 / DN-383: Daftar Pesanan - status Resi · Pembayaran · Transaksi + kurir ---------- */
+function p115KurirPendek_(k) { return typeof p108KodeKurir_ === 'function' ? p108KodeKurir_(k) : String(k || '').split(/\s+/)[0]; }
+function p115KurirHtml_(o) {
+  let k = String(o.kurir || '').trim(), tebak = false;
+  if (!k || /^-$|lainnya/i.test(k)) { k = P115.kurir[o.noReferensi] || ''; }
+  if (!k) { const r = String(typeof wpResiStr === 'function' ? wpResiStr(o.noResi) : (o.noResi || '')).split(/[,\s/]+/)[0]; if (r && r !== '-' && typeof p108ResiCalon_ === 'function') { try { const c = p108ResiCalon_(r).find(x => x.no === r.toUpperCase() && x.kurir); if (c) { k = c.kurir; tebak = true; } } catch (e) { } } }
+  if (!k) return '';
+  const logo = typeof p101LogoKurir_ === 'function' ? p101LogoKurir_(k) : '';
+  return `<span class="p115-kur${tebak ? ' tebak' : ''}" title="${p115E(k)}${tebak ? ' (ditebak dari pola resi - menunggu data API)' : ' (dari data marketplace / pesanan)'}">${logo ? `<img src="${logo}" alt="">` : '🚚'}${p115E(p115KurirPendek_(k))}</span>`;
+}
+function p115KurirMuat_(daftar) {
+  const perlu = daftar.filter(o => o && o.sumber !== 'PO Sales' && !String(o.kurir || '').trim() && !(o.noReferensi in P115.kurir) && !P115.kurirMinta.has(o.noReferensi)).slice(0, 60);
+  if (!perlu.length || Date.now() - P115.kurirT < 15000) return;
+  P115.kurirT = Date.now(); perlu.forEach(o => P115.kurirMinta.add(o.noReferensi));
+  postJson({ aksi: 'p115_kurir_api', daftar: perlu.map(o => ({ s: o.sumber, toko: o.toko || '', no: String(o.noReferensi) })), email: currentUserEmail() }, 45000, true)
+    .then(r => { if (r && r.success) { perlu.forEach(o => { P115.kurir[o.noReferensi] = (r.peta || {})[o.noReferensi] || ''; }); try { p107LengkapTempel_(); } catch (e) { } } })
+    .catch(() => { perlu.forEach(o => P115.kurirMinta.delete(o.noReferensi)); });
+}
+// status pesanan (aturan sama di semua tempat)
+function p115StatusPesanan_(o, c) {
+  const v = (c && c.v) || '', x = (c && c.x) || {}, st = String(o.status || '');
+  const batal = /CANCEL|BATAL|UNPAID|REJECT/i.test(st) && !/IN_CANCEL/i.test(st), belumBayar = /UNPAID|BELUM DIBAYAR/i.test(st);
+  const belumKirim = /BELUM\s*DI\s*KIRIM|READY_TO_SHIP|AWAITING_SHIPMENT|AWAITING_COLLECTION|UNPAID|PROCESSED|TO_SHIP/i.test(st);
+  const tiba = /COMPLETED|SELESAI|DELIVERED|TO_CONFIRM_RECEIVE|DITERIMA|TIBA/i.test(st), kirim = v.includes('r') || (!belumKirim && /SHIPPED|IN_TRANSIT|DIKIRIM|TO_RETURN|RETRY_SHIP/i.test(st));
+  const resi = batal ? ['batal', 'Dibatalkan', ''] : tiba ? ['ok', 'Pesanan Tiba', ''] : kirim ? ['jalan', 'Dalam Pengiriman', x.rt ? 'discan ' + p115Tgl(x.rt) : ''] : ['awas', 'Belum Dikirim', ''];
+  const bayar = v.includes('b') ? ['ok', 'Dibayar', x.bt ? p115Tgl(x.bt) : ''] : batal ? ['batal', 'Tidak ada pembayaran', ''] : belumBayar ? ['awas', 'Belum Dibayar', ''] : ['awas', 'Belum Dibayar', o.sumber === 'PO Sales' ? '' : 'dana belum cair'];
+  const batasHari = typeof p106ApakahKilat_ === 'function' && p106ApakahKilat_(o) ? 7 : 21;
+  const umur = typeof p107UmurHari_ === 'function' ? p107UmurHari_(o) : 0, n = (v.match(/[rbt]/g) || []).length;
+  const tr = batal ? ['batal', 'Batal'] : v.includes('t') ? ['retur', '↩ Retur'] : (v.includes('b') && (tiba || v.includes('r'))) ? ['ok', '✓ Transaksi Berhasil'] : (n < 2 && umur > batasHari) ? ['awas', '⚠ Perlu dicek · lewat ' + batasHari + ' hari'] : ['jalan', 'Berjalan'];
+  return { resi, bayar, tr, x };
+}
+function p115StatusHtml_(o, c) {
+  const s = p115StatusPesanan_(o, c), k = p115E(String(o.noReferensi || '').replace(/'/g, "\\'"));
+  const sub = t => t ? ` <small>${p115E(t)}</small>` : '';
+  return `<span class="p115-st" data-p115-st="${p115E(o.noReferensi)}">
+    <button type="button" class="${s.resi[0]}" data-p115-bukti="resi" title="Klik untuk melihat bukti pengiriman"><i></i>${p115E(s.resi[1])}${sub(s.resi[2])}</button>
+    <button type="button" class="${s.bayar[0]}" data-p115-bukti="bayar" title="Klik untuk melihat bukti pembayaran"><i></i>${p115E(s.bayar[1])}${sub(s.bayar[2])}</button>
+    <span class="gr"></span><span class="${s.tr[0]} tr"><i></i>${p115E(s.tr[1])}</span></span>`;
+}
+function p115BuktiPesanan_(no, jenis) {
+  const o = (wpGabunganCache || []).find(x => String(x.noReferensi) === String(no)); if (!o) return;
+  const c = (typeof P107 !== 'undefined' && P107.leng && P107.leng[no]) || {}, s = p115StatusPesanan_(o, c), x = s.x;
+  const resi = typeof wpResiStr === 'function' ? wpResiStr(o.noResi) : String(o.noResi || '');
+  const kk = typeof p19KunciResi_ === 'function' ? p19KunciResi_(String(resi).split(/[,\s/]+/)[0] || '') : '', keluar = (typeof p19Keluar !== 'undefined' && p19Keluar.peta && kk) ? { waktu: p19Keluar.peta[kk], oleh: (p19Keluar.oleh || {})[kk] } : null;
+  let baris = [], bukti = [];
+  if (jenis === 'resi') {
+    baris = [['Status', s.resi[1]], ['No resi', resi && resi !== '-' ? resi : ''], ['Kurir', o.kurir || P115.kurir[no] || ''], ['Discan keluar', x.rt ? new Date(x.rt).toLocaleString('id-ID') : (keluar && keluar.waktu) || ''], ['Oleh', x.ro || (keluar && keluar.oleh) || ''], ['Status marketplace', o.status]];
+    if (x.rb) bukti.push(x.rb);
+  } else {
+    baris = [['Status', s.bayar[1] + (s.bayar[2] ? ' · ' + s.bayar[2] : '')], ['Nominal masuk', x.bn ? p115Rp(x.bn) : ''], ['Sumber', x.bs || (o.sumber === 'PO Sales' ? 'Tandai Lunas' : '')], ['Dikonfirmasi oleh', x.bo || ''], ['Total pesanan', o.total ? p115Rp(o.total) : '']];
+    if (x.bb) bukti.push(x.bb);
+  }
+  baris = baris.filter(b => b[1]);
+  omxModal(jenis === 'resi' ? '🚚 Bukti pengiriman · ' + no : '💰 Bukti pembayaran · ' + no, `<div class="p112-ro"><div class="p112-ro-grid">${baris.map(([l, v]) => `<span>${p115E(l)}</span><b>${p115E(v)}</b>`).join('')}</div>
+    ${bukti.length ? `<div style="margin-top:12px;">${omxBuktiHtml(bukti, { px: 600 })}</div>` : `<div class="p108-kosong" style="margin-top:10px;">${jenis === 'resi' ? (s.resi[0] === 'awas' ? 'Belum ada resi keluar yang discan.' : 'Bukti = data scan resi keluar & status marketplace di atas.') : (s.bayar[0] === 'ok' ? 'Dana tercatat dari mutasi / API marketplace.' : 'Belum ada pembayaran / dana masuk yang tercatat.')}</div>`}
+    ${o.sumber === 'PO Sales' && typeof p107ManualAksi === 'function' ? `<div class="p108-aksi" style="margin-top:12px;"><span style="flex:1"></span><button type="button" class="p108-btn utama" onclick="omxTutupModal(); p107ManualAksi('${jenis === 'resi' ? 'kirim' : 'bayar'}','${p115E(String(no).replace(/'/g, "\\'"))}')">${jenis === 'resi' ? '🚚 No Resi / Kirim' : '💳 Bukti Bayar'}</button></div>` : ''}</div>`, { lebar: false });
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.p115-st [data-p115-bukti]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  p115BuktiPesanan_(b.closest('.p115-st').dataset.p115St, b.dataset.p115Bukti);
+}, true);
+
+/* ---------- DN-421: Resi Masuk - pindah menu = detail retur tertutup ---------- */
+window.addEventListener('hashchange', () => { try { if (typeof rt2 !== 'undefined' && rt2 && rt2.buka && !/^#pengiriman\/resi-masuk/.test(location.hash)) rt2.buka = {}; } catch (e) { } });
+
+/* ---------- DN-211: penyebab macet -> Catatan Developer otomatis (tanpa kartu di layar) ---------- */
+function p115MacetCatat_(j) {
+  try {
+    if (!j || !(j.lama >= 3000) || typeof currentUser === 'undefined' || !currentUser || !currentUser.isOwner) return;
+    const sig = (j.lok || '') + '|' + (j.top || []).slice(0, 2).join(',') + '|' + (j.tumpuk || []).slice(-1).join('');
+    let L = {}; try { L = JSON.parse(localStorage.getItem('p115_macet_dicatat') || '{}') || {}; } catch (e) { }
+    if (L[sig] && Date.now() - L[sig] < 86400000) return;
+    L[sig] = Date.now(); Object.keys(L).forEach(k => { if (Date.now() - L[k] > 7 * 86400000) delete L[k]; }); localStorage.setItem('p115_macet_dicatat', JSON.stringify(L));
+    const teks = `[Otomatis · kotak hitam] Halaman macet ${Math.round(j.lama / 1000)} dtk di ${j.lok || '-'}${j.versi ? ' (' + j.versi + ')' : ''}.\nSedang menjalankan: ${(j.tumpuk || []).join(' › ') || '-'}\nPaling sering dipanggil: ${(j.top || []).join(', ') || '-'}\nTujuan: dipelajari untuk menemukan logika yang tidak efektif.`;
+    setTimeout(() => {
+      postJsonTulis({ aksi: 'dev_catatan_simpan', catatan: teks, jenis: 'Bug', prioritas: 'Sedang', alamat: 'web:' + String(j.lok || '').replace(/^#/, ''), judulHalaman: 'Kotak hitam (otomatis)', hash: j.lok || '', versi: j.versi || P115.versi, perangkat: navigator.userAgent.slice(0, 110), bagian: 'Kotak hitam P113 · jejak-macet', error: [], email: currentUserEmail() }, 30000, { tanpaLog: true }).catch(() => { });
+    }, 6000);
+  } catch (e) { }
+}
+
+/* ---------- DN-541 / DN-407 / DN-948 / DN-208: Import Katalog dari marketplace ---------- */
+const P115_IMP_F = { baru: r => r.st === 'baru', ada: r => r.st === 'ada' || r.st === 'hubung', cek: r => /salah|tanpa|dobel/.test(r.st), sambung: r => r.perluSambung };
+function p115ImpPlatform_(I) { return /shopee/i.test(I.id || '') ? 'Shopee' : 'TikTok Shop'; }
+function p115ImpToko_(I) { return String(I.id || '').split('|')[0] || ''; }
+function p115SkuAcak_(dipakai) { let c = '', n = 0; do { c = typeof p50AcakSku_ === 'function' ? p50AcakSku_() : 'MP' + Math.floor(1000 + Math.random() * 8999); n++; } while (dipakai.has(c) && n < 400); return c; }
+// 1) hubungkan kode marketplace -> SKU Gudang (tanpa membuat produk baru)
+async function p115ImporSambung() {
+  const I = P112.impor; if (!I) return;
+  const pf = p115ImpPlatform_(I), toko = p115ImpToko_(I), grup = {};
+  I.rows.filter(r => r.sku && r.gudang && (r.perluSambung || (r.st === 'baru' && r.pilih))).forEach(r => { (grup[r.gudang] = grup[r.gudang] || []).push(r.sku); });
+  const L = Object.keys(grup); if (!L.length) return p112Toast_('Isi kolom SKU Gudang dulu untuk baris yang mau dihubungkan.');
+  const b = el('p115-imp-sambung'); if (b) { b.disabled = true; b.innerHTML = '<i class="dok-spin"></i> Menghubungkan…'; }
+  let n = 0;
+  for (const g of L) {
+    try { const r = await postJsonTulis({ aksi: 'tambah_sku_marketplace_terhubung_massal', skuJual: g, platform: pf, daftarSkuMarketplace: grup[g], keterangan: 'Toko ' + toko + ' · ' + I.sumber + ' (API)', email: currentUserEmail() }, 60000); if (r && r.success) n += r.jumlahDitambah || 0; } catch (e) { }
+  }
+  I.rows.forEach(r => { if (r.gudang && grup[r.gudang] && grup[r.gudang].includes(r.sku)) { r.perluSambung = false; r.st = r.st === 'baru' ? 'hubung' : r.st; r.ke = r.gudang; r.pilih = false; } });
+  p112Toast_(`✓ ${n} SKU marketplace dihubungkan ke SKU Gudang`);
+  try { await katalogFetchProduk({ segar: true }); } catch (e) { }
+  p112ImporTampil_();
+}
+// 2) listing tanpa SKU penjual: buat kode, pasang di marketplace lewat API, hubungkan ke SKU Gudang
+async function p115ImporPasang() {
+  const I = P112.impor; if (!I) return;
+  const L = I.rows.filter(r => r.st === 'tanpa' && r.pilih); if (!L.length) return p112Toast_('Centang listing tanpa SKU yang mau dibuatkan SKU.');
+  const ok = await omniKonfirmasi({ ikon: '✨', judul: `Buat & pasang ${L.length} SKU di ${p115E(I.sumber)}?`, pesan: 'Kode SKU dipasang langsung ke listing marketplace lewat API.\nBaris yang kolom SKU Gudang-nya diisi memakai SKU Gudang itu; yang kosong dibuatkan kode baru + produk baru di Katalog.', ya: 'Pasang sekarang', tidak: 'Batal' });
+  if (!ok) return;
+  const b = el('p115-imp-pasang'); if (b) { b.disabled = true; b.innerHTML = '<i class="dok-spin"></i> Memasang…'; }
+  try {
+    const dipakai = new Set((katalogProdukCache || []).map(p => String(p.sku).toUpperCase()));
+    Object.keys(katalogSkuMarketplaceMap || {}).forEach(k => (katalogSkuMarketplaceMap[k] || []).forEach(m => dipakai.add(String(m.skuMarketplace).toUpperCase())));
+    const baru = [];
+    L.forEach(r => { if (r.gudang) { r.kodeBaru = r.gudang; return; } r.kodeBaru = p115SkuAcak_(dipakai); dipakai.add(r.kodeBaru); baru.push(r); });
+    if (baru.length) {
+      const s = await postJsonTulis({ aksi: 'simpan_produk_baru_massal', kolom: ['urlFoto', 'sku', 'nama', 'kategori', 'hpp', 'hargaDefault'], baris: baru.map(x => [x.foto, x.kodeBaru, x.nama, '', 0, x.harga]), toko: currentToko, email: currentUserEmail() }, 180000);
+      if (!s || !s.success) throw new Error((s && s.error) || 'Gagal membuat produk Katalog');
+    }
+    let berhasil = 0, gagal = [];
+    for (let i = 0; i < L.length; i += 20) {
+      const pot = L.slice(i, i + 20);
+      const r = await postJsonTulis({ aksi: 'p115_sku_mp', mode: 'pasang', id: I.id, daftar: pot.map(x => ({ itemId: x.itemId, modelId: x.modelId, kode: x.kodeBaru, skuGudang: x.kodeBaru })), email: currentUserEmail() }, 150000);
+      if (!r || !r.success) throw new Error((r && r.error) || 'Gagal memasang SKU');
+      (r.hasil || []).forEach((h, j) => { const x = pot[j]; if (h.terpasang) { berhasil++; x.sku = x.kodeBaru; x.st = 'hubung'; x.ke = x.kodeBaru; x.pilih = false; } else gagal.push((x.nama || '').slice(0, 40) + ': ' + h.error); });
+    }
+    p112Toast_(`✓ ${berhasil} SKU terpasang di marketplace & terhubung ke Katalog${gagal.length ? ' · ' + gagal.length + ' gagal' : ''}`, gagal.length ? 'error' : '');
+    if (gagal.length) omniNotif('Belum terpasang:\n' + gagal.slice(0, 8).join('\n'));
+    try { await katalogFetchProduk({ segar: true }); } catch (e) { }
+  } catch (e) { p112Toast_('✗ ' + String(e.message || e), 'error'); }
+  p112ImporTampil_();
+}
+
+/* ---------- .md Catatan Developer: contoh respons API (untuk mempelajari struktur, DN-161) ---------- */
+(function () {
+  if (typeof dvnUnduh !== 'function') return;
+  const asli = dvnUnduh;
+  dvnUnduh = async function (format) {
+    if (format !== 'md') return asli.apply(this, arguments);
+    let tambah = '';
+    try {
+      const r = await postJson({ aksi: 'p115_api_contoh', email: currentUserEmail() }, 15000, true);
+      const c = (r && r.success && r.contoh) || {}, k = Object.keys(c);
+      if (k.length) tambah = '\n## Contoh respons API marketplace (otomatis, Paket 115)\n\n' + k.map(n => `- **${n}** (${new Date(c[n].t).toLocaleString('id-ID')}): \`${String(c[n].isi || '').replace(/`/g, "'").slice(0, 1200)}\``).join('\n') + '\n';
+      const s = OmniOCR.statistik(); tambah += `\n## OCR satu pintu (sesi ini)\n\n- dibaca: ${s.baca} · dari ingatan browser: ${s.ingatBrowser} · dari ingatan server: ${s.ingatServer} · OCR lokal: ${s.lokal} (+${s.lokalIngat} dari ingatan)\n`;
+    } catch (e) { }
+    if (!tambah) return asli.apply(this, arguments);
+    const u = dvnUnduh_;
+    dvnUnduh_ = (nama, isi, tipe) => u(nama, /\.md$/.test(nama) ? isi + tambah : isi, tipe);
+    try { return await asli.apply(this, arguments); } finally { dvnUnduh_ = u; }
+  };
 })();
 </script>
 
