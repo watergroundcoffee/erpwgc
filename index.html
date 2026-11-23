@@ -94,7 +94,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.138';
+  var VERSI = 'v2026.10.139';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -11938,7 +11938,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <div class="app-header-hierarki">
             <div class="app-header-submenu">Semua Staff</div>
           </div>
-          <button type="button" class="ksh-banner" id="ksh-banner" hidden onclick="kstBukaSubMenu('hutang')"></button>
+          <button type="button" class="ksh-banner" id="ksh-banner" hidden onclick="finBukaSubMenu('hutang')"></button>
           <!-- CARD VIEW (dulu tabel) - dirender kstRenderKartuStaff() -->
           <div class="stf-alat" role="search">
             <input type="search" id="kst-cari" class="web-search-input" placeholder="Cari nama, email, No HP…" aria-label="Cari staff" oninput="kstRenderKartuStaff()" style="min-width:220px;" />
@@ -56209,6 +56209,7 @@ function fin2IsiDaftarMerchant_() {
 
 /* ---------- Kelola Staff: Hutang Reimburse Staf ---------- */
 window.kstBukaSubMenu = function (sub) {
+  if (sub === 'hutang') return finBukaSubMenu('hutang'); // v2026.10.139 (DN-362): Hutang Reimburse Staf pindah ke Finance
   // v2026.10.138 (DN-106): submenu Performa & Role dihapus dari navigasi. Hutang Reimburse tetap dibuka dari banner di Daftar Staff;
   // Persetujuan Staff Baru tampil otomatis di atas Daftar Staff bila ada pendaftar menunggu.
   if (sub === 'performa' || sub === 'role' || sub === 'approval') sub = 'daftar';
@@ -56253,6 +56254,7 @@ function kshBanner_() {
   b.innerHTML = `<span aria-hidden="true">💳</span><span style="flex:1;">Perusahaan masih berhutang <b>${omniRp_(total)}</b> ke ${berhutang.length} staf (biaya operasional yang mereka talangi).</span><span>Lihat rincian</span>`;
 }
 function kstTempelHutangKartu_() {
+  return; // v2026.10.139 (DN-362): info hutang reimburse pindah ke Finance - kartu staff (HR) tidak menampilkannya lagi
   if (!ksh.data || typeof kstDaftarStaffCache === 'undefined') return;
   const per = {};
   (ksh.data.daftar || []).forEach(p => { per[String(p.nama).toLowerCase()] = p; });
@@ -79724,6 +79726,7 @@ const p72FinSubAsli_ = finBukaSubMenu;
 finBukaSubMenu = function (sub) {
   const r = p72FinSubAsli_.apply(this, arguments);
   try { if (fin2.sub === 'vendor') p72VendorMuat(false); if (fin2.sub === 'biaya') { p72BulanPasang_(); p61RbmRender_(); } } catch (e) { }
+  try { if (typeof p118HutangBuka_ === 'function') p118HutangBuka_(fin2.sub); } catch (e) { } // v2026.10.139 (DN-362)
   return r;
 };
 async function p72VendorMuat(paksa) {
@@ -81681,12 +81684,14 @@ function p78AuditRender_() {
   const nMasalah = d.nTanpaSku + d.tanpaHpp.length;
   if (!nMasalah) { if (w) w.remove(); return; }
   if (!w) { w = document.createElement('div'); w.id = 'p78-audit'; w.className = 'fin2-pesan warn'; grid.insertAdjacentElement('afterend', w); }
-  w.innerHTML = `⚠️ <div><b>HPP belum lengkap:</b> ${d.nOk} dari ${d.nPesanan} pesanan periode ini sudah ber-HPP. ${d.nTanpaSku ? `<b>${d.nTanpaSku}</b> pesanan tanpa SKU / SKU tidak dikenal. ` : ''}${d.tanpaHpp.length ? `<b>${d.tanpaHpp.length}</b> SKU belum punya harga modal.` : ''}</div><button type="button" class="web-btn-primary" onclick="p78AuditBuka()">Lengkapi sekarang</button>`;
+  // v2026.10.139 (DN-912): peringatan "produk belum punya harga modal" dari laporan digabung ke sini (1 peringatan HPP saja)
+  const contoh = d.tanpaHpp.slice(0, 3).map(s => s.nama || s.sku).filter(Boolean);
+  w.innerHTML = `⚠️ <div><b>HPP belum lengkap:</b> ${d.nOk} dari ${d.nPesanan} pesanan periode ini sudah ber-HPP.${d.tanpaHpp.length ? ` <b>${d.tanpaHpp.length}</b> produk terjual belum punya harga modal (HPP dihitung Rp 0)${contoh.length ? ': ' + p78E(contoh.join(', ')) + (d.tanpaHpp.length > 3 ? ', …' : '') : ''}.` : ''}${d.nTanpaSku ? ` <b>${d.nTanpaSku}</b> pesanan tanpa SKU / SKU tidak dikenal.` : ''}</div><button type="button" class="web-btn-primary" onclick="p78AuditBuka()">Lengkapi sekarang</button>`;
 }
 function p78AuditBuka() {
   const d = P78.audit[p78AuditKunci_()]; if (!d) return;
   const hpp = d.tanpaHpp.length ? `<h4>SKU tanpa harga modal (${d.tanpaHpp.length})</h4><table><thead><tr><th>SKU</th><th>Produk</th><th class="n">Terjual</th><th>Harga modal / pcs</th></tr></thead><tbody>${d.tanpaHpp.map(s => `<tr data-p78sku="${pgrAttr(s.sku)}"><td><b>${p78E(s.sku)}</b></td><td>${p78E(s.nama || '-')}</td><td class="n">${s.qty.toLocaleString('id-ID')}</td><td><input type="text" inputmode="numeric" class="web-form-input" placeholder="Rp" onkeydown="if(event.key==='Enter')p78SimpanHpp(this)"> <button type="button" class="web-btn-secondary" style="margin:0;" onclick="p78SimpanHpp(this)">Simpan</button></td></tr>`).join('')}</tbody></table>` : '';
-  const sku = d.nTanpaSku ? `<h4>Pesanan tanpa SKU / SKU tidak dikenal (${d.nTanpaSku})</h4><div class="rst-sub" style="font-size:calc(11.5px + var(--fs-plus, 0px));color:var(--web-text-dim);margin-bottom:6px;">Daftarkan kode SKU marketplace di Katalog > Produk Master (SKU Mapping) atau lengkapi rincian barang pesanan, supaya stok & HPP terhitung.</div><table><thead><tr><th>Channel</th><th>No Pesanan</th><th>Produk</th><th class="n">Nilai</th><th>Masalah</th></tr></thead><tbody>${d.tanpaSku.map(o => `<tr><td>${p78E(o.sumber)}</td><td><b>${p78E(o.no)}</b></td><td>${p78E(o.produk)}</td><td class="n">${fin2Rp(o.total)}</td><td>${p78E(o.masalah)}</td></tr>`).join('')}</tbody></table>` : '';
+  const sku = d.nTanpaSku ? `<h4>Pesanan tanpa SKU / SKU tidak dikenal (${d.nTanpaSku})</h4><div class="rst-sub" style="font-size:calc(11.5px + var(--fs-plus, 0px));color:var(--web-text-dim);margin-bottom:6px;">Daftarkan kode SKU marketplace di Katalog > Produk Master (SKU Mapping) atau lengkapi rincian barang pesanan, supaya stok & HPP terhitung.</div><table><thead><tr><th>Channel</th><th>No Pesanan</th><th>Produk</th><th class="n">Nilai</th><th>Masalah</th><th>Perbaiki</th></tr></thead><tbody>${d.tanpaSku.map(o => `<tr data-p118-no="${pgrAttr(o.no)}"><td>${p78E(o.sumber)}</td><td><b>${p78E(o.no)}</b></td><td>${p78E(o.produk)}</td><td class="n">${fin2Rp(o.total)}</td><td>${p78E(o.masalah)}</td><td class="p118-perbaiki">${typeof p118TombolPerbaiki_ === 'function' ? p118TombolPerbaiki_(o) : ''}</td></tr>`).join('')}</tbody></table>` : '';
   omxModal('Lengkapi HPP · ' + (fin2TglLabel(fin2.dari) + ' – ' + fin2TglLabel(fin2.sampai)), `<div class="p78-ah">${hpp}${sku}<div class="status-text" id="p78-ah-st" style="text-align:left;"></div></div>`, { lebar: true });
 }
 async function p78SimpanHpp(elm) {
@@ -100396,6 +100401,7 @@ html body #app-web .p103-rek thead th.p105-kini .p84-tf-btn, html body .p103-rek
 .p117-cari { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--web-border, #e7e5e4); border-radius: 8px; padding: 0 8px; height: 32px; background: var(--web-panel, #fff); min-width: 220px; }
 .p117-cari input { border: 0; outline: 0; background: transparent; font: inherit; font-size: calc(12.5px + var(--fs-plus, 0px)); width: 100%; color: inherit; }
 .p117-cari:focus-within { border-color: var(--odx-primer, #714b67); box-shadow: 0 0 0 3px rgba(113,75,103,.12); }
+mark.p117-stabilo { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 1px; box-shadow: 0 0 0 1px #f59e0b55; }
 
 /* =====================================================================================
    TEMA "ODOO" (v2026.10.138) - terinspirasi Odoo 17: aubergine (plum) untuk navigasi & aksi utama,
@@ -100485,18 +100491,37 @@ html.p117-odoo #persediaan-view-monitor .web-search-input { height: 32px !import
 
 /* ---------- komponen baru Paket 117 ---------- */
 #p83-btn-reg, #cc-btn-kilat { display: none !important; } /* DN-831: pindah ke Pengiriman > Rangkuman Pengiriman */
-.p117-rp-tab { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
-.p117-rp-tab button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--web-border); border-radius: 6px; background: var(--web-panel, #fff); color: var(--web-text); font: inherit; font-size: calc(12.5px + var(--fs-plus, 0px)); cursor: pointer; }
-.p117-rp-tab button em { font-style: normal; font-weight: 700; font-size: calc(11px + var(--fs-plus, 0px)); padding: 0 6px; border-radius: 999px; background: #f1f2f4; color: var(--web-text-dim); }
-.p117-rp-tab button.aktif { background: var(--odx-primer-lembut, #f4eef3); border-color: var(--odx-primer-garis, #dccbd8); color: var(--odx-primer, #714b67); font-weight: 700; }
+/* DN-831 + v2026.10.139 (DN-380 / DN-927 / DN-386): Rangkuman Pengiriman - mudah dibaca, tanpa ikon */
+.p117-rp-tab, .p117-rp-kurun { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; align-items: center; }
+.p117-rp-tab button, .p117-rp-kurun button { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border: 1px solid var(--web-border); border-radius: 6px; background: var(--web-panel, #fff); color: var(--web-text); font: inherit; font-size: calc(13px + var(--fs-plus, 0px)); cursor: pointer; }
+.p117-rp-kurun button { height: 30px; padding: 0 12px; font-size: calc(12.5px + var(--fs-plus, 0px)); }
+.p117-rp-kurun .sep { width: 1px; height: 20px; background: var(--web-border); margin: 0 4px; }
+.p117-rp-tab button em { font-style: normal; font-weight: 700; font-size: calc(12px + var(--fs-plus, 0px)); padding: 0 7px; border-radius: 999px; background: #f1f2f4; color: var(--web-text-dim); }
+.p117-rp-tab button.aktif, .p117-rp-kurun button.aktif { background: var(--odx-primer-lembut, #f4eef3); border-color: var(--odx-primer-garis, #dccbd8); color: var(--odx-primer, #714b67); font-weight: 700; }
 .p117-rp-tab button.aktif em { background: var(--odx-primer, #714b67); color: #fff; }
-.p117-rp-kartu { background: var(--web-panel, #fff); border: 1px solid var(--web-border); border-radius: 8px; padding: 12px 14px; display: grid; gap: 12px; }
-.p117-rp-atas { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
-.p117-rp-atas small { display: block; color: var(--web-text-dim); font-size: calc(11.5px + var(--fs-plus, 0px)); }
-.p117-rp-atas b { font-size: calc(22px + var(--fs-plus, 0px)); }
-.p117-prog { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 6px; font-size: calc(11.5px + var(--fs-plus, 0px)); font-weight: 700; background: #f1f2f4; white-space: nowrap; }
-.p117-prog-kilat { background: #fef3c7; color: #92400e; } .p117-prog-ekspor { background: rgba(37,99,235,.10); color: #1d4ed8; }
-.p117-prog-instan { background: #e5f2f3; color: #01666b; } .p117-prog-kurirtoko { background: #f4eef3; color: #714b67; } .p117-prog-fbt { background: #ede9fe; color: #5b21b6; }
+.p117-rp-kartu { background: var(--web-panel, #fff); border: 1px solid var(--web-border); border-radius: 8px; padding: 16px; display: grid; gap: 14px; }
+.p117-rp-stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.p117-rp-stat > div { position: relative; overflow: hidden; border: 1px solid var(--web-border); border-radius: 8px; padding: 10px 14px 12px; }
+.p117-rp-stat small { display: block; color: var(--web-text-dim); font-size: calc(12.5px + var(--fs-plus, 0px)); }
+.p117-rp-stat b { display: block; font-size: calc(26px + var(--fs-plus, 0px)); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.p117-rp-stat span { display: block; color: var(--web-text-dim); font-size: calc(12px + var(--fs-plus, 0px)); }
+.p117-rp-stat i { position: absolute; left: 0; bottom: 0; height: 3px; background: currentColor; }
+.p117-rp-stat .ok { color: #15803d; } .p117-rp-stat .jalan { color: #1d4ed8; } .p117-rp-stat .retur { color: #7c3aed; }
+.p117-rp-stat .ok small, .p117-rp-stat .jalan small, .p117-rp-stat .retur small, .p117-rp-stat > div span { color: var(--web-text-dim); }
+.p117-rp-ket { color: var(--web-text-dim); font-size: calc(12.5px + var(--fs-plus, 0px)); } .p117-rp-ket.warn { color: #b45309; }
+.p117-rp-tabel-wrap { overflow-x: auto; }
+.p117-rp-tabel { width: 100%; border-collapse: collapse; font-size: calc(13.5px + var(--fs-plus, 0px)); font-variant-numeric: tabular-nums; }
+.p117-rp-tabel th { text-align: left; font-weight: 600; color: #374151; background: #f8f9fa; padding: 10px 12px; border-bottom: 1px solid var(--web-border); white-space: nowrap; }
+.p117-rp-tabel td { padding: 8px 12px; border-bottom: 1px solid #f0f1f3; vertical-align: top; }
+.p117-rp-tabel .n { text-align: right; } .p117-rp-tabel td.n small { display: block; color: var(--web-text-dim); font-size: calc(11.5px + var(--fs-plus, 0px)); }
+.p117-rp-tabel td.n small.warn { color: #b45309; }
+.p117-rp-tabel tr.toko td { background: #f4eef3; font-size: calc(14.5px + var(--fs-plus, 0px)); font-weight: 700; border-top: 2px solid #dccbd8; }
+.p117-rp-tabel tr.channel td { font-weight: 600; } .p117-rp-tabel tr.channel td:first-child { padding-left: 24px; }
+.p117-rp-tabel tr.channel td:first-child img, .p117-rp-tabel tr.channel td:first-child svg { width: 18px; height: 18px; vertical-align: -4px; }
+.p117-rp-tabel tr.program td { color: #374151; } .p117-rp-tabel tr.program td:first-child { padding-left: 48px; color: var(--web-text-dim); }
+.p117-rp-tabel td.berhasil { color: #15803d; } .p117-rp-tabel td.jalan { color: #1d4ed8; } .p117-rp-tabel td.retur { color: #7c3aed; }
+.p117-rp-tabel tfoot td { font-weight: 800; border-top: 2px solid var(--web-border); background: #f8f9fa; }
+.p117-rp-tabel td.kosong { text-align: center; color: var(--web-text-dim); padding: 24px; }
 
 /* DN-926: jendela pilih SKU Gudang */
 .p117-gd-btn { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 1px dashed var(--odx-primer-garis, #dccbd8); border-radius: 6px; background: var(--odx-primer-lembut, #f4eef3); color: var(--odx-primer, #714b67); font: inherit; font-size: calc(12px + var(--fs-plus, 0px)); font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -100530,23 +100555,30 @@ html.p117-odoo #persediaan-view-monitor .web-search-input { height: 32px !import
 .p117-beli-log time { color: var(--web-text-dim); font-variant-numeric: tabular-nums; margin-right: 4px; }
 #p117-beli-status:empty { display: none; }
 
-/* DN-475: walkthrough "Yang baru" */
-#p117-tur { position: fixed; right: 20px; bottom: 20px; z-index: 2147481000; width: min(380px, calc(100vw - 32px)); background: #fff; color: #1f2937; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 24px 60px rgba(15,23,42,.25); padding: 14px 16px 12px; font-size: calc(13px + var(--fs-plus, 0px)); animation: p117Naik .25s ease; }
-@keyframes p117Naik { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-#p117-tur header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-#p117-tur header b { flex: 1; font-size: calc(12px + var(--fs-plus, 0px)); color: #6b7280; font-weight: 600; }
-#p117-tur .lencana { background: #714b67; color: #fff; border-radius: 999px; padding: 2px 9px; font-size: calc(11px + var(--fs-plus, 0px)); font-weight: 700; }
-#p117-tur .x { border: 0; background: none; cursor: pointer; color: #9ca3af; font-size: 14px; }
-#p117-tur .menu { font-weight: 800; color: #714b67; font-size: calc(13.5px + var(--fs-plus, 0px)); }
-#p117-tur p { margin: 4px 0 10px; line-height: 1.5; color: #374151; }
+/* DN-475 + v2026.10.139 (DN-975 / DN-731): satu tampilan panduan - sorot + kotak mengikuti posisi */
+#p117-tur-lubang { position: fixed; z-index: 2147480990; border-radius: 10px; box-shadow: 0 0 0 9999px rgba(15,23,42,.55), 0 0 0 3px #017e84; pointer-events: none; transition: left .2s, top .2s, width .2s, height .2s, opacity .2s; }
+#p117-tur { position: fixed; z-index: 2147481000; width: min(380px, calc(100vw - 32px)); background: #fff; color: #1f2937; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 24px 60px rgba(15,23,42,.30); padding: 14px 16px 12px; font-size: 14px; animation: p117Naik .2s ease; }
+#p117-tur.bebas { right: 20px; bottom: 20px; left: auto !important; top: auto !important; }
+@keyframes p117Naik { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#p117-tur header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+#p117-tur header b { flex: 1; font-size: 12.5px; color: #6b7280; font-weight: 600; }
+#p117-tur .lencana { background: #714b67; color: #fff; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+#p117-tur .x { border: 0; background: none; cursor: pointer; color: #9ca3af; font-size: 15px; }
+#p117-tur .langkah { font-size: 11.5px; color: #6b7280; }
+#p117-tur .menu { font-weight: 800; color: #714b67; font-size: 15px; margin-top: 1px; }
+#p117-tur p { margin: 4px 0 10px; line-height: 1.55; color: #374151; }
+#p117-tur p .memuat { color: #9ca3af; font-size: 12px; }
 #p117-tur .titik { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+#p117-tur .titik:empty { display: none; }
 #p117-tur .titik i { width: 6px; height: 6px; border-radius: 999px; background: #e5e7eb; } #p117-tur .titik i.aktif { background: #714b67; width: 16px; }
 #p117-tur footer { display: flex; gap: 6px; align-items: center; }
-#p117-tur footer button { height: 30px; padding: 0 11px; border-radius: 6px; font: inherit; font-size: calc(12.5px + var(--fs-plus, 0px)); cursor: pointer; border: 1px solid #d5d9de; background: #fff; color: #374151; }
+#p117-tur footer button { height: 32px; padding: 0 12px; border-radius: 6px; font: inherit; font-size: 13.5px; cursor: pointer; border: 1px solid #d5d9de; background: #fff; color: #374151; }
 #p117-tur footer button.utama { background: #714b67; border-color: #714b67; color: #fff; font-weight: 700; }
 #p117-tur footer button.tipis { border-color: transparent; color: #6b7280; } #p117-tur footer button.tipis:hover { background: #f3f4f6; }
-.p117-tur-sorot { outline: 3px solid #017e84 !important; outline-offset: 3px !important; border-radius: 6px; animation: p117Denyut 1.2s ease 3; }
-@keyframes p117Denyut { 0%, 100% { outline-color: #017e84; } 50% { outline-color: rgba(1,126,132,.25); } }
+.p117-tur-sorot { outline: 3px solid #017e84 !important; outline-offset: 3px !important; }
+.p117-cara-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; margin-right: 8px; border: 1px solid var(--web-border, #e1e4e8); border-radius: 6px; background: var(--web-panel, #fff); color: var(--web-text, #1f2937); font: inherit; font-size: 13.5px; cursor: pointer; }
+.p117-cara-btn span { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: #714b67; color: #fff; font-size: 11.5px; font-weight: 800; }
+.p117-cara-btn:hover { background: #f4eef3; border-color: #dccbd8; }
 html.p117-odoo .p92-sbkaki { background: linear-gradient(180deg, rgba(51,35,47,0), #33232f 22%) !important; }
 html.p117-odoo .p92-sbkaki .p86-lipat:hover { border-color: rgba(231,184,218,.55) !important; background: rgba(255,255,255,.08) !important; }
 html.p117-odoo #app-web #web-page-title { text-transform: none !important; letter-spacing: 0 !important; font-size: calc(16px + var(--fs-plus, 0px)) !important; font-weight: 700 !important; color: var(--odx-teks) !important; }
@@ -100561,6 +100593,26 @@ html.p117-odoo .p83-bln button.aktif:not(.p85-kilat-f) { background: var(--odx-p
 .p117-rp-kartu .p72-kk-kartu li { display: flex; justify-content: space-between; font-size: calc(12px + var(--fs-plus, 0px)); }
 .p117-sp .kanan h6 { justify-content: flex-start !important; gap: 6px; }
 .p117-sp .kanan h6 .p117-sp-atur { margin-left: auto; }
+
+/* ---------- v2026.10.139 (DN-386 / DN-289): tulisan lebih besar ala Odoo, seimbang & seragam di semua menu ----------
+   Semua ukuran huruf web ditulis calc(Npx + var(--fs-plus)) -> dinaikkan bersama (+2 px dari dasar), lalu komponen inti
+   diseragamkan ke skala tetap: teks isi 14 px · tabel 14 px · label kecil 12.5 px · tombol 13.5 px · judul halaman 20 px. */
+html.omni-web.p117-odoo { --fs-plus: 2px; }
+html.p117-odoo #app-web { font-size: 14px; }
+html.p117-odoo #app-web .web-table td, html.p117-odoo #app-web .web-table th { font-size: 14px !important; }
+html.p117-odoo #app-web .web-table td small, html.p117-odoo #app-web .web-table td .sub { font-size: 12.5px !important; }
+html.p117-odoo #app-web .web-btn-primary, html.p117-odoo #app-web .web-btn-secondary { font-size: 13.5px !important; }
+html.p117-odoo #app-web .web-form-input, html.p117-odoo #app-web .web-search-input, html.p117-odoo #app-web select.web-form-input { font-size: 14px !important; }
+html.p117-odoo #app-web .web-kpi-label { font-size: 12.5px !important; }
+html.p117-odoo #app-web .web-panel-header, html.p117-odoo #app-web .app-header-submenu, html.p117-odoo #app-web #cc-judul, html.p117-odoo #app-web #fin2-judul { font-size: 20px !important; font-weight: 700 !important; letter-spacing: -.01em; }
+html.p117-odoo #app-web .web-sidebar .web-nav-item:not(.web-nav-sub) { font-size: 14.5px !important; }
+html.p117-odoo #app-web .web-sidebar .web-nav-sub { font-size: 13.5px !important; }
+html.p117-odoo #app-web .per-chip, html.p117-odoo #app-web .p84-chip, html.p117-odoo #app-web .cc-kapsul, html.p117-odoo #app-web .per-tab, html.p117-odoo #app-web .web-nav-sub-tab { font-size: 13px !important; }
+
+/* ---------- v2026.10.139 (DN-705): tombol panah saring di judul tabel lebih besar & mudah diklik ---------- */
+.p84-tf-btn { min-width: 24px !important; height: 24px !important; padding: 0 5px !important; border-radius: 5px; font-size: calc(12px + var(--fs-plus, 0px)) !important; opacity: .5 !important; display: inline-flex !important; align-items: center; justify-content: center; vertical-align: middle; }
+th.p84-tf:hover .p84-tf-btn, .p84-tf-btn:hover, .p84-tf-btn:focus-visible { opacity: 1 !important; background: rgba(113,75,103,.10); }
+.p84-tf-btn.aktif { opacity: 1 !important; background: var(--odx-primer-lembut, #f4eef3); color: var(--odx-primer, #714b67) !important; }
 
 </style>
 <script>
@@ -100630,31 +100682,42 @@ function p117StokSetelahTulis_(aksi, r) {
   f.__p117 = true; window[n] = f;
 });
 
-/* ---------- DN-359: cari prediktif di panel Cek Memo Gudang ---------- */
+/* ---------- DN-359: cari di panel Cek Memo Gudang ----------
+   v2026.10.139 (DN-329): TANPA daftar saran melayang (dulu menutupi). Ketik = memo yang mengandung kata itu langsung
+   tersaring & TERBUKA otomatis, kata yang dicari disorot (stabilo) di dalam memo. Disaring di browser, tanpa ke server. */
 function p117BmmTeks_(m) {
   return [m.noMemo, m.noInvoiceTerkait, m.oleh, m.dibuatOleh, m.staff, m.nama, m.status, m.tanggal].concat((m.items || []).map(it => (it.sku || '') + ' ' + (it.nama || '') + ' ' + (it.catatan || ''))).filter(Boolean).join(' ').toLowerCase();
 }
+function p117BmmKata_() { return String((typeof bmm !== 'undefined' && bmm.cari) || '').toLowerCase().trim().split(/\s+/).filter(Boolean); }
 function p117BmmCocok_(m) {
-  const q = String((typeof bmm !== 'undefined' && bmm.cari) || '').toLowerCase().trim(); if (!q) return true;
-  const t = p117BmmTeks_(m); return q.split(/\s+/).every(k => t.indexOf(k) >= 0);
+  const k = p117BmmKata_(); if (!k.length) return true;
+  const t = p117BmmTeks_(m); return k.every(x => t.indexOf(x) >= 0);
 }
 function p117BmmCariPasang_() {
   const seg = document.querySelector('.bmm-seg[aria-label="Filter status memo"]'); if (!seg || el('p117-bmm-cari')) return;
-  seg.insertAdjacentHTML('afterend', `<label class="p117-cari" title="Cari No memo, nama staff, SKU, atau nama barang"><span class="oi oi-search" aria-hidden="true"></span><input id="p117-bmm-cari" type="search" list="p117-bmm-saran" placeholder="Cari memo / SKU / barang" autocomplete="off"><datalist id="p117-bmm-saran"></datalist></label>`);
+  seg.insertAdjacentHTML('afterend', `<label class="p117-cari" title="Cari No memo, nama staff, SKU, atau nama barang - memo yang cocok langsung terbuka"><span class="oi oi-search" aria-hidden="true"></span><input id="p117-bmm-cari" type="search" placeholder="Cari memo / SKU / barang" autocomplete="off" spellcheck="false"></label>`);
   const i = el('p117-bmm-cari'); let t = 0;
-  i.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { bmm.cari = i.value; try { bmmRender(); } catch (e) { } p117BmmSaran_(); }, 150); });
-  i.addEventListener('focus', p117BmmSaran_);
+  i.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => p117BmmCari_(i.value), 160); });
+  i.addEventListener('keydown', e => { if (e.key === 'Escape') { i.value = ''; p117BmmCari_(''); } });
 }
-function p117BmmSaran_() {
-  const d = el('p117-bmm-saran'), i = el('p117-bmm-cari'); if (!d || !i || typeof bmm === 'undefined') return;
-  const q = i.value.toLowerCase().trim(), set = new Map();
-  (bmm.memos || []).forEach(m => {
-    [[m.noMemo, 'memo'], [m.oleh || m.dibuatOleh || m.staff, 'staff']].concat((m.items || []).flatMap(it => [[it.sku, it.nama], [it.nama, it.sku]])).forEach(([v, ket]) => {
-      v = String(v || '').trim(); if (!v || set.has(v) || (q && v.toLowerCase().indexOf(q) < 0)) return; set.set(v, String(ket || ''));
-    });
-  });
-  d.innerHTML = Array.from(set).slice(0, 30).map(([v, k]) => `<option value="${pgrAttr(v)}">${escapeHtml(k)}</option>`).join('');
+function p117BmmCari_(q) {
+  if (typeof bmm === 'undefined') return;
+  bmm.cari = q;
+  const k = p117BmmKata_();
+  if (k.length) (bmm.memos || []).forEach(m => { if (p117BmmCocok_(m)) bmm.buka[m.noMemo] = true; }); // memo yang cocok langsung terbuka
+  P117.bmmGulir = !!k.length;
+  try { bmmRender(); } catch (e) { }
 }
+// sorot kata yang dicari di dalam memo yang tampil
+function p117BmmSorot_() {
+  const isi = el('bmm-isi'), k = p117BmmKata_(); if (!isi || !k.length) return;
+  const re = new RegExp('(' + k.map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  const w = document.createTreeWalker(isi, NodeFilter.SHOW_TEXT, { acceptNode: n => (n.parentNode && /^(SCRIPT|STYLE|MARK|TEXTAREA|INPUT|OPTION)$/.test(n.parentNode.nodeName)) || !re.test(n.nodeValue) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const L = []; while (w.nextNode()) L.push(w.currentNode);
+  L.forEach(n => { re.lastIndex = 0; const s = document.createElement('span'); s.innerHTML = escapeHtml(n.nodeValue).replace(re, '<mark class="p117-stabilo">$1</mark>'); n.replaceWith(...s.childNodes); });
+  const pertama = isi.querySelector('mark.p117-stabilo'); if (pertama && P117.bmmGulir) { P117.bmmGulir = false; pertama.scrollIntoView({ block: 'center' }); }
+}
+(function () { const a = window.bmmRender; if (typeof a !== 'function') return; window.bmmRender = function () { const r = a.apply(this, arguments); try { p117BmmSorot_(); } catch (e) { } return r; }; })();
 setTimeout(() => { try { p117BmmCariPasang_(); } catch (e) { } }, 0);
 
 /* ---------- DN-926: Import Katalog - 1 klik pilih produk Katalog (SKU Gudang) -> langsung terhubung; belum ada -> tambah produk baru ---------- */
@@ -100669,33 +100732,38 @@ function p117GdCari_(q) {
 }
 function p117GdBuka(i, tombol) {
   const I = P112.impor, r = I && I.rows[i]; if (!r) return;
+  p117PilihProduk(tombol, { kode: r.sku, nama: r.nama, foto: r.foto, judul: 'Hubungkan ke produk Katalog', onPilih: sku => p117GdPakai_(i, sku), onBaru: () => p117GdBaru_(i) });
+}
+// v2026.10.139: jendela pilih produk Katalog dipakai ulang (Import Katalog, Lengkapi HPP, dll.)
+function p117PilihProduk(tombol, o) {
   p117GdTutup();
-  const w = document.createElement('div'); w.id = 'p117-gd'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', 'Pilih SKU Gudang');
-  const saranAwal = r.nama ? String(r.nama).split(/\s+/).slice(0, 2).join(' ') : '';
-  w.innerHTML = `<div class="p117-gd-kepala"><b>Hubungkan ke produk Katalog</b><button type="button" class="x" aria-label="Tutup" onclick="p117GdTutup()">✕</button></div>
-    <div class="p117-gd-asal">${r.foto ? `<img src="${p112E(r.foto)}" alt="">` : ''}<div><span class="mono">${p112E(r.sku || 'tanpa SKU')}</span><small>${p112E(r.nama)}</small></div></div>
-    <label class="p117-cari"><span class="oi oi-search" aria-hidden="true"></span><input type="search" id="p117-gd-q" placeholder="Cari SKU / nama produk Katalog" autocomplete="off" value="${p112E(r.sku && (katalogProdukCache || []).some(p => p.sku === r.sku) ? r.sku : saranAwal)}"></label>
+  const w = document.createElement('div'); w.id = 'p117-gd'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', o.judul || 'Pilih produk Katalog');
+  const saranAwal = o.nama ? String(o.nama).split(/\s+/).slice(0, 2).join(' ') : '';
+  w.innerHTML = `<div class="p117-gd-kepala"><b>${p112E(o.judul || 'Pilih produk Katalog')}</b><button type="button" class="x" aria-label="Tutup" onclick="p117GdTutup()">✕</button></div>
+    <div class="p117-gd-asal">${o.foto ? `<img src="${p112E(o.foto)}" alt="">` : ''}<div><span class="mono">${p112E(o.kode || 'tanpa SKU')}</span><small>${p112E(o.nama || '')}</small></div></div>
+    <label class="p117-cari"><span class="oi oi-search" aria-hidden="true"></span><input type="search" id="p117-gd-q" placeholder="Cari SKU / nama produk Katalog" autocomplete="off" value="${p112E(o.kode && (katalogProdukCache || []).some(p => p.sku === o.kode) ? o.kode : saranAwal)}"></label>
     <div class="p117-gd-daftar" id="p117-gd-daftar"></div>
-    <button type="button" class="p117-gd-baru" id="p117-gd-baru">＋ Produk baru di Katalog: <span class="mono">${p112E(r.sku || 'kode otomatis')}</span><small>stok & keuangan langsung memakai SKU ini</small></button>`;
+    ${o.onBaru ? `<button type="button" class="p117-gd-baru" id="p117-gd-baru">＋ Produk baru di Katalog: <span class="mono">${p112E(o.kode || 'kode otomatis')}</span><small>stok & keuangan langsung memakai SKU ini</small></button>` : ''}`;
   document.body.appendChild(w);
   const rc = tombol.getBoundingClientRect(), lebar = 380, tinggi = Math.min(460, window.innerHeight - 24);
   w.style.width = lebar + 'px'; w.style.maxHeight = tinggi + 'px';
   w.style.left = Math.max(12, Math.min(window.innerWidth - lebar - 12, rc.right - lebar)) + 'px';
   w.style.top = (rc.bottom + tinggi + 8 < window.innerHeight ? rc.bottom + 6 : Math.max(12, rc.top - tinggi - 6)) + 'px';
   const q = el('p117-gd-q'), d = el('p117-gd-daftar'); let sorot = 0, L = [];
+  const pakai = sku => { p117GdTutup(); o.onPilih(sku); };
   const gambar = () => {
     L = p117GdCari_(q.value); sorot = Math.min(sorot, Math.max(0, L.length - 1));
     d.innerHTML = L.length ? L.map((p, k) => `<button type="button" class="p117-gd-it ${k === sorot ? 'sorot' : ''}" data-k="${k}">${p.urlFoto || p.foto ? `<img src="${p112E(p.urlFoto || p.foto)}" alt="" loading="lazy">` : '<span class="kosong"></span>'}<span><span class="mono">${p112E(p.sku)}</span><small>${p112E(String(p.nama || '').slice(0, 70))}</small></span></button>`).join('')
-      : `<div class="p117-gd-nol">Tidak ada produk cocok - tambah sebagai produk baru di bawah.</div>`;
-    d.querySelectorAll('[data-k]').forEach(b => b.onclick = () => p117GdPakai_(i, L[+b.dataset.k].sku));
+      : `<div class="p117-gd-nol">Tidak ada produk cocok${o.onBaru ? ' - tambah sebagai produk baru di bawah' : ''}.</div>`;
+    d.querySelectorAll('[data-k]').forEach(b => b.onclick = () => pakai(L[+b.dataset.k].sku));
   };
   q.addEventListener('input', () => { sorot = 0; gambar(); });
   q.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); sorot = Math.max(0, Math.min(L.length - 1, sorot + (e.key === 'ArrowDown' ? 1 : -1))); gambar(); const s = d.querySelector('.sorot'); if (s) s.scrollIntoView({ block: 'nearest' }); }
-    else if (e.key === 'Enter') { e.preventDefault(); if (L[sorot]) p117GdPakai_(i, L[sorot].sku); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (L[sorot]) pakai(L[sorot].sku); }
     else if (e.key === 'Escape') p117GdTutup();
   });
-  el('p117-gd-baru').onclick = () => p117GdBaru_(i);
+  if (o.onBaru) el('p117-gd-baru').onclick = () => { p117GdTutup(); o.onBaru(); };
   gambar(); setTimeout(() => { q.focus(); q.select(); }, 30);
   setTimeout(() => document.addEventListener('mousedown', p117GdLuar_, true), 0);
 }
@@ -100733,28 +100801,41 @@ async function p117GdBaru_(i) {
 }
 
 /* ---------- DN-831: Pengiriman > Rangkuman Pengiriman - semua program dalam 1 halaman, ditandai per program ----------
+   v2026.10.139 (DN-380 / DN-927 / DN-386 / DN-705): tampilan dibaca per Toko > Channel > Program (tanpa ikon), kurun waktu
+   cepat (hari ini / 7 / 30 hari / per bulan), angka besar & rata kanan: Terkirim · Selesai · Dalam pengiriman · Retur.
    Program dikenali dari data resi keluar (tanpa permintaan server baru). Tab program muncul dinamis: bila marketplace-nya
-   terhubung ATAU sudah ada paketnya. Daftar program per marketplace: */
+   terhubung ATAU sudah ada paketnya. */
 const P117_PROGRAM = [
-  { id: 'reguler', label: 'Reguler', ikon: '📦', pf: ['Shopee', 'TikTok Shop', 'Tokopedia', 'Lazada', 'Blibli', 'PO Sales'], ket: 'Pengiriman reguler / ekonomi / kargo lewat kurir marketplace.' },
-  { id: 'kilat', label: 'Kilat', ikon: '⚡', pf: ['Shopee'], ket: 'Shopee Pengiriman Kilat - stok dititipkan ke Gudang Shopee (No Reservasi).' },
-  { id: 'ekspor', label: 'Flexi Ekspor', ikon: '🌏', pf: ['Shopee'], ket: 'Shopee Flexi Ekspor (SLS) - pesanan toko luar negeri, dikirim ke gudang ekspor Shopee.' },
-  { id: 'instan', label: 'Instan / Sameday', ikon: '🛵', pf: ['Shopee', 'TikTok Shop', 'Tokopedia', 'Lazada'], ket: 'Instant / Sameday (GoSend, GrabExpress, SPX Instant, dll.) - batas bermasalah 2 hari.' },
-  { id: 'fbt', label: 'Gudang TikTok (FBT)', ikon: '🏬', pf: ['TikTok Shop'], ket: 'Fulfilled by TikTok - stok di gudang TikTok, dikirim oleh TikTok.' },
-  { id: 'kurirtoko', label: 'Kurir Toko', ikon: '🚚', pf: ['PO Sales'], ket: 'Diantar kurir toko sendiri (Manual Order).' }
+  { id: 'reguler', label: 'Reguler', pf: ['Shopee', 'TikTok Shop', 'Tokopedia', 'Lazada', 'Blibli', 'PO Sales'], ket: 'Pengiriman reguler / ekonomi / kargo lewat kurir marketplace.' },
+  { id: 'kilat', label: 'Kilat', pf: ['Shopee'], ket: 'Shopee Pengiriman Kilat - stok dititipkan ke Gudang Shopee (No Reservasi).' },
+  { id: 'ekspor', label: 'Flexi Ekspor', pf: ['Shopee'], ket: 'Shopee Flexi Ekspor (SLS) - pesanan toko luar negeri, dikirim ke gudang ekspor Shopee.' },
+  { id: 'instan', label: 'Instan / Sameday', pf: ['Shopee', 'TikTok Shop', 'Tokopedia', 'Lazada'], ket: 'Instant / Sameday (GoSend, GrabExpress, SPX Instant, dll.) - batas bermasalah 2 hari.' },
+  { id: 'fbt', label: 'Gudang TikTok (FBT)', pf: ['TikTok Shop'], ket: 'Fulfilled by TikTok - stok di gudang TikTok, dikirim oleh TikTok.' },
+  { id: 'kurirtoko', label: 'Kurir Toko', pf: ['PO Sales'], ket: 'Diantar kurir toko sendiri (Manual Order).' }
 ];
-const P117RP = { prog: 'semua', bln: '' };
+const P117RP = { prog: 'semua', bln: 'h30' };
 function p117RpProgram_(d) {
   const k = String(d.kurir || (d._cc && d._cc.kurir) || '');
   if (d.jenis === 'transfer') return 'kilat';
   if (/kurir toko/i.test(k) || d.kurirToko) return 'kurirtoko';
   if (/fulfil+ed by tiktok|\bFBT\b/i.test(k)) return 'fbt';
   let eks = !!d.ekspor;
-  if (!eks && /shopee/i.test(d.sumber || '') && d.noInvoice && typeof wpGabunganCache !== 'undefined') { const o = wpGabunganCache.find(x => x.sumber === 'Shopee' && String(x.noReferensi) === String(d.noInvoice)); eks = !!(o && o.ekspor); }
+  if (!eks && /shopee/i.test(d.sumber || '') && d.noInvoice && typeof wpGabunganCache !== 'undefined') { const o = p117RpPesanan_(d); eks = !!(o && o.ekspor); }
   if (eks) return 'ekspor';
   if (/instan|instant|same ?day|gosend|grab|go-?send|lalamove|sameday/i.test(k)) return 'instan';
   return 'reguler';
 }
+function p117RpPesanan_(d) {
+  if (!d.noInvoice || typeof wpGabunganCache === 'undefined') return null;
+  if (!P117RP.peta || P117RP.petaN !== wpGabunganCache.length) { P117RP.peta = new Map(wpGabunganCache.map(o => [String(o.noReferensi), o])); P117RP.petaN = wpGabunganCache.length; }
+  return P117RP.peta.get(String(d.noInvoice)) || null;
+}
+function p117RpToko_(d) {
+  const o = p117RpPesanan_(d), t = String((o && o.toko) || d.toko || '');
+  if (/conner/i.test(t + ' ' + (d.sumber || ''))) return 'Conner';
+  return t && !/^-?$/.test(t) ? t.replace(/\s*(coffee|&).*$/i, '') || t : 'Waterground';
+}
+function p117RpChannel_(d) { const s = String(d.sumber || ''); if (!s) return 'Belum terhubung'; if (/conner/i.test(s)) return 'TikTok Shop'; return s; }
 function p117RpTerhubung_() {
   const s = new Set(['PO Sales']);
   try { (typeof intKoneksi !== 'undefined' && Array.isArray(intKoneksi) ? intKoneksi : []).forEach(k => { const n = String(k.namaMarketplace || k.platform || k.id || ''); if (/shopee/i.test(n)) s.add('Shopee'); if (/tiktok|tokopedia/i.test(n)) { s.add('TikTok Shop'); s.add('Tokopedia'); } if (/lazada/i.test(n)) s.add('Lazada'); if (/blibli/i.test(n)) s.add('Blibli'); }); } catch (e) { }
@@ -100768,7 +100849,7 @@ function p117RpBuka() {
   document.querySelectorAll('#web-tab-pengiriman [data-pgrview]').forEach(div => { div.style.display = 'none'; });
   const bar = el('pgr-kembali-bar'); if (bar) bar.hidden = true;
   const aksi = document.querySelector('#web-tab-pengiriman .cc-head-aksi'); if (aksi) aksi.style.display = 'none';
-  el('cc-judul').textContent = 'Rangkuman Pengiriman'; el('cc-judul-sub').textContent = 'Setiap paket keluar per program pengiriman: berhasil, dalam pengiriman, atau retur.';
+  el('cc-judul').textContent = 'Rangkuman Pengiriman'; el('cc-judul-sub').textContent = 'Berapa paket terkirim, selesai, masih di jalan, atau retur - per toko, channel & program pengiriman.';
   let v = el('p117-rp');
   if (!v) { v = document.createElement('div'); v.id = 'p117-rp'; v.dataset.pgrview = 'p117-rangkuman'; const c = el('pgr-view-control'); c.parentNode.insertBefore(v, c); }
   v.style.display = 'block';
@@ -100778,47 +100859,67 @@ function p117RpBuka() {
 }
 function p117RpPilih(p) { P117RP.prog = p; p117RpRender(); }
 function p117RpBulan(b) { P117RP.bln = b; p117RpRender(); }
+function p117RpDalamKurun_(ms) {
+  const b = P117RP.bln; if (!b) return true; if (!ms) return false;
+  if (/^h\d+$/.test(b)) { const hari = Number(b.slice(1)), awal = new Date(); awal.setHours(0, 0, 0, 0); return ms >= awal.getTime() - (hari - 1) * 86400000; }
+  return p83Bulan_(ms) === b;
+}
+function p117RpKurunHtml_(msList) {
+  const bln = Array.from(new Set(msList.filter(Boolean).map(p83Bulan_))).sort().reverse().slice(0, 6);
+  const tb = (k, l) => `<button type="button" class="${P117RP.bln === k ? 'aktif' : ''}" onclick="p117RpBulan('${k}')">${l}</button>`;
+  return `<div class="p117-rp-kurun" role="group" aria-label="Kurun waktu">${tb('h1', 'Hari ini')}${tb('h7', '7 hari')}${tb('h30', '30 hari')}<span class="sep"></span>${bln.map(b => tb(b, p83LabelBulan_(b))).join('')}<span class="sep"></span>${tb('', 'Semua')}</div>`;
+}
 function p117RpRender() {
   const v = el('p117-rp'); if (!v || v.style.display === 'none') return;
   const semua = typeof ccSemua === 'function' ? ccSemua() : [], kilat = (typeof klData !== 'undefined' && klData && klData.items) || [];
   const terhubung = p117RpTerhubung_(), hit = {};
-  semua.forEach(d => { if (d.jenis === 'transfer') return; const p = p117RpProgram_(d); d._p117 = p; hit[p] = (hit[p] || 0) + 1; });
-  hit.kilat = kilat.length;
+  const reg = semua.filter(d => d.jenis !== 'transfer');
+  reg.forEach(d => { const p = p117RpProgram_(d); d._p117 = p; if (p117RpDalamKurun_(d.ms)) hit[p] = (hit[p] || 0) + 1; });
+  hit.kilat = kilat.filter(it => p117RpDalamKurun_(it.msDibuat)).length;
   const tampil = P117_PROGRAM.filter(p => hit[p.id] || p.pf.some(x => terhubung.has(x)));
   if (P117RP.prog !== 'semua' && !tampil.some(p => p.id === P117RP.prog)) P117RP.prog = 'semua';
-  const tab = `<div class="p117-rp-tab" role="tablist">${[{ id: 'semua', label: 'Semua program', ikon: '🧭', ket: 'Semua paket keluar (tanpa titipan Kilat).' }].concat(tampil).map(p => `<button type="button" role="tab" class="${P117RP.prog === p.id ? 'aktif' : ''}" onclick="p117RpPilih('${p.id}')" title="${pgrAttr(p.ket + (p.pf ? ' · ' + p.pf.join(', ') : ''))}"><span>${p.ikon}</span>${escapeHtml(p.label)}<em>${p.id === 'semua' ? semua.filter(d => d.jenis !== 'transfer').length : (hit[p.id] || 0)}</em></button>`).join('')}</div>`;
+  const nSemua = reg.filter(d => p117RpDalamKurun_(d.ms)).length;
+  const tab = `<div class="p117-rp-tab" role="tablist">${[{ id: 'semua', label: 'Semua program', ket: 'Semua paket keluar (tanpa titipan Kilat).' }].concat(tampil).map(p => `<button type="button" role="tab" class="${P117RP.prog === p.id ? 'aktif' : ''}" onclick="p117RpPilih('${p.id}')" title="${pgrAttr(p.ket + (p.pf ? ' · ' + p.pf.join(', ') : ''))}">${escapeHtml(p.label)}<em>${p.id === 'semua' ? nSemua : (hit[p.id] || 0)}</em></button>`).join('')}</div>`;
+  const kurun = p117RpKurunHtml_(reg.map(d => d.ms).concat(kilat.map(it => it.msDibuat)));
   if (P117RP.prog === 'kilat') {
-    const r = (klData && klData.ringkasan) || {}, n = k => kilat.filter(it => it.hasil === k).length;
-    v.innerHTML = tab + `<div class="p117-rp-kartu">${!klData ? '<div class="fin2-kosong">Memuat data Pengiriman Kilat…</div>' : `
-      <div class="p72-kk-grid">${[['Berhasil', '💰 Sukses', '#16a34a'], ['Dalam Proses', '🚚 Dalam proses', '#3b82f6'], ['Diretur', '↩️ Diretur', '#7c3aed'], ['Batal', '✕ Batal', '#78716c']].map(([k, l, c]) => `<div class="p72-kk-kartu" style="border-left-color:${c}"><small>${l}</small><b>${n(k)}</b></div>`).join('')}</div>
-      <div class="p83-ket">Total ${r.total || kilat.length} reservasi${r.nilaiJual ? ' · nilai jual dikirim ' + klRp(r.nilaiJual) : ''}. Kilat = stok titipan ke Gudang Shopee (bukan penjualan).</div>
-      <div class="p108-aksi"><span style="flex:1"></span><button type="button" class="web-btn-secondary" onclick="ccBukaKilat()">⚡ Rincian Kilat</button><button type="button" class="web-btn-secondary" onclick="pengirimanBukaSub('transfer-gudang')">Kelola lengkap</button></div>`}</div>`;
+    const ks = kilat.filter(it => p117RpDalamKurun_(it.msDibuat)), n = k => ks.filter(it => it.hasil === k).length;
+    v.innerHTML = tab + kurun + `<div class="p117-rp-kartu">${!klData ? '<div class="fin2-kosong">Memuat data Pengiriman Kilat…</div>' : `
+      <div class="p117-rp-stat">${[['Dikirim ke gudang Shopee', ks.length, ''], ['Sukses', n('Berhasil'), 'ok'], ['Dalam proses', n('Dalam Proses'), 'jalan'], ['Diretur', n('Diretur'), 'retur'], ['Batal', n('Batal'), '']].map(([l, x, c]) => `<div class="${c}"><small>${l}</small><b>${x.toLocaleString('id-ID')}</b></div>`).join('')}</div>
+      <div class="p117-rp-ket">Kilat = stok titipan ke Gudang Shopee (bukan penjualan).</div>
+      <div class="p108-aksi"><span style="flex:1"></span><button type="button" class="web-btn-secondary" onclick="ccBukaKilat()">Rincian Kilat</button><button type="button" class="web-btn-secondary" onclick="pengirimanBukaSub('transfer-gudang')">Kelola lengkap</button></div>`}</div>`;
     return;
   }
-  const daftarP = semua.filter(d => d.jenis !== 'transfer' && (P117RP.prog === 'semua' || d._p117 === P117RP.prog));
-  const daftar = P117RP.bln ? daftarP.filter(d => p83Bulan_(d.ms) === P117RP.bln) : daftarP;
-  const nol = () => ({ n: 0, v: 0 }), g = { total: nol(), berhasil: nol(), jalan: nol(), retur: nol() }, sub = {}, prog = {};
-  let adaNilai = false;
+  const daftar = reg.filter(d => (P117RP.prog === 'semua' || d._p117 === P117RP.prog) && p117RpDalamKurun_(d.ms));
+  const nol = () => ({ n: 0, v: 0 }), baru = () => ({ total: nol(), berhasil: nol(), jalan: nol(), retur: nol(), masalah: 0 });
+  const g = baru(), pohon = {}; let adaNilai = false;
   daftar.forEach(d => {
     const [k, s] = p83RegKelas_(d), nv = typeof ccNilai === 'function' ? ccNilai(d) : null, val = nv ? Number(nv.v) || 0 : 0; if (nv) adaNilai = true;
-    [g.total, g[k]].forEach(x => { x.n++; x.v += val; });
-    if (s) { const x = sub[s] || (sub[s] = nol()); x.n++; x.v += val; }
-    const kp = (d._p117 || 'reguler') + '|' + (d.sumber || 'Belum terhubung'), y = prog[kp] || (prog[kp] = { total: nol(), berhasil: nol(), jalan: nol(), retur: nol() });
-    [y.total, y[k]].forEach(x => { x.n++; x.v += val; });
+    const t = p117RpToko_(d), c = p117RpChannel_(d), p = d._p117 || 'reguler';
+    const T = pohon[t] || (pohon[t] = { x: baru(), ch: {} }), C = T.ch[c] || (T.ch[c] = { x: baru(), pr: {} }), P = C.pr[p] || (C.pr[p] = baru());
+    [g, T.x, C.x, P].forEach(y => { y.total.n++; y.total.v += val; y[k].n++; y[k].v += val; if (s === 'masalah') y.masalah++; });
   });
-  const T = g.total, S = k => sub[k] || nol(), rp = x => adaNilai ? `<small>${omxRp(x.v)}</small>` : '';
-  const kartu = (k, ks) => { const x = g[k], c = P83_REG[k]; return `<div class="p72-kk-kartu" style="border-left-color:${c[1]}" title="${pgrAttr(c[3])}"><small>${c[0]}</small><b>${x.n}</b>${rp(x)}${ks ? '<ul>' + ks.filter(s => S(s).n).map(s => `<li><span>${P83_SUB[s]}</span><b>${S(s).n}</b></li>`).join('') + '</ul>' : ''}</div>`; };
-  const nama = id => (P117_PROGRAM.find(p => p.id === id) || { ikon: '📦', label: id });
-  const urut = Object.keys(prog).sort((a, b) => prog[b].total.n - prog[a].total.n);
-  const sel = x => adaNilai ? `${x.n}<br><small>${omxRp(x.v)}</small>` : x.n;
-  v.innerHTML = tab + `<div class="p83-bln">${p83BarBulan_(daftarP.map(d => d.ms || 0), P117RP.bln, 'p117RpBulan')}</div>
-    <div class="p117-rp-kartu">${!semua.length ? '<div class="fin2-kosong">Memuat data resi keluar…</div>' : `
-      <div class="p117-rp-atas"><div><small>Paket keluar${P117RP.bln ? ' · ' + p83LabelBulan_(P117RP.bln) : ''}</small><b>${T.n}</b>${rp(T)}</div>
-        <div class="p72-kk-batang" aria-hidden="true">${['berhasil', 'jalan', 'retur'].map(k => g[k].n ? `<i style="width:${g[k].n / Math.max(1, T.n) * 100}%; background:${P83_REG[k][1]}"></i>` : '').join('')}</div></div>
-      <div class="p72-kk-grid">${kartu('berhasil')}${kartu('jalan', ['jalan', 'masalah', 'belum'])}${kartu('retur', ['retur', 'hilang'])}</div>
-      <div class="p83-kanal-wrap"><table class="p83-kanal"><thead><tr><th>Program</th><th>Channel</th><th>Keluar</th><th>Berhasil</th><th>Dalam pengiriman</th><th>Retur / Hilang</th><th>% berhasil</th></tr></thead><tbody>
-        ${urut.map(kp => { const [pid, kn] = kp.split('|'), y = prog[kp], p = nama(pid); return `<tr><td><span class="p117-prog p117-prog-${pid}">${p.ikon} ${escapeHtml(p.label)}</span></td><td>${typeof ovxLogo === 'function' && kn !== 'Belum terhubung' ? ovxLogo(kn) + ' ' : ''}${escapeHtml(kn)}</td><td>${sel(y.total)}</td><td>${sel(y.berhasil)}</td><td>${sel(y.jalan)}</td><td>${sel(y.retur)}</td><td>${y.total.n ? Math.round(y.berhasil.n / y.total.n * 100) : 0}%</td></tr>`; }).join('')}
-      </tbody></table></div>`}</div>`;
+  const angka = x => x.n.toLocaleString('id-ID');
+  const rp = x => adaNilai && x.v ? `<small>${omxRp(x.v)}</small>` : '';
+  const pct = y => y.total.n ? Math.round(y.berhasil.n / y.total.n * 100) + '%' : '-';
+  const sel = (y, k) => `<td class="n ${k}">${angka(y[k])}${rp(y[k])}</td>`;
+  const baris = (cls, nama, y) => `<tr class="${cls}"><td>${nama}</td>${sel(y, 'total')}${sel(y, 'berhasil')}${sel(y, 'jalan')}${sel(y, 'retur')}<td class="n pct">${pct(y)}${y.masalah ? `<small class="warn" title="Lewat 14 hari (reguler) / 2 hari (instan) tanpa kepastian - siapkan komplain">${y.masalah} bermasalah</small>` : ''}</td></tr>`;
+  const nmProg = id => escapeHtml((P117_PROGRAM.find(p => p.id === id) || { label: id }).label);
+  const urut = o => Object.keys(o).sort((a, b) => (o[b].x || o[b]).total.n - (o[a].x || o[a]).total.n);
+  const isi = urut(pohon).map(t => {
+    const T = pohon[t];
+    return baris('toko', `<b>${escapeHtml(t)}</b>`, T.x) + urut(T.ch).map(c => {
+      const C = T.ch[c];
+      return baris('channel', `${typeof ovxLogo === 'function' && c !== 'Belum terhubung' ? ovxLogo(c) + ' ' : ''}${escapeHtml(c)}`, C.x)
+        + Object.keys(C.pr).sort((a, b) => C.pr[b].total.n - C.pr[a].total.n).map(p => baris('program', nmProg(p), C.pr[p])).join('');
+    }).join('');
+  }).join('');
+  const stat = [['Terkirim', g.total, ''], ['Selesai (uang masuk)', g.berhasil, 'ok'], ['Dalam pengiriman', g.jalan, 'jalan'], ['Retur / Hilang', g.retur, 'retur']];
+  v.innerHTML = tab + kurun + `<div class="p117-rp-kartu">${!semua.length ? '<div class="fin2-kosong">Memuat data resi keluar…</div>' : `
+      <div class="p117-rp-stat">${stat.map(([l, x, c]) => `<div class="${c}"><small>${l}</small><b>${angka(x)}</b>${adaNilai ? `<span>${omxRp(x.v)}</span>` : ''}${c && g.total.n ? `<i style="width:${Math.round(x.n / g.total.n * 100)}%"></i>` : ''}</div>`).join('')}</div>
+      ${g.masalah ? `<div class="p117-rp-ket warn">${g.masalah} paket bermasalah (lewat 14 hari reguler / 2 hari instan) - buka Control Center Resi untuk siapkan komplain.</div>` : ''}
+      <div class="p117-rp-tabel-wrap"><table class="p117-rp-tabel"><thead><tr><th>Toko / Channel / Program</th><th class="n">Terkirim</th><th class="n">Selesai</th><th class="n">Dalam pengiriman</th><th class="n">Retur / Hilang</th><th class="n">% selesai</th></tr></thead>
+        <tbody>${isi || '<tr><td colspan="6" class="kosong">Tidak ada paket di kurun waktu ini.</td></tr>'}</tbody>
+        ${isi ? `<tfoot>${baris('total', 'Total', g)}</tfoot>` : ''}</table></div>`}</div>`;
 }
 ['ccRender'].forEach(n => { const a = window[n]; if (typeof a !== 'function') return; window[n] = function () { const r = a.apply(this, arguments); try { if (el('p117-rp') && el('p117-rp').style.display !== 'none') p117RpRender(); } catch (e) { } return r; }; });
 
@@ -100848,47 +100949,102 @@ function p117BeliLogReset_() { const ol = el('p117-beli-log'); if (ol) ol.innerH
   if (hasil) new MutationObserver(() => { const t = hasil.textContent.trim(); if (t) p117BeliLog_(t, hasil.className); }).observe(hasil, { childList: true, subtree: true, characterData: true });
 })();
 
-/* ---------- DN-475: Walkthrough "Yang baru" (mesin tur dipakai ulang untuk panduan pengguna baru nanti) ----------
-   P117Tur.mulai(langkah, opsi): langkah = [{ judul, menu, teks, hash, sorot }] · kartu kecil kanan bawah (tidak menghalangi kerja),
-   tombol Lihat = pindah ke menu & menyorot bagian yang berubah. "Nanti saja" = muncul lagi besok; panggil ulang dari Catatan Developer. */
+/* ---------- DN-475: Walkthrough "Yang baru" + v2026.10.139 (DN-975 / DN-731): SATU mesin tur untuk seluruh aplikasi ----------
+   P117Tur.mulai(langkah, opsi): langkah = [{ judul, menu, teks, hash, sorot }]
+   - Bagian yang berubah DISOROT (layar lain diredupkan); kotak pesan mengikuti posisinya di samping / bawah / atas - tidak menutupi.
+   - Langkah di halaman lain -> aplikasi pindah halaman sendiri, menunggu bagian itu tampil, lalu menyorot.
+   - Dipakai juga oleh tutorial Produksi (p108TurMulai) & tombol "Cara pakai" tiap menu. Isi "Cara pakai" = catatan developer
+     yang sudah selesai untuk menu itu (server: p118_cara_pakai) -> semua panduan bersumber dari Catatan Developer. */
 const P117_MENU_HASH = [
   [/^HP\b|Scan/i, ''], [/Rangkuman Pengiriman/i, '#pengiriman/rangkuman'], [/Resi Masuk/i, '#pengiriman/resi-masuk'], [/Pengiriman/i, '#pengiriman/control'],
   [/Katalog\s*>\s*Harga/i, '#katalog/harga'], [/Katalog/i, '#katalog/produk'], [/Riwayat Stok/i, '#persediaan/riwayat'], [/Persediaan/i, '#persediaan/monitor'],
-  [/Finance\s*>\s*Mutasi/i, '#finance/mutasi'], [/Finance\s*>\s*Input Biaya/i, '#finance/biaya'], [/Finance/i, '#finance/ringkasan'],
+  [/Finance\s*>\s*Mutasi/i, '#finance/mutasi'], [/Finance\s*>\s*Input Biaya/i, '#finance/biaya'], [/Hutang Reimburse/i, '#finance/hutang'], [/Finance/i, '#finance/ringkasan'],
   [/Buat Pesanan/i, '#pesanan/semua'], [/Penjualan/i, '#pesanan/semua'], [/Pembelian/i, '#pembelian/transaksi'], [/Kelola Staff|Staff/i, '#staff/daftar'],
-  [/Produksi/i, '#produksi'], [/Beranda/i, '#overview'], [/Catatan Developer/i, '#devnote']
+  [/Produksi/i, '#produksi'], [/Beranda/i, '#overview'], [/Catatan Developer/i, '']
 ];
-const P117_TUR_SOROT = { // bagian yang disorot untuk catatan paket ini
+const P117_HASH_MENU = [ // halaman -> pola nama menu di Catatan Developer
+  [/^#pesanan/, '^(Penjualan|Seluruh aplikasi|Label)'], [/^#katalog\/harga/, '^Katalog\\s*>\\s*Harga'], [/^#katalog/, '^Katalog'], [/^#persediaan/, '^Persediaan'],
+  [/^#pengiriman\/rangkuman/, '^Pengiriman\\s*>\\s*Rangkuman'], [/^#pengiriman/, '^Pengiriman'], [/^#pembelian/, '^Pembelian'], [/^#finance\/mutasi/, '^Finance\\s*>\\s*Mutasi'],
+  [/^#finance\/hutang/, '^(Finance\\s*>\\s*Hutang|Kelola Staff)'], [/^#finance/, '^Finance'], [/^#staff/, '^Kelola Staff'], [/^#produksi/, '^Produksi'], [/^#overview|^#?$/, '^(Beranda|Seluruh aplikasi)'], [/^#pengaturan/, '^Pengaturan']
+];
+const P117_TUR_SOROT = { // bagian yang disorot per catatan
   'DN-261123-222008-831': '.web-nav-sub[data-pgrsub="rangkuman"]', 'DN-261123-175843-359': '#perx-btn-memo', 'DN-261123-221603-183': '#persediaan-view-monitor',
-  'DN-261123-215019-475': '#p117-dvn-baru', 'DN-261123-110045-562': '#harga-param-cards', 'DN-261123-100843-194': '#harga-param-cards'
+  'DN-261123-215019-475': '#p117-dvn-baru', 'DN-261123-110045-562': '#harga-param-cards', 'DN-261123-100843-194': '#harga-param-cards', 'DN-261123-221458-521': '#p99-alur',
+  'DN-261123-152148-140': '#wp-gabungan-body', 'DN-261123-221631-542': '.web-nav-item[data-tab="pesanan"]', 'DN-261123-222351-106': '.web-nav-item[data-tab="staff"]',
+  'DN-261123-222301-305': '.web-nav-item[data-tab="pembelian"]', 'DN-261123-221354-239': '.web-nav-item[data-tab="katalog"]',
+  'DN-261123-234748-380': '#p117-rp .p117-rp-tabel', 'DN-261123-234425-927': '#p117-rp .p117-rp-tabel', 'DN-261123-234613-386': '#p117-rp .p117-rp-tab',
+  'DN-261123-234701-289': '#app-web .web-main', 'DN-261123-234136-705': '#app-web .web-main table', 'DN-261123-235102-329': '#perx-btn-memo',
+  'DN-261124-000009-774': '#p78-audit', 'DN-261123-235930-912': '#p78-audit', 'DN-261123-233233-975': '#p117-cara-btn', 'DN-261123-235758-731': '#p117-cara-btn',
+  'DN-261123-235430-362': '.web-nav-sub[data-finsub="hutang"]', 'DN-261123-235324-104': '#wp-gabungan-body'
 };
+function p117Tampak_(e) { if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 2 && r.height > 2 && getComputedStyle(e).visibility !== 'hidden'; }
 const P117Tur = {
-  L: [], i: 0, opsi: {},
-  mulai(L, opsi) { this.L = L || []; this.i = 0; this.opsi = opsi || {}; if (!this.L.length) return; this.gambar(); },
-  tutup(cara) { const w = el('p117-tur'); if (w) w.remove(); this.sorot(null); try { this.opsi.selesai && this.opsi.selesai(cara || 'tutup'); } catch (e) { } },
-  sorot(sel) {
+  L: [], i: 0, opsi: {}, seq: 0, raf: 0, target: null,
+  mulai(L, opsi) { this.tutup(null, true); this.L = (L || []).filter(Boolean); this.i = 0; this.opsi = opsi || {}; if (!this.L.length) return; this.ke(0, true); },
+  tutup(cara, diam) {
+    cancelAnimationFrame(this.raf); this.raf = 0; this.target = null; this.seq++;
+    ['p117-tur', 'p117-tur-lubang'].forEach(id => { const w = el(id); if (w) w.remove(); });
     document.querySelectorAll('.p117-tur-sorot').forEach(x => x.classList.remove('p117-tur-sorot'));
-    if (!sel) return; const t = document.querySelector(sel); if (!t || !t.offsetParent) return;
-    t.classList.add('p117-tur-sorot'); try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { }
+    if (!diam) try { this.opsi.selesai && this.opsi.selesai(cara || 'tutup'); } catch (e) { }
   },
-  lihat() { const s = this.L[this.i]; if (!s) return; if (s.hash && location.hash !== s.hash) location.hash = s.hash; setTimeout(() => this.sorot(s.sorot), s.hash ? 1600 : 50); },
-  ke(d) { this.i = Math.max(0, Math.min(this.L.length - 1, this.i + d)); this.sorot(null); this.gambar(); },
-  gambar() {
-    const s = this.L[this.i]; let w = el('p117-tur');
-    if (!w) { w = document.createElement('section'); w.id = 'p117-tur'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', this.opsi.judul || 'Yang baru'); document.body.appendChild(w); }
+  async ke(d, mutlak) {
+    this.i = mutlak ? d : Math.max(0, Math.min(this.L.length - 1, this.i + d));
+    const s = this.L[this.i], seq = ++this.seq;
+    this.gambar(null, true);
+    let t = null;
+    if (s.hash && location.hash !== s.hash && !(s.hash === '#pesanan/semua' && /^#pesanan/.test(location.hash))) location.hash = s.hash;
+    if (s.sorot) {
+      const batas = Date.now() + (s.hash ? 4500 : 1200);
+      while (Date.now() < batas && seq === this.seq) {
+        t = s.sorot.split(',').map(x => { try { return document.querySelector(x.trim()); } catch (e) { return null; } }).find(p117Tampak_);
+        if (t) break; await new Promise(r => setTimeout(r, 150));
+      }
+    }
+    if (seq !== this.seq) return;
+    if (t) { try { t.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { } }
+    this.target = t || null; this.gambar(t);
+  },
+  gambar(t, memuat) {
+    const s = this.L[this.i]; if (!s) return;
+    let w = el('p117-tur');
+    if (!w) { w = document.createElement('section'); w.id = 'p117-tur'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', this.opsi.judul || 'Panduan'); document.body.appendChild(w); }
     const n = this.L.length, akhir = this.i === n - 1;
-    w.innerHTML = `<header><span class="lencana">${escapeHtml(this.opsi.lencana || '✨ Yang baru')}</span><b>${escapeHtml(this.opsi.judul || '')}</b><button type="button" class="x" title="Tutup" aria-label="Tutup" onclick="P117Tur.tutup('tutup')">✕</button></header>
-      <div class="menu">${escapeHtml(s.menu || 'Umum')}</div>
-      <p>${escapeHtml(s.teks)}</p>
-      <div class="titik" aria-hidden="true">${n <= 24 ? this.L.map((_, k) => `<i class="${k === this.i ? 'aktif' : ''}"></i>`).join('') : `<small>${this.i + 1} / ${n}</small>`}</div>
-      <footer><button type="button" class="tipis" onclick="P117Tur.tutup('nanti')" title="Tutup sekarang, tampil lagi besok. Bisa dibuka kapan saja dari Catatan Developer.">Nanti saja</button><span style="flex:1"></span>
-        ${s.hash || s.sorot ? `<button type="button" class="tipis" onclick="P117Tur.lihat()" title="Buka menunya & sorot bagian yang berubah">👁 Lihat</button>` : ''}
-        ${this.i ? '<button type="button" class="tipis" onclick="P117Tur.ke(-1)" aria-label="Sebelumnya">‹</button>' : ''}
-        <button type="button" class="utama" onclick="${akhir ? "P117Tur.tutup('selesai')" : 'P117Tur.ke(1)'}">${akhir ? 'Selesai ✓' : 'Berikutnya ›'}</button></footer>`;
+    w.innerHTML = `<header><span class="lencana">${escapeHtml(this.opsi.lencana || '✨ Yang baru')}</span><b>${escapeHtml(this.opsi.judul || '')}</b><button type="button" class="x" title="Tutup (Esc)" aria-label="Tutup" onclick="P117Tur.tutup('tutup')">✕</button></header>
+      <div class="langkah">Langkah ${this.i + 1} dari ${n}</div>
+      <div class="menu">${escapeHtml(s.menu || s.judul || 'Umum')}</div>
+      <p>${escapeHtml(s.teks)}${memuat && s.sorot ? ' <i class="memuat">membuka…</i>' : ''}</p>
+      <div class="titik" aria-hidden="true">${n <= 24 ? this.L.map((_, k) => `<i class="${k === this.i ? 'aktif' : ''}"></i>`).join('') : ''}</div>
+      <footer>${this.opsi.nanti === false ? '' : `<button type="button" class="tipis" onclick="P117Tur.tutup('nanti')" title="Tutup sekarang, tampil lagi besok. Bisa dibuka kapan saja lewat tombol ❓ Cara pakai.">Nanti saja</button>`}<span style="flex:1"></span>
+        ${this.i ? '<button type="button" class="tipis" onclick="P117Tur.ke(-1)" aria-label="Sebelumnya">← Kembali</button>' : ''}
+        <button type="button" class="utama" onclick="${akhir ? "P117Tur.tutup('selesai')" : 'P117Tur.ke(1)'}">${akhir ? 'Selesai ✓' : 'Lanjut →'}</button></footer>`;
+    let lb = el('p117-tur-lubang');
+    if (t) { if (!lb) { lb = document.createElement('div'); lb.id = 'p117-tur-lubang'; document.body.appendChild(lb); } }
+    else if (lb) lb.remove();
+    w.classList.toggle('bebas', !t);
+    cancelAnimationFrame(this.raf);
+    const ikut = () => { if (!el('p117-tur')) return; this.posisi(); this.raf = requestAnimationFrame(ikut); };
+    this.posisi(); if (t) this.raf = requestAnimationFrame(ikut);
+  },
+  posisi() {
+    const w = el('p117-tur'), lb = el('p117-tur-lubang'), t = this.target; if (!w) return;
+    if (!t || !t.isConnected || !p117Tampak_(t)) { if (lb) lb.style.opacity = '0'; w.style.left = ''; w.style.top = ''; w.classList.add('bebas'); return; }
+    const r = t.getBoundingClientRect(), pad = 6, vw = innerWidth, vh = innerHeight;
+    const R = { l: Math.max(4, r.left - pad), t: Math.max(4, r.top - pad), r: Math.min(vw - 4, r.right + pad), b: Math.min(vh - 4, r.bottom + pad) };
+    if (lb) Object.assign(lb.style, { opacity: '1', left: R.l + 'px', top: R.t + 'px', width: (R.r - R.l) + 'px', height: (R.b - R.t) + 'px' });
+    w.classList.remove('bebas');
+    const cw = w.offsetWidth, ch = w.offsetHeight, jarak = 14;
+    let x, y;
+    if (vw - R.r >= cw + jarak + 8) { x = R.r + jarak; y = Math.min(Math.max(8, R.t), vh - ch - 8); }            // kanan
+    else if (R.l >= cw + jarak + 8) { x = R.l - cw - jarak; y = Math.min(Math.max(8, R.t), vh - ch - 8); }        // kiri
+    else if (vh - R.b >= ch + jarak + 8) { y = R.b + jarak; x = Math.min(Math.max(8, R.l), vw - cw - 8); }       // bawah
+    else if (R.t >= ch + jarak + 8) { y = R.t - ch - jarak; x = Math.min(Math.max(8, R.l), vw - cw - 8); }       // atas
+    else { x = vw - cw - 16; y = vh - ch - 16; }                                                                  // bagian sangat besar -> pojok
+    w.style.left = Math.round(x) + 'px'; w.style.top = Math.round(y) + 'px';
   }
 };
 document.addEventListener('keydown', e => { if (!el('p117-tur') || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '')) return; if (e.key === 'ArrowRight') P117Tur.ke(1); else if (e.key === 'ArrowLeft') P117Tur.ke(-1); else if (e.key === 'Escape') P117Tur.tutup('nanti'); });
 function p117HashMenu_(menu) { const m = P117_MENU_HASH.find(([r]) => r.test(menu || '')); return m ? m[1] : ''; }
+function p117LangkahDariCatatan_(b, judul) { return { judul, menu: b.menu, teks: b.teks, hash: p117HashMenu_(b.menu), sorot: P117_TUR_SOROT[b.id] || '' }; }
 async function p117YangBaru(paksa, jumlah) {
   try {
     const r = await postJson({ aksi: 'p117_yang_baru', jumlah: jumlah || 1, email: currentUserEmail() }, 30000, true);
@@ -100899,20 +101055,138 @@ async function p117YangBaru(paksa, jumlah) {
       if (st.versi === r.terbaru && (st.cara === 'selesai' || st.cara === 'tutup' || Date.now() - (st.t || 0) < 20 * 3600000)) return;
     }
     const L = [];
-    r.paket.forEach(p => p.butir.forEach(b => L.push({ judul: p.paket, menu: b.menu, teks: b.teks, hash: p117HashMenu_(b.menu), sorot: P117_TUR_SOROT[b.id] || '' })));
+    r.paket.forEach(p => p.butir.forEach(b => L.push(p117LangkahDariCatatan_(b, p.paket))));
     const p0 = r.paket[0];
     P117Tur.mulai(L, { judul: `${p0.paket} · ${p0.versi}`, lencana: '✨ Yang baru', selesai: cara => { try { localStorage.setItem(kunci, JSON.stringify({ versi: r.terbaru, cara, t: Date.now() })); } catch (e) { } } });
   } catch (e) { if (paksa) omniToast('✗ ' + (e.message || e), 'error'); }
 }
+// ❓ Cara pakai menu yang sedang dibuka: langkah khusus menu (bila ada) + catatan developer yang sudah selesai untuk menu ini
+async function p117CaraPakai() {
+  const h = location.hash || '#overview', m = P117_HASH_MENU.find(([r]) => r.test(h)), pola = m ? m[1] : '^Seluruh aplikasi';
+  const nama = (el('web-page-title') || {}).textContent || 'Menu ini';
+  let L = [];
+  if (/^#produksi/.test(h) && typeof P108_TUR !== 'undefined') { const tab = (typeof P108 !== 'undefined' && P108.tab === 'buku') ? 'buku' : 'sku'; L = (P108_TUR[tab] || []).map(s => ({ judul: 'Produksi', menu: s.j, teks: s.t, sorot: s.sel })); }
+  try {
+    const r = await postJson({ aksi: 'p118_cara_pakai', pola, jumlah: 20, email: currentUserEmail() }, 30000, true);
+    if (r && r.success) L = L.concat((r.butir || []).map(b => Object.assign(p117LangkahDariCatatan_(b, b.paket), { hash: '' })));
+  } catch (e) { }
+  if (!L.length) { omniToast('Belum ada catatan cara pakai untuk menu ini.', 'info'); return; }
+  P117Tur.mulai(L, { judul: nama.trim(), lencana: '❓ Cara pakai', nanti: false });
+}
 // Tampil otomatis sekali per versi untuk Owner di layar web (HP gudang tidak diganggu)
 setTimeout(() => { try { if (!document.documentElement.classList.contains('omni-mobile') && typeof currentUser !== 'undefined' && currentUser && currentUser.isOwner) p117YangBaru(false, 1); } catch (e) { } }, 7000);
-// Tombol di Catatan Developer: buka ulang kapan saja
 (function () {
-  const bar = document.querySelector('#web-tab-devnote .dvn-toolbar:nth-of-type(2)') || document.querySelectorAll('#web-tab-devnote .dvn-toolbar')[1]; if (!bar || el('p117-dvn-baru')) return;
-  bar.insertAdjacentHTML('afterbegin', '<button type="button" class="web-btn-secondary" id="p117-dvn-baru" onclick="p117YangBaru(true, 2)" title="Walkthrough update terakhir (2 paket terbaru)">✨ Yang baru</button>');
+  // Tombol di Catatan Developer: buka ulang kapan saja
+  const bar = document.querySelectorAll('#web-tab-devnote .dvn-toolbar')[1];
+  if (bar && !el('p117-dvn-baru')) bar.insertAdjacentHTML('afterbegin', '<button type="button" class="web-btn-secondary" id="p117-dvn-baru" onclick="p117YangBaru(true, 2)" title="Walkthrough update terakhir (2 paket terbaru)">✨ Yang baru</button>');
+  // ❓ Cara pakai di bilah atas (semua menu)
+  const tb = document.querySelector('#app-web .web-topbar'), ai = tb && (tb.querySelector('.p86-ai-btn') || tb.lastElementChild);
+  if (tb && !el('p117-cara-btn')) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'p117-cara-btn'; b.className = 'p117-cara-btn'; b.title = 'Cara pakai menu ini (dari Catatan Developer)'; b.setAttribute('aria-label', 'Cara pakai menu ini');
+    b.innerHTML = '<span aria-hidden="true">?</span> Cara pakai'; b.onclick = () => p117CaraPakai();
+    if (ai && ai.parentNode) ai.parentNode.insertBefore(b, ai); else tb.appendChild(b);
+  }
 })();
+// v2026.10.139 (DN-731): tutorial Produksi memakai mesin & tampilan yang sama
+if (typeof p108TurMulai === 'function') {
+  p108TurMulai = function (tab) { const L = (P108_TUR[tab] || P108_TUR.sku).map(s => ({ judul: 'Produksi', menu: s.j, teks: s.t, sorot: s.sel })); P117Tur.mulai(L, { judul: 'Produksi', lencana: '❓ Cara pakai', nanti: false }); };
+  p108TurTutup = function () { P117Tur.tutup(null, true); };
+}
 
 </script>
 <!-- ===== PAKET 117 SELESAI ===== -->
+<!-- ===== PAKET 118 MULAI ===== -->
+<!-- =====================================================================================
+     PAKET 118 (v2026.10.139) - 24 Nov 2026 · 12 Catatan Developer
+     Perubahan perilaku dibuat di tempat (cari "v2026.10.139"), termasuk di blok PAKET 117; blok ini hanya fungsi / gaya BARU.
+     ===================================================================================== -->
+<style>
+/* DN-774: tombol perbaiki di Lengkapi HPP */
+.p118-perbaiki { white-space: nowrap; }
+.p118-btn { height: 28px; padding: 0 10px; margin: 2px 4px 2px 0; border: 1px solid var(--web-border, #e1e4e8); border-radius: 6px; background: #fff; color: #374151; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.p118-btn.utama { background: var(--odx-primer-lembut, #f4eef3); border-color: var(--odx-primer-garis, #dccbd8); color: var(--odx-primer, #714b67); }
+.p118-btn.ok { background: #ecfdf5; border-color: #a7f3d0; color: #047857; cursor: default; }
+.p118-btn:hover:not(:disabled) { border-color: var(--odx-primer, #714b67); }
+/* DN-362: spanduk hutang di Finance */
+#fin-view-ringkasan > #ksh-banner { margin: 0 0 12px; width: 100%; }
+
+</style>
+<script>
+/* =================================== PAKET 118 =================================== */
+const P118 = { versi: 'v2026.10.139' };
+
+/* ---------- DN-774: Lengkapi HPP - perbaiki langsung dari jendela (hubungkan SKU / buka pesanan) ---------- */
+function p118PfDariKanal_(k) { k = String(k || ''); return /shopee/i.test(k) ? 'Shopee' : /tiktok|tokopedia|conner/i.test(k) ? 'TikTok Shop' : ''; }
+function p118TombolPerbaiki_(o) {
+  const m = /^SKU tidak dikenal:\s*(.+)$/.exec(o.masalah || ''), pf = p118PfDariKanal_(o.sumber);
+  const buka = `<button type="button" class="p118-btn" data-p118-buka="${pgrAttr(o.no)}" title="Buka pesanan ini di Penjualan untuk melengkapi rincian barang">Buka pesanan →</button>`;
+  if (!m) return buka;
+  return m[1].split(/\s*,\s*/).filter(Boolean).slice(0, 4).map(k => `<button type="button" class="p118-btn utama" data-p118-kode="${pgrAttr(k)}" data-p118-pf="${pgrAttr(pf)}" data-p118-toko="${/conner/i.test(o.sumber) ? 'Conner' : ''}" title="${pf ? 'Pilih produk Katalog untuk kode ' + pgrAttr(k) + ' - langsung terhubung di SKU Mapping' : 'Pilih / buat produk Katalog'}">Hubungkan ${p78E(k)}</button>`).join('') + buka;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-p118-buka],[data-p118-kode]'); if (!b || !b.closest('#omx-modal')) return;
+  e.preventDefault();
+  if (b.dataset.p118Buka) {
+    const no = b.dataset.p118Buka; omxTutupModal();
+    location.hash = '#pesanan/semua';
+    setTimeout(() => { const i = el('wp-gab-cari'); if (i) { i.value = no; try { wpOmniKetik(); } catch (er) { } i.focus(); } }, 900);
+    return;
+  }
+  const kode = b.dataset.p118Kode, pf = b.dataset.p118Pf, toko = b.dataset.p118Toko, tr = b.closest('tr');
+  const selesai = (teks) => { b.disabled = true; b.textContent = '✓ ' + teks; b.classList.add('ok'); try { P78.audit[p78AuditKunci_()] = null; fin2.lapKunci = ''; p78AuditMuat_(true); } catch (er) { } };
+  p117PilihProduk(b, {
+    kode, nama: tr ? (tr.children[2] || {}).textContent : '', judul: 'Kode ' + kode + ' = produk Katalog apa?',
+    onPilih: async sku => {
+      if (String(sku).toUpperCase() === String(kode).toUpperCase()) return selesai(sku);
+      if (!pf) { omniToast('Kode dari pesanan manual tidak bisa dipetakan - buka pesanan & ganti SKU-nya.', 'info'); return; }
+      try {
+        const r = await postJsonTulis({ aksi: 'tambah_sku_marketplace_terhubung_massal', skuJual: sku, platform: pf, daftarSkuMarketplace: [kode], keterangan: (toko ? 'Toko ' + toko + ' · ' : '') + 'Lengkapi HPP', email: currentUserEmail() }, 60000);
+        if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menghubungkan');
+        selesai(kode + ' → ' + sku);
+      } catch (er) { omniToast('✗ ' + (er.message || er), 'error'); }
+    },
+    onBaru: async () => {
+      try {
+        const nama = tr ? String((tr.children[2] || {}).textContent || kode).slice(0, 120) : kode;
+        const r = await postJsonTulis({ aksi: 'simpan_produk_baru_massal', kolom: ['urlFoto', 'sku', 'nama', 'kategori', 'hpp', 'hargaDefault'], baris: [['', String(kode).toUpperCase(), nama, '', 0, 0]], toko: currentToko, email: currentUserEmail() }, 60000);
+        if (!r || !r.success) throw new Error((r && r.error) || 'Gagal menambah produk');
+        try { katalogProdukCache.push({ sku: String(kode).toUpperCase(), nama }); } catch (er) { }
+        selesai('produk baru ' + kode + ' - isi harga modalnya di tabel atas');
+      } catch (er) { omniToast('✗ ' + (er.message || er), 'error'); }
+    }
+  });
+});
+// DN-912: peringatan "N produk terjual belum punya harga modal" dari laporan disembunyikan bila kartu HPP gabungan tampil
+(function () {
+  const w = el('fin2-peringatan'); if (!w) return;
+  const rapikan = () => { const ada = !!el('p78-audit'); w.querySelectorAll('.fin2-pesan').forEach(p => { if (/belum punya harga modal/i.test(p.textContent)) p.hidden = ada; }); };
+  new MutationObserver(rapikan).observe(w, { childList: true, subtree: true });
+  const v = el('fin-view-ringkasan'); if (v) new MutationObserver(rapikan).observe(v, { childList: true });
+})();
+
+/* ---------- DN-362: Hutang Reimburse Staf pindah ke Finance (Kelola Staff khusus HR) ---------- */
+(function () {
+  if (typeof FIN2_SUB === 'undefined') return;
+  if (!FIN2_SUB.includes('hutang')) FIN2_SUB.push('hutang');
+  FIN2_JUDUL.hutang = 'Hutang Reimburse Staf';
+  const nav = document.querySelector('.web-nav-sub[data-finsub="vendor"]') || document.querySelector('.web-nav-sub[data-finsub="biaya"]');
+  if (nav && !document.querySelector('.web-nav-sub[data-finsub="hutang"]')) nav.insertAdjacentHTML('afterend', '<a href="#finance/hutang" class="web-nav-item web-nav-sub" data-finsub="hutang" onclick="finBukaSubMenu(\'hutang\')">Hutang Reimburse Staf</a>');
+  const ring = el('fin-view-ringkasan'), h = el('kst-view-hutang'), b = el('ksh-banner');
+  if (ring && h && !el('fin-view-hutang')) {
+    const w = document.createElement('div'); w.id = 'fin-view-hutang'; w.style.display = 'none';
+    ring.parentNode.insertBefore(w, ring.nextSibling); w.appendChild(h); h.style.display = 'block';
+    const j = h.querySelector('.app-header-hierarki'); if (j) j.remove(); // judul sudah di bilah Finance
+  }
+  if (ring && b && b.parentNode !== ring) ring.insertBefore(b, ring.firstChild);
+})();
+function p118HutangBuka_(sub) {
+  const h = el('kst-view-hutang'); if (h) h.style.display = 'block';
+  if (sub === 'hutang' || (sub === 'ringkasan' && typeof omniBolehKeuangan_ === 'function' && omniBolehKeuangan_() && (!P118.hutangT || Date.now() - P118.hutangT > 300000))) {
+    P118.hutangT = Date.now(); try { kshMuat(); } catch (e) { }
+  }
+}
+
+</script>
+<!-- ===== PAKET 118 SELESAI ===== -->
 </body>
 </html>
