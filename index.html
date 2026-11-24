@@ -94,7 +94,7 @@
 (function () {
   'use strict';
   if (window.omxAnalitik) return;
-  var VERSI = 'v2026.10.139';
+  var VERSI = 'v2026.10.140';
   var URL_CADANGAN = 'https://cjqkllvcagrokswcesyp.supabase.co/functions/v1/goodang';
   // v2026.10.110 (Paket 90): dikirim tiap 20 menit / 200 catatan (dulu 5 menit / 50) - catatan tetap aman di IndexedDB, hemat panggilan server
   var KIRIM_TIAP_MS = 20 * 60000, KIRIM_TIAP_JUMLAH = 200, MAKS_ANTRE = 20000, SESI_DIAM_MS = 30 * 60000;
@@ -9180,7 +9180,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <div class="pm-doc-thumb" id="pm-doc-thumb-invoice"></div>
         </div>
         <div class="pm-doc-aksi">
-          <button type="button" class="pm-doc-btn" onclick="printElement('print-invoice-pages')"><span aria-hidden="true"><span class="oi oi-printer" aria-hidden="true"></span></span>Cetak</button>
+          <button type="button" class="pm-doc-btn" onclick="p119CetakDok('invoice')"><span aria-hidden="true"><span class="oi oi-printer" aria-hidden="true"></span></span>Cetak</button>
           <button type="button" class="pm-doc-btn" onclick="simpanSebagaiGambar('print-invoice-pages', 'Invoice')"><span aria-hidden="true"><span class="oi oi-save" aria-hidden="true"></span></span>Simpan</button>
           <button type="button" class="pm-doc-btn pm-doc-btn-copy" onclick="pmCopyDokumen('print-invoice-pages', this)"><span aria-hidden="true"><span class="oi oi-clipboard" aria-hidden="true"></span></span>Copy</button>
         </div>
@@ -9192,7 +9192,7 @@ body > .log-tindakan { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); ri
           <div class="pm-doc-thumb" id="pm-doc-thumb-label"></div>
         </div>
         <div class="pm-doc-aksi">
-          <button type="button" class="pm-doc-btn" onclick="printElement('print-label-pages')"><span aria-hidden="true"><span class="oi oi-printer" aria-hidden="true"></span></span>Cetak</button>
+          <button type="button" class="pm-doc-btn" onclick="p119CetakDok('label')"><span aria-hidden="true"><span class="oi oi-printer" aria-hidden="true"></span></span>Cetak</button>
           <button type="button" class="pm-doc-btn" onclick="simpanSebagaiGambar('print-label-pages', 'Label')"><span aria-hidden="true"><span class="oi oi-save" aria-hidden="true"></span></span>Simpan</button>
           <button type="button" class="pm-doc-btn pm-doc-btn-copy" onclick="pmCopyDokumen('print-label-pages', this)"><span aria-hidden="true"><span class="oi oi-clipboard" aria-hidden="true"></span></span>Copy</button>
         </div>
@@ -21135,7 +21135,7 @@ async function wpGabunganAksiMassal(aksi) {
   }
 
   // v2026.10.122 (DN-140 / DN-577): invoice profesional & Surat Jalan A4 (kode yang sama dengan cetak per pesanan)
-  if (aksi === 'invoice') return p102CetakInvoice(daftarTerpilih);
+  if (aksi === 'invoice') return p119CetakInvoice(daftarTerpilih); // v2026.10.140 (DN-947)
   if (aksi === 'cetak') return p102SjMassal(daftarTerpilih);
 }
 
@@ -21422,8 +21422,8 @@ function wpToastLatar(jenis, teks, ulang) {
 async function wpGabunganJalankanAksi(aksi, o) {
   if (aksi === 'invoice') {
     // v2026.10.122 (DN-140): Manual Order tetap membuka detail; pesanan marketplace (Shopee juga) = invoice profesional
-    if (o.sumber === 'PO Sales' && o.rowPoSales) { wpBukaDetail(o.rowPoSales); }
-    else p102CetakInvoice([o]);
+    // v2026.10.140 (DN-947): semua channel memakai invoice yang sama (gaya invoice Manual Order + karakter label baru)
+    p119CetakInvoice([o]);
   } else if (aksi === 'cetak') {
     // v2026.10.122 (DN-577): SEMUA pesanan memakai Surat Jalan A4 yang sama dengan Manual Order (1 kode)
     await p102SuratJalan(o);
@@ -24938,6 +24938,7 @@ function wdocSetStatus(st, teks) {
 function wdocTutup() { const m = el('wdoc-latar'); if (m) m.hidden = true; document.body.classList.remove('wdoc-terbuka'); }
 function wdocKeDetail() { const o = wdoc.order; wdocTutup(); if (o && o.row) wpBukaDetail(o.row); }
 function wdocCetak(id, jenis) {
+  if (typeof p119CetakDok === 'function') return p119CetakDok(id === 'print-label-pages' ? 'label' : 'invoice'); // v2026.10.140 (DN-947 / DN-851)
   const o = wdoc.order;
   bukaPrintDiTabBaru(id, (o ? formatNoPesananTampilan('PO Sales', o.noInvoice) : '') + ' - ' + jenis);
 }
@@ -52214,6 +52215,7 @@ function buatBarcodeSvg(teks, opsi) {
 }
 
 function renderInvoiceAndLabel(order, lewatiInvoice) {
+  try { window.P119_ORDER_DOK = order; } catch (e) { } // v2026.10.140 (DN-947): dokumen yang sedang tampil -> dicetak dengan desain baru
   order = Object.assign({}, order, { noInvoice: String(order.noInvoice || '').replace(/^OF-/i, '') });
   let subtotalProduk = 0;
   order.items.forEach(item => { subtotalProduk += (item.harga || 0) * item.qty; });
@@ -63284,16 +63286,15 @@ if (typeof OMXAC_TUJUAN !== 'undefined') OMXAC_TUJUAN.katalogharga = () => { try
 <style>
   /* ---- DN-485: cetak thermal - teks hitam pekat, tanpa latar abu-abu ---- */
   @media print {
-    body.cetak-thermal .print-sheet { box-shadow: none !important; font-weight: 600; font-size: calc(11.5px + var(--fs-plus, 0px)); }
+    body.cetak-thermal .print-sheet { box-shadow: none !important; font-size: calc(11.5px + var(--fs-plus, 0px)); } /* v2026.10.140 (DN-851): tebal huruf mengikuti desain */
     body.cetak-thermal .print-sheet :is(div, span, td, th, tr, b, p, table, small, i, strong) { color: #000 !important; background: #fff !important; text-shadow: none !important; }
-    body.cetak-thermal .print-sheet th { border-bottom: 1.5px solid #000 !important; font-weight: 800 !important; font-size: calc(10px + var(--fs-plus, 0px)) !important; }
-    body.cetak-thermal .print-sheet td { border-bottom: 1px solid #000 !important; }
-    body.cetak-thermal .print-sheet .ringkasan-row td { border-bottom: 0 !important; font-weight: 800 !important; }
-    body.cetak-thermal .print-sheet .total-row td { border-top: 2px solid #000 !important; border-bottom: 2px solid #000 !important; font-weight: 900 !important; font-size: calc(12.5px + var(--fs-plus, 0px)) !important; }
-    body.cetak-thermal .print-sheet :is(.prod-sku, .addr-line, .doc-meta, .resi-label-small, .pay-title, .pay-value, .val-line, .page-indicator) { font-size: calc(9.5px + var(--fs-plus, 0px)) !important; font-weight: 600 !important; }
-    body.cetak-thermal .print-sheet :is(.prod-name, .addr-nama, .val-bold, .kurir-label) { font-weight: 800 !important; }
+    body.cetak-thermal .print-sheet th { border-bottom: .5pt solid #000 !important; font-size: calc(10px + var(--fs-plus, 0px)) !important; }
+    body.cetak-thermal .print-sheet td { border-bottom: .4pt solid #555 !important; }
+    body.cetak-thermal .print-sheet .ringkasan-row td { border-bottom: 0 !important; }
+    body.cetak-thermal .print-sheet .total-row td { border-top: .75pt solid #000 !important; border-bottom: .75pt solid #000 !important; font-size: calc(12.5px + var(--fs-plus, 0px)) !important; }
+    body.cetak-thermal .print-sheet :is(.prod-sku, .addr-line, .doc-meta, .resi-label-small, .pay-title, .pay-value, .val-line, .page-indicator) { font-size: calc(9.5px + var(--fs-plus, 0px)) !important; }
     body.cetak-thermal .print-sheet .kurir-info-box { border-color: #000 !important; }
-    body.cetak-thermal .print-sheet .addr-title { font-size: calc(10px + var(--fs-plus, 0px)) !important; font-weight: 900 !important; }
+    body.cetak-thermal .print-sheet .addr-title { font-size: calc(10px + var(--fs-plus, 0px)) !important; }
   }
   /* ---- DN-168: Beranda saat layar dipersempit ---- */
   .p12-ov-atas > .p12-ov-kiri #ov-kpi-grid-utama { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
@@ -63836,12 +63837,11 @@ try { localStorage.removeItem('omni_m2'); } catch (e) { }
     .print-sheet.lembar-akhir { page-break-after: auto !important; break-after: auto !important; }
     .print-sheet-wrapper, #print-invoice-pages, #print-label-pages { padding: 0 !important; margin: 0 !important; }
     .print-sheet svg { shape-rendering: crispEdges; }
-    body.cetak-thermal .print-sheet { font-size: calc(12px + var(--fs-plus, 0px)) !important; font-weight: 700 !important; }
-    body.cetak-thermal .print-sheet :is(.prod-sku, .addr-line, .doc-meta, .resi-label-small, .pay-title, .pay-value, .val-line, .page-indicator) { font-size: calc(10.5px + var(--fs-plus, 0px)) !important; font-weight: 700 !important; }
-    body.cetak-thermal .print-sheet :is(.prod-name, .addr-nama, .val-bold, .kurir-label, .doc-title) { font-weight: 900 !important; }
+    body.cetak-thermal .print-sheet { font-size: calc(12px + var(--fs-plus, 0px)) !important; } /* v2026.10.140 (DN-851): tidak "hitam semua" - tebal huruf mengikuti desain */
+    body.cetak-thermal .print-sheet :is(.prod-sku, .addr-line, .doc-meta, .resi-label-small, .pay-title, .pay-value, .val-line, .page-indicator) { font-size: calc(10.5px + var(--fs-plus, 0px)) !important; }
     body.cetak-thermal .print-sheet img.logo-thermal { image-rendering: pixelated; }
     body.cetak-thermal .print-sheet .prod-name { font-size: calc(11px + var(--fs-plus, 0px)) !important; line-height: 1.25 !important; }
-    body.cetak-thermal .print-sheet .prod-sku { font-size: calc(9.5px + var(--fs-plus, 0px)) !important; font-weight: 600 !important; }
+    body.cetak-thermal .print-sheet .prod-sku { font-size: calc(9.5px + var(--fs-plus, 0px)) !important; }
   }
 </style>
 <!-- ===================================================================================
@@ -84611,7 +84611,7 @@ p85CariPeta = async function () {
   const nomi = fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&accept-language=id&q=' + encodeURIComponent(q)).then(r => r.json()).catch(() => []);
   const [a, b] = await Promise.all([photon, nomi]); if (seq !== P86B.seqL) return;
   const semua = [], lihat = new Set();
-  (b || []).concat(a || []).forEach(x => { if (!x || x.lat === undefined) return; const kunci = (+x.lat).toFixed(3) + ',' + (+x.lon).toFixed(3); if (lihat.has(kunci)) return; lihat.add(kunci); semua.push(x); });
+  (Array.isArray(b) ? b : []).concat(Array.isArray(a) ? a : []).forEach(x => { /* v2026.10.140: balasan error Nominatim (objek) tidak lagi membuat galat */ if (!x || x.lat === undefined) return; const kunci = (+x.lat).toFixed(3) + ',' + (+x.lon).toFixed(3); if (lihat.has(kunci)) return; lihat.add(kunci); semua.push(x); });
   semua.sort((x, y) => (/indonesia/i.test(y.display_name) ? 1 : 0) - (/indonesia/i.test(x.display_name) ? 1 : 0));
   P85B.hasilPeta = semua.slice(0, 8);
   box.innerHTML = P85B.hasilPeta.length ? P85B.hasilPeta.map((x, i) => { const nm = String(x.display_name || ''), j = nm.indexOf(','); return `<button type="button" onmousedown="event.preventDefault(); p85PilihPeta(${i})">${p86E(j > 0 ? nm.slice(0, j) : nm)}<span class="p86-hasil-sub">${p86E(j > 0 ? nm.slice(j + 1).trim() : '')}</span></button>`; }).join('')
@@ -100062,7 +100062,7 @@ function p115SensorHp_(hp, o) {
 }
 
 /* ---------- DN-689 / DN-383: Daftar Pesanan - status Resi · Pembayaran · Transaksi + kurir ---------- */
-function p115KurirPendek_(k) { return typeof p108KodeKurir_ === 'function' ? p108KodeKurir_(k) : String(k || '').split(/\s+/)[0]; }
+function p115KurirPendek_(k) { if (/kurir\s*toko/i.test(String(k || ''))) return 'KURIR TOKO'; /* v2026.10.140 (DN-663) */ return typeof p108KodeKurir_ === 'function' ? p108KodeKurir_(k) : String(k || '').split(/\s+/)[0]; }
 function p115KurirHtml_(o) {
   let k = String(o.kurir || '').trim(), tebak = false;
   if (!k || /^-$|lainnya/i.test(k)) { k = P115.kurir[o.noReferensi] || ''; }
@@ -100892,12 +100892,25 @@ function p117RpRender() {
   const daftar = reg.filter(d => (P117RP.prog === 'semua' || d._p117 === P117RP.prog) && p117RpDalamKurun_(d.ms));
   const nol = () => ({ n: 0, v: 0 }), baru = () => ({ total: nol(), berhasil: nol(), jalan: nol(), retur: nol(), masalah: 0 });
   const g = baru(), pohon = {}; let adaNilai = false;
+  // v2026.10.140 (DN-737): retur dipisah - dalam perjalanan / sudah tiba (scan Resi Masuk) - dan hilang / rusak
+  const RT = P117RP.rt || {}, kr = x => String(x || '').trim().replace(/^'+/, '').replace(/\s+/g, '').toUpperCase();
+  const rr = { retur: 0, tiba: 0, jalan: 0, calon: 0, hilang: 0, tTerakhir: 0 };
   daftar.forEach(d => {
     const [k, s] = p83RegKelas_(d), nv = typeof ccNilai === 'function' ? ccNilai(d) : null, val = nv ? Number(nv.v) || 0 : 0; if (nv) adaNilai = true;
     const t = p117RpToko_(d), c = p117RpChannel_(d), p = d._p117 || 'reguler';
     const T = pohon[t] || (pohon[t] = { x: baru(), ch: {} }), C = T.ch[c] || (T.ch[c] = { x: baru(), pr: {} }), P = C.pr[p] || (C.pr[p] = baru());
     [g, T.x, C.x, P].forEach(y => { y.total.n++; y.total.v += val; y[k].n++; y[k].v += val; if (s === 'masalah') y.masalah++; });
+    if (k === 'retur') {
+      if (s === 'hilang') rr.hilang++;
+      else {
+        rr.retur++;
+        const tiba = RT['O:' + kr(d.noInvoice)] || RT['R:' + kr(d.resiRetur)] || RT['R:' + kr(d.noResiScan)];
+        if (tiba) { rr.tiba++; if (tiba[0] > rr.tTerakhir) rr.tTerakhir = tiba[0]; }
+        else { rr.jalan++; if (d.ms && Date.now() - d.ms >= 21 * 86400000) rr.calon++; }
+      }
+    }
   });
+  if (!P117RP.rtMuat && (!P117RP.rtT || Date.now() - P117RP.rtT > 300000)) { P117RP.rtMuat = true; postJson({ aksi: 'p119_retur_tiba', email: currentUserEmail() }, 45000, true).then(r => { if (r && r.success) { P117RP.rt = r.peta || {}; P117RP.rtT = Date.now(); p117RpRender(); } }).catch(() => { }).finally(() => { P117RP.rtMuat = false; }); }
   const angka = x => x.n.toLocaleString('id-ID');
   const rp = x => adaNilai && x.v ? `<small>${omxRp(x.v)}</small>` : '';
   const pct = y => y.total.n ? Math.round(y.berhasil.n / y.total.n * 100) + '%' : '-';
@@ -100915,7 +100928,12 @@ function p117RpRender() {
   }).join('');
   const stat = [['Terkirim', g.total, ''], ['Selesai (uang masuk)', g.berhasil, 'ok'], ['Dalam pengiriman', g.jalan, 'jalan'], ['Retur / Hilang', g.retur, 'retur']];
   v.innerHTML = tab + kurun + `<div class="p117-rp-kartu">${!semua.length ? '<div class="fin2-kosong">Memuat data resi keluar…</div>' : `
-      <div class="p117-rp-stat">${stat.map(([l, x, c]) => `<div class="${c}"><small>${l}</small><b>${angka(x)}</b>${adaNilai ? `<span>${omxRp(x.v)}</span>` : ''}${c && g.total.n ? `<i style="width:${Math.round(x.n / g.total.n * 100)}%"></i>` : ''}</div>`).join('')}</div>
+      <div class="p117-rp-stat">${stat.map(([l, x, c]) => `<div class="${c}"><small>${l}</small><b>${angka(x)}</b>${adaNilai ? `<span>${omxRp(x.v)}</span>` : ''}${c === 'retur' && x.n ? `<ul class="rinci">
+          <li><span>Diretur</span><b>${rr.retur}</b></li>
+          <li class="sub" title="Sudah discan di Pengiriman > Resi Masuk"><span>sudah tiba${rr.tTerakhir ? ' · terakhir ' + new Date(rr.tTerakhir).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : ''}</span><b>${P117RP.rt ? rr.tiba : '…'}</b></li>
+          <li class="sub" title="Belum discan masuk gudang"><span>masih di perjalanan</span><b>${P117RP.rt ? rr.jalan : '…'}</b></li>
+          ${rr.calon ? `<li class="sub warn" title="Retur belum tiba walau paket sudah 21+ hari - cek pelacakan & siapkan klaim barang hilang ke marketplace"><span><button type="button" onclick="pengirimanBukaSub('control'); setTimeout(() => { try { ccState.hasil = 'retur'; ccRender(); } catch (e) { } }, 600)">calon klaim hilang →</button></span><b>${rr.calon}</b></li>` : ''}
+          <li><span>Hilang / rusak dikompensasi</span><b>${rr.hilang}</b></li></ul>` : ''}${c && g.total.n ? `<i style="width:${Math.round(x.n / g.total.n * 100)}%"></i>` : ''}</div>`).join('')}</div>
       ${g.masalah ? `<div class="p117-rp-ket warn">${g.masalah} paket bermasalah (lewat 14 hari reguler / 2 hari instan) - buka Control Center Resi untuk siapkan komplain.</div>` : ''}
       <div class="p117-rp-tabel-wrap"><table class="p117-rp-tabel"><thead><tr><th>Toko / Channel / Program</th><th class="n">Terkirim</th><th class="n">Selesai</th><th class="n">Dalam pengiriman</th><th class="n">Retur / Hilang</th><th class="n">% selesai</th></tr></thead>
         <tbody>${isi || '<tr><td colspan="6" class="kosong">Tidak ada paket di kurun waktu ini.</td></tr>'}</tbody>
@@ -100977,6 +100995,18 @@ const P117_TUR_SOROT = { // bagian yang disorot per catatan
   'DN-261124-000009-774': '#p78-audit', 'DN-261123-235930-912': '#p78-audit', 'DN-261123-233233-975': '#p117-cara-btn', 'DN-261123-235758-731': '#p117-cara-btn',
   'DN-261123-235430-362': '.web-nav-sub[data-finsub="hutang"]', 'DN-261123-235324-104': '#wp-gabungan-body'
 };
+// v2026.10.140 (DN-571 / DN-282): catatan yang perlu diklik untuk melihat perubahannya -> panduan MEMERINTAHKAN kliknya
+// { sorot, klik: true, perintah } = hanya bagian yang disorot yang bisa diklik; setelah diklik panduan lanjut sendiri.
+const P117_TUR_RINCI = {
+  'DN-261124-004210-737': [{ hash: '#pengiriman/rangkuman', sorot: '#p117-rp .p117-rp-stat .retur' }],
+  'DN-261124-101822-947': [{ hash: '#pesanan/semua', sorot: '#wp-gabungan-body tr[data-kunci]', klik: true, perintah: 'Klik salah satu baris pesanan yang disorot untuk membuka tombolnya.' }, { sorot: '#wp-gabungan-body .p109-cetak', teks: 'Cetak Label = label 10x15 baru · Cetak Invoice = invoice gaya lama dengan karakter label (sama di semua pintu cetak).' }],
+  'DN-261124-101611-851': [{ hash: '#pesanan/semua', sorot: '#wp-gabungan-body .p109-cetak' }],
+  'DN-261124-095558-909': [{ hash: '#pesanan/semua', sorot: '.wp-tt-btn-baru', klik: true, perintah: 'Klik "+ Buat Pesanan Baru" yang disorot.' }, { sorot: '#p119-tempel-kartu', teks: 'Tempel chat WA / alamat pembeli di kotak SMART PASTE ini - nama, no HP & alamat terisi otomatis sampai kode pos.' }, { sorot: '#p119-wil', teks: 'Kelurahan, kecamatan, kota, provinsi & kode pos kini 1 baris ringkas. Klik untuk mengubah.' }],
+  'DN-261124-095119-663': [{ hash: '#pesanan/semua', sorot: '#wp-gabungan-body .p115-kur' }],
+  'DN-261124-004420-161': [{ hash: '#pengiriman/rangkuman', sorot: '#p117-rp .p117-rp-tabel thead' }],
+  'DN-261123-235102-329': [{ hash: '#persediaan/monitor', sorot: '#perx-btn-memo', klik: true, perintah: 'Klik "Cek Memo Gudang" yang disorot.' }, { sorot: '#p117-bmm-cari', teks: 'Ketik nama barang / SKU / staff - memo yang cocok langsung terbuka & kata yang dicari distabilo.' }],
+  'DN-261124-000009-774': [{ hash: '#finance/ringkasan', sorot: '#p78-audit button', klik: true, perintah: 'Klik "Lengkapi sekarang" yang disorot.' }, { sorot: '#omx-modal .p118-perbaiki', teks: 'Setiap pesanan bermasalah punya tombol Hubungkan / Buka pesanan.' }]
+};
 function p117Tampak_(e) { if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 2 && r.height > 2 && getComputedStyle(e).visibility !== 'hidden'; }
 const P117Tur = {
   L: [], i: 0, opsi: {}, seq: 0, raf: 0, target: null,
@@ -100984,6 +101014,7 @@ const P117Tur = {
   tutup(cara, diam) {
     cancelAnimationFrame(this.raf); this.raf = 0; this.target = null; this.seq++;
     ['p117-tur', 'p117-tur-lubang'].forEach(id => { const w = el(id); if (w) w.remove(); });
+    document.querySelectorAll('.p119-kaca').forEach(k => k.remove()); this.lepasKlik();
     document.querySelectorAll('.p117-tur-sorot').forEach(x => x.classList.remove('p117-tur-sorot'));
     if (!diam) try { this.opsi.selesai && this.opsi.selesai(cara || 'tutup'); } catch (e) { }
   },
@@ -101003,7 +101034,11 @@ const P117Tur = {
     if (seq !== this.seq) return;
     if (t) { try { t.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { } }
     this.target = t || null; this.gambar(t);
+    // langkah "klik": hanya bagian yang disorot yang bisa diklik; setelah diklik, panduan lanjut sendiri
+    this.lepasKlik();
+    if (t && s.klik) { const fn = () => { this.lepasKlik(); const sq = this.seq; setTimeout(() => { if (sq === this.seq && this.i < this.L.length - 1) this.ke(1); }, 900); }; t.addEventListener('click', fn, true); this._klik = [t, fn]; }
   },
+  lepasKlik() { if (this._klik) { try { this._klik[0].removeEventListener('click', this._klik[1], true); } catch (e) { } this._klik = null; } },
   gambar(t, memuat) {
     const s = this.L[this.i]; if (!s) return;
     let w = el('p117-tur');
@@ -101012,14 +101047,18 @@ const P117Tur = {
     w.innerHTML = `<header><span class="lencana">${escapeHtml(this.opsi.lencana || '✨ Yang baru')}</span><b>${escapeHtml(this.opsi.judul || '')}</b><button type="button" class="x" title="Tutup (Esc)" aria-label="Tutup" onclick="P117Tur.tutup('tutup')">✕</button></header>
       <div class="langkah">Langkah ${this.i + 1} dari ${n}</div>
       <div class="menu">${escapeHtml(s.menu || s.judul || 'Umum')}</div>
-      <p>${escapeHtml(s.teks)}${memuat && s.sorot ? ' <i class="memuat">membuka…</i>' : ''}</p>
+      ${s.teks ? `<p>${escapeHtml(s.teks)}${memuat && s.sorot ? ' <i class="memuat">membuka…</i>' : ''}</p>` : ''}
+      ${s.klik && t ? `<div class="perintah">${escapeHtml(s.perintah || 'Klik bagian yang disorot.')}</div>` : ''}
       <div class="titik" aria-hidden="true">${n <= 24 ? this.L.map((_, k) => `<i class="${k === this.i ? 'aktif' : ''}"></i>`).join('') : ''}</div>
       <footer>${this.opsi.nanti === false ? '' : `<button type="button" class="tipis" onclick="P117Tur.tutup('nanti')" title="Tutup sekarang, tampil lagi besok. Bisa dibuka kapan saja lewat tombol ❓ Cara pakai.">Nanti saja</button>`}<span style="flex:1"></span>
         ${this.i ? '<button type="button" class="tipis" onclick="P117Tur.ke(-1)" aria-label="Sebelumnya">← Kembali</button>' : ''}
-        <button type="button" class="utama" onclick="${akhir ? "P117Tur.tutup('selesai')" : 'P117Tur.ke(1)'}">${akhir ? 'Selesai ✓' : 'Lanjut →'}</button></footer>`;
+        <button type="button" class="${s.klik && t ? 'tipis' : 'utama'}" onclick="${akhir ? "P117Tur.tutup('selesai')" : 'P117Tur.ke(1)'}">${akhir ? 'Selesai ✓' : (s.klik && t ? 'Lewati →' : 'Lanjut →')}</button></footer>`;
     let lb = el('p117-tur-lubang');
-    if (t) { if (!lb) { lb = document.createElement('div'); lb.id = 'p117-tur-lubang'; document.body.appendChild(lb); } }
+    if (t) { if (!lb) { lb = document.createElement('div'); lb.id = 'p117-tur-lubang'; document.body.appendChild(lb); } lb.classList.toggle('klik', !!(s.klik)); }
     else if (lb) lb.remove();
+    // v2026.10.140 (DN-435): layar redup = halaman di belakang tidak bisa diklik / di-hover (kaca di 4 sisi + di atas sorotan bila bukan langkah klik)
+    document.querySelectorAll('.p119-kaca').forEach(k => k.remove());
+    if (t) ['a', 'b', 'c', 'd'].concat(s.klik ? [] : ['e']).forEach(k => { const d = document.createElement('div'); d.className = 'p119-kaca'; d.dataset.k = k; d.addEventListener('wheel', ev => { ev.preventDefault(); try { window.scrollBy(0, ev.deltaY); const sc = this.target && this.target.closest('.web-main, .omx-modal-isi, [style*="overflow"]'); if (sc) sc.scrollTop += ev.deltaY; } catch (er) { } }, { passive: false }); document.body.appendChild(d); });
     w.classList.toggle('bebas', !t);
     cancelAnimationFrame(this.raf);
     const ikut = () => { if (!el('p117-tur')) return; this.posisi(); this.raf = requestAnimationFrame(ikut); };
@@ -101027,10 +101066,11 @@ const P117Tur = {
   },
   posisi() {
     const w = el('p117-tur'), lb = el('p117-tur-lubang'), t = this.target; if (!w) return;
-    if (!t || !t.isConnected || !p117Tampak_(t)) { if (lb) lb.style.opacity = '0'; w.style.left = ''; w.style.top = ''; w.classList.add('bebas'); return; }
+    if (!t || !t.isConnected || !p117Tampak_(t)) { if (lb) lb.style.opacity = '0'; document.querySelectorAll('.p119-kaca').forEach(k => { k.style.width = '0px'; }); w.style.left = ''; w.style.top = ''; w.classList.add('bebas'); return; }
     const r = t.getBoundingClientRect(), pad = 6, vw = innerWidth, vh = innerHeight;
     const R = { l: Math.max(4, r.left - pad), t: Math.max(4, r.top - pad), r: Math.min(vw - 4, r.right + pad), b: Math.min(vh - 4, r.bottom + pad) };
     if (lb) Object.assign(lb.style, { opacity: '1', left: R.l + 'px', top: R.t + 'px', width: (R.r - R.l) + 'px', height: (R.b - R.t) + 'px' });
+    document.querySelectorAll('.p119-kaca').forEach(k => { const z = { a: [0, 0, vw, R.t], b: [0, R.b, vw, vh - R.b], c: [0, R.t, R.l, R.b - R.t], d: [R.r, R.t, vw - R.r, R.b - R.t], e: [R.l, R.t, R.r - R.l, R.b - R.t] }[k.dataset.k]; Object.assign(k.style, { left: z[0] + 'px', top: z[1] + 'px', width: Math.max(0, z[2]) + 'px', height: Math.max(0, z[3]) + 'px' }); });
     w.classList.remove('bebas');
     const cw = w.offsetWidth, ch = w.offsetHeight, jarak = 14;
     let x, y;
@@ -101045,6 +101085,12 @@ const P117Tur = {
 document.addEventListener('keydown', e => { if (!el('p117-tur') || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '')) return; if (e.key === 'ArrowRight') P117Tur.ke(1); else if (e.key === 'ArrowLeft') P117Tur.ke(-1); else if (e.key === 'Escape') P117Tur.tutup('nanti'); });
 function p117HashMenu_(menu) { const m = P117_MENU_HASH.find(([r]) => r.test(menu || '')); return m ? m[1] : ''; }
 function p117LangkahDariCatatan_(b, judul) { return { judul, menu: b.menu, teks: b.teks, hash: p117HashMenu_(b.menu), sorot: P117_TUR_SOROT[b.id] || '' }; }
+// v2026.10.140: 1 catatan bisa jadi beberapa langkah (sorot -> klik -> lihat hasilnya)
+function p117LangkahRinci_(b, judul) {
+  const dasar = p117LangkahDariCatatan_(b, judul), R = P117_TUR_RINCI[b.id];
+  if (!R) return [dasar];
+  return R.map((r, k) => Object.assign({}, dasar, { hash: r.hash !== undefined ? r.hash : (k ? '' : dasar.hash), sorot: r.sorot || dasar.sorot, klik: !!r.klik, perintah: r.perintah || '', teks: k === 0 ? dasar.teks : (r.teks || '') }));
+}
 async function p117YangBaru(paksa, jumlah) {
   try {
     const r = await postJson({ aksi: 'p117_yang_baru', jumlah: jumlah || 1, email: currentUserEmail() }, 30000, true);
@@ -101055,7 +101101,7 @@ async function p117YangBaru(paksa, jumlah) {
       if (st.versi === r.terbaru && (st.cara === 'selesai' || st.cara === 'tutup' || Date.now() - (st.t || 0) < 20 * 3600000)) return;
     }
     const L = [];
-    r.paket.forEach(p => p.butir.forEach(b => L.push(p117LangkahDariCatatan_(b, p.paket))));
+    r.paket.forEach(p => p.butir.forEach(b => p117LangkahRinci_(b, p.paket).forEach(x => L.push(x))));
     const p0 = r.paket[0];
     P117Tur.mulai(L, { judul: `${p0.paket} · ${p0.versi}`, lencana: '✨ Yang baru', selesai: cara => { try { localStorage.setItem(kunci, JSON.stringify({ versi: r.terbaru, cara, t: Date.now() })); } catch (e) { } } });
   } catch (e) { if (paksa) omniToast('✗ ' + (e.message || e), 'error'); }
@@ -101068,7 +101114,7 @@ async function p117CaraPakai() {
   if (/^#produksi/.test(h) && typeof P108_TUR !== 'undefined') { const tab = (typeof P108 !== 'undefined' && P108.tab === 'buku') ? 'buku' : 'sku'; L = (P108_TUR[tab] || []).map(s => ({ judul: 'Produksi', menu: s.j, teks: s.t, sorot: s.sel })); }
   try {
     const r = await postJson({ aksi: 'p118_cara_pakai', pola, jumlah: 20, email: currentUserEmail() }, 30000, true);
-    if (r && r.success) L = L.concat((r.butir || []).map(b => Object.assign(p117LangkahDariCatatan_(b, b.paket), { hash: '' })));
+    if (r && r.success) (r.butir || []).forEach(b => p117LangkahRinci_(b, b.paket).forEach((x, k) => L.push(Object.assign(x, k === 0 ? { hash: '' } : {}))));
   } catch (e) { }
   if (!L.length) { omniToast('Belum ada catatan cara pakai untuk menu ini.', 'info'); return; }
   P117Tur.mulai(L, { judul: nama.trim(), lencana: '❓ Cara pakai', nanti: false });
@@ -101188,5 +101234,363 @@ function p118HutangBuka_(sub) {
 
 </script>
 <!-- ===== PAKET 118 SELESAI ===== -->
+<!-- ===== PAKET 119 MULAI ===== -->
+<!-- =====================================================================================
+     PAKET 119 (v2026.10.140) - 24 Nov 2026 · 9 Catatan Developer
+     Perubahan perilaku dibuat di tempat (cari "v2026.10.140"), termasuk di blok PAKET 117; blok ini hanya fungsi / gaya BARU.
+     ===================================================================================== -->
+<style>
+/* ---------- DN-909: Smart Paste alamat + tata letak alamat sederhana ---------- */
+.p119-tempel { border: 1.5px dashed #b48aa8; border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; background: linear-gradient(135deg, #fbf7fa 0%, #f2f9f9 100%); }
+.p119-tempel .judul { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 6px; }
+.p119-tempel .badge { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; color: #fff; background: linear-gradient(90deg, #714b67, #017e84); border-radius: 999px; padding: 2px 8px; }
+.p119-tempel .judul b { font-size: 14px; }
+.p119-tempel .judul small { color: var(--web-text-dim, #6b7280); font-size: 12px; }
+.p119-tempel textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; border: 1px solid #dccbd8; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13.5px; line-height: 1.45; background: #fff; color: inherit; }
+.p119-tempel textarea:focus { outline: none; border-color: #714b67; box-shadow: 0 0 0 3px rgba(113,75,103,.14); }
+.p119-tempel .aksi { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.p119-tempel .aksi .st { flex: 1; font-size: 12.5px; } .p119-tempel .st .ok { color: #047857; } .p119-tempel .st .warn { color: #b45309; } .p119-tempel .st .redup { color: var(--web-text-dim); }
+.p119-tempel button { height: 32px; padding: 0 14px; border-radius: 6px; font: inherit; font-size: 13.5px; cursor: pointer; border: 1px solid transparent; }
+.p119-tempel button.utama { background: #714b67; color: #fff; font-weight: 700; } .p119-tempel button.utama:hover { background: #5c3c54; }
+.p119-tempel button.tipis { background: transparent; color: var(--web-text-dim); } .p119-tempel button.tipis:hover { background: rgba(0,0,0,.05); }
+/* alamat: kolom isian di kiri (lebar), peta di kanan (ringkas) */
+/* peta tetap paling kiri (DN-315), lebar ringkas; isian alamat di sebelahnya */
+#wp-view-buat .p115-ap { display: grid !important; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) !important; gap: 14px !important; align-items: start; }
+#wp-view-buat .p115-ap .p85-peta { height: 210px !important; min-height: 0 !important; }
+#wp-view-buat .p115-ap .p87-peta-alat { flex-wrap: wrap; }
+#wp-view-buat .p85-alamat-grid { grid-template-columns: 1fr 1fr !important; gap: 8px 10px !important; }
+#wp-view-buat .p119-bantu { font-size: 0 !important; margin: 0 !important; text-align: right; }
+#wp-view-buat .p119-bantu > .oi { display: none; }
+#wp-view-buat .p119-bantu button { font-size: 12px !important; }
+.p119-wil { grid-column: 1 / -1; }
+.p119-wil .ringkas { display: none; cursor: pointer; }
+.p119-wil.lengkap:not(.edit) .ringkas { display: block; }
+.p119-wil .ringkas .isi { display: flex; align-items: center; gap: 8px; border: 1px solid var(--web-border, #e1e4e8); border-radius: 6px; padding: 8px 10px; background: #f8f9fa; font-size: 13.5px; }
+.p119-wil .ringkas .isi span { flex: 1; } .p119-wil .ringkas .ubah { border: 0; background: none; color: #714b67; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.p119-wil .rinci { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; }
+.p119-wil.lengkap:not(.edit) .rinci { display: none; }
+.p119-wil .rinci > label { margin: 0 !important; }
+
+/* ---------- DN-161: garis samar pemisah kolom di SEMUA tabel (tanda bisa digeser) ---------- */
+table > thead > tr > th:not(:last-child) { box-shadow: inset -1px 0 0 rgba(15,23,42,.09); }
+table > thead:hover > tr > th:not(:last-child) { box-shadow: inset -1px 0 0 rgba(113,75,103,.32); }
+.p63-kol-geser:hover, .p63-kol-geser.aktif { background: rgba(113,75,103,.28) !important; }
+
+/* ---------- DN-435 / DN-282 / DN-571: saat panduan meredupkan layar, halaman tidak bisa diklik / di-hover ---------- */
+.p119-kaca { position: fixed; z-index: 2147480995; background: transparent; cursor: not-allowed; }
+#p117-tur .perintah { display: flex; gap: 8px; align-items: flex-start; margin: 2px 0 10px; padding: 8px 10px; border-radius: 8px; background: #e5f2f3; color: #01666b; font-weight: 600; font-size: 13.5px; line-height: 1.4; }
+#p117-tur .perintah::before { content: "👆"; }
+#p117-tur-lubang.klik { box-shadow: 0 0 0 9999px rgba(15,23,42,.55), 0 0 0 3px #017e84, 0 0 0 7px rgba(1,126,132,.35); animation: p119Ajak 1.4s ease infinite; }
+@keyframes p119Ajak { 50% { box-shadow: 0 0 0 9999px rgba(15,23,42,.55), 0 0 0 3px #017e84, 0 0 0 11px rgba(1,126,132,.12); } }
+
+/* ---------- DN-737: rincian Retur / Hilang di kartu Rangkuman Pengiriman ---------- */
+.p117-rp-stat .rinci { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px dashed var(--web-border); display: grid; gap: 2px; color: var(--web-text, #1f2937); }
+.p117-rp-stat .rinci li { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+.p117-rp-stat .rinci li b { font-size: 12.5px; display: inline; line-height: inherit; }
+.p117-rp-stat .rinci li.sub { padding-left: 10px; color: var(--web-text-dim); }
+.p117-rp-stat .rinci li.warn { color: #b45309; }
+.p117-rp-stat .rinci li button { border: 0; background: none; color: #714b67; font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
+
+</style>
+<script>
+/* ---------- DN-947 / DN-851: SATU cara cetak Invoice & Label untuk semua pintu ----------
+   - Label  = desain 10x15 baru (p101CetakLabel) - dari baris Daftar Pesanan, jendela Invoice & Label, maupun Detail Manual Order.
+   - Invoice = susunan invoice lama yang disukai Owner (kop logo + INVOICE/barcode, Billing & Shipping, tabel barang, total)
+     disusun ulang dengan karakter label baru: huruf Inter/Barlow/JetBrains, kotak sudut bulat bergaris tipis, label kecil
+     huruf kapital renggang, Qty tebal. Tebal-tipis huruf TIDAK dipaksa (tidak "hitam semua"); garis tabel tipis supaya
+     tetap terbaca di printer bawaan (thermal / inkjet). Ukuran 100 mm (printer yang sama dengan label). */
+const P119_CSS_INV = `<link rel="stylesheet" href="${typeof P111_FONT_LBL !== 'undefined' ? P111_FONT_LBL : ''}"><style>
+@page{size:100mm 150mm;margin:4mm 4mm 5mm}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.inv{width:92mm;margin:0 auto;font-size:7.6pt;line-height:1.3;break-after:page;page-break-after:always}
+.inv:last-child{break-after:auto;page-break-after:auto}
+@media screen{body{background:#e7e5e4}.inv{background:#fff;width:100mm;min-height:150mm;margin:6mm auto;padding:4mm;box-shadow:0 2px 8px rgba(0,0,0,.2)}}
+.mono{font-family:"JetBrains Mono",Consolas,"Courier New",monospace}
+.cond{font-family:"Barlow Condensed","Arial Narrow",Arial,sans-serif}
+.lk{display:block;font-size:5.6pt;font-weight:700;letter-spacing:.35mm;text-transform:uppercase;color:#333}
+.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:3mm;padding-bottom:2mm;border-bottom:.35mm solid #111}
+.hd .logo img{height:14mm;max-width:46mm;object-fit:contain;display:block}
+.hd .logo b{font-size:9pt;font-weight:800}
+.hd .kn{text-align:right}
+.hd h1{margin:0;font-family:"Barlow Condensed","Arial Narrow",Arial,sans-serif;font-size:19pt;font-weight:700;letter-spacing:.5mm;line-height:1}
+.hd .meta{font-size:6.8pt;margin-top:.8mm;color:#222}.hd .meta b{font-weight:600}
+.hd .bc svg{width:40mm!important;height:7mm!important;display:block;margin:1mm 0 0 auto}
+.ch{display:flex;align-items:center;gap:1.6mm;margin-top:2mm;padding:1.2mm 1.8mm;border:.25mm solid #111;border-radius:1.6mm;font-size:6.8pt}
+.ch img{height:4.5mm;filter:grayscale(1) contrast(1.4)}
+.pihak{display:grid;grid-template-columns:1fr 1fr;gap:1.6mm;margin-top:2mm}
+.box{border:.25mm solid #111;border-radius:1.6mm;padding:1.4mm 1.8mm}
+.pihak b.nm{display:block;font-size:8.2pt;font-weight:700;margin-top:.4mm;line-height:1.15}
+.pihak .hp{display:block;font-size:6.6pt;margin-top:.3mm}
+.pihak p{margin:.5mm 0 0;font-size:6.6pt;line-height:1.25}
+.kirim{display:grid;grid-template-columns:auto 1fr;gap:.3mm 2mm;font-size:6.8pt;margin-top:.6mm}.kirim span{color:#444}.kirim b{font-weight:600;word-break:break-all}
+table.item{width:100%;border-collapse:collapse;margin-top:2.2mm}
+table.item th{font-size:5.6pt;font-weight:700;letter-spacing:.3mm;text-transform:uppercase;text-align:left;padding:1mm .8mm;border-top:.25mm solid #111;border-bottom:.25mm solid #111}
+table.item td{padding:1.1mm .8mm;vertical-align:top;border-bottom:.15mm solid #9a9a9a;font-size:7.2pt}
+table.item td.nm{line-height:1.2}table.item td.nm small{display:block;font-family:"JetBrains Mono",Consolas,monospace;font-size:5.6pt;color:#444;margin-top:.3mm}
+table.item td.q{text-align:center;font-family:Nunito,Calibri,Arial,sans-serif;font-weight:800;font-size:8.6pt}
+.n{text-align:right!important;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tot{margin:2mm 0 0 auto;width:56mm;border-collapse:collapse;font-size:7.2pt}
+.tot td{padding:.6mm .8mm}.tot td:first-child{color:#333}
+.tot tr.grand td{border-top:.35mm solid #111;padding-top:1.2mm;font-size:9.4pt;font-weight:800;color:#111}
+.status{display:inline-block;margin-top:2mm;border:.35mm solid #111;border-radius:1.2mm;padding:.6mm 2mm;font-size:6.6pt;font-weight:700;letter-spacing:.3mm;text-transform:uppercase}
+.cat{margin-top:1.6mm;font-size:6.2pt;color:#444}
+footer{margin-top:3mm;padding-top:1.4mm;border-top:.25mm solid #111;display:flex;justify-content:space-between;font-size:6.2pt;color:#333}
+</style>`;
+function p119E(s) { return typeof p101E === 'function' ? p101E(s) : String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function p119Rp(n) { const v = Math.round(Number(n) || 0); return (v < 0 ? '−' : '') + 'Rp ' + Math.abs(v).toLocaleString('id-ID'); }
+function p119Logo_(toko) {
+  const cn = /conner/i.test(String(toko || ''));
+  try { if (typeof P112_LOGO_LBL !== 'undefined' && P112_LOGO_LBL[cn ? 'Conner' : 'Waterground']) return P112_LOGO_LBL[cn ? 'Conner' : 'Waterground']; } catch (e) { }
+  try { return p101LogoToko_(toko); } catch (e) { return ''; }
+}
+// data invoice seragam: { toko, no, tanggal, sumber, noMp, status, lunas, tagih{nama,hp,alamat}, kirim{nama,hp,alamat}, kurir, resi, items[{sku,nama,qty,harga}], ongkir, lain, diskon, pajak, penyesuaian, total, catatan }
+function p119InvoiceHtml_(d) {
+  const kanal = d.sumber && d.sumber !== 'PO Sales' && typeof p101LogoKanal_ === 'function' ? p101LogoKanal_(d.sumber) : null;
+  const adaHarga = d.items.length && d.items.every(x => Number(x.harga) > 0);
+  const sub = d.items.reduce((t, x) => t + (Number(x.qty) || 0) * (Number(x.harga) || 0), 0);
+  const tot = [];
+  if (adaHarga) tot.push(['Subtotal', sub]);
+  if (d.ongkir) tot.push(['Ongkos kirim' + (d.kurir ? ' (' + d.kurir + ')' : ''), d.ongkir]);
+  if (d.lain) tot.push(['Biaya lainnya', d.lain]);
+  if (d.diskon) tot.push(['Diskon', -Math.abs(d.diskon)]);
+  if (d.pajak) tot.push(['Pajak', d.pajak]);
+  if (d.penyesuaian) tot.push([d.labelPenyesuaian || 'Penyesuaian', d.penyesuaian]);
+  const logo = p119Logo_(d.toko), bc = typeof p101Barcode_ === 'function' ? p101Barcode_(d.no, 26, 1.2) : '';
+  const sama = d.kirim && d.tagih && d.kirim.nama === d.tagih.nama && d.kirim.alamat === d.tagih.alamat;
+  const pihak = (judul, x) => `<div class="box"><span class="lk">${judul}</span><b class="nm">${p119E(x.nama || '-')}</b>${x.hp ? `<span class="hp mono">${p119E(x.hp)}</span>` : ''}${x.alamat ? `<p>${p119E(x.alamat)}</p>` : ''}</div>`;
+  return `<section class="inv">
+    <header class="hd"><div class="logo">${logo ? `<img src="${logo}" alt="">` : `<b>${p119E(d.toko || '')}</b>`}</div>
+      <div class="kn"><h1>INVOICE</h1><div class="meta">No <b class="mono">${p119E(d.no)}</b></div><div class="meta">Tanggal <b>${p119E(d.tanggal || '-')}</b></div>${d.noPo ? `<div class="meta">No PO <b class="mono">${p119E(d.noPo)}</b></div>` : ''}<div class="bc">${bc}</div></div></header>
+    ${kanal ? `<div class="ch">${kanal.src ? `<img src="${kanal.src}" alt="">` : ''}<span>Channel <b>${p119E(kanal.nama)}</b> · ID pesanan <b class="mono">${p119E(d.noMp || d.no)}</b></span></div>` : ''}
+    <div class="pihak">${pihak('Ditagihkan kepada', d.tagih || {})}${sama ? `<div class="box"><span class="lk">Pengiriman</span><div class="kirim"><span>Kurir</span><b>${p119E(d.kurir || '-')}</b><span>No resi</span><b class="mono">${p119E(d.resi || '-')}</b></div></div>` : pihak('Dikirim ke', d.kirim || {})}</div>
+    ${!sama && (d.kurir || d.resi) ? `<div class="box" style="margin-top:1.6mm"><div class="kirim"><span>Kurir</span><b>${p119E(d.kurir || '-')}</b><span>No resi</span><b class="mono">${p119E(d.resi || '-')}</b></div></div>` : ''}
+    <table class="item"><thead><tr><th>Produk</th><th style="text-align:center;width:9mm">Qty</th>${adaHarga ? '<th class="n" style="width:17mm">Harga</th><th class="n" style="width:19mm">Jumlah</th>' : ''}</tr></thead>
+      <tbody>${d.items.length ? d.items.map(x => `<tr><td class="nm">${p119E(x.nama || x.sku)}${x.sku ? `<small>${p119E(x.sku)}</small>` : ''}</td><td class="q">${p119E(x.qty)}</td>${adaHarga ? `<td class="n">${p119Rp(x.harga).replace('Rp ', '')}</td><td class="n">${p119Rp(x.harga * x.qty).replace('Rp ', '')}</td>` : ''}</tr>`).join('') : `<tr><td colspan="${adaHarga ? 4 : 2}">Rincian barang mengikuti pesanan.</td></tr>`}</tbody></table>
+    <table class="tot">${tot.map(r => `<tr><td>${p119E(r[0])}</td><td class="n">${p119Rp(r[1])}</td></tr>`).join('')}<tr class="grand"><td>TOTAL</td><td class="n">${p119Rp(d.total)}</td></tr></table>
+    ${d.lunas ? '<span class="status">✓ Lunas</span>' : ''}
+    ${d.catatan ? `<div class="cat">${p119E(d.catatan)}</div>` : ''}
+    <footer><span>Terima kasih sudah berbelanja ☕</span><span>Dicetak dari goodang.id</span></footer>
+  </section>`;
+}
+// Manual Order (bentuk order dari detail / jendela Invoice & Label) -> data invoice
+function p119DataDariOrder_(o) {
+  const items = (o.items || []).filter(x => Number(x.qty) > 0).map(x => ({ sku: x.sku, nama: x.nama || x.sku, qty: Number(x.qty) || 0, harga: Number(x.harga) || 0 }));
+  const sub = items.reduce((t, x) => t + x.qty * x.harga, 0), ongkir = Number(o.ongkosKirim) || 0, lain = Number(o.biayaLainnya) || 0, diskon = Number(o.diskon) || 0, pajak = Number(o.pajak) || 0;
+  const total = Number(o.total) || (sub + ongkir + lain - diskon + pajak);
+  const no = typeof formatNoPesananTampilan === 'function' ? formatNoPesananTampilan('PO Sales', o.noInvoice) : o.noInvoice;
+  const noPo = typeof p107NoPo_ === 'function' ? p107NoPo_(String(o.noInvoice || '')) || p107NoPo_(no) : '';
+  return { toko: o.toko, no, noPo, tanggal: String(o.tanggal || '').split(',')[0], sumber: 'PO Sales', lunas: !!(o.bayarDiterima || /lunas|selesai/i.test(String(o.status || ''))),
+    tagih: { nama: o.namaPembeli || o.namaPenerima, hp: o.noHpPembeli || o.hpPembeli || o.noHp, alamat: o.alamat },
+    kirim: { nama: o.namaPenerima || o.namaPembeli, hp: o.noHp, alamat: o.alamat }, kurir: o.kurir || '', resi: (o.noResi && String(o.noResi) !== String(o.noInvoice)) ? o.noResi : '',
+    items, ongkir, lain, diskon, pajak, total };
+}
+// Pesanan marketplace (baris Daftar Pesanan + detail API) -> data invoice (logika harga = invoice P102)
+function p119DataDariGab_(o, p) {
+  p = p || {};
+  const b = typeof p102Pembeli_ === 'function' ? p102Pembeli_(o, p) : { nama: o.pembeli, hp: '', alamat: '' };
+  const peta = new Map(); ((typeof produkRingan !== 'undefined' && produkRingan && produkRingan.d) || []).forEach(x => peta.set(String(x.sku).toUpperCase(), x));
+  const items = (p.items || []).filter(x => Number(x.qty) > 0).map(it => { const k = peta.get(String(it.sku).toUpperCase()); return { nama: it.nama || it.sku, sku: it.sku, qty: Number(it.qty) || 0, harga: Number(it.harga) || Number(k && k.harga) || 0 }; });
+  const total = Number(o.total) || 0, adaHarga = items.length && items.every(x => x.harga > 0), sub = items.reduce((t, x) => t + x.qty * x.harga, 0);
+  const kanal = typeof p101LogoKanal_ === 'function' ? p101LogoKanal_(o.sumber) : { nama: o.sumber };
+  return { toko: o.toko, no: typeof formatNoPesananTampilan === 'function' ? formatNoPesananTampilan(o.sumber, o.noReferensi) : o.noReferensi, noMp: o.noReferensi, tanggal: o.tanggal, sumber: o.sumber,
+    tagih: { nama: b.nama, hp: b.hp, alamat: b.alamat }, kirim: { nama: b.nama, hp: b.hp, alamat: b.alamat }, kurir: o.kurir || '', resi: typeof wpResiStr === 'function' ? wpResiStr(o.noResi) : (o.noResi || ''),
+    items, total, penyesuaian: adaHarga ? Math.round(total - sub) : 0, labelPenyesuaian: 'Diskon / penyesuaian ' + (kanal.nama || ''),
+    catatan: adaHarga ? 'Harga satuan mengikuti harga katalog toko; selisih dengan total pembayaran = diskon / penyesuaian ' + (kanal.nama || 'marketplace') + '.' : '' };
+}
+function p119BukaCetak_(judul, isi, tab) {
+  tab = tab || window.open('', '_blank'); if (!tab) { omniNotif('Jendela cetak diblokir browser - izinkan pop-up untuk situs ini.'); return; }
+  tab.document.open();
+  tab.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${p119E(judul)}</title>${P119_CSS_INV}</head><body>${isi}
+    <script>window.onload = function () { var f = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(); var t = setTimeout(function () { window.print(); }, 3000); f.then(function () { clearTimeout(t); setTimeout(function () { window.print(); }, 250); }); };<\/script></body></html>`);
+  tab.document.close();
+}
+// Pintu 1: baris Daftar Pesanan / aksi massal (semua channel)
+async function p119CetakInvoice(daftar) {
+  if (!daftar || !daftar.length) { omniNotif('Pilih minimal 1 pesanan dulu.'); return; }
+  if (daftar.length > 50) { omniNotif('Maksimal 50 invoice sekali cetak - kurangi pilihannya.'); return; }
+  const tab = window.open('', '_blank'); if (!tab) { omniNotif('Jendela cetak diblokir browser - izinkan pop-up untuk situs ini.'); return; }
+  tab.document.write('<p style="font:14px system-ui;padding:20px">Menyiapkan ' + daftar.length + ' invoice…</p>');
+  try { if (typeof produkRinganSiap === 'function') await produkRinganSiap(); } catch (e) { }
+  try { if (typeof p107NoPoMuat_ === 'function') await p107NoPoMuat_(); } catch (e) { }
+  const data = [];
+  for (const o of daftar) {
+    if (o.sumber === 'PO Sales' && o.rowPoSales) {
+      let ord = null; try { const c = wpDetailCache.get(o.rowPoSales); ord = c ? c.order : null; if (!ord) { const r = await wpAmbilDetail_(o.rowPoSales, false); ord = r && r.success ? r.order : null; } } catch (e) { ord = null; }
+      if (ord) { data.push(p119DataDariOrder_(ord)); continue; }
+    }
+    let p = null; try { p = await p102Detail(o); } catch (e) { p = null; }
+    data.push(p119DataDariGab_(o, p));
+  }
+  p119BukaCetak_('Invoice ' + (data.length === 1 ? data[0].no : data.length + ' pesanan'), data.map(p119InvoiceHtml_).join(''), tab);
+}
+// Pintu 2: jendela Invoice & Label (setelah simpan) dan Detail Manual Order
+function p119OrderAktif_() {
+  if (typeof wdoc !== 'undefined' && wdoc.order && document.body.classList.contains('wdoc-terbuka')) return wdoc.order;
+  return window.P119_ORDER_DOK || (typeof wpCurrentDetailOrder !== 'undefined' && wpCurrentDetailOrder) || null; // dokumen yang sedang tampil (renderInvoiceAndLabel)
+}
+async function p119CetakDok(jenis) {
+  if (jenis === 'invoice') { try { if (typeof p107NoPoMuat_ === 'function') await Promise.race([p107NoPoMuat_(), new Promise(r => setTimeout(r, 1500))]); } catch (e) { } }
+  const o = p119OrderAktif_();
+  if (!o || !(o.items || []).length) { return typeof printElement === 'function' ? printElement(jenis === 'label' ? 'print-label-pages' : 'print-invoice-pages') : null; }
+  if (jenis === 'invoice') { const d = p119DataDariOrder_(o); return p119BukaCetak_('Invoice ' + d.no, p119InvoiceHtml_(d)); }
+  // label: desain 10x15 baru, data langsung dari order (tanpa menunggu server)
+  const no = String(o.noInvoice || '');
+  const g = { sumber: 'PO Sales', toko: o.toko || 'Waterground', noReferensi: no, tanggal: String(o.tanggal || '').split(',')[0], kurir: o.kurir || '', noResi: (o.noResi && String(o.noResi) !== no) ? o.noResi : '',
+    pembeli: o.namaPenerima, namaManual: o.namaPenerima, hpManual: o.noHp, alamatManual: o.alamat };
+  try { if (typeof pjxCache !== 'undefined') pjxCache.set(no, { items: (o.items || []).map(x => ({ sku: x.sku, nama: x.nama, qty: x.qty, harga: x.harga })), nama: o.namaPenerima, hp: o.noHp, alamat: o.alamat }); } catch (e) { }
+  return p101CetakLabel([g]);
+}
+
+/* ---------- DN-909: Buat Pesanan - SMART PASTE alamat (ala Shopee) + tata letak alamat lebih sederhana ----------
+   Tempel apa saja (chat WA pembeli, format bebas) -> nama, no HP, alamat jalan, RT/RW, kelurahan, kecamatan, kota, provinsi,
+   kode pos dipisah otomatis; yang masih kosong dilengkapi dari peta (OpenStreetMap / Google bila kunci diisi) + titik peta. */
+const P119_KATA_JALAN = /^(jl|jln|jalan|gg|gang|komp(lek|leks)?|perum(ahan)?|blok|no\b|nomor|dusun|dsn|kp|kampung|ruko|apartemen|apt|tower|lantai|lt\b|rt\b|rw\b|kav|cluster|gedung|desa\s+\w+\s+no)/i;
+const P119_LABEL = [
+  ['nama', /^(nama(\s+(lengkap|penerima|pembeli))?|name|penerima|atas\s+nama|a\.?n\.?)\s*[:：=\-]\s*(.+)$/i],
+  ['hp', /^(no\.?\s*)?(hp|telp|telepon|tlp|wa|whatsapp|handphone|kontak|phone)\.?\s*[:：=\-]?\s*(.+)$/i],
+  ['alamat', /^(alamat(\s+(lengkap|pengiriman|rumah|kirim))?|address|dikirim\s+ke)\s*[:：=\-]\s*(.*)$/i],
+  ['kel', /^(kel(urahan)?|desa|ds)\.?\s*[:：=\-]\s*(.+)$/i], ['kec', /^(kec(amatan)?)\.?\s*[:：=\-]\s*(.+)$/i],
+  ['kota', /^(kota(\s*\/\s*kab(upaten)?)?|kab(upaten)?)\.?\s*[:：=\-]\s*(.+)$/i], ['prov', /^(prov(insi)?)\.?\s*[:：=\-]\s*(.+)$/i],
+  ['pos', /^(kode\s*pos|kodepos|kd\.?\s*pos|zip)\s*[:：=\-]?\s*(\d{5})/i], ['det', /^(patokan|catatan|keterangan|ket|detail)\s*[:：=\-]\s*(.+)$/i]
+];
+function p119HpRapi_(s) { let d = String(s || '').replace(/[^\d+]/g, ''); if (/^\+?62/.test(d)) d = '0' + d.replace(/^\+?62/, ''); return /^08\d{7,12}$/.test(d) ? d : ''; }
+function p119UraiTempel_(teks) {
+  const out = { nama: '', hp: '', jalan: '', det: '', kel: '', kec: '', kota: '', prov: '', pos: '' };
+  let baris = String(teks || '').replace(/[*_~`•▪◦●]/g, ' ').replace(/[\u{1F300}-\u{1FAFF}☀-➿]/gu, ' ').split(/\r?\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  // chat 1 baris ("kirim ke siti 0857.. jl ... kel. x kec. y kota") -> pecah jadi baris & bagian
+  baris = baris.flatMap(b => {
+    b = b.replace(/^(tolong |mohon |minta )?(di)?kirim(kan)?( ke| ya| kak)*\s*:?\s*/i, '').trim();
+    const m = /(\+?62|0)[\s.-]?8[\d\s.-]{7,15}\d/.exec(b);
+    if (m && m.index > 0 && !/(hp|wa|telp|telepon|no|nomor|kontak)\W*$/i.test(b.slice(0, m.index))) {
+      const dpn = b.slice(0, m.index).replace(/[\s,;:-]+$/, ''), blk = b.slice(m.index + m[0].length).replace(/^[\s,;:-]+/, '');
+      return [dpn, m[0], blk].filter(Boolean);
+    }
+    return b ? [b] : [];
+  }).map(b => /^[^:]{1,20}:/.test(b) && /^(nama|penerima|hp|wa|no|telp|kel|kec|kab|kota|prov|kode|pos|patokan|catatan)/i.test(b) ? b
+    : b.replace(/\s+(?=(kel(urahan)?|kec(amatan)?|kab(upaten)?|desa|prov(insi)?)\.?\s)/gi, ', '));
+  const sisa = [], alamatL = []; let modeAlamat = false, adaLabelAlamat = false;
+  const obrolan = b => /^(halo|hallo|hai|hi|selamat|assalam|permisi|kak|min|gan|sis|bang|terima ?kasih|makasih|thanks|tolong|mohon|ok|oke|siap|pesan(an)?|order|mau|ini)\b/i.test(b) || (/:$/.test(b) && b.split(' ').length <= 4);
+  baris.forEach(b => {
+    for (const [k, re] of P119_LABEL) {
+      const m = re.exec(b); if (!m) continue;
+      const v = m[m.length - 1].trim();
+      if (k === 'hp') { const h = p119HpRapi_(v); if (h) { out.hp = out.hp || h; modeAlamat = false; return; } continue; }
+      if (k === 'alamat') { modeAlamat = true; adaLabelAlamat = true; if (v) alamatL.push(v); return; }
+      if (!out[k]) out[k] = v; modeAlamat = false; return;
+    }
+    if (modeAlamat) { alamatL.push(b); return; }
+    if (obrolan(b)) return; // salam / basa-basi chat tidak ikut jadi alamat
+    sisa.push(b);
+  });
+  if (adaLabelAlamat) { // ada "Alamat:" -> hanya baris itu yang jadi alamat; sisanya hanya dipakai untuk nama / no HP
+    const lain = sisa.join('\n'), mh0 = /(\+?62|0)[\s.-]?8[\d\s.-]{7,15}\d/.exec(lain);
+    if (mh0 && !out.hp) out.hp = p119HpRapi_(mh0[0]);
+    if (!out.nama) { const n = sisa.find(x => x.length <= 40 && !/\d/.test(x) && x.split(' ').length <= 5); if (n) out.nama = n; }
+    sisa.length = 0; alamatL.forEach(x => sisa.push(x));
+  }
+  // no HP tanpa label (di mana saja)
+  let semua = sisa.join('\n');
+  const mh = /(\+?62|0)[\s.-]?8[\d\s.-]{7,15}\d/.exec(semua);
+  if (mh) { const h = p119HpRapi_(mh[0]); if (h) { out.hp = out.hp || h; semua = semua.replace(mh[0], ' '); } }
+  let L = semua.split(/\r?\n/).map(x => x.replace(/^[\s,;:-]+|[\s,;:-]+$/g, '').trim()).filter(Boolean);
+  // nama tanpa label: baris pertama tanpa angka & bukan kata alamat
+  if (!out.nama) { const i = L.findIndex(x => x.length <= 40 && !/\d/.test(x) && !P119_KATA_JALAN.test(x) && !/^(kel|kec|kab|kota|prov|desa)\b/i.test(x) && x.split(' ').length <= 5 && !P86_PROV.some(p => p.toLowerCase() === x.toLowerCase())); if (i === 0 || (i > 0 && L.length > 2)) { out.nama = L[i]; L.splice(i, 1); } }
+  let s = L.join(', ');
+  // kode pos & RT/RW
+  const mp = s.match(/\b(\d{5})\b(?!.*\b\d{5}\b)/); if (mp) { out.pos = out.pos || mp[1]; s = s.replace(new RegExp('\\b' + mp[1] + '\\b'), ' '); }
+  const mr = /\bRT\.?\s*0*(\d{1,3})\s*(?:[\/\\,]?\s*(?:RW\.?)?\s*0*(\d{1,3}))?/i.exec(s);
+  if (mr) { out.det = [ 'RT ' + mr[1].padStart(2, '0') + (mr[2] ? '/RW ' + mr[2].padStart(2, '0') : ''), out.det ].filter(Boolean).join(', '); s = s.replace(mr[0], ' '); }
+  // bagian-bagian alamat
+  let parts = s.split(/\s*,\s*/).map(x => x.replace(/\s+/g, ' ').replace(/^[\s.-]+|[\s.-]+$/g, '').trim()).filter(x => x && !/^(rw\.?\s*\d+)$/i.test(x));
+  const ambil = (re, k, buang) => { const i = parts.findIndex(p => re.test(p)); if (i < 0) return; if (!out[k]) out[k] = parts[i].replace(buang, '').trim(); parts.splice(i, 1); };
+  ambil(/^(kel(urahan)?|desa|ds)\.?\s/i, 'kel', /^(kel(urahan)?|desa|ds)\.?\s*/i);
+  ambil(/^kec(amatan)?\.?\s/i, 'kec', /^kec(amatan)?\.?\s*/i);
+  ambil(/^(kab(upaten)?|kota|kab\.)\s/i, 'kota', /^kab\.\s*/i);
+  ambil(/^prov(insi)?\.?\s/i, 'prov', /^prov(insi)?\.?\s*/i);
+  // provinsi tanpa label (bagian terakhir yang cocok daftar provinsi)
+  if (!out.prov) { for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i], pv = P86_PROV.find(x => x.toLowerCase() === p.toLowerCase() || new RegExp('\\b' + x.replace(/\s+/g, '\\s+') + '$', 'i').test(p)); if (pv && i > 0) { out.prov = /^(jakarta|daerah khusus ibukota jakarta)$/i.test(pv) ? 'DKI Jakarta' : pv; const lebih = p.replace(new RegExp(pv.replace(/\s+/g, '\\s+') + '$', 'i'), '').trim(); if (lebih) parts[i] = lebih; else parts.splice(i, 1); break; } } }
+  // jalan = bagian depan yang berbau alamat jalan / berangka; sisanya wilayah (urutan Indonesia: kel, kec, kota)
+  let j = 0; while (j < parts.length && (j === 0 || P119_KATA_JALAN.test(parts[j]) || /\d/.test(parts[j]))) j++;
+  const jalan = parts.slice(0, j), wil = parts.slice(j);
+  out.jalan = jalan.join(', ');
+  if (!out.kota && wil.length) { const i = wil.findIndex(p => /^(kota|kab)/i.test(p) || /jakarta|bandung|surabaya|semarang|medan|makassar|yogyakarta|tangerang|bekasi|depok|bogor|malang|denpasar|palembang|batam|pekanbaru|balikpapan|samarinda/i.test(p)); const k = i >= 0 ? i : wil.length - 1; out.kota = wil[k]; wil.splice(k, 1); }
+  if (!out.kel && wil.length >= 2) out.kel = wil.shift();
+  if (!out.kec && wil.length) out.kec = wil.shift();
+  if (wil.length) out.det = [out.det].concat(wil).filter(Boolean).join(', ');
+  // provinsi menempel di belakang isian berlabel ("kec. tegalsari surabaya jawa timur")
+  ['kec', 'kel', 'kota'].forEach(k => { if (out.prov || !out[k]) return; const pv = P86_PROV.find(x => new RegExp('\\s' + x.replace(/\s+/g, '\\s+') + '$', 'i').test(out[k])); if (pv) { out.prov = pv; out[k] = out[k].replace(new RegExp('\\s+' + pv.replace(/\s+/g, '\\s+') + '$', 'i'), '').trim(); } });
+  // kota menempel di belakang kecamatan/kelurahan ("tegalsari surabaya")
+  const KOTA = /\s+((kota |kab\.? )?(jakarta (pusat|utara|barat|selatan|timur)|bandung|surabaya|semarang|medan|makassar|yogyakarta|tangerang( selatan)?|bekasi|depok|bogor|malang|denpasar|palembang|batam|pekanbaru|balikpapan|samarinda|solo|surakarta|sidoarjo|gresik|cirebon|padang|manado|pontianak|banjarmasin))$/i;
+  ['kec', 'kel'].forEach(k => { if (out.kota || !out[k]) return; const m = KOTA.exec(out[k]); if (m) { out.kota = m[1]; out[k] = out[k].slice(0, m.index).trim(); } });
+  // huruf kecil semua -> Huruf Kapital Tiap Kata (nama & wilayah)
+  const kap = v => v && v === v.toLowerCase() ? v.replace(/\b([a-z])/g, c => c.toUpperCase()).replace(/\b(Rt|Rw|Gg|Jl|No|Blok)\b/g, w => ({ Rt: 'RT', Rw: 'RW' })[w] || w) : v;
+  ['nama', 'jalan', 'kel', 'kec', 'kota', 'prov'].forEach(k => { out[k] = kap(out[k]); });
+  if (/^dki\s/i.test(out.prov)) out.prov = 'DKI Jakarta';
+  return out;
+}
+async function p119IsiTempel() {
+  const ta = el('p119-tempel'), st = el('p119-tempel-st'); if (!ta || !ta.value.trim()) { ta && ta.focus(); return; }
+  const u = p119UraiTempel_(ta.value), isi = [];
+  const set = (id, v) => { const n = el(id); if (!n || !v) return false; n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); return true; };
+  if (u.nama && set('wp-b-nama-pembeli', u.nama)) { isi.push('nama'); try { wpTutupSaranPembeli(); } catch (e) { } }
+  if (u.hp && set('wp-b-nohp-pembeli', u.hp)) isi.push('no HP');
+  try { if (typeof p85PenerimaSync === 'function') p85PenerimaSync(); } catch (e) { }
+  // alamat: hasil tempel menggantikan alamat sebelumnya
+  try { if (el('p85a-ambil')) el('p85a-ambil').checked = false; } catch (e) { }
+  ['jalan', 'det', 'kel', 'kec', 'kota', 'prov', 'pos'].forEach(k => { const n = el('p85a-' + k); if (n) { n.value = ''; n.readOnly = false; n.classList.remove('p86-terkunci'); } });
+  if (u.jalan) { el('p85a-jalan').value = u.jalan; try { p89BarisDariTeks_(u.jalan); } catch (e) { } isi.push('alamat'); }
+  [['det', 'RT/RW · patokan'], ['kel', 'kelurahan'], ['kec', 'kecamatan'], ['kota', 'kota'], ['prov', 'provinsi'], ['pos', 'kode pos']].forEach(([k, l]) => { if (u[k] && p86Isi_(k, u[k], true)) isi.push(l); });
+  try { p85AlamatSusun(); } catch (e) { }
+  if (st) st.innerHTML = `<span class="ok">✓ Terisi: ${escapeHtml(isi.join(', ') || '-')}</span> <span class="redup">· melengkapi dari peta…</span>`;
+  try { if (typeof p86LengkapiAlamat === 'function') await p86LengkapiAlamat(); } catch (e) { }
+  const kurang = [['kel', 'kelurahan'], ['kec', 'kecamatan'], ['kota', 'kota'], ['prov', 'provinsi'], ['pos', 'kode pos']].filter(([k]) => !(el('p85a-' + k) && el('p85a-' + k).value.trim())).map(x => x[1]);
+  if (st) st.innerHTML = `<span class="ok">✓ Terisi: ${escapeHtml(isi.join(', ') || '-')}</span>${kurang.length ? ` <span class="warn">· belum ketemu: ${escapeHtml(kurang.join(', '))} - isi manual di bawah</span>` : ' <span class="ok">· alamat lengkap</span>'}`;
+  try { p119WilayahRingkas_(); } catch (e) { }
+}
+function p119AlamatPasang_() {
+  const kiri = document.querySelector('#wp-view-buat .p106-satu.p115-buat .kiri'), pp = kiri && kiri.querySelector('.p106-pp');
+  if (!kiri || !pp || el('p119-tempel-kartu')) return;
+  pp.insertAdjacentHTML('beforebegin', `<div class="p119-tempel" id="p119-tempel-kartu">
+    <div class="judul"><span class="badge">✨ SMART PASTE</span><b>Tempel data pembeli</b><small>chat WhatsApp / alamat format bebas - nama, no HP & alamat langsung terisi</small></div>
+    <textarea id="p119-tempel" rows="3" spellcheck="false" placeholder="Contoh:&#10;Andi Wijaya 0812-3456-7890&#10;Jl. Mawar No. 12 RT 3/5, Cempaka Putih, Jakarta Pusat 10510"></textarea>
+    <div class="aksi"><span id="p119-tempel-st" class="st"></span><button type="button" class="tipis" onclick="el('p119-tempel').value=''; el('p119-tempel-st').textContent=''">Bersihkan</button><button type="button" class="utama" onclick="p119IsiTempel()" title="Ctrl+Enter">Isi otomatis</button></div>
+  </div>`);
+  const ta = el('p119-tempel');
+  ta.addEventListener('paste', () => setTimeout(p119IsiTempel, 60));
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); p119IsiTempel(); } });
+  // tata letak alamat: wilayah (kel/kec/kota/prov/pos) jadi 1 baris ringkas bila sudah terisi
+  const grid = document.querySelector('#wp-view-buat .p85-alamat-grid'); if (!grid || el('p119-wil')) return;
+  const bantu = grid.querySelector('.p86-alamat-bantu'); if (bantu) { bantu.title = 'Kolom yang sudah terisi terkunci - klik 2x untuk mengubah.'; bantu.classList.add('p119-bantu'); }
+  const lbl = k => { const n = el('p85a-' + k); return n ? n.closest('label') : null; };
+  const wil = document.createElement('div'); wil.id = 'p119-wil'; wil.className = 'p119-wil';
+  wil.innerHTML = `<div class="ringkas" id="p119-wil-ringkas" title="Klik untuk mengubah kelurahan / kecamatan / kota / provinsi / kode pos"><span class="p85-lbl">Wilayah</span><div class="isi"><span id="p119-wil-teks"></span><button type="button" class="ubah">✎ Ubah</button></div></div><div class="rinci" id="p119-wil-rinci"></div>`;
+  const kel = lbl('kel'); if (!kel) return;
+  kel.before(wil);
+  ['kel', 'kec', 'kota', 'prov', 'pos'].forEach(k => { const l = lbl(k); if (l) el('p119-wil-rinci').appendChild(l); });
+  const det = lbl('det'); if (det) { const j = lbl('jalan'); if (j) j.after(det); }
+  el('p119-wil-ringkas').onclick = () => { wil.classList.add('edit'); const n = el('p85a-kel'); if (n) n.focus(); };
+  grid.addEventListener('input', () => p119WilayahRingkas_(true));
+  p119WilayahRingkas_();
+}
+function p119WilayahRingkas_(dariKetik) {
+  const wil = el('p119-wil'); if (!wil) return;
+  const v = k => (el('p85a-' + k) ? el('p85a-' + k).value.trim() : '');
+  const lengkap = ['kel', 'kec', 'kota', 'prov', 'pos'].every(k => v(k));
+  el('p119-wil-teks').textContent = [v('kel') && 'Kel. ' + v('kel'), v('kec') && 'Kec. ' + v('kec'), v('kota'), v('prov'), v('pos')].filter(Boolean).join(' · ');
+  if (!dariKetik) wil.classList.toggle('edit', !lengkap);
+  wil.classList.toggle('lengkap', lengkap);
+}
+// pasang saat Buat Pesanan dibuka (form dibangun ulang tiap kali)
+(function () {
+  const cek = () => { try { p119AlamatPasang_(); p119WilayahRingkas_(); } catch (e) { } };
+  const v = el('wp-view-buat'); if (v) new MutationObserver(() => { if (v.offsetParent && !el('p119-tempel-kartu')) cek(); }).observe(v, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+  setTimeout(cek, 0);
+  // alamat diisi dari pembeli lama / peta / edit -> ringkasan wilayah ikut
+  ['p85AlamatUrai', 'p86IsiDariOsmKosong_'].forEach(n => { const a = window[n]; if (typeof a !== 'function') return; window[n] = function () { const r = a.apply(this, arguments); setTimeout(() => { try { p119WilayahRingkas_(); } catch (e) { } }, 0); return r; }; });
+})();
+
+</script>
+<!-- ===== PAKET 119 SELESAI ===== -->
 </body>
 </html>
