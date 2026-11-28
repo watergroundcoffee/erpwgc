@@ -1,10 +1,10 @@
-/* OmniAI - service worker v2026.10.142 (Paket 121, DN-294): buka cepat & tetap bisa dipakai tanpa internet.
+/* OmniAI - service worker v2026.10.143 (Paket 122; dibuat Paket 121, DN-294): buka cepat & tetap bisa dipakai tanpa internet.
    - Halaman (index.html dsb.): JARINGAN DULU maks 3,5 detik -> versi baru langsung terpakai; bila lambat / offline
      dipakai salinan terakhir di perangkat (lalu diperbarui diam-diam saat jaringan kembali).
    - Ikon, manifest, font & pustaka CDN: simpanan dulu, diperbarui di latar (stale-while-revalidate).
    - TIDAK PERNAH menyimpan panggilan API / data (POST, Supabase Functions & Storage) - data offline diurus aplikasi
      (simpanan lokal per layar + antrean kirim). */
-var VERSI_SW = 'omniai-v2026.10.142';
+var VERSI_SW = 'omniai-v2026.10.143';
 var HALAMAN = VERSI_SW + '-halaman', ASET = VERSI_SW + '-aset';
 var PRA = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', function (e) {
